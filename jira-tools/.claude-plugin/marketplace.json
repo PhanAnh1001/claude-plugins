@@ -1,0 +1,14 @@
+{
+  "name": "jira-tools-local",
+  "owner": {
+    "name": "jira-tools"
+  },
+  "description": "Marketplace tự host chứa plugin jira-tools (CLI Jira Server dùng chung nhiều dự án) cho Claude Code.",
+  "plugins": [
+    {
+      "name": "jira-tools",
+      "source": "./plugins/jira-tools",
+      "description": "CLI Jira Server (REST v2, PAT Bearer): tạo, sửa, chuyển trạng thái, tìm issue; host và dự án cấu hình trong config/jira.json, tự chọn dự án theo repo git."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "parallel-subagents-local",
+  "owner": {
+    "name": "parallel-subagents"
+  },
+  "description": "Marketplace tự host chứa plugin parallel-subagents (điều phối subagent song song) cho Claude Code.",
+  "plugins": [
+    {
+      "name": "parallel-subagents",
+      "source": "./plugins/parallel-subagents",
+      "description": "Điều phối subagent song song: brain chia việc, review, tổng hợp; worker subagent parallel-subagents:hand chạy song song; kèm policy bơm vào mỗi prompt."
+    }
+  ]
+}

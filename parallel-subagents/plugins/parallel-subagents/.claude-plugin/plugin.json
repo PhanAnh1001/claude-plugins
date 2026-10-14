@@ -1,0 +1,8 @@
+{
+  "name": "parallel-subagents",
+  "version": "2.0.0",
+  "description": "Điều phối subagent song song (parallel subagent orchestration) cho Claude Code: brain là bộ điều phối chia việc, review và tổng hợp; hand (agent type parallel-subagents:hand) là worker subagent chạy song song; policy được bơm vào context ở mỗi prompt qua UserPromptSubmit hook.",
+  "author": {
+    "name": "parallel-subagents"
+  }
+}

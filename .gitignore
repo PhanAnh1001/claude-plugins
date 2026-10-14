@@ -1,0 +1,13 @@
+# File hệ thống và bộ nhớ đệm công cụ
+.DS_Store
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Script cá nhân, không thuộc plugin nào
+find.py
+
+# Biến môi trường cục bộ (có thể chứa bí mật)
+.env
+.env.*

@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Điểm vào CLI Jira của plugin jira-tools — chỉ dùng thư viện chuẩn, chạy bằng mọi python3.
+
+Thư mục ``lib`` được tính từ vị trí file này nên chạy được từ bất kỳ cwd nào.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+
+from jira_tools.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

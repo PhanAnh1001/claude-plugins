@@ -1,0 +1,14 @@
+{
+  "name": "summary-first-docs-local",
+  "owner": {
+    "name": "summary-first-docs"
+  },
+  "description": "Marketplace tự host chứa plugin summary-first-docs (bộ skill viết tài liệu tóm tắt trước, dẫn nguồn, ghi giải pháp, lưu nghiên cứu, dùng chung mọi dự án) cho Claude Code.",
+  "plugins": [
+    {
+      "name": "summary-first-docs",
+      "source": "./plugins/summary-first-docs",
+      "description": "Bốn skill tài liệu dùng chung mọi dự án: structuring-documents (tóm tắt trước, top-down), citing-sources (dẫn nguồn http(s) kèm ngày dữ liệu), documenting-solutions (docs/solutions theo nhóm/nhánh), saving-research (lưu nghiên cứu vào docs/research)."
+    }
+  ]
+}

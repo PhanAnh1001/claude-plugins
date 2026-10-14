@@ -1,0 +1,28 @@
+{
+  "_comment": "Mẫu hư cấu. Chép thành config/jira.json (bị gitignore) rồi thay host, profile, dự án, repo và id customfield (giả) bằng giá trị của bạn; xem id thật bằng: jira-cli meta --project <KEY>.",
+  "profiles": {
+    "example": {
+      "base_url": "https://jira.example.com",
+      "api_prefix": "/rest/api/2",
+      "keychain_service": "jira-example-pat",
+      "ca_bundle": "certs/jira-ca-bundle.pem"
+    }
+  },
+  "default_profile": "example",
+  "projects": {
+    "PROJ": {
+      "profile": "example",
+      "repos": [
+        "example-repo"
+      ],
+      "create_defaults": {
+        "assignee": null
+      },
+      "fields": {
+        "time_tracking": "timetracking",
+        "start_date": "customfield_10000",
+        "story_points": "customfield_10001"
+      }
+    }
+  }
+}
