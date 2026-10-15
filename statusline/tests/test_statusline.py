@@ -15,11 +15,12 @@ EXPECTED_LINES = 3
 # Lines 4+ printed after the rate-limit line when the transcript has a skill.
 WRENCH = "\N{WRENCH}"
 # statusline.sh calls last-skill.sh --color: only the note is dimmed, like "(high)" on line 2.
-GREEN = "\x1b[32m"
+# Skill names use Claude Code's inline-code colour (truecolor rgb 177,185,249).
+SKILL_COLOR = "\x1b[38;2;177;185;249m"
 DIM = "\x1b[2m"
 RESET = "\x1b[0m"
 MAIN_NOTE = f"{DIM}(main){RESET}"
-SKILL_BLOCK = [f"{WRENCH} {GREEN}{SKILL}{RESET} {MAIN_NOTE}"]
+SKILL_BLOCK = [f"{WRENCH} {SKILL_COLOR}{SKILL}{RESET} {MAIN_NOTE}"]
 CACHE_NAME = ".statusline-cache.json"
 FIVE_PCT = 12.3
 WEEK_PCT = 85
@@ -99,7 +100,7 @@ class StatuslineTest(unittest.TestCase):
         self.transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
             {"type": "tool_use", "id": "t1", "name": "Skill", "input": {"skill": skill}},
         ]}}) + "\n", encoding="utf-8")
-        self.assertEqual(self.render()[EXPECTED_LINES:], [f"{WRENCH} {GREEN}{skill}{RESET} {MAIN_NOTE}"])
+        self.assertEqual(self.render()[EXPECTED_LINES:], [f"{WRENCH} {SKILL_COLOR}{skill}{RESET} {MAIN_NOTE}"])
 
     def test_rate_limits_are_cached_and_shown_stale(self) -> None:
         self.render(with_rate_limits=True)

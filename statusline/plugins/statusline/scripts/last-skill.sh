@@ -2,7 +2,8 @@
 # Status-line helper: print the skills most recently loaded in a session, one line per agent, or nothing:
 #   🔧 <skill of the main agent> (main)
 #   🔧 <skill of a subagent> (<agent type>: "<description, cut to 30 chars + ...>")   (up to 3)
-# --color paints the skill GREEN and dims the note in parentheses (same codes as statusline.sh).
+# --color paints the skill in Claude Code's inline-code colour (truecolor rgb 177,185,249) and dims
+# the note in parentheses (DIM/RESET as in statusline.sh).
 # Ported from dev-workflow plugin 0.3.0 (commit 65f7f95) plugins/dev-workflow/scripts/last-skill.sh.
 # Difference: no fallback interpreter picker; without python3 on PATH it prints nothing.
 # Usage: last-skill.sh [--color] <transcript_path>

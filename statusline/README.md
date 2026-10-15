@@ -6,7 +6,7 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.7.0).
+  `statusline` (bản 0.9.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -46,10 +46,11 @@
     khoảng trắng cuối rồi nối `...` (3 dấu chấm ASCII); từ 30 ký tự trở xuống thì in nguyên.
     Không có description thì chỉ in `(<agent>)`,
     ví dụ `(hand)`.
-  - **Màu:** tên skill tô xanh lá (mã `GREEN` của `statusline.sh`, giống nhánh git ở dòng 1); phần chú thích trong ngoặc,
+  - **Màu:** tên skill tô cùng màu Claude Code dùng cho inline code (màu `permission` của theme
+    dark, rgb(177,185,249), mã truecolor `\033[38;2;177;185;249m`). Phần chú thích trong ngoặc,
     `(main)` và `(hand: "…")`, tô mờ (dim) giống `(high)` sau tên model; `🔧` giữ màu mặc định.
-    Màu chỉ có khi statusline gọi
-    `last-skill.sh --color`; chạy `last-skill.sh` không có cờ này thì ra văn bản trần.
+    Màu chỉ có khi statusline gọi `last-skill.sh --color`; chạy `last-skill.sh` không có cờ này
+    thì ra văn bản trần.
   - **Cách tìm skill:** đọc ngược tối đa 4 MB cuối mỗi transcript, ưu tiên lời gọi tool `Skill`,
     dự phòng bằng thông điệp hook `🔧 Skill: <tên>`. Claude Code ghi lời gọi `Skill` của subagent
     vào transcript riêng `<session_id>/subagents/agent-<id>.jsonl` cạnh transcript chính, nên

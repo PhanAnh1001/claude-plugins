@@ -1,4 +1,4 @@
-"""Tests for the --color flag of last-skill.sh / last_skill.py (green skill, dimmed note)."""
+"""Tests for the --color flag of last-skill.sh / last_skill.py (inline-code coloured skill, dimmed note)."""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,7 @@ from test_last_skill import WRENCH, run_script, skill_call
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 # The import below needs SCRIPTS_DIR on sys.path.
-from last_skill import ANSI_DIM, ANSI_GREEN, ANSI_RESET, COLOR_FLAG  # noqa: E402
+from last_skill import ANSI_DIM, ANSI_RESET, ANSI_SKILL, COLOR_FLAG  # noqa: E402
 
 STATUSLINE = SCRIPTS_DIR / "statusline.sh"
 SESSION_ID = "00000000-1111-2222-3333-444444444444"
@@ -23,8 +23,10 @@ SUB_SKILL = "dev-workflow:bug-investigation"
 DESCRIPTION = "Fix (a) bug"
 TIMESTAMP = "2020-01-01T10:05:00.000Z"
 ESCAPE = "\x1b"
+# Claude Code's inline-code colour (theme "permission", dark theme) as a truecolor escape.
+EXPECTED_SKILL_COLOR = "\x1b[38;2;177;185;249m"
 # Shell assignments such as DIM="\033[2m" in statusline.sh.
-SHELL_COLOR = re.compile(r'^(GREEN|DIM|RESET)="([^"]*)"$', re.MULTILINE)
+SHELL_COLOR = re.compile(r'^(DIM|RESET)="([^"]*)"$', re.MULTILINE)
 
 
 def shell_colors() -> dict:
@@ -32,8 +34,8 @@ def shell_colors() -> dict:
     return {name: value.replace("\\033", ESCAPE) for name, value in SHELL_COLOR.findall(text)}
 
 
-def green(skill: str) -> str:
-    return f"{ANSI_GREEN}{skill}{ANSI_RESET}"
+def painted(skill: str) -> str:
+    return f"{EXPECTED_SKILL_COLOR}{skill}{ANSI_RESET}"
 
 
 class LastSkillColorTest(unittest.TestCase):
@@ -64,18 +66,21 @@ class LastSkillColorTest(unittest.TestCase):
     def test_color_paints_skill_and_note_not_wrench(self) -> None:
         lines = self.output(COLOR_FLAG)
         self.assertEqual(lines, [
-            f"{WRENCH} {green(MAIN_SKILL)} {ANSI_DIM}(main){ANSI_RESET}",
-            f'{WRENCH} {green(SUB_SKILL)} {ANSI_DIM}(hand: "{DESCRIPTION}"){ANSI_RESET}',
+            f"{WRENCH} {painted(MAIN_SKILL)} {ANSI_DIM}(main){ANSI_RESET}",
+            f'{WRENCH} {painted(SUB_SKILL)} {ANSI_DIM}(hand: "{DESCRIPTION}"){ANSI_RESET}',
         ])
         for line in lines:
-            self.assertTrue(line.startswith(f"{WRENCH} {ANSI_GREEN}"))  # the wrench itself is not wrapped
+            self.assertTrue(line.startswith(f"{WRENCH} {EXPECTED_SKILL_COLOR}"))  # the wrench is not wrapped
 
     def test_color_flag_with_statusline_stdin(self) -> None:
         result = run_script([COLOR_FLAG], stdin=json.dumps({"transcript_path": str(self.main)}))
-        self.assertEqual(result.stdout.split("\n")[0], f"{WRENCH} {green(MAIN_SKILL)} {ANSI_DIM}(main){ANSI_RESET}")
+        self.assertEqual(result.stdout.split("\n")[0], f"{WRENCH} {painted(MAIN_SKILL)} {ANSI_DIM}(main){ANSI_RESET}")
 
     def test_codes_match_statusline_sh(self) -> None:
-        self.assertEqual(shell_colors(), {"GREEN": ANSI_GREEN, "DIM": ANSI_DIM, "RESET": ANSI_RESET})
+        self.assertEqual(shell_colors(), {"DIM": ANSI_DIM, "RESET": ANSI_RESET})
+
+    def test_skill_color_is_claude_code_inline_code_truecolor(self) -> None:
+        self.assertEqual(ANSI_SKILL, EXPECTED_SKILL_COLOR)
 
 
 if __name__ == "__main__":

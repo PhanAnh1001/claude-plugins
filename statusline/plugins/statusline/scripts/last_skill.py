@@ -7,7 +7,7 @@ Differences: the max-bytes override env var is STATUSLINE_LAST_SKILL_MAX_BYTES.
 Usage:
     last_skill.py [--color] <transcript_path>   # path given directly
     last_skill.py [--color] < statusline.json   # no path: read the status-line JSON, use .transcript_path
---color paints each skill name GREEN (the green statusline.sh uses for the git branch) and dims each
+--color paints each skill name in Claude Code's inline-code colour (see ANSI_SKILL) and dims each
 note in parentheses like "(high)" after the model name; the wrench keeps the default colour. Without --color
 the output is plain text.
 
@@ -69,9 +69,14 @@ OUTPUT_LINE_SEPARATOR = "\n"
 MAIN_NOTE = "main"
 NOTE_TEMPLATE = "({note})"
 COLOR_FLAG = "--color"
-# Same escape codes as GREEN, DIM and RESET in statusline.sh (a test keeps them in sync): a skill
-# name is green like the git branch, a note dim like the "(high)" effort note after the model.
-ANSI_GREEN = "\033[32m"
+# Skill names use the colour Claude Code gives inline code: its markdown renderer paints a
+# "codespan" with the theme colour "permission", rgb(177,185,249) in the dark theme, written as a
+# 24-bit (truecolor) foreground escape.
+SKILL_RGB = (177, 185, 249)
+ANSI_TRUECOLOR_FOREGROUND = "\033[38;2;{red};{green};{blue}m"
+ANSI_SKILL = ANSI_TRUECOLOR_FOREGROUND.format(red=SKILL_RGB[0], green=SKILL_RGB[1], blue=SKILL_RGB[2])
+# Same escape codes as DIM and RESET in statusline.sh (a test keeps them in sync): a note looks
+# like the "(high)" effort note after the model name.
 ANSI_DIM = "\033[2m"
 ANSI_RESET = "\033[0m"
 READ_BLOCK_BYTES = 64 * 1024
@@ -112,10 +117,10 @@ class SkillHit:
 
 
 def render_line(skill: str, note: str, color: bool) -> str:
-    """"\N{WRENCH} <skill> (<note>)"; with `color` the skill is green and "(<note>)" is dimmed."""
+    """"\N{WRENCH} <skill> (<note>)"; with `color` the skill gets ANSI_SKILL and "(<note>)" is dimmed."""
     note_text = NOTE_TEMPLATE.format(note=note)
     if color:
-        skill = f"{ANSI_GREEN}{skill}{ANSI_RESET}"
+        skill = f"{ANSI_SKILL}{skill}{ANSI_RESET}"
         note_text = f"{ANSI_DIM}{note_text}{ANSI_RESET}"
     return f"{OUTPUT_PREFIX}{skill} {note_text}"
 
