@@ -13,7 +13,8 @@ STATUSLINE = SCRIPTS_DIR / "statusline.sh"
 SKILL = "demo:skill"
 EXPECTED_LINES = 3
 # Lines 4+ printed after the rate-limit line when the transcript has a skill.
-SKILL_BLOCK = ["skill:", f"main: {SKILL}"]
+WRENCH = "\N{WRENCH}"
+SKILL_BLOCK = [f"{WRENCH} {SKILL}"]
 CACHE_NAME = ".statusline-cache.json"
 FIVE_PCT = 12.3
 WEEK_PCT = 85
@@ -92,7 +93,7 @@ class StatuslineTest(unittest.TestCase):
         self.transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
             {"type": "tool_use", "id": "t1", "name": "Skill", "input": {"skill": skill}},
         ]}}) + "\n", encoding="utf-8")
-        self.assertEqual(self.render()[EXPECTED_LINES:], ["skill:", f"main: {skill}"])
+        self.assertEqual(self.render()[EXPECTED_LINES:], [f"{WRENCH} {skill}"])
 
     def test_rate_limits_are_cached_and_shown_stale(self) -> None:
         self.render(with_rate_limits=True)

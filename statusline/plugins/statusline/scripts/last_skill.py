@@ -8,13 +8,13 @@ Usage:
     last_skill.py <transcript_path>   # path given directly
     last_skill.py < statusline.json   # no argument: read the status-line JSON, use .transcript_path
 
-Output: a block of lines with no trailing newline, or nothing at all when no skill is found:
-    skill:
-    main: <skill most recently loaded by the main agent>
-    <subagent label>: <skill most recently loaded by that subagent>
-The "main:" line is left out when the main agent loaded no skill. One line per recent subagent
-that loaded a skill, at most MAX_SUBAGENT_LINES, newest load first; the label is the start of the
-subagent's description (see subagent_skills.subagent_label).
+Output: one line per agent with no trailing newline, or nothing at all when no skill is found:
+    \N{WRENCH} <skill most recently loaded by the main agent>
+    \N{WRENCH} <skill most recently loaded by a subagent> (<agent type>: "<description start>")
+e.g. '\N{WRENCH} dev-workflow:port-between-repos (hand: "Nạp skill để th")'. The main line comes first
+and is left out when the main agent loaded no skill. One line per recent subagent that loaded a
+skill, at most MAX_SUBAGENT_LINES, newest load first; see subagent_skills.subagent_label for the
+part in parentheses.
 
 Where a name comes from (newest record first, reading each JSONL transcript backwards):
   1. an assistant record whose message.content[] has {"type": "tool_use", "name": "Skill",
@@ -32,7 +32,7 @@ falls back to its file's mtime.
 Speed: each file is read backwards in blocks and the scan stops at the first hit; at most
 MAX_READ_BYTES are read (override with env STATUSLINE_LAST_SKILL_MAX_BYTES, used by the tests).
 Fail-open: missing file, bad JSON, cut-off lines or any OS error -> that transcript adds no line;
-a missing subagents directory or any error while listing it -> only the "main:" line; exit 0.
+a missing subagents directory or any error while listing it -> only the main line; exit 0.
 Requires Python >= 3.9 (stdlib only), so the status line can use any PATH python3.
 """
 from __future__ import annotations
@@ -61,9 +61,7 @@ MAX_BYTES_ENV = "STATUSLINE_LAST_SKILL_MAX_BYTES"
 MAX_SUBAGENT_FILES = 5
 # How many subagent lines the block shows at most, so the status line stays a few lines tall.
 MAX_SUBAGENT_LINES = 3
-BLOCK_HEADER = "skill:"
-MAIN_LABEL = "main"
-LABEL_SEPARATOR = ": "
+OUTPUT_PREFIX = "\N{WRENCH} "
 OUTPUT_LINE_SEPARATOR = "\n"
 READ_BLOCK_BYTES = 64 * 1024
 # After a hook_system_message hit, how many older lines to search for the matching tool_use
@@ -104,14 +102,15 @@ class SkillHit:
 
 @dataclass(frozen=True)
 class SkillLine:
-    """One line of the output block: who loaded the skill, which one, and when (for ordering)."""
+    """One output line: which skill, the subagent label (None for the main agent), and when."""
 
-    label: str
     skill: str
+    label: Optional[str]
     loaded_at: float
 
     def render(self) -> str:
-        return f"{self.label}{LABEL_SEPARATOR}{self.skill}"
+        suffix = f" ({self.label})" if self.label is not None else ""
+        return f"{OUTPUT_PREFIX}{self.skill}{suffix}"
 
 
 def iter_lines_backwards(path: str, max_bytes: int) -> Iterator[bytes]:
@@ -222,7 +221,7 @@ def subagent_line(transcript: SubagentTranscript, max_bytes: int) -> Optional[Sk
         return None
     loaded_at = parse_timestamp(hit.timestamp)
     return SkillLine(
-        subagent_label(transcript.path), hit.name, loaded_at if loaded_at is not None else transcript.mtime,
+        hit.name, subagent_label(transcript.path), loaded_at if loaded_at is not None else transcript.mtime,
     )
 
 
@@ -250,10 +249,8 @@ def skill_block(transcript_path: str, max_bytes: int = MAX_READ_BYTES) -> str:
     rendered = [line.render() for line in subagent_lines(transcript_path, max_bytes)]
     main_name = main_skill(transcript_path, max_bytes)
     if main_name is not None:
-        rendered.insert(0, f"{MAIN_LABEL}{LABEL_SEPARATOR}{main_name}")
-    if not rendered:
-        return ""
-    return OUTPUT_LINE_SEPARATOR.join([BLOCK_HEADER, *rendered])
+        rendered.insert(0, f"{OUTPUT_PREFIX}{main_name}")
+    return OUTPUT_LINE_SEPARATOR.join(rendered)
 
 
 def read_max_bytes() -> int:

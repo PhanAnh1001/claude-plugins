@@ -1,6 +1,6 @@
-"""Tests for scripts/last-skill.sh + last_skill.py (status-line helper: skill block, main agent).
+"""Tests for scripts/last-skill.sh + last_skill.py (status-line helper: skill lines, main agent).
 
-Ported from dev-workflow (commit 65f7f95) tests/test_last_skill.py; the env var name and the block output differ.
+Ported from dev-workflow (commit 65f7f95) tests/test_last_skill.py; the env var name differs.
 """
 from __future__ import annotations
 
@@ -25,13 +25,9 @@ FILLER_LINES = 20
 SMALL_MAX_BYTES = 4096
 
 
-# Output block of last_skill.py when only the main agent loaded a skill.
-BLOCK_HEADER = "skill:"
-MAIN_LABEL = "main"
-
-
 def main_block(skill: str) -> str:
-    return f"{BLOCK_HEADER}\n{MAIN_LABEL}: {skill}"
+    """Output of last_skill.py when only the main agent loaded a skill."""
+    return f"{WRENCH} {skill}"
 
 
 def assistant_tool_use(tool_id: str, name: str, tool_input: object) -> dict:

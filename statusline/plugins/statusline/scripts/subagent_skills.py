@@ -27,16 +27,17 @@ META_SUFFIX = ".meta.json"
 AGENT_TYPE_KEY = "agentType"
 DESCRIPTION_KEY = "description"
 # agentType is "<plugin>:<agent>" for plugin agents (e.g. "parallel-subagents:hand"); only the
-# part after the last separator is used as a fallback label to keep the status line short.
+# part after the last separator is shown to keep the status line short.
 AGENT_TYPE_SEPARATOR = ":"
 DEFAULT_AGENT_LABEL = "subagent"
-# The status line prints "<label>: <skill>", so a ":" inside a label would be ambiguous.
-LABEL_FORBIDDEN = ":"
-LABEL_REPLACEMENT = "-"
-# Long descriptions are cut to this many characters (then LABEL_ELLIPSIS is appended) so one
-# subagent line stays readable in a narrow terminal.
-SUBAGENT_LABEL_MAX_CHARS = 40
-LABEL_ELLIPSIS = "\N{HORIZONTAL ELLIPSIS}"
+# Only the start of the description is shown (no ellipsis): enough to tell parallel subagents
+# apart while one status-line row stays short.
+SUBAGENT_DESCRIPTION_MAX_CHARS = 15
+# The description is printed inside double quotes, so a double quote in it becomes a single one.
+DESCRIPTION_QUOTE = '"'
+DESCRIPTION_QUOTE_REPLACEMENT = "'"
+# Label layouts: '<agent>: "<description start>"', or '<agent>' without a description.
+LABEL_WITH_DESCRIPTION = '{agent}: "{description}"'
 ENCODING = "utf-8"
 # Record timestamps look like "2026-10-14T09:31:10.793Z"; Python 3.9 fromisoformat rejects "Z".
 UTC_SUFFIX = "Z"
@@ -87,34 +88,36 @@ def _read_meta(transcript_path: str) -> Any:
         return None
 
 
-def clean_label(text: str) -> str:
-    """One-line label: drop non-printable characters, collapse whitespace, replace ":", cut long text."""
+def clean_text(text: str) -> str:
+    """One line of text: non-printable characters become spaces, whitespace runs collapse."""
     printable = "".join(char if char.isprintable() else " " for char in text)
-    label = " ".join(printable.split()).replace(LABEL_FORBIDDEN, LABEL_REPLACEMENT)
-    if len(label) <= SUBAGENT_LABEL_MAX_CHARS:
-        return label
-    return label[:SUBAGENT_LABEL_MAX_CHARS].rstrip() + LABEL_ELLIPSIS
+    return " ".join(printable.split())
 
 
-def _short_agent_type(meta: dict) -> str:
+def short_description(text: str) -> str:
+    """The first SUBAGENT_DESCRIPTION_MAX_CHARS characters of the cleaned text, quotes made single."""
+    cleaned = clean_text(text).replace(DESCRIPTION_QUOTE, DESCRIPTION_QUOTE_REPLACEMENT)
+    return cleaned[:SUBAGENT_DESCRIPTION_MAX_CHARS].rstrip()
+
+
+def short_agent_type(meta: dict) -> str:
+    """"hand" for "parallel-subagents:hand"; DEFAULT_AGENT_LABEL when missing or blank."""
     agent_type = meta.get(AGENT_TYPE_KEY)
     if not isinstance(agent_type, str):
-        return ""
-    return agent_type.rsplit(AGENT_TYPE_SEPARATOR, 1)[-1]
+        return DEFAULT_AGENT_LABEL
+    return clean_text(agent_type.rsplit(AGENT_TYPE_SEPARATOR, 1)[-1]) or DEFAULT_AGENT_LABEL
 
 
 def subagent_label(transcript_path: str) -> str:
-    """Label from the meta file next to the transcript: the start of its description, else the
-    short agentType (e.g. "hand"), else DEFAULT_AGENT_LABEL."""
+    """Label from the meta file next to the transcript: 'hand: "<description start>"', 'hand'
+    when there is no description, DEFAULT_AGENT_LABEL when the meta is missing or broken."""
     meta = _read_meta(transcript_path)
     if not isinstance(meta, dict):
         return DEFAULT_AGENT_LABEL
+    agent = short_agent_type(meta)
     description = meta.get(DESCRIPTION_KEY)
-    for candidate in (description if isinstance(description, str) else "", _short_agent_type(meta)):
-        label = clean_label(candidate)
-        if label:
-            return label
-    return DEFAULT_AGENT_LABEL
+    start = short_description(description) if isinstance(description, str) else ""
+    return LABEL_WITH_DESCRIPTION.format(agent=agent, description=start) if start else agent
 
 
 def parse_timestamp(value: Any) -> Optional[float]:

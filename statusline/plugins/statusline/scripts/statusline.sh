@@ -1,11 +1,12 @@
 #!/bin/bash
-# Claude Code status line (statusline plugin). Prints three lines, then an optional skill block:
+# Claude Code status line (statusline plugin). Prints three lines, then optional skill lines:
 #   1. user@host  current-dir (basename, ~ for $HOME)  (git-branch in green)
 #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
 #   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times
-#   4+. "skill:" then "main: <skill>" and "<subagent label>: <skill>" lines, printed as-is from
-#      last-skill.sh next to this script; left out entirely when no skill was loaded.
+#   4+. "🔧 <skill>" for the main agent, then '🔧 <skill> (<agent>: "<description start>")' per
+#      recent subagent, printed as-is from last-skill.sh next to this script; none when no skill
+#      was loaded.
 #
 # Reads the session JSON from stdin per the statusLine contract; cwd always comes from that JSON,
 # never from the process's own $PWD. Requires jq. Paths under the Claude config dir use
@@ -212,7 +213,7 @@ line2=$(build_line2)
 line3=$(build_line3)
 # --- Skill block (lines 4+) ---
 build_skill_block() {
-  # Lines from last-skill.sh: "skill:", "main: <skill>", "<subagent label>: <skill>"; or nothing.
+  # Lines from last-skill.sh: "🔧 <skill>" (main), '🔧 <skill> (<agent>: "<desc>")' (subagents); or nothing.
   [ -n "$transcript_path" ] && [ -f "$LAST_SKILL_SCRIPT" ] || return 0
   bash "$LAST_SKILL_SCRIPT" "$transcript_path" 2>/dev/null
 }
