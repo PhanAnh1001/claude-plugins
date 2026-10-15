@@ -8,7 +8,7 @@
   `https://github.com/PhanAnh1001/claude-plugins.git`) chứa mọi plugin; các thư mục plugin không
   có git repo riêng. `parallel-subagents` trước đây là repo riêng `brain-hand-plugins`, nay gộp
   vào đây; lịch sử git cũ của nó (và của `jira-tools`) không được giữ.
-- **Plugin hiện có (3):** `jira-tools`, `parallel-subagents`, `summary-first-docs`.
+- **Plugin hiện có (4):** `jira-tools`, `parallel-subagents`, `statusline`, `summary-first-docs`.
 - **Cài đặt:** clone repo này, rồi mỗi plugin hai lệnh
   `claude plugin marketplace add <thư-mục-repo>/<plugin>` rồi
   `claude plugin install <plugin>@<plugin>-local --scope user`; chi tiết trong README của
@@ -22,6 +22,7 @@
 |---|---|---|---|
 | `jira-tools/` | `jira-tools-local` | `jira-tools` | CLI Jira Server (REST v2, PAT Bearer), skill `jira`, SessionStart hook |
 | `parallel-subagents/` | `parallel-subagents-local` | `parallel-subagents` | điều phối brain/hand: agent `hand`, hook bơm policy |
+| `statusline/` | `statusline-local` | `statusline` | thanh trạng thái 3 dòng (thư mục/nhánh git; model, tokens, ctx, skill gần nhất; rate limit), skill `setup` |
 | `summary-first-docs/` | `summary-first-docs-local` | `summary-first-docs` | bốn skill tài liệu dùng chung mọi dự án |
 
 ### summary-first-docs
@@ -49,7 +50,8 @@ claude plugin install summary-first-docs@summary-first-docs-local --scope user
 claude plugin list
 ```
 
-Hai plugin còn lại cài tương tự với thư mục và tên marketplace trong bảng trên.
+Các plugin còn lại cài tương tự với thư mục và tên marketplace trong bảng trên; `statusline`
+cần thêm một bước setup (skill `statusline:setup`), xem `statusline/README.md`.
 
 ## Cập nhật
 

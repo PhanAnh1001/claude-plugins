@@ -1,0 +1,14 @@
+{
+  "name": "statusline-local",
+  "owner": {
+    "name": "statusline"
+  },
+  "description": "Marketplace tự host chứa plugin statusline (thanh trạng thái 3 dòng: thư mục/nhánh git, model/tokens/ctx/skill gần nhất, rate limit) cho Claude Code.",
+  "plugins": [
+    {
+      "name": "statusline",
+      "source": "./plugins/statusline",
+      "description": "Thanh trạng thái Claude Code 3 dòng: user@host thư mục (nhánh git); model (effort), tokens, ctx %, 🔧 skill nạp gần nhất; rate limit 5h/7d kèm giờ reset. Skill statusline:setup cài shim vào thư mục cấu hình Claude và trỏ statusLine tới đó."
+    }
+  ]
+}
