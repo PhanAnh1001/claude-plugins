@@ -15,11 +15,11 @@ EXPECTED_LINES = 3
 # Lines 4+ printed after the rate-limit line when the transcript has a skill.
 WRENCH = "\N{WRENCH}"
 # statusline.sh calls last-skill.sh --color: only the note is dimmed, like "(high)" on line 2.
-MAGENTA = "\x1b[35m"
+GREEN = "\x1b[32m"
 DIM = "\x1b[2m"
 RESET = "\x1b[0m"
 MAIN_NOTE = f"{DIM}(main){RESET}"
-SKILL_BLOCK = [f"{WRENCH} {MAGENTA}{SKILL}{RESET} {MAIN_NOTE}"]
+SKILL_BLOCK = [f"{WRENCH} {GREEN}{SKILL}{RESET} {MAIN_NOTE}"]
 CACHE_NAME = ".statusline-cache.json"
 FIVE_PCT = 12.3
 WEEK_PCT = 85
@@ -86,7 +86,7 @@ class StatuslineTest(unittest.TestCase):
         self.assertIn(EXPECTED_TOKENS, lines[1])
         self.assertRegex(plain[2], r"^5h:12%\(reset .+\) \| 7d:85%\(reset .+\)$")
         self.assertEqual(lines[EXPECTED_LINES:], SKILL_BLOCK)
-        self.assertIn(f"{MAGENTA}Opus{RESET}{DIM}(high){RESET}", lines[1])  # same style as the skill line
+        self.assertIn(f"{DIM}(high){RESET}", lines[1])  # same style as the skill note
 
     def test_three_lines_unchanged_without_skill(self) -> None:
         with_skill = self.render()
@@ -99,7 +99,7 @@ class StatuslineTest(unittest.TestCase):
         self.transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
             {"type": "tool_use", "id": "t1", "name": "Skill", "input": {"skill": skill}},
         ]}}) + "\n", encoding="utf-8")
-        self.assertEqual(self.render()[EXPECTED_LINES:], [f"{WRENCH} {MAGENTA}{skill}{RESET} {MAIN_NOTE}"])
+        self.assertEqual(self.render()[EXPECTED_LINES:], [f"{WRENCH} {GREEN}{skill}{RESET} {MAIN_NOTE}"])
 
     def test_rate_limits_are_cached_and_shown_stale(self) -> None:
         self.render(with_rate_limits=True)

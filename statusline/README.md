@@ -6,7 +6,7 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.6.0).
+  `statusline` (bản 0.7.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -43,7 +43,7 @@
   - **`<mô tả>`** là 15 ký tự đầu của trường `description` sau khi gộp khoảng trắng, bỏ ký tự
     không in được và đổi `"` thành `'`; không thêm `…`. Không có description thì chỉ in `(<agent>)`,
     ví dụ `(hand)`.
-  - **Màu:** tên skill tô tím (magenta) giống tên model ở dòng 2; phần chú thích trong ngoặc,
+  - **Màu:** tên skill tô xanh lá (mã `GREEN` của `statusline.sh`, giống nhánh git ở dòng 1); phần chú thích trong ngoặc,
     `(main)` và `(hand: "…")`, tô mờ (dim) giống `(high)` sau tên model; `🔧` giữ màu mặc định.
     Màu chỉ có khi statusline gọi
     `last-skill.sh --color`; chạy `last-skill.sh` không có cờ này thì ra văn bản trần.

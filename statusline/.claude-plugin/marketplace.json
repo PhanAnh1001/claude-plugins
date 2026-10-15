@@ -8,7 +8,7 @@
     {
       "name": "statusline",
       "source": "./plugins/statusline",
-      "description": "Thanh trạng thái Claude Code 3 dòng: user@host thư mục (nhánh git); model (effort), tokens, ctx %; rate limit 5h/7d kèm giờ reset; sau đó là các dòng 🔧 skill nạp gần nhất của main và từng subagent gần đây (tên skill màu tím, chú thích mờ trong ngoặc: main, hoặc loại agent và đầu mô tả). Skill statusline:setup cài shim vào thư mục cấu hình Claude và trỏ statusLine tới đó."
+      "description": "Thanh trạng thái Claude Code 3 dòng: user@host thư mục (nhánh git); model (effort), tokens, ctx %; rate limit 5h/7d kèm giờ reset; sau đó là các dòng 🔧 skill nạp gần nhất của main và từng subagent gần đây (tên skill màu xanh lá, chú thích mờ trong ngoặc: main, hoặc loại agent và đầu mô tả). Skill statusline:setup cài shim vào thư mục cấu hình Claude và trỏ statusLine tới đó."
     }
   ]
 }
