@@ -1,11 +1,12 @@
 #!/bin/bash
 # Status-line helper: print the skills most recently loaded in a session, one line per agent, or nothing:
-#   🔧 <skill of the main agent>
+#   🔧 <skill of the main agent> (main)
 #   🔧 <skill of a subagent> (<agent type>: "<first 15 chars of its description>")   (up to 3)
+# --color dims the note in parentheses with the same codes statusline.sh uses (DIM/RESET).
 # Ported from dev-workflow plugin 0.3.0 (commit 65f7f95) plugins/dev-workflow/scripts/last-skill.sh.
 # Difference: no fallback interpreter picker; without python3 on PATH it prints nothing.
-# Usage: last-skill.sh <transcript_path>
-#    or: <status-line JSON> | last-skill.sh        (no argument: .transcript_path is read from stdin)
+# Usage: last-skill.sh [--color] <transcript_path>
+#    or: <status-line JSON> | last-skill.sh [--color]   (no path: .transcript_path is read from stdin)
 # Reads the transcript backwards with a byte cap (see last_skill.py). Fail-open: any error ->
 # no output, exit 0. last_skill.py only needs the stdlib of Python >= 3.9.
 

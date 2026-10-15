@@ -27,7 +27,7 @@ SMALL_MAX_BYTES = 4096
 
 def main_block(skill: str) -> str:
     """Output of last_skill.py when only the main agent loaded a skill."""
-    return f"{WRENCH} {skill}"
+    return f"{WRENCH} {skill} (main)"
 
 
 def assistant_tool_use(tool_id: str, name: str, tool_input: object) -> dict:

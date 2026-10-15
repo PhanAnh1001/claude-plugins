@@ -4,9 +4,9 @@
 #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
 #   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times
-#   4+. "🔧 <skill>" for the main agent, then '🔧 <skill> (<agent>: "<description start>")' per
-#      recent subagent, printed as-is from last-skill.sh next to this script; none when no skill
-#      was loaded.
+#   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
+#      per recent subagent, from "last-skill.sh --color" next to this script (the note in
+#      parentheses is dimmed like "(high)" on line 2); none when no skill was loaded.
 #
 # Reads the session JSON from stdin per the statusLine contract; cwd always comes from that JSON,
 # never from the process's own $PWD. Requires jq. Paths under the Claude config dir use
@@ -213,9 +213,9 @@ line2=$(build_line2)
 line3=$(build_line3)
 # --- Skill block (lines 4+) ---
 build_skill_block() {
-  # Lines from last-skill.sh: "🔧 <skill>" (main), '🔧 <skill> (<agent>: "<desc>")' (subagents); or nothing.
+  # Lines from last-skill.sh: "🔧 <skill> (main)", '🔧 <skill> (<agent>: "<desc>")'; or nothing.
   [ -n "$transcript_path" ] && [ -f "$LAST_SKILL_SCRIPT" ] || return 0
-  bash "$LAST_SKILL_SCRIPT" "$transcript_path" 2>/dev/null
+  bash "$LAST_SKILL_SCRIPT" --color "$transcript_path" 2>/dev/null
 }
 
 save_cache

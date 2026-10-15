@@ -6,7 +6,7 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.4.0).
+  `statusline` (bản 0.5.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -21,20 +21,20 @@
 | 1 | `user@host`, tên thư mục hiện tại (`~` nếu là thư mục home), nhánh git màu xanh | `anh@mac dev-workflow (main)` |
 | 2 | model (mức effort), tổng tokens của phiên, % context đang dùng | `Opus(high) \| tokens:6.5k \| ctx:55%` |
 | 3 | rate limit 5 giờ và 7 ngày kèm giờ reset | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46)` |
-| 4+ | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage` |
+| 4+ | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
 - **Màu phần trăm:** xanh dưới 50%, vàng từ 50%, đỏ từ 80%.
 - **Tokens** cộng mọi bản ghi `usage` trong transcript nên chỉ tăng, không giảm khi nén context.
 - **Dòng skill** in sau dòng rate limit, không có dòng tiêu đề, ví dụ:
 
   ```text
-  🔧 dev-workflow:measurement-evidence
+  🔧 dev-workflow:measurement-evidence (main)
   🔧 dev-workflow:port-between-repos (hand: "Nạp skill để th")
   🔧 summary-first-docs:citing-sources (hand: "Nghiên cứu API")
   ```
 
-  - **Dòng main** `🔧 <skill>` là skill main nạp gần nhất, luôn đứng đầu, không có hậu tố. Main
-    chưa nạp skill nào thì bỏ dòng này. Cả main lẫn subagent đều chưa nạp skill thì không in gì.
+  - **Dòng main** `🔧 <skill> (main)` là skill main nạp gần nhất, luôn đứng đầu. Main chưa nạp
+    skill nào thì bỏ dòng này. Cả main lẫn subagent đều chưa nạp skill thì không in gì.
   - **Dòng subagent** `🔧 <skill> (<agent>: "<mô tả>")`: mỗi subagent có nạp skill được một dòng.
     Chỉ xét 5 transcript subagent sửa gần nhất (theo mtime) và in tối đa 3 dòng, skill nạp mới
     nhất ở trên.
@@ -43,6 +43,9 @@
   - **`<mô tả>`** là 15 ký tự đầu của trường `description` sau khi gộp khoảng trắng, bỏ ký tự
     không in được và đổi `"` thành `'`; không thêm `…`. Không có description thì chỉ in `(<agent>)`,
     ví dụ `(hand)`.
+  - **Màu:** phần chú thích trong ngoặc, `(main)` và `(hand: "…")`, được tô mờ (dim) giống `(high)`
+    sau tên model ở dòng 2; `🔧` và tên skill giữ màu mặc định. Màu chỉ có khi statusline gọi
+    `last-skill.sh --color`; chạy `last-skill.sh` không có cờ này thì ra văn bản trần.
   - **Cách tìm skill:** đọc ngược tối đa 4 MB cuối mỗi transcript, ưu tiên lời gọi tool `Skill`,
     dự phòng bằng thông điệp hook `🔧 Skill: <tên>`. Claude Code ghi lời gọi `Skill` của subagent
     vào transcript riêng `<session_id>/subagents/agent-<id>.jsonl` cạnh transcript chính, nên

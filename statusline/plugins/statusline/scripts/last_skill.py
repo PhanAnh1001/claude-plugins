@@ -5,16 +5,18 @@ Ported from dev-workflow plugin 0.3.0 (commit 65f7f95) plugins/dev-workflow/scri
 Differences: the max-bytes override env var is STATUSLINE_LAST_SKILL_MAX_BYTES.
 
 Usage:
-    last_skill.py <transcript_path>   # path given directly
-    last_skill.py < statusline.json   # no argument: read the status-line JSON, use .transcript_path
+    last_skill.py [--color] <transcript_path>   # path given directly
+    last_skill.py [--color] < statusline.json   # no path: read the status-line JSON, use .transcript_path
+--color wraps each note in parentheses in the same dim style statusline.sh uses for "(high)" after
+the model name; without it the output is plain text.
 
 Output: one line per agent with no trailing newline, or nothing at all when no skill is found:
-    \N{WRENCH} <skill most recently loaded by the main agent>
+    \N{WRENCH} <skill most recently loaded by the main agent> (main)
     \N{WRENCH} <skill most recently loaded by a subagent> (<agent type>: "<description start>")
 e.g. '\N{WRENCH} dev-workflow:port-between-repos (hand: "Nạp skill để th")'. The main line comes first
 and is left out when the main agent loaded no skill. One line per recent subagent that loaded a
 skill, at most MAX_SUBAGENT_LINES, newest load first; see subagent_skills.subagent_label for the
-part in parentheses.
+note in parentheses.
 
 Where a name comes from (newest record first, reading each JSONL transcript backwards):
   1. an assistant record whose message.content[] has {"type": "tool_use", "name": "Skill",
@@ -63,6 +65,13 @@ MAX_SUBAGENT_FILES = 5
 MAX_SUBAGENT_LINES = 3
 OUTPUT_PREFIX = "\N{WRENCH} "
 OUTPUT_LINE_SEPARATOR = "\n"
+MAIN_NOTE = "main"
+NOTE_TEMPLATE = "({note})"
+COLOR_FLAG = "--color"
+# Same escape codes as DIM and RESET in statusline.sh (a test keeps them in sync), so a note looks
+# like the "(high)" effort note after the model name.
+ANSI_DIM = "\033[2m"
+ANSI_RESET = "\033[0m"
 READ_BLOCK_BYTES = 64 * 1024
 # After a hook_system_message hit, how many older lines to search for the matching tool_use
 # (in real transcripts it is 1-3 lines earlier).
@@ -100,17 +109,21 @@ class SkillHit:
     timestamp: Optional[str] = None
 
 
+def render_line(skill: str, note: str, color: bool) -> str:
+    """"\N{WRENCH} <skill> (<note>)"; with `color` only the "(<note>)" part is dimmed."""
+    note_text = NOTE_TEMPLATE.format(note=note)
+    if color:
+        note_text = f"{ANSI_DIM}{note_text}{ANSI_RESET}"
+    return f"{OUTPUT_PREFIX}{skill} {note_text}"
+
+
 @dataclass(frozen=True)
 class SkillLine:
-    """One output line: which skill, the subagent label (None for the main agent), and when."""
+    """One subagent output line: which skill, the subagent label, and when it was loaded."""
 
     skill: str
-    label: Optional[str]
+    label: str
     loaded_at: float
-
-    def render(self) -> str:
-        suffix = f" ({self.label})" if self.label is not None else ""
-        return f"{OUTPUT_PREFIX}{self.skill}{suffix}"
 
 
 def iter_lines_backwards(path: str, max_bytes: int) -> Iterator[bytes]:
@@ -244,12 +257,13 @@ def main_skill(transcript_path: str, max_bytes: int) -> Optional[str]:
     return hit.name if hit is not None else None
 
 
-def skill_block(transcript_path: str, max_bytes: int = MAX_READ_BYTES) -> str:
+def skill_block(transcript_path: str, max_bytes: int = MAX_READ_BYTES, color: bool = False) -> str:
     """The whole output block, or "" when neither the main agent nor a recent subagent loaded a skill."""
-    rendered = [line.render() for line in subagent_lines(transcript_path, max_bytes)]
+    subagents = subagent_lines(transcript_path, max_bytes)
+    rendered = [render_line(line.skill, line.label, color) for line in subagents]
     main_name = main_skill(transcript_path, max_bytes)
     if main_name is not None:
-        rendered.insert(0, f"{OUTPUT_PREFIX}{main_name}")
+        rendered.insert(0, render_line(main_name, MAIN_NOTE, color))
     return OUTPUT_LINE_SEPARATOR.join(rendered)
 
 
@@ -272,10 +286,13 @@ def transcript_path_from_stdin() -> Optional[str]:
 
 
 def main(argv: list) -> int:
-    path = argv[1] if len(argv) > 1 else transcript_path_from_stdin()
+    args = argv[1:]
+    color = COLOR_FLAG in args
+    positional = [arg for arg in args if arg != COLOR_FLAG]
+    path = positional[0] if positional else transcript_path_from_stdin()
     if not path:
         return EXIT_OK
-    block = skill_block(path, read_max_bytes())
+    block = skill_block(path, read_max_bytes(), color)
     if block:
         # Write bytes so a non-UTF-8 locale in the status-line environment cannot break non-ASCII text.
         sys.stdout.buffer.write(block.encode(ENCODING))

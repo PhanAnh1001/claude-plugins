@@ -2,7 +2,7 @@
 
 Fixtures follow the layout Claude Code writes: <dir>/<session_id>.jsonl for the main agent,
 <dir>/<session_id>/subagents/agent-<id>.jsonl plus agent-<id>.meta.json for each subagent.
-Expected output: "🔧 <skill>" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
+Expected output: "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 per subagent, newest load first, with no header line.
 """
 from __future__ import annotations
@@ -57,7 +57,7 @@ def meta_json(description: Optional[str] = DESCRIPTION, agent_type: Optional[str
 
 
 def main_line(skill: str) -> str:
-    return f"{WRENCH} {skill}"
+    return f"{WRENCH} {skill} (main)"
 
 
 def sub_line(skill: str, agent: str = HAND, description: Optional[str] = DESCRIPTION_START) -> str:
