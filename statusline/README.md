@@ -5,7 +5,7 @@
 - **Mục đích:** đóng gói thanh trạng thái (status line) 3 dòng của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.1.0).
+  `statusline` (bản 0.2.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -25,6 +25,14 @@
 - **Tokens** cộng mọi bản ghi `usage` trong transcript nên chỉ tăng, không giảm khi nén context.
 - **Skill gần nhất** đọc ngược tối đa 4 MB cuối transcript: ưu tiên lời gọi tool `Skill`, dự phòng
   bằng thông điệp hook `🔧 Skill: <tên>`. Không tìm thấy thì không hiện mục này.
+  - **Skill do subagent nạp:** Claude Code ghi lời gọi `Skill` của subagent vào transcript riêng
+    `<session_id>/subagents/agent-<id>.jsonl` cạnh transcript chính, không ghi vào transcript chính.
+    Statusline đọc thêm 5 file subagent sửa gần nhất (theo mtime), mỗi file cùng giới hạn 4 MB, rồi
+    so trường `timestamp` để chọn skill mới nhất.
+  - Nếu skill mới nhất do subagent nạp, mục này có thêm loại agent lấy từ file
+    `agent-<id>.meta.json` (phần sau dấu `:` cuối của `agentType`), ví dụ
+    `🔧 dev-workflow:bug-investigation (hand)`. Thiếu hoặc hỏng file meta thì ghi `(subagent)`.
+  - Không có thư mục `subagents` hoặc đọc lỗi thì chỉ dùng transcript chính như trước.
 - **Rate limit** chỉ có sau phản hồi API đầu tiên của phiên. Trước đó dòng 3 hiện giá trị lưu ở
   `.statusline-cache.json` trong thư mục cấu hình Claude, có dấu `~` phía trước; chưa có gì thì
   hiện `--`.
@@ -104,6 +112,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   ├── .claude-plugin/plugin.json
 │   ├── scripts/statusline.sh             # vẽ 3 dòng
 │   ├── scripts/last-skill.sh, last_skill.py   # skill gần nhất (port từ dev-workflow 0.3.0)
+│   ├── scripts/subagent_skills.py        # tìm transcript subagent, đọc agentType
 │   ├── scripts/install.sh                # setup / --dry-run / --uninstall
 │   ├── scripts/settings_json.py          # sửa JSON khi không có jq
 │   ├── templates/statusline-shim.sh      # mẫu shim

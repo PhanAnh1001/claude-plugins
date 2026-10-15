@@ -1,5 +1,6 @@
 #!/bin/bash
-# Status-line helper: print "🔧 <skill>" for the skill most recently loaded in a session, or nothing.
+# Status-line helper: print "🔧 <skill>" (plus " (<agent type>)" when a subagent loaded it) for the skill
+# most recently loaded in a session by the main agent or a recent subagent, or nothing.
 # Ported from dev-workflow plugin 0.3.0 (commit 65f7f95) plugins/dev-workflow/scripts/last-skill.sh.
 # Difference: no fallback interpreter picker; without python3 on PATH it prints nothing.
 # Usage: last-skill.sh <transcript_path>
