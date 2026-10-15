@@ -30,9 +30,11 @@ DESCRIPTION_KEY = "description"
 # part after the last separator is shown to keep the status line short.
 AGENT_TYPE_SEPARATOR = ":"
 DEFAULT_AGENT_LABEL = "subagent"
-# Only the start of the description is shown (no ellipsis): enough to tell parallel subagents
-# apart while one status-line row stays short.
-SUBAGENT_DESCRIPTION_MAX_CHARS = 15
+# Longer descriptions are cut to this many characters (enough to tell parallel subagents apart
+# while one status-line row stays short) and DESCRIPTION_CUT_MARK is appended.
+SUBAGENT_DESCRIPTION_MAX_CHARS = 30
+# Plain ASCII dots, not "\N{HORIZONTAL ELLIPSIS}", so the width is the same in every terminal.
+DESCRIPTION_CUT_MARK = "..."
 # The description is printed inside double quotes, so a double quote in it becomes a single one.
 DESCRIPTION_QUOTE = '"'
 DESCRIPTION_QUOTE_REPLACEMENT = "'"
@@ -95,9 +97,13 @@ def clean_text(text: str) -> str:
 
 
 def short_description(text: str) -> str:
-    """The first SUBAGENT_DESCRIPTION_MAX_CHARS characters of the cleaned text, quotes made single."""
+    """Cleaned text with quotes made single; when longer than SUBAGENT_DESCRIPTION_MAX_CHARS
+    characters (not bytes), its first that many characters, trailing spaces dropped, plus
+    DESCRIPTION_CUT_MARK."""
     cleaned = clean_text(text).replace(DESCRIPTION_QUOTE, DESCRIPTION_QUOTE_REPLACEMENT)
-    return cleaned[:SUBAGENT_DESCRIPTION_MAX_CHARS].rstrip()
+    if len(cleaned) <= SUBAGENT_DESCRIPTION_MAX_CHARS:
+        return cleaned
+    return cleaned[:SUBAGENT_DESCRIPTION_MAX_CHARS].rstrip() + DESCRIPTION_CUT_MARK
 
 
 def short_agent_type(meta: dict) -> str:

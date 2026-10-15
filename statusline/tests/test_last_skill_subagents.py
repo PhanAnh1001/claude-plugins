@@ -32,9 +32,10 @@ HAND = "hand"
 DEFAULT_AGENT = "subagent"
 DESCRIPTION = "Nạp skill để thử statusline"
 OTHER_DESCRIPTION = "Viết docs solutions và ADR-003"
-# The first SUBAGENT_DESCRIPTION_MAX_CHARS (15) characters of the descriptions above.
-DESCRIPTION_START = "Nạp skill để th"
-OTHER_DESCRIPTION_START = "Viết docs solut"
+# Both descriptions above are at most SUBAGENT_DESCRIPTION_MAX_CHARS (30) characters: shown whole.
+DESCRIPTION_START = DESCRIPTION
+OTHER_DESCRIPTION_START = OTHER_DESCRIPTION
+CUT_MARK = "..."
 OLD_HEADER = "skill:"
 EARLY = "2020-01-01T10:00:00.000Z"
 MIDDLE = "2020-01-01T10:01:00.000Z"
@@ -153,22 +154,32 @@ class SubagentSkillTest(unittest.TestCase):
         self.subagents.write_text("not a directory", encoding="utf-8")
         self.assert_output(main_line(MAIN_SKILL))
 
-    def test_long_description_is_cut_without_ellipsis(self) -> None:
+    def assert_description(self, description: str, shown: str) -> None:
         self.write_main([])
-        self.write_skill_subagent("a1", SUB_SKILL, LATE, meta_json(DESCRIPTION))
-        self.assertEqual(len(DESCRIPTION_START), SUBAGENT_DESCRIPTION_MAX_CHARS)
-        self.assert_output(sub_line(SUB_SKILL, description=DESCRIPTION_START))
-
-    def test_cut_description_drops_trailing_space(self) -> None:
-        self.write_main([])
-        self.write_skill_subagent("a1", SUB_SKILL, LATE, meta_json("Nghiên cứu API của EasyHRM"))
-        self.assert_output(sub_line(SUB_SKILL, description="Nghiên cứu API"))
+        self.write_skill_subagent("a1", SUB_SKILL, LATE, meta_json(description))
+        self.assert_output(sub_line(SUB_SKILL, description=shown))
 
     def test_description_at_limit_is_kept_whole(self) -> None:
         description = "y" * SUBAGENT_DESCRIPTION_MAX_CHARS
-        self.write_main([])
-        self.write_skill_subagent("a1", SUB_SKILL, LATE, meta_json(description))
-        self.assert_output(sub_line(SUB_SKILL, description=description))
+        self.assert_description(description, description)
+
+    def test_one_char_over_limit_is_cut_with_dots(self) -> None:
+        description = "y" * (SUBAGENT_DESCRIPTION_MAX_CHARS + 1)
+        self.assert_description(description, "y" * SUBAGENT_DESCRIPTION_MAX_CHARS + CUT_MARK)
+
+    def test_trailing_space_is_dropped_before_dots(self) -> None:
+        start = "a" * (SUBAGENT_DESCRIPTION_MAX_CHARS - 1)
+        self.assert_description(f"{start} bcd", start + CUT_MARK)
+
+    def test_vietnamese_description_is_cut_by_characters(self) -> None:
+        self.assertEqual(len(OTHER_DESCRIPTION), SUBAGENT_DESCRIPTION_MAX_CHARS)
+        self.assertGreater(len(OTHER_DESCRIPTION.encode("utf-8")), SUBAGENT_DESCRIPTION_MAX_CHARS)
+        self.assert_description(OTHER_DESCRIPTION, OTHER_DESCRIPTION)
+        self.assert_description(f"{OTHER_DESCRIPTION} cho repo", OTHER_DESCRIPTION + CUT_MARK)
+
+    def test_double_quotes_count_like_other_characters(self) -> None:
+        description = '"' + "z" * SUBAGENT_DESCRIPTION_MAX_CHARS
+        self.assert_description(description, "'" + "z" * (SUBAGENT_DESCRIPTION_MAX_CHARS - 1) + CUT_MARK)
 
     def test_description_quotes_colon_and_whitespace(self) -> None:
         self.write_main([])

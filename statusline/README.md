@@ -29,8 +29,9 @@
 
   ```text
   🔧 dev-workflow:measurement-evidence (main)
-  🔧 dev-workflow:port-between-repos (hand: "Nạp skill để th")
-  🔧 summary-first-docs:citing-sources (hand: "Nghiên cứu API")
+  🔧 dev-workflow:port-between-repos (hand: "Nạp skill để thử statusline")
+  🔧 summary-first-docs:citing-sources (hand: "Nghiên cứu API của EasyHRM")
+  🔧 dev-workflow:bug-investigation (hand: "Điều tra lỗi statusline không...")
   ```
 
   - **Dòng main** `🔧 <skill> (main)` là skill main nạp gần nhất, luôn đứng đầu. Main chưa nạp
@@ -40,8 +41,10 @@
     nhất ở trên.
   - **`<agent>`** là phần sau dấu `:` cuối của `agentType` trong `agent-<id>.meta.json` (ví dụ
     `parallel-subagents:hand` thành `hand`). Thiếu, hoặc file meta thiếu hay hỏng, thì ghi `subagent`.
-  - **`<mô tả>`** là 15 ký tự đầu của trường `description` sau khi gộp khoảng trắng, bỏ ký tự
-    không in được và đổi `"` thành `'`; không thêm `…`. Không có description thì chỉ in `(<agent>)`,
+  - **`<mô tả>`** là trường `description` sau khi gộp khoảng trắng, bỏ ký tự không in được và đổi
+    `"` thành `'`. Dài quá 30 ký tự (đếm theo ký tự, không theo byte) thì lấy 30 ký tự đầu, bỏ
+    khoảng trắng cuối rồi nối `...` (3 dấu chấm ASCII); từ 30 ký tự trở xuống thì in nguyên.
+    Không có description thì chỉ in `(<agent>)`,
     ví dụ `(hand)`.
   - **Màu:** tên skill tô xanh lá (mã `GREEN` của `statusline.sh`, giống nhánh git ở dòng 1); phần chú thích trong ngoặc,
     `(main)` và `(hand: "…")`, tô mờ (dim) giống `(high)` sau tên model; `🔧` giữ màu mặc định.
@@ -132,7 +135,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   ├── .claude-plugin/plugin.json
 │   ├── scripts/statusline.sh             # vẽ 3 dòng + các dòng skill
 │   ├── scripts/last-skill.sh, last_skill.py   # dòng skill gần nhất (port từ dev-workflow 0.3.0)
-│   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn agent + đầu mô tả
+│   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn agent + mô tả (cắt 30 ký tự)
 │   ├── scripts/install.sh                # setup / --dry-run / --uninstall
 │   ├── scripts/settings_json.py          # sửa JSON khi không có jq
 │   ├── templates/statusline-shim.sh      # mẫu shim

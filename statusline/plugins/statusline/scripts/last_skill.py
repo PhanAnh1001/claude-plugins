@@ -14,7 +14,7 @@ the output is plain text.
 Output: one line per agent with no trailing newline, or nothing at all when no skill is found:
     \N{WRENCH} <skill most recently loaded by the main agent> (main)
     \N{WRENCH} <skill most recently loaded by a subagent> (<agent type>: "<description start>")
-e.g. '\N{WRENCH} dev-workflow:port-between-repos (hand: "Nạp skill để th")'. The main line comes first
+e.g. '\N{WRENCH} dev-workflow:port-between-repos (hand: "Nạp skill để thử statusline")'. The main line comes first
 and is left out when the main agent loaded no skill. One line per recent subagent that loaded a
 skill, at most MAX_SUBAGENT_LINES, newest load first; see subagent_skills.subagent_label for the
 note in parentheses.
