@@ -5,8 +5,8 @@
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
 #   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
-#      per recent subagent, from "last-skill.sh --color" next to this script (the note in
-#      parentheses is dimmed like "(high)" on line 2); none when no skill was loaded.
+#      per recent subagent, from "last-skill.sh --color" next to this script (skill in MAGENTA like
+#      the model name, note in parentheses dimmed like "(high)" on line 2); none when no skill.
 #
 # Reads the session JSON from stdin per the statusLine contract; cwd always comes from that JSON,
 # never from the process's own $PWD. Requires jq. Paths under the Claude config dir use

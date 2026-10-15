@@ -7,8 +7,9 @@ Differences: the max-bytes override env var is STATUSLINE_LAST_SKILL_MAX_BYTES.
 Usage:
     last_skill.py [--color] <transcript_path>   # path given directly
     last_skill.py [--color] < statusline.json   # no path: read the status-line JSON, use .transcript_path
---color wraps each note in parentheses in the same dim style statusline.sh uses for "(high)" after
-the model name; without it the output is plain text.
+--color paints each skill name magenta like the model name on line 2 of statusline.sh and dims each
+note in parentheses like "(high)" after it; the wrench keeps the default colour. Without --color
+the output is plain text.
 
 Output: one line per agent with no trailing newline, or nothing at all when no skill is found:
     \N{WRENCH} <skill most recently loaded by the main agent> (main)
@@ -68,8 +69,9 @@ OUTPUT_LINE_SEPARATOR = "\n"
 MAIN_NOTE = "main"
 NOTE_TEMPLATE = "({note})"
 COLOR_FLAG = "--color"
-# Same escape codes as DIM and RESET in statusline.sh (a test keeps them in sync), so a note looks
-# like the "(high)" effort note after the model name.
+# Same escape codes as MAGENTA, DIM and RESET in statusline.sh (a test keeps them in sync): a skill
+# name looks like the model name, a note like the "(high)" effort note after it.
+ANSI_MAGENTA = "\033[35m"
 ANSI_DIM = "\033[2m"
 ANSI_RESET = "\033[0m"
 READ_BLOCK_BYTES = 64 * 1024
@@ -110,9 +112,10 @@ class SkillHit:
 
 
 def render_line(skill: str, note: str, color: bool) -> str:
-    """"\N{WRENCH} <skill> (<note>)"; with `color` only the "(<note>)" part is dimmed."""
+    """"\N{WRENCH} <skill> (<note>)"; with `color` the skill is magenta and "(<note>)" is dimmed."""
     note_text = NOTE_TEMPLATE.format(note=note)
     if color:
+        skill = f"{ANSI_MAGENTA}{skill}{ANSI_RESET}"
         note_text = f"{ANSI_DIM}{note_text}{ANSI_RESET}"
     return f"{OUTPUT_PREFIX}{skill} {note_text}"
 
