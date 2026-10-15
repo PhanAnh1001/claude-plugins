@@ -11,8 +11,9 @@ from _support import SCRIPTS_DIR, clean_env, run_bash
 
 STATUSLINE = SCRIPTS_DIR / "statusline.sh"
 SKILL = "demo:skill"
-WRENCH = "\N{WRENCH}"
 EXPECTED_LINES = 3
+# Lines 4+ printed after the rate-limit line when the transcript has a skill.
+SKILL_BLOCK = ["skill:", f"main: {SKILL}"]
 CACHE_NAME = ".statusline-cache.json"
 FIVE_PCT = 12.3
 WEEK_PCT = 85
@@ -24,13 +25,13 @@ EXPECTED_TOKENS = "tokens:\x1b[0m6.5k"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def transcript_records() -> list[dict]:
-    return [
-        {"type": "assistant", "message": {"usage": USAGE, "content": [{"type": "text", "text": "hi"}]}},
-        {"type": "assistant", "message": {"content": [
+def transcript_records(with_skill: bool = True) -> list[dict]:
+    records = [{"type": "assistant", "message": {"usage": USAGE, "content": [{"type": "text", "text": "hi"}]}}]
+    if with_skill:
+        records.append({"type": "assistant", "message": {"content": [
             {"type": "tool_use", "id": "t1", "name": "Skill", "input": {"skill": SKILL}},
-        ]}},
-    ]
+        ]}})
+    return records
 
 
 class StatuslineTest(unittest.TestCase):
@@ -43,7 +44,10 @@ class StatuslineTest(unittest.TestCase):
         self.workdir = self.home / "project"
         self.workdir.mkdir()
         self.transcript = self.home / "session.jsonl"
-        lines = [json.dumps(record) for record in transcript_records()]
+        self.write_transcript(with_skill=True)
+
+    def write_transcript(self, with_skill: bool) -> None:
+        lines = [json.dumps(record) for record in transcript_records(with_skill)]
         self.transcript.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def payload(self, with_rate_limits: bool) -> str:
@@ -67,14 +71,28 @@ class StatuslineTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.split("\n")
 
-    def test_three_lines_with_skill_segment(self) -> None:
+    def test_three_lines_then_skill_block(self) -> None:
         lines = self.render()
-        self.assertEqual(len(lines), EXPECTED_LINES)
+        self.assertEqual(len(lines), EXPECTED_LINES + len(SKILL_BLOCK))
         plain = [ANSI_ESCAPE.sub("", line) for line in lines]
         self.assertTrue(plain[0].endswith(" project"))
-        self.assertEqual(plain[1], f"Opus(high) | tokens:6.5k | ctx:55% | {WRENCH} {SKILL}")
+        self.assertEqual(plain[1], "Opus(high) | tokens:6.5k | ctx:55%")
         self.assertIn(EXPECTED_TOKENS, lines[1])
         self.assertRegex(plain[2], r"^5h:12%\(reset .+\) \| 7d:85%\(reset .+\)$")
+        self.assertEqual(lines[EXPECTED_LINES:], SKILL_BLOCK)
+
+    def test_three_lines_unchanged_without_skill(self) -> None:
+        with_skill = self.render()
+        self.write_transcript(with_skill=False)
+        without_skill = self.render()
+        self.assertEqual(without_skill, with_skill[:EXPECTED_LINES])
+
+    def test_skill_block_backslashes_stay_literal(self) -> None:
+        skill = "demo:a\\nb\\t%s"
+        self.transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "id": "t1", "name": "Skill", "input": {"skill": skill}},
+        ]}}) + "\n", encoding="utf-8")
+        self.assertEqual(self.render()[EXPECTED_LINES:], ["skill:", f"main: {skill}"])
 
     def test_rate_limits_are_cached_and_shown_stale(self) -> None:
         self.render(with_rate_limits=True)

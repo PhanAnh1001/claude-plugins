@@ -1,10 +1,11 @@
 #!/bin/bash
-# Claude Code status line (statusline plugin). Prints three lines:
+# Claude Code status line (statusline plugin). Prints three lines, then an optional skill block:
 #   1. user@host  current-dir (basename, ~ for $HOME)  (git-branch in green)
 #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
-#      | "🔧 <most recently loaded skill>" (from last-skill.sh next to this script)
 #   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times
+#   4+. "skill:" then "main: <skill>" and "<subagent label>: <skill>" lines, printed as-is from
+#      last-skill.sh next to this script; left out entirely when no skill was loaded.
 #
 # Reads the session JSON from stdin per the statusLine contract; cwd always comes from that JSON,
 # never from the process's own $PWD. Requires jq. Paths under the Claude config dir use
@@ -156,18 +157,11 @@ context_segment() {
   fi
 }
 
-skill_segment() {
-  # "🔧 <name>" of the most recently loaded skill; silent when unknown.
-  [ -n "$transcript_path" ] && [ -f "$LAST_SKILL_SCRIPT" ] || return 0
-  bash "$LAST_SKILL_SCRIPT" "$transcript_path" 2>/dev/null
-}
-
 build_line2() {
   local segments=() seg
   seg=$(model_segment); [ -n "$seg" ] && segments+=("$seg")
   segments+=("$(tokens_segment)")
   segments+=("$(context_segment)")
-  seg=$(skill_segment); [ -n "$seg" ] && segments+=("$seg")
   join_segments "${segments[@]}"
 }
 
@@ -216,9 +210,20 @@ build_line3() {
 line1=$(build_line1)
 line2=$(build_line2)
 line3=$(build_line3)
+# --- Skill block (lines 4+) ---
+build_skill_block() {
+  # Lines from last-skill.sh: "skill:", "main: <skill>", "<subagent label>: <skill>"; or nothing.
+  [ -n "$transcript_path" ] && [ -f "$LAST_SKILL_SCRIPT" ] || return 0
+  bash "$LAST_SKILL_SCRIPT" "$transcript_path" 2>/dev/null
+}
+
 save_cache
+skill_block=$(build_skill_block)
 
 out="$line1"
 [ -n "$line2" ] && out="${out}\n${line2}"
 [ -n "$line3" ] && out="${out}\n${line3}"
 printf "%b" "$out"
+# printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
+[ -n "$skill_block" ] && printf '\n%s' "$skill_block"
+exit 0

@@ -1,7 +1,7 @@
 {
   "name": "statusline",
-  "version": "0.2.0",
-  "description": "Three-line Claude Code status line: user@host dir (git branch); model (effort), session tokens, context %, most recently loaded skill; 5-hour/7-day rate limits with reset times. The statusline:setup skill installs a stable shim in the Claude config dir that always runs the installed plugin version.",
+  "version": "0.3.0",
+  "description": "Three-line Claude Code status line: user@host dir (git branch); model (effort), session tokens, context %; 5-hour/7-day rate limits with reset times; then a block with the skill most recently loaded by the main agent and by each recent subagent. The statusline:setup skill installs a stable shim in the Claude config dir that always runs the installed plugin version.",
   "author": {
     "name": "statusline"
   }

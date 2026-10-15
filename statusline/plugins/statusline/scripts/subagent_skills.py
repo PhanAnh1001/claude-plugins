@@ -3,7 +3,8 @@
 Layout written by Claude Code (checked on CLI 2.1.29x):
   <project dir>/<session_id>.jsonl                               main transcript (transcript_path)
   <project dir>/<session_id>/subagents/agent-<agentId>.jsonl     one transcript per subagent
-  <project dir>/<session_id>/subagents/agent-<agentId>.meta.json {"agentType": "plugin:name", ...}
+  <project dir>/<session_id>/subagents/agent-<agentId>.meta.json {"agentType": "plugin:name",
+                                                                   "description": "...", ...}
 A subagent's Skill tool_use and the PreToolUse hook message for it are written only to its own
 transcript, never to the main one, so the status line has to read these files too.
 
@@ -24,10 +25,18 @@ SUBAGENTS_DIRNAME = "subagents"
 AGENT_TRANSCRIPT_GLOB = "agent-*" + TRANSCRIPT_SUFFIX
 META_SUFFIX = ".meta.json"
 AGENT_TYPE_KEY = "agentType"
+DESCRIPTION_KEY = "description"
 # agentType is "<plugin>:<agent>" for plugin agents (e.g. "parallel-subagents:hand"); only the
-# part after the last separator is shown to keep the status line short.
+# part after the last separator is used as a fallback label to keep the status line short.
 AGENT_TYPE_SEPARATOR = ":"
 DEFAULT_AGENT_LABEL = "subagent"
+# The status line prints "<label>: <skill>", so a ":" inside a label would be ambiguous.
+LABEL_FORBIDDEN = ":"
+LABEL_REPLACEMENT = "-"
+# Long descriptions are cut to this many characters (then LABEL_ELLIPSIS is appended) so one
+# subagent line stays readable in a narrow terminal.
+SUBAGENT_LABEL_MAX_CHARS = 40
+LABEL_ELLIPSIS = "\N{HORIZONTAL ELLIPSIS}"
 ENCODING = "utf-8"
 # Record timestamps look like "2026-10-14T09:31:10.793Z"; Python 3.9 fromisoformat rejects "Z".
 UTC_SUFFIX = "Z"
@@ -78,14 +87,34 @@ def _read_meta(transcript_path: str) -> Any:
         return None
 
 
-def agent_label(transcript_path: str) -> str:
-    """Short agent type from the meta file next to the transcript, or DEFAULT_AGENT_LABEL."""
-    meta = _read_meta(transcript_path)
-    agent_type = meta.get(AGENT_TYPE_KEY) if isinstance(meta, dict) else None
+def clean_label(text: str) -> str:
+    """One-line label: drop non-printable characters, collapse whitespace, replace ":", cut long text."""
+    printable = "".join(char if char.isprintable() else " " for char in text)
+    label = " ".join(printable.split()).replace(LABEL_FORBIDDEN, LABEL_REPLACEMENT)
+    if len(label) <= SUBAGENT_LABEL_MAX_CHARS:
+        return label
+    return label[:SUBAGENT_LABEL_MAX_CHARS].rstrip() + LABEL_ELLIPSIS
+
+
+def _short_agent_type(meta: dict) -> str:
+    agent_type = meta.get(AGENT_TYPE_KEY)
     if not isinstance(agent_type, str):
+        return ""
+    return agent_type.rsplit(AGENT_TYPE_SEPARATOR, 1)[-1]
+
+
+def subagent_label(transcript_path: str) -> str:
+    """Label from the meta file next to the transcript: the start of its description, else the
+    short agentType (e.g. "hand"), else DEFAULT_AGENT_LABEL."""
+    meta = _read_meta(transcript_path)
+    if not isinstance(meta, dict):
         return DEFAULT_AGENT_LABEL
-    label = agent_type.rsplit(AGENT_TYPE_SEPARATOR, 1)[-1].strip()
-    return label or DEFAULT_AGENT_LABEL
+    description = meta.get(DESCRIPTION_KEY)
+    for candidate in (description if isinstance(description, str) else "", _short_agent_type(meta)):
+        label = clean_label(candidate)
+        if label:
+            return label
+    return DEFAULT_AGENT_LABEL
 
 
 def parse_timestamp(value: Any) -> Optional[float]:

@@ -1,6 +1,6 @@
-"""Tests for scripts/last-skill.sh + last_skill.py (status-line helper: most recent skill).
+"""Tests for scripts/last-skill.sh + last_skill.py (status-line helper: skill block, main agent).
 
-Ported from dev-workflow (commit 65f7f95) tests/test_last_skill.py; only the env var name differs.
+Ported from dev-workflow (commit 65f7f95) tests/test_last_skill.py; the env var name and the block output differ.
 """
 from __future__ import annotations
 
@@ -23,6 +23,15 @@ WRENCH = "\N{WRENCH}"
 FILLER_TEXT = "x" * 2000
 FILLER_LINES = 20
 SMALL_MAX_BYTES = 4096
+
+
+# Output block of last_skill.py when only the main agent loaded a skill.
+BLOCK_HEADER = "skill:"
+MAIN_LABEL = "main"
+
+
+def main_block(skill: str) -> str:
+    return f"{BLOCK_HEADER}\n{MAIN_LABEL}: {skill}"
 
 
 def assistant_tool_use(tool_id: str, name: str, tool_input: object) -> dict:
@@ -76,7 +85,7 @@ class LastSkillTest(unittest.TestCase):
 
     def assert_skill(self, result: subprocess.CompletedProcess[str], skill: str) -> None:
         self.assertEqual(result.returncode, 0)
-        self.assertEqual(result.stdout, f"{WRENCH} {skill}")
+        self.assertEqual(result.stdout, main_block(skill))
 
     def assert_silent(self, result: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(result.returncode, 0)

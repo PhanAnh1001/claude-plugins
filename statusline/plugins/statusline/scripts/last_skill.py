@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the skill most recently loaded in a Claude Code session, for the status line.
+"""Print the skills most recently loaded in a Claude Code session, for the status line.
 
 Ported from dev-workflow plugin 0.3.0 (commit 65f7f95) plugins/dev-workflow/scripts/last_skill.py.
 Differences: the max-bytes override env var is STATUSLINE_LAST_SKILL_MAX_BYTES.
@@ -8,11 +8,15 @@ Usage:
     last_skill.py <transcript_path>   # path given directly
     last_skill.py < statusline.json   # no argument: read the status-line JSON, use .transcript_path
 
-Output: "\N{WRENCH} <skill name>" on one line with no trailing newline, or nothing at all. When the
-newest skill was loaded by a subagent: "\N{WRENCH} <skill name> (<agent type>)", e.g.
-"\N{WRENCH} dev-workflow:bug-investigation (hand)"; "(subagent)" when its meta file has no agentType.
+Output: a block of lines with no trailing newline, or nothing at all when no skill is found:
+    skill:
+    main: <skill most recently loaded by the main agent>
+    <subagent label>: <skill most recently loaded by that subagent>
+The "main:" line is left out when the main agent loaded no skill. One line per recent subagent
+that loaded a skill, at most MAX_SUBAGENT_LINES, newest load first; the label is the start of the
+subagent's description (see subagent_skills.subagent_label).
 
-Where the name comes from (newest record first, reading the JSONL transcript backwards):
+Where a name comes from (newest record first, reading each JSONL transcript backwards):
   1. an assistant record whose message.content[] has {"type": "tool_use", "name": "Skill",
      "input": {"skill": "<name>"}} - works without any hook;
   2. fallback: an attachment {"type": "hook_system_message", "content": "\N{WRENCH} Skill: <name>"}
@@ -21,14 +25,14 @@ Where the name comes from (newest record first, reading the JSONL transcript bac
      with the same toolUseID and prefers that tool_use's name.
 
 Subagents: their Skill records live only in <session dir>/subagents/agent-*.jsonl (see
-subagent_skills.py). The MAX_SUBAGENT_FILES most recently modified of them are scanned the same
-way and the hit with the newest record "timestamp" wins. A main-transcript hit without a timestamp
-cannot be compared and is kept; a subagent hit without a timestamp is ignored.
+subagent_skills.py). Only the MAX_SUBAGENT_FILES most recently modified of them are scanned. Lines
+are ordered by the record "timestamp" of each subagent's hit; a hit without a usable timestamp
+falls back to its file's mtime.
 
 Speed: each file is read backwards in blocks and the scan stops at the first hit; at most
 MAX_READ_BYTES are read (override with env STATUSLINE_LAST_SKILL_MAX_BYTES, used by the tests).
-Fail-open: missing file, bad JSON, cut-off lines or any OS error -> no output, exit 0; a missing
-subagents directory or any error while reading it -> the main-transcript result alone.
+Fail-open: missing file, bad JSON, cut-off lines or any OS error -> that transcript adds no line;
+a missing subagents directory or any error while listing it -> only the "main:" line; exit 0.
 Requires Python >= 3.9 (stdlib only), so the status line can use any PATH python3.
 """
 from __future__ import annotations
@@ -37,17 +41,17 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator, List, Optional
 
 from subagent_skills import (
-    agent_label,
+    SubagentTranscript,
     parse_timestamp,
     recent_subagent_transcripts,
+    subagent_label,
     subagents_dir,
 )
 
 EXIT_OK = 0
-OUTPUT_PREFIX = "\N{WRENCH} "
 # Upper bound on bytes read from the end of the transcript; a skill loaded earlier than this is
 # not shown. 4 MB keeps the status line fast even for multi-MB transcripts.
 MAX_READ_BYTES = 4 * 1024 * 1024
@@ -55,6 +59,12 @@ MAX_BYTES_ENV = "STATUSLINE_LAST_SKILL_MAX_BYTES"
 # How many subagent transcripts (newest by mtime) are scanned; older subagents rarely hold the
 # newest skill, and the cap keeps the status line fast in sessions with dozens of subagents.
 MAX_SUBAGENT_FILES = 5
+# How many subagent lines the block shows at most, so the status line stays a few lines tall.
+MAX_SUBAGENT_LINES = 3
+BLOCK_HEADER = "skill:"
+MAIN_LABEL = "main"
+LABEL_SEPARATOR = ": "
+OUTPUT_LINE_SEPARATOR = "\n"
 READ_BLOCK_BYTES = 64 * 1024
 # After a hook_system_message hit, how many older lines to search for the matching tool_use
 # (in real transcripts it is 1-3 lines earlier).
@@ -93,16 +103,15 @@ class SkillHit:
 
 
 @dataclass(frozen=True)
-class LatestSkill:
-    """The skill to show: its name, when it was loaded, and the subagent label if not the main."""
+class SkillLine:
+    """One line of the output block: who loaded the skill, which one, and when (for ordering)."""
 
-    name: str
-    loaded_at: Optional[float]
-    agent_label: Optional[str] = None
+    label: str
+    skill: str
+    loaded_at: float
 
     def render(self) -> str:
-        suffix = f" ({self.agent_label})" if self.agent_label else ""
-        return f"{OUTPUT_PREFIX}{self.name}{suffix}"
+        return f"{self.label}{LABEL_SEPARATOR}{self.skill}"
 
 
 def iter_lines_backwards(path: str, max_bytes: int) -> Iterator[bytes]:
@@ -203,44 +212,48 @@ def find_last_skill_hit(path: str, max_bytes: int = MAX_READ_BYTES) -> Optional[
     return fallback
 
 
-def find_last_skill(path: str, max_bytes: int = MAX_READ_BYTES) -> Optional[str]:
-    """Return the name of the most recently loaded skill in one transcript, or None."""
-    hit = find_last_skill_hit(path, max_bytes)
+def subagent_line(transcript: SubagentTranscript, max_bytes: int) -> Optional[SkillLine]:
+    """The line for one subagent transcript, or None when it loaded no skill or cannot be read."""
+    try:
+        hit = find_last_skill_hit(transcript.path, max_bytes)
+    except OSError:
+        return None
+    if hit is None or hit.name is None:
+        return None
+    loaded_at = parse_timestamp(hit.timestamp)
+    return SkillLine(
+        subagent_label(transcript.path), hit.name, loaded_at if loaded_at is not None else transcript.mtime,
+    )
+
+
+def subagent_lines(transcript_path: str, max_bytes: int) -> List[SkillLine]:
+    """Lines for recent subagents that loaded a skill, newest load first, at most MAX_SUBAGENT_LINES."""
+    try:
+        transcripts = recent_subagent_transcripts(subagents_dir(transcript_path), MAX_SUBAGENT_FILES)
+    except (OSError, ValueError):
+        return []  # fail-open: subagent lookup never hides the main line
+    lines = [line for line in (subagent_line(t, max_bytes) for t in transcripts) if line is not None]
+    lines.sort(key=lambda line: line.loaded_at, reverse=True)
+    return lines[:MAX_SUBAGENT_LINES]
+
+
+def main_skill(transcript_path: str, max_bytes: int) -> Optional[str]:
+    try:
+        hit = find_last_skill_hit(transcript_path, max_bytes)
+    except OSError:
+        return None
     return hit.name if hit is not None else None
 
 
-def newest_subagent_skill(
-    transcript_path: str, max_bytes: int, current: Optional[LatestSkill],
-) -> Optional[LatestSkill]:
-    """The newest skill among recent subagent transcripts if it beats `current`, else `current`."""
-    if current is not None and current.loaded_at is None:
-        return current  # main hit without a timestamp: nothing to compare against
-    best = current
-    for transcript in recent_subagent_transcripts(subagents_dir(transcript_path), MAX_SUBAGENT_FILES):
-        if best is not None and best.loaded_at is not None and transcript.mtime < best.loaded_at:
-            break  # sorted newest first: this file and all later ones were last written earlier
-        try:
-            hit = find_last_skill_hit(transcript.path, max_bytes)
-        except OSError:
-            continue
-        loaded_at = parse_timestamp(hit.timestamp) if hit is not None else None
-        if hit is None or hit.name is None or loaded_at is None:
-            continue
-        if best is None or best.loaded_at is None or loaded_at > best.loaded_at:
-            best = LatestSkill(hit.name, loaded_at, agent_label(transcript.path))
-    return best
-
-
-def find_latest_skill(transcript_path: str, max_bytes: int = MAX_READ_BYTES) -> Optional[LatestSkill]:
-    """Newest skill loaded in the session by the main agent or by a recent subagent."""
-    main_hit = find_last_skill_hit(transcript_path, max_bytes)
-    current = None
-    if main_hit is not None and main_hit.name is not None:
-        current = LatestSkill(main_hit.name, parse_timestamp(main_hit.timestamp))
-    try:
-        return newest_subagent_skill(transcript_path, max_bytes, current)
-    except (OSError, ValueError):
-        return current  # fail-open: subagent lookup never hides the main result
+def skill_block(transcript_path: str, max_bytes: int = MAX_READ_BYTES) -> str:
+    """The whole output block, or "" when neither the main agent nor a recent subagent loaded a skill."""
+    rendered = [line.render() for line in subagent_lines(transcript_path, max_bytes)]
+    main_name = main_skill(transcript_path, max_bytes)
+    if main_name is not None:
+        rendered.insert(0, f"{MAIN_LABEL}{LABEL_SEPARATOR}{main_name}")
+    if not rendered:
+        return ""
+    return OUTPUT_LINE_SEPARATOR.join([BLOCK_HEADER, *rendered])
 
 
 def read_max_bytes() -> int:
@@ -265,13 +278,10 @@ def main(argv: list) -> int:
     path = argv[1] if len(argv) > 1 else transcript_path_from_stdin()
     if not path:
         return EXIT_OK
-    try:
-        latest = find_latest_skill(path, read_max_bytes())
-    except OSError:
-        return EXIT_OK
-    if latest is not None:
-        # Write bytes so a non-UTF-8 locale in the status-line environment cannot break the emoji.
-        sys.stdout.buffer.write(latest.render().encode(ENCODING))
+    block = skill_block(path, read_max_bytes())
+    if block:
+        # Write bytes so a non-UTF-8 locale in the status-line environment cannot break non-ASCII text.
+        sys.stdout.buffer.write(block.encode(ENCODING))
     return EXIT_OK
 
 

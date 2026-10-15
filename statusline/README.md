@@ -2,10 +2,11 @@
 
 ## Tóm tắt
 
-- **Mục đích:** đóng gói thanh trạng thái (status line) 3 dòng của Claude Code thành plugin để
+- **Mục đích:** đóng gói thanh trạng thái (status line) 3 dòng, kèm khối skill nạp gần nhất của main
+  và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.2.0).
+  `statusline` (bản 0.3.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -13,26 +14,40 @@
   chạy lại setup, vì shim luôn chạy bản plugin đang cài.
 - **Yêu cầu:** `jq`, `python3` >= 3.9, `bash`, `git`.
 
-## Ba dòng statusline
+## Các dòng statusline
 
 | Dòng | Nội dung | Ví dụ |
 |---|---|---|
 | 1 | `user@host`, tên thư mục hiện tại (`~` nếu là thư mục home), nhánh git màu xanh | `anh@mac dev-workflow (main)` |
-| 2 | model (mức effort), tổng tokens của phiên, % context đang dùng, skill nạp gần nhất | `Opus(high) \| tokens:6.5k \| ctx:55% \| 🔧 dev-workflow:dev-triage` |
+| 2 | model (mức effort), tổng tokens của phiên, % context đang dùng | `Opus(high) \| tokens:6.5k \| ctx:55%` |
 | 3 | rate limit 5 giờ và 7 ngày kèm giờ reset | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46)` |
+| 4+ | khối skill nạp gần nhất (xem dưới), không có skill thì bỏ cả khối | `skill:` rồi `main: dev-workflow:dev-triage` |
 
 - **Màu phần trăm:** xanh dưới 50%, vàng từ 50%, đỏ từ 80%.
 - **Tokens** cộng mọi bản ghi `usage` trong transcript nên chỉ tăng, không giảm khi nén context.
-- **Skill gần nhất** đọc ngược tối đa 4 MB cuối transcript: ưu tiên lời gọi tool `Skill`, dự phòng
-  bằng thông điệp hook `🔧 Skill: <tên>`. Không tìm thấy thì không hiện mục này.
-  - **Skill do subagent nạp:** Claude Code ghi lời gọi `Skill` của subagent vào transcript riêng
-    `<session_id>/subagents/agent-<id>.jsonl` cạnh transcript chính, không ghi vào transcript chính.
-    Statusline đọc thêm 5 file subagent sửa gần nhất (theo mtime), mỗi file cùng giới hạn 4 MB, rồi
-    so trường `timestamp` để chọn skill mới nhất.
-  - Nếu skill mới nhất do subagent nạp, mục này có thêm loại agent lấy từ file
-    `agent-<id>.meta.json` (phần sau dấu `:` cuối của `agentType`), ví dụ
-    `🔧 dev-workflow:bug-investigation (hand)`. Thiếu hoặc hỏng file meta thì ghi `(subagent)`.
-  - Không có thư mục `subagents` hoặc đọc lỗi thì chỉ dùng transcript chính như trước.
+- **Khối skill** in sau dòng rate limit, ví dụ:
+
+  ```text
+  skill:
+  main: dev-workflow:measurement-evidence
+  Nạp skill để thử statusline: dev-workflow:port-between-repos
+  Viết docs solutions và ADR-003: summary-first-docs:structuring-documents
+  ```
+
+  - **Dòng `main:`** là skill main nạp gần nhất. Main chưa nạp skill nào thì bỏ dòng này. Nếu cả
+    main lẫn subagent đều chưa nạp skill thì không in khối, kể cả dòng `skill:`.
+  - **Dòng subagent:** mỗi subagent có nạp skill được một dòng `<nhãn>: <skill nạp gần nhất>`.
+    Chỉ xét 5 transcript subagent sửa gần nhất (theo mtime) và in tối đa 3 dòng, skill nạp mới
+    nhất ở trên.
+  - **Nhãn subagent** lấy trường `description` trong `agent-<id>.meta.json`, gộp khoảng trắng,
+    đổi `:` thành `-`, dài quá 40 ký tự thì cắt và thêm `…`. Không có description thì dùng phần
+    sau dấu `:` cuối của `agentType` (ví dụ `hand`), không có nữa thì dùng `subagent`.
+  - **Cách tìm skill:** đọc ngược tối đa 4 MB cuối mỗi transcript, ưu tiên lời gọi tool `Skill`,
+    dự phòng bằng thông điệp hook `🔧 Skill: <tên>`. Claude Code ghi lời gọi `Skill` của subagent
+    vào transcript riêng `<session_id>/subagents/agent-<id>.jsonl` cạnh transcript chính, nên
+    statusline đọc cả các file đó. Thứ tự các dòng subagent theo trường `timestamp`; bản ghi không
+    có `timestamp` thì dùng mtime của file.
+  - **Fail-open:** không có thư mục `subagents` hoặc đọc lỗi thì chỉ hiện những gì đọc được.
 - **Rate limit** chỉ có sau phản hồi API đầu tiên của phiên. Trước đó dòng 3 hiện giá trị lưu ở
   `.statusline-cache.json` trong thư mục cấu hình Claude, có dấu `~` phía trước; chưa có gì thì
   hiện `--`.
@@ -110,9 +125,9 @@ statusline/                               # gốc marketplace (đưa cho marketp
 ├── README.md
 ├── plugins/statusline/
 │   ├── .claude-plugin/plugin.json
-│   ├── scripts/statusline.sh             # vẽ 3 dòng
-│   ├── scripts/last-skill.sh, last_skill.py   # skill gần nhất (port từ dev-workflow 0.3.0)
-│   ├── scripts/subagent_skills.py        # tìm transcript subagent, đọc agentType
+│   ├── scripts/statusline.sh             # vẽ 3 dòng + khối skill
+│   ├── scripts/last-skill.sh, last_skill.py   # khối skill gần nhất (port từ dev-workflow 0.3.0)
+│   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn từ description
 │   ├── scripts/install.sh                # setup / --dry-run / --uninstall
 │   ├── scripts/settings_json.py          # sửa JSON khi không có jq
 │   ├── templates/statusline-shim.sh      # mẫu shim
