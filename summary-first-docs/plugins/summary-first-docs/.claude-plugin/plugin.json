@@ -1,7 +1,7 @@
 {
   "name": "summary-first-docs",
-  "version": "1.0.0",
-  "description": "Project-agnostic documentation skills: summary-first top-down structure, source citation with data dates, living solution docs, and research saved in the repo.",
+  "version": "1.1.0",
+  "description": "Project-agnostic documentation skills: summary-first top-down structure, source citation with data dates, living solution docs, end-user feature lists with status, and research saved in the repo.",
   "author": {
     "name": "summary-first-docs"
   }

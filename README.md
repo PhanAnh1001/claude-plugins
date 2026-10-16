@@ -25,11 +25,11 @@
 | `jira-tools/` | `jira-tools-local` | `jira-tools` | CLI Jira Server (REST v2, PAT Bearer), skill `jira`, SessionStart hook |
 | `parallel-subagents/` | `parallel-subagents-local` | `parallel-subagents` | điều phối brain/hand: agent `hand`, hook bơm policy |
 | `statusline/` | `statusline-local` | `statusline` | thanh trạng thái 3 dòng (thư mục/nhánh git; model, tokens, ctx, skill gần nhất; rate limit), skill `setup` |
-| `summary-first-docs/` | `summary-first-docs-local` | `summary-first-docs` | bốn skill tài liệu dùng chung mọi dự án |
+| `summary-first-docs/` | `summary-first-docs-local` | `summary-first-docs` | năm skill tài liệu dùng chung mọi dự án |
 
 ### summary-first-docs
 
-Bốn skill, không hook, không agent; đường dẫn và ngôn ngữ theo `AGENTS.md` / `CLAUDE.md` của
+Năm skill, không hook, không agent; đường dẫn và ngôn ngữ theo `AGENTS.md` / `CLAUDE.md` của
 dự án nếu có:
 
 - `structuring-documents`: mọi tài liệu mở bằng tóm tắt (mục đích, kết luận/quyết định, con số
@@ -38,6 +38,9 @@ dự án nếu có:
   liệu; nhãn chưa xác minh, vendor tự công bố, suy luận, đã bị thay, chưa có nguồn internet.
 - `documenting-solutions`: mỗi giải pháp đang hiệu lực một file
   `docs/solutions/<group>/<branch>/<solution>.md`, mục lục `docs/solutions/README.md`.
+- `documenting-features`: danh sách tính năng cho người dùng cuối (mặc định
+  `docs/guides/features.md`, đường dẫn theo luật dự án), mỗi tính năng có trạng thái Đã có /
+  Đang làm / Dự kiến; lập khi bắt đầu dự án, đọc đầu task, cập nhật cuối task.
 - `saving-research`: nghiên cứu nhiều nguồn lưu ở `docs/research/<YYYY-MM-DD>-<slug>/`
   (`report.md`, `notes/<topic>.md`) và mục lục `docs/research/README.md`.
 

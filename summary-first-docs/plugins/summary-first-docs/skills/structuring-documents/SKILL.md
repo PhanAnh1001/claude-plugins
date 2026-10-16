@@ -71,6 +71,7 @@ replace content with filler.
 | Plan | goal, phases and their status, dates or effort, blockers, next step |
 | Report / research | question, 3-5 conclusions, key figures with sources, recommendation |
 | Solution doc | solution in force, cause, key numbers, what the reader must do |
+| Feature list | audience, feature groups with status, key numbers, getting-started steps, top limits |
 | Agent instructions | purpose of the repo, commands, rules that apply on every change |
 
 ## Top-down order

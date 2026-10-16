@@ -17,7 +17,8 @@ description: Write, update or delete living solution documents - one file per so
 - **Project rules win:** if AGENTS.md / CLAUDE.md sets another folder, language or line limit,
   use it everywhere this skill says `docs/solutions/`.
 - **Related skills:** structure every file with `structuring-documents`; cite legal, market and
-  vendor claims with `citing-sources`.
+  vendor claims with `citing-sources`; when the task adds, changes or drops what end users can
+  do, also update the feature list with `documenting-features`.
 
 ## Rules
 

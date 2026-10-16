@@ -3,12 +3,13 @@
 ## Tóm tắt
 
 - **Mục đích:** marketplace Claude Code tự host (`summary-first-docs-local`) chứa plugin
-  **summary-first-docs**: bốn skill viết tài liệu dùng chung cho mọi dự án, không phụ thuộc
+  **summary-first-docs**: năm skill viết tài liệu dùng chung cho mọi dự án, không phụ thuộc
   repo nào.
-- **Bốn skill:** `structuring-documents` (tóm tắt trước, top-down), `citing-sources` (dẫn nguồn
+- **Năm skill:** `structuring-documents` (tóm tắt trước, top-down), `citing-sources` (dẫn nguồn
   `http(s)` kèm ngày dữ liệu), `documenting-solutions` (tài liệu giải pháp đang hiệu lực trong
-  `docs/solutions/`), `saving-research` (lưu nghiên cứu vào `docs/research/`).
-- **Phiên bản:** 1.0.0. Không có hook, agent hay script; chỉ có skill.
+  `docs/solutions/`), `documenting-features` (danh sách tính năng cho người dùng cuối, trạng thái
+  Đã có / Đang làm / Dự kiến), `saving-research` (lưu nghiên cứu vào `docs/research/`).
+- **Phiên bản:** 1.1.0. Không có hook, agent hay script; chỉ có skill.
 - **Luật dự án ưu tiên:** đường dẫn, ngôn ngữ, giới hạn số dòng khai báo trong `AGENTS.md` /
   `CLAUDE.md` của dự án thắng giá trị mặc định của skill.
 - **Việc cần làm:** cài một lần ở scope `user` (mục Cài đặt); sau mỗi lần sửa skill thì tăng
@@ -23,16 +24,18 @@ plugins/summary-first-docs/
   skills/structuring-documents/SKILL.md   tóm tắt trước, nhóm -> nhánh
   skills/citing-sources/SKILL.md          dẫn nguồn, nhãn số liệu
   skills/documenting-solutions/SKILL.md   tài liệu giải pháp + template.md (tiêu đề tiếng Việt)
+  skills/documenting-features/SKILL.md    danh sách tính năng + template.md (khuôn tiếng Việt)
   skills/saving-research/SKILL.md         lưu nghiên cứu + template.md (khuôn báo cáo)
 ```
 
-## Bốn skill
+## Năm skill
 
 | Skill | Dùng khi | Kết quả |
 |---|---|---|
 | `structuring-documents` | viết/sửa mọi tài liệu (README, spec, plan, báo cáo, SKILL.md) | tài liệu mở bằng tóm tắt (mục đích, kết luận, con số, việc cần làm), phần chi tiết theo thứ tự nhóm -> nhánh |
 | `citing-sources` | có số liệu, sự kiện, kết luận từ bên ngoài (báo cáo, giải pháp, câu trả lời chat) | mỗi claim có link `http(s)` nguồn mới nhất + ngày dữ liệu; nhãn chưa xác minh / vendor tự công bố / suy luận / đã bị thay / chưa có nguồn internet |
 | `documenting-solutions` | xong một task, đổi/bỏ/thay một giải pháp | mỗi giải pháp một file `docs/solutions/<group>/<branch>/<solution>.md`, mục lục `docs/solutions/README.md` khớp cây thư mục |
+| `documenting-features` | bắt đầu dự án (lập), đầu task (đọc, nói task theo ngôn ngữ người dùng), cuối task (cập nhật); hỏi sản phẩm làm được gì | một bản kê cho mỗi nhóm người dùng (mặc định `docs/guides/features.md`, đường dẫn theo luật dự án): bảng nhóm có cột Trạng thái, mỗi tính năng đầu vào -> đầu ra, cách dùng, giới hạn; tính năng dự kiến tách riêng kèm nguồn |
 | `saving-research` | nghiên cứu nhiều nguồn, kể cả skill `deep-research` | `docs/research/<YYYY-MM-DD>-<slug>/report.md` + `notes/<topic>.md` + mục lục `docs/research/README.md` |
 
 Không có skill ghi quyết định: plugin không bắt buộc `docs/decisions.md` hay đánh số quyết
