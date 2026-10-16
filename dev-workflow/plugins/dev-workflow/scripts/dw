@@ -1,0 +1,57 @@
+#!/bin/bash
+# Single entry point for dev-workflow helper scripts; picks a Python >= 3.11 interpreter.
+#   dw config [--get section.key] [--json] [--config PATH]   -> dw_config.py
+#   dw trace  [--write] [--format md|json] [--config PATH]   -> trace_check.py
+#   dw template <design|plan|bug|cr|adr|traceability> [--config PATH] -> dw_template.py
+#   dw python                                                 -> print the chosen interpreter command
+# Exit code: the child script's exit code; 2 for usage errors or when no interpreter is found.
+
+EXIT_ERROR=2
+
+case "${BASH_SOURCE[0]}" in
+  */*) SCRIPTS_DIR="${BASH_SOURCE[0]%/*}" ;;
+  *) SCRIPTS_DIR="." ;;
+esac
+
+# shellcheck source=_pick_python.sh
+. "$SCRIPTS_DIR/_pick_python.sh"
+
+usage() {
+  echo "usage: dw config [--get section.key] [--json] [--config PATH]"
+  echo "       dw trace [--write] [--format md|json] [--config PATH]"
+  echo "       dw template <design|plan|bug|cr|adr|traceability> [--config PATH]"
+  echo "       dw python"
+}
+
+require_python() {
+  if ! dw_pick_python; then
+    echo "dw: no Python >= 3.11 (with tomllib) found on PATH and no 'uv' to provide one;" \
+      "install python3.11+ or uv" >&2
+    exit "$EXIT_ERROR"
+  fi
+}
+
+COMMAND="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$COMMAND" in
+  config) TARGET="dw_config.py" ;;
+  trace) TARGET="trace_check.py" ;;
+  template) TARGET="dw_template.py" ;;
+  python)
+    require_python
+    echo "${DW_PYTHON[*]}"
+    exit 0
+    ;;
+  -h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    usage >&2
+    exit "$EXIT_ERROR"
+    ;;
+esac
+
+require_python
+exec "${DW_PYTHON[@]}" "$SCRIPTS_DIR/$TARGET" "$@"

@@ -1,0 +1,83 @@
+# dev-workflow per-repo config. Copy to <repo>/.claude/dev-workflow.toml and edit.
+# Every key is optional: missing keys fall back to the defaults shown here.
+# Unknown keys only produce a warning. All paths are relative to the repo root.
+# Check the merged result with: python3 "${CLAUDE_PLUGIN_ROOT}/scripts/dw_config.py"
+
+[project]
+# Display name; empty means the repo directory name.
+name = ""
+# Language of documents that skills generate for people (specs, plans, reports).
+doc_language = "vi"
+# Maximum lines per source/doc file; larger files must be split into modules.
+max_file_lines = 400
+
+[gate]
+# Commands that must pass before any task is reported done. Run from the repo root, in order.
+commands = []
+# Lint/format commands run before the gate commands.
+lint = []
+
+[paths]
+# Directory for design/spec documents (design.md).
+specs = "docs/specs"
+# Directory for plan documents (plan.md); trace_check scans *.md here for T-<feature>-NN tasks.
+plans = "docs/plans"
+# Directory for architecture decision records.
+adr = "docs/adr"
+# Directory for bug reports (bugs/<date>-<slug>.md).
+bugs = "docs/bugs"
+# Directory for change requests (CR-YYYYMMDD-NNN.md).
+crs = "docs/cr"
+# Globs of files that define FR/NFR/BR/E/SC IDs (table row with the ID in the first cell, or a heading).
+srs = ["docs/**/srs/*.md", "docs/specs/**/*.md"]
+# File that trace_check.py --write regenerates.
+traceability = "docs/_shared/traceability.md"
+# Directory with template overrides; empty means the plugin's own templates.
+templates = ""
+# Extra file names (inside `templates`) tried after <name>.md for each template kind.
+# `dw template <name>` prints the file to use: repo <name>.md, then this alias, then the plugin's.
+template_aliases = { design = "spec.md" }
+# Directory with DB migration files; empty means auto-detect (db-migration skill).
+migrations = ""
+
+[frontend]
+# Command that starts the frontend dev server (used by ui-review-iterate); empty means no frontend.
+dev_command = ""
+# Frontend test/lint/typecheck/build commands, run from the repo root after frontend changes.
+checks = []
+# Language of UI text; empty means project.doc_language.
+ui_language = ""
+
+[docs_map]
+# "<code glob>" = ["<doc path>", ...]: changing matching code requires updating these docs.
+# "src/api/**" = ["docs/api.md"]
+
+[trace]
+# ID types that trace_check recognises (<TYPE>-<feature>-NNN).
+id_types = ["FR", "NFR", "BR", "E", "SC"]
+# Globs of test files scanned for IDs (literal ID or underscore form FR_<feature>_NNN).
+test_globs = ["tests/**/*.py", "**/test_*.py", "**/*_test.py", "**/*.test.*", "**/*.spec.*"]
+# ID types that must have at least one test; missing ones make trace_check exit 1.
+require_test_types = ["FR"]
+# ID types that must be covered by at least one plan task; missing ones make trace_check exit 1.
+require_task_types = ["FR"]
+# IDs exempt from the required task/test links: "<ID>" = "<reason>"; the reason appears in the
+# report's waiver section. A waiver for an ID that is not defined only warns.
+waivers = {}
+# Example: waivers = { "FR-login-003" = "Verified by manual UAT only" }
+
+[jira]
+# Jira project key used by the jira-workflow skill (empty disables Jira sync).
+project = ""
+# Multiplier applied to AI time estimates before writing them to Jira.
+estimate_factor = 1.1
+# Language of issue summaries and descriptions.
+language = "vi"
+# Section headings, in order, for issue descriptions.
+description_sections = ["Tóm tắt", "Chi tiết", "Tài liệu & trích dẫn"]
+# Repo doc with project-specific Jira rules (epics, components); empty means none.
+guide = ""
+
+[lanes]
+# Lane L0 (quick fix) allows at most this many changed files.
+l0_max_files = 2

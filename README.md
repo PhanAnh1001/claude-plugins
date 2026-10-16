@@ -6,9 +6,10 @@
   riêng**, nằm trong một thư mục con cùng tên, có README riêng.
 - **Git:** cả thư mục này là **một git repo duy nhất** (remote
   `https://github.com/PhanAnh1001/claude-plugins.git`) chứa mọi plugin; các thư mục plugin không
-  có git repo riêng. `parallel-subagents` trước đây là repo riêng `brain-hand-plugins`, nay gộp
-  vào đây; lịch sử git cũ của nó (và của `jira-tools`) không được giữ.
-- **Plugin hiện có (4):** `jira-tools`, `parallel-subagents`, `statusline`, `summary-first-docs`.
+  có git repo riêng. `parallel-subagents` trước đây là repo riêng `brain-hand-plugins`, `dev-workflow` cũng từng là
+  repo riêng, nay đều gộp vào đây; lịch sử git cũ của chúng (và của `jira-tools`) không được giữ.
+- **Plugin hiện có (5):** `dev-workflow`, `jira-tools`, `parallel-subagents`, `statusline`,
+  `summary-first-docs`.
 - **Cài đặt:** clone repo này, rồi mỗi plugin hai lệnh
   `claude plugin marketplace add <thư-mục-repo>/<plugin>` rồi
   `claude plugin install <plugin>@<plugin>-local --scope user`; chi tiết trong README của
@@ -20,6 +21,7 @@
 
 | Thư mục | Marketplace | Plugin | Nội dung |
 |---|---|---|---|
+| `dev-workflow/` | `dev-workflow-local` | `dev-workflow` | quy trình phát triển có AI: 12 skill (phân làn L0–L3, spec/plan, điều tra bug, truy vết, chốt phiên, Jira), wrapper `dw`, hook SessionStart và PreToolUse(Skill) |
 | `jira-tools/` | `jira-tools-local` | `jira-tools` | CLI Jira Server (REST v2, PAT Bearer), skill `jira`, SessionStart hook |
 | `parallel-subagents/` | `parallel-subagents-local` | `parallel-subagents` | điều phối brain/hand: agent `hand`, hook bơm policy |
 | `statusline/` | `statusline-local` | `statusline` | thanh trạng thái 3 dòng (thư mục/nhánh git; model, tokens, ctx, skill gần nhất; rate limit), skill `setup` |

@@ -1,0 +1,8 @@
+{
+  "name": "dev-workflow",
+  "version": "0.5.0",
+  "description": "AI-assisted development workflow for Claude Code: triage every task into lanes L0-L3, write spec/plan/ADR from templates, investigate bugs with a red test first, report change-request impact before editing, check FR -> task -> test traceability, and close sessions with gate, plan ticks and Jira sync. Per-repo settings live in .claude/dev-workflow.toml; a SessionStart hook suggests the skills only in repos that have that file, and a PreToolUse hook on the Skill tool shows the skill name whenever any skill is loaded.",
+  "author": {
+    "name": "dev-workflow"
+  }
+}
