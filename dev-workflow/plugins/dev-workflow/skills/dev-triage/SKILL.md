@@ -74,7 +74,8 @@ concrete defect (then move to L1/L2). Never lower a lane silently.
 | L2 | Design + plan (+ ADR) → approval → implement task by task, ticking boxes → review | design, plan, ADR if a long-lived decision, CR if the SRS must change | `spec-plan`, `trace-check`, `self-review`, `session-closeout`; `db-migration` if schema | design/plan approved before code; review diff before done |
 | L3 | Hypotheses → measure one variable at a time → report → **stop** → re-triage to L1/L2 | measurement report | `measurement-evidence`, `bug-investigation` if a defect is suspected | report approved before any fix |
 
-Add when relevant at any lane: `ui-review-iterate` (frontend change), `port-between-repos` (moving code or
+Add when relevant at any lane: `project-bootstrap` (repo has no AGENTS.md, SRS or roadmap yet),
+`ui-review-iterate` (frontend change), `port-between-repos` (moving code or
 docs between repos), `resume-work` (resuming after lost context), `jira-workflow` (via closeout when
 `[jira].project` is set).
 

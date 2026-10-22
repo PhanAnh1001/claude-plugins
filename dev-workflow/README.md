@@ -5,7 +5,7 @@
 - **Mục đích:** chuẩn hoá quy trình phát triển phần mềm có AI (Claude Code) cho các dự án của nhóm bằng
   một plugin dùng chung. Mỗi repo khai báo tham số riêng trong `.claude/dev-workflow.toml`.
 - **Thành phần:**
-  - **12 skill quy trình:** phân luồng L0–L3, spec/plan, điều tra bug, đo đạc, migration, review,
+  - **13 skill quy trình:** khởi tạo dự án mới, phân luồng L0–L3, spec/plan, điều tra bug, đo đạc, migration, review,
     chốt phiên, Jira, truy vết, khôi phục việc, port giữa repo, chỉnh UI.
   - **Wrapper `dw`:** đọc config, kiểm tra truy vết, chọn template.
   - **Hook SessionStart:** nhắc agent dùng skill, chỉ bật khi repo có config.
@@ -16,7 +16,7 @@
     (mục 1.4).
   - **7 template tài liệu** tiếng Việt.
 - **Trạng thái:**
-  - Phiên bản 0.5.0, đã chạy thử headless. 7/7 ca phân đúng làn; ca chỉ cập nhật Jira đã sửa để vào thẳng `jira-workflow`.
+  - Phiên bản 0.6.0, đã chạy thử headless. 7/7 ca phân đúng làn; ca chỉ cập nhật Jira đã sửa để vào thẳng `jira-workflow`.
   - Plugin `jira-tools` có thêm lệnh `jira-cli worklog`, dùng khi chuyển task sang Done.
 - **Vị trí:** thư mục `dev-workflow/` của repo `https://github.com/PhanAnh1001/claude-plugins.git`, marketplace
   `dev-workflow-local`.
@@ -100,6 +100,7 @@ Mã thoát của `dw trace`:
 
 | Nhóm | Skill | Khi nào dùng |
 |---|---|---|
+| Mở đầu | `project-bootstrap` | Dự án mới hoặc mới dựng một phần: đi lần lượt 7 giai đoạn từ luật repo, yêu cầu, ADR, backlog Jira, lộ trình MVP, khung code tới vòng dev từng task; dừng ở từng chốt duyệt |
 | Mở đầu | `dev-triage` | Mọi việc sửa code/docs: chọn làn L0–L3, artifact và skill cần nạp |
 | Thiết kế | `spec-plan` | Làn L2: design (spec), plan, ADR; cổng duyệt; tick ô |
 | Thiết kế | `db-migration` | Đổi schema bằng migration mới, không sửa migration đã chạy |

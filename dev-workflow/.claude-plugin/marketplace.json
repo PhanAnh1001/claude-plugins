@@ -3,12 +3,12 @@
   "owner": {
     "name": "dev-workflow"
   },
-  "description": "Self-hosted marketplace for the dev-workflow plugin: an AI-assisted SDLC workflow (triage lanes L0-L3, spec/plan, bug investigation, traceability, session closeout) for Claude Code.",
+  "description": "Self-hosted marketplace for the dev-workflow plugin: an AI-assisted SDLC workflow (new-project bootstrap, triage lanes L0-L3, spec/plan, bug investigation, traceability, session closeout) for Claude Code.",
   "plugins": [
     {
       "name": "dev-workflow",
       "source": "./plugins/dev-workflow",
-      "description": "AI-assisted development workflow: lane triage L0-L3, spec/plan/ADR templates, bug and change-request reports, FR -> task -> test traceability checks, and session closeout; configured per repo in .claude/dev-workflow.toml."
+      "description": "AI-assisted development workflow: new-project bootstrap, lane triage L0-L3, spec/plan/ADR templates, bug and change-request reports, FR -> task -> test traceability checks, and session closeout; configured per repo in .claude/dev-workflow.toml."
     }
   ]
 }

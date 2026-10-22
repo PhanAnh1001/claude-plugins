@@ -21,7 +21,7 @@
 
 | Thư mục | Marketplace | Plugin | Nội dung |
 |---|---|---|---|
-| `dev-workflow/` | `dev-workflow-local` | `dev-workflow` | quy trình phát triển có AI: 12 skill (phân làn L0–L3, spec/plan, điều tra bug, truy vết, chốt phiên, Jira), wrapper `dw`, hook SessionStart và PreToolUse(Skill) |
+| `dev-workflow/` | `dev-workflow-local` | `dev-workflow` | quy trình phát triển có AI: 13 skill (khởi tạo dự án, phân làn L0–L3, spec/plan, điều tra bug, truy vết, chốt phiên, Jira), wrapper `dw`, hook SessionStart và PreToolUse(Skill) |
 | `jira-tools/` | `jira-tools-local` | `jira-tools` | CLI Jira Server (REST v2, PAT Bearer), skill `jira`, SessionStart hook |
 | `parallel-subagents/` | `parallel-subagents-local` | `parallel-subagents` | điều phối brain/hand: agent `hand`, hook bơm policy |
 | `statusline/` | `statusline-local` | `statusline` | thanh trạng thái 3 dòng (thư mục/nhánh git; model, tokens, ctx, skill gần nhất; rate limit), skill `setup` |
