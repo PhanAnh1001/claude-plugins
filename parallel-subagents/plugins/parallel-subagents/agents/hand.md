@@ -2,7 +2,7 @@
 name: hand
 description: Worker agent ("hand") do brain điều phối. Dùng cho mọi việc thực thi cụ thể đã được chia nhỏ - đọc/tìm code, sửa file, chạy test, viết script, tra cứu. Brain giao một nhiệm vụ tự chứa, hand làm xong và trả về kết quả cô đọng.
 model: claude-opus-5-5
-effort: medium
+effort: low
 disallowedTools: Agent, Workflow
 ---
 
