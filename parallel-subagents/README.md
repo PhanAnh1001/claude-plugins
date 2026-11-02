@@ -275,3 +275,10 @@ lệnh, dùng hai khoá trong `~/.claude/settings.json`:
 
 Lưu ý `extraKnownMarketplaces` ở đây là một **object** keyed theo tên marketplace, không phải
 array.
+
+## Tài liệu
+
+Tài liệu nằm trong `docs/` (không ship cùng plugin):
+
+- [docs/solutions/README.md](docs/solutions/README.md) - các giải pháp đang áp dụng (luật tiếp việc theo cache, tách lệnh dài).
+- [docs/research/README.md](docs/research/README.md) - nghiên cứu đo đạc làm căn cứ (prompt cache của subagent, 2026-11-02).
