@@ -60,6 +60,7 @@
 - Conventional Commits with scope; imperative, scoped commits.
 - Merge-request description: problem, solution, verification commands, linked issues/specs, screenshots
   for UI.
-- Branches from the integration branch named after the Jira key; merge requests target it; the main
+- Branches from the integration branch named `<type>/<jira-key>-<english-slug>` (English slug only, even
+  when docs are Vietnamese; rule in `dev-workflow:dev-triage` section 5); merge requests target it; the main
   branch is updated only from the integration branch.
 - How merge requests are created (push options) and the fallback when the server ignores them.

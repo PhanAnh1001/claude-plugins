@@ -16,7 +16,7 @@
     (mục 1.4).
   - **7 template tài liệu** tiếng Việt.
 - **Trạng thái:**
-  - Phiên bản 0.6.0, đã chạy thử headless. 7/7 ca phân đúng làn; ca chỉ cập nhật Jira đã sửa để vào thẳng `jira-workflow`.
+  - Phiên bản 0.6.1, đã chạy thử headless. 7/7 ca phân đúng làn; ca chỉ cập nhật Jira đã sửa để vào thẳng `jira-workflow`.
   - Plugin `jira-tools` có thêm lệnh `jira-cli worklog`, dùng khi chuyển task sang Done.
 - **Vị trí:** thư mục `dev-workflow/` của repo `https://github.com/PhanAnh1001/claude-plugins.git`, marketplace
   `dev-workflow-local`.

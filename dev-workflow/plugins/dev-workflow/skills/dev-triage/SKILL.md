@@ -15,6 +15,7 @@ description: Classify a piece of development work into lane L0 (quick fix), L1 (
   question whose answer decides the lane. A bug is never L0.
 - **Brain/hand:** the brain triages once and copies the block's `SKILL CẦN NẠP` line into every hand
   brief; hands do not re-triage unless the brief says so. Reviews always stay with the brain.
+- **Branch names are English** in every repo (section 5), whatever `project.doc_language` is.
 
 ## 1. Gather the facts (measure, do not guess)
 
@@ -101,3 +102,19 @@ Write it in `project.doc_language`, keep it under ~15 lines, put the lane first.
   `session-closeout`, `jira-workflow`) when the brain/hand policy is active.
 - Then continue straight into the first step of the lane, unless the block ends with an approval gate or
   an open question — then stop and wait.
+
+## 5. Branch names (all repos)
+
+This is the single source of the branch-name rule; other skills and AGENTS.md outlines point here.
+
+- **Form:** `<type>/<issue-key>-<english-slug>` — keep the type prefix (`feat/`, `fix/`, `docs/`,
+  `chore/`, `refactor/`, `test/`...) and the issue key when the project uses one (lower case, for example
+  `ailux-155`); without an issue tracker use `<type>/<english-slug>`.
+- **Slug:** English words only, lower case, `a-z`, `0-9` and `-`. No Vietnamese or any other language,
+  not even without diacritics. Right: `feat/ailux-155-single-app-env-switch`. Wrong:
+  `feat/ailux-155-che-do-demo-compose`, `feat/ailux-153-overlay-noi-bo-pod-cidr-storage`.
+- **Scope:** only the branch name must be English. Commit messages, merge requests and documents still
+  follow `project.doc_language` and the repo's own rules.
+- **No retroactive renames:** a branch already pushed or merged keeps its name; apply the rule to new
+  branches. When a repo's AGENTS.md shows a non-English branch example, follow this rule and mention the
+  mismatch in the report.

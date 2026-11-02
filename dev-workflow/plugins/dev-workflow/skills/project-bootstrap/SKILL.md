@@ -97,8 +97,8 @@ projects to reuse. Record the answers in AGENTS.md (phase 0), not only in chat.
 2. Create the epics through `dev-workflow:jira-workflow` (dry-run, show the list, confirm). Epics carry
    no estimate.
 3. Add branch and merge-request rules to AGENTS.md: branch from the integration branch, named after the
-   Jira key (`feat/<key>-<meaning>`), merge requests target the integration branch, and what to do when
-   the server ignores push options (give the user the prefilled merge-request link).
+   Jira key with an English slug (`feat/<key>-<english-slug>`; rule in `dev-triage` section 5), merge
+   requests target the integration branch, and what to do when the server ignores push options (give the user the prefilled merge-request link).
 4. Long or uncertain groundwork (measurements, API surveys) becomes its own Jira task now so it runs in
    parallel with phase 4.
 
