@@ -3,7 +3,9 @@
 #   1. user@host  current-dir (basename, ~ for $HOME)  (git-branch in green)
 #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
-#   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times
+#   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times, then live OpenCode Go usage
+#      (5h / week / month) when its cache has usable numbers, else the estimated DS segment from
+#      hand-ext
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
 #      inline-code colour, note in parentheses dimmed like "(high)" on line 2); none when no skill.
@@ -24,12 +26,36 @@ CACHE_FILE="$CLAUDE_HOME/.statusline-cache.json"
 GO_STATE_DIR="${HYBRID_HANDS_STATE_DIR:-$HOME/.hybrid-hands}"
 GO_SUMMARY_FILE="$GO_STATE_DIR/go_usage_summary.json"
 GO_STALE_SECONDS=$((5 * 3600))
+# Live OpenCode Go usage fetched from the Zen API by go-usage-fetch.sh (same source as Paseo).
+# The status line only reads this cache; the fetch runs detached in the background.
+GO_LIVE_CACHE_FILE="$CLAUDE_HOME/.statusline-go-usage.json"
+GO_LIVE_LOCK_DIR="$CLAUDE_HOME/.statusline-go-usage.lock"
+GO_LIVE_AUTH_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
+GO_LIVE_REFRESH_SECONDS=300
+GO_LIVE_STALE_SECONDS=900
+# A transient error may keep showing the last ok numbers for this long before falling back to DS.
+GO_LIVE_ERROR_KEEP_SECONDS=21600
+GO_LIVE_LOCK_STALE_SECONDS=60
+GO_LIVE_FETCHED_AT=""
+GO_LIVE_STATE=""
+GO_LIVE_LAST_OK_AT=""
+GO_LIVE_ROLLING_PCT=""
+GO_LIVE_ROLLING_STATUS=""
+GO_LIVE_ROLLING_RESET=""
+GO_LIVE_WEEKLY_PCT=""
+GO_LIVE_WEEKLY_STATUS=""
+GO_LIVE_WEEKLY_RESET=""
+GO_LIVE_MONTHLY_PCT=""
+GO_LIVE_MONTHLY_STATUS=""
+GO_LIVE_MONTHLY_RESET=""
+GO_LIVE_STALE=0
 
 case "${BASH_SOURCE[0]}" in
   */*) SCRIPTS_DIR="${BASH_SOURCE[0]%/*}" ;;
   *) SCRIPTS_DIR="." ;;
 esac
 LAST_SKILL_SCRIPT="$SCRIPTS_DIR/last-skill.sh"
+GO_FETCH_SCRIPT="$SCRIPTS_DIR/go-usage-fetch.sh"
 
 RESET="\033[0m"
 GREEN="\033[32m"
@@ -172,19 +198,23 @@ build_line2() {
 
 # --- Line 3: rate limits ---
 rate_limit_segment() {
-  # Args: label live_pct live_reset cached_pct cached_reset. Live values win; cached ones get "~".
-  local label=$1 pct=$2 reset=$3 mark=""
+  # Args: label live_pct live_reset cached_pct cached_reset [color] [mark].
+  # Live values win; cached ones get "~". Callers may force a colour (rate-limited Go windows)
+  # and a stale mark (Go windows with an expired reset) without changing the Claude behaviour.
+  local label=$1 pct=$2 reset=$3 mark="" color="${6:-}"
   if [ -z "$pct" ]; then
     pct=$4
     reset=$5
     mark="$STALE_MARK"
   fi
+  [ -n "${7:-}" ] && mark="${7:-}"
   if [ -z "$pct" ]; then
     printf '%s' "${DIM}${label}:${PLACEHOLDER}${RESET}"
     return 0
   fi
   local seg reset_fmt
-  seg="${DIM}${label}:${mark}${RESET}$(col_for_pct "$pct")$(printf '%.0f' "$pct")%${RESET}"
+  [ -z "$color" ] && color=$(col_for_pct "$pct")
+  seg="${DIM}${label}:${mark}${RESET}${color}$(printf '%.0f' "$pct")%${RESET}"
   if [ -n "$reset" ]; then
     reset_fmt=$(fmt_reset "$reset")
     [ -n "$reset_fmt" ] && seg="${seg}${DIM}(reset ${reset_fmt})${RESET}"
@@ -256,20 +286,146 @@ go_usage_segment() {
     "$(go_pct_segment tuần "$go_week" "$mark7")"
 }
 
+# --- Go live usage (cache written by go-usage-fetch.sh) ---
+load_go_live_cache() {
+  # One jq read of the live cache; sets GO_LIVE_* or leaves them empty. A corrupt/missing cache
+  # is silent so the estimated DS segment below still works.
+  [ -f "$GO_LIVE_CACHE_FILE" ] || return 0
+  local row now
+  row=$(jq -r '
+    [ (.fetched_at // ""), (.state // ""), (.last_ok_at // ""),
+      (.windows.rolling.percent // ""), (.windows.rolling.status // ""),
+      (.windows.rolling.resets_at // ""),
+      (.windows.weekly.percent // ""), (.windows.weekly.status // ""),
+      (.windows.weekly.resets_at // ""),
+      (.windows.monthly.percent // ""), (.windows.monthly.status // ""),
+      (.windows.monthly.resets_at // "") ]
+    | map(tostring) | join("\u001f")
+  ' "$GO_LIVE_CACHE_FILE" 2>/dev/null) || return 0
+  [ -n "$row" ] || return 0
+  IFS=$'\x1f' read -r GO_LIVE_FETCHED_AT GO_LIVE_STATE GO_LIVE_LAST_OK_AT \
+    GO_LIVE_ROLLING_PCT GO_LIVE_ROLLING_STATUS GO_LIVE_ROLLING_RESET \
+    GO_LIVE_WEEKLY_PCT GO_LIVE_WEEKLY_STATUS GO_LIVE_WEEKLY_RESET \
+    GO_LIVE_MONTHLY_PCT GO_LIVE_MONTHLY_STATUS GO_LIVE_MONTHLY_RESET <<< "$row"
+  local age_from=$GO_LIVE_LAST_OK_AT
+  [[ "$age_from" =~ ^[0-9]+$ ]] || age_from=$GO_LIVE_FETCHED_AT
+  now=$(date +%s)
+  [ "$GO_LIVE_STATE" = "error" ] && GO_LIVE_STALE=1
+  if [[ "$age_from" =~ ^[0-9]+$ ]] \
+      && [ $((now - age_from)) -ge "$GO_LIVE_STALE_SECONDS" ]; then
+    GO_LIVE_STALE=1
+  fi
+}
+
+go_live_windows_complete() {
+  [ -n "$GO_LIVE_ROLLING_PCT" ] && [ -n "$GO_LIVE_ROLLING_STATUS" ] \
+    && [ -n "$GO_LIVE_WEEKLY_PCT" ] && [ -n "$GO_LIVE_WEEKLY_STATUS" ] \
+    && [ -n "$GO_LIVE_MONTHLY_PCT" ] && [ -n "$GO_LIVE_MONTHLY_STATUS" ]
+}
+
+go_live_ok() {
+  # An "ok" cache renders; an "error" cache keeps rendering only while its last ok fetch is
+  # recent, so a long outage eventually falls back to the estimated DS numbers.
+  go_live_windows_complete || return 1
+  case "$GO_LIVE_STATE" in
+    ok)
+      [[ "$GO_LIVE_FETCHED_AT" =~ ^[0-9]+$ ]] || return 1
+      return 0
+      ;;
+    error)
+      [[ "$GO_LIVE_LAST_OK_AT" =~ ^[0-9]+$ ]] || return 1
+      [ $(( $(date +%s) - GO_LIVE_LAST_OK_AT )) -lt "$GO_LIVE_ERROR_KEEP_SECONDS" ]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+go_live_window_segment() {
+  # Args: label percent status resets_at. An expired reset means the window already reset:
+  # print "~0%" and drop the time until the next fetch.
+  local label=$1 pct=$2 status=$3 reset=$4 mark="" color now
+  now=$(date +%s)
+  if [ -n "$reset" ] && [[ "$reset" =~ ^[0-9]+$ ]] && [ "$reset" -le "$now" ]; then
+    pct=0
+    reset=""
+    mark="$STALE_MARK"
+  elif [ "$GO_LIVE_STALE" = "1" ]; then
+    mark="$STALE_MARK"
+  fi
+  color=$(col_for_pct "$pct")
+  [ "$status" = "rate-limited" ] && color="$RED"
+  rate_limit_segment "$label" "$pct" "$reset" "" "" "$color" "$mark"
+}
+
+go_live_segments() {
+  # Append the Go windows to build_line3's segments array; the first one carries the dim "Go" tag.
+  segments+=("${DIM}Go${RESET} $(go_live_window_segment 5h \
+    "$GO_LIVE_ROLLING_PCT" "$GO_LIVE_ROLLING_STATUS" "$GO_LIVE_ROLLING_RESET")")
+  segments+=("$(go_live_window_segment wk \
+    "$GO_LIVE_WEEKLY_PCT" "$GO_LIVE_WEEKLY_STATUS" "$GO_LIVE_WEEKLY_RESET")")
+  segments+=("$(go_live_window_segment mo \
+    "$GO_LIVE_MONTHLY_PCT" "$GO_LIVE_MONTHLY_STATUS" "$GO_LIVE_MONTHLY_RESET")")
+}
+
 build_line3() {
   local segments=()
   segments+=("$(rate_limit_segment 5h "$five" "$five_reset" "$cached_five" "$cached_five_reset")")
   segments+=("$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset")")
-  local go_seg
-  go_seg=$(go_usage_segment)
-  [ -n "$go_seg" ] && segments+=("$go_seg")
+  if go_live_ok; then
+    go_live_segments
+  else
+    local go_seg
+    go_seg=$(go_usage_segment)
+    if [ -n "$go_seg" ]; then
+      [ "$GO_LIVE_STATE" = "rejected" ] \
+        && go_seg="${go_seg} ${DIM}(khoá Go bị từ chối)${RESET}"
+      segments+=("$go_seg")
+    fi
+  fi
   join_segments "${segments[@]}"
+}
+
+go_auth_has_key() {
+  # Only the presence of a non-empty opencode-go key; the value is never printed.
+  [ -f "$GO_LIVE_AUTH_FILE" ] || return 1
+  jq -e '.["opencode-go"].key | strings | length > 0' "$GO_LIVE_AUTH_FILE" >/dev/null 2>&1
+}
+
+go_live_lock_is_fresh() {
+  # A lock younger than 60 s means a fetch is already running; leave it alone.
+  local mtime now
+  [ -d "$GO_LIVE_LOCK_DIR" ] || return 1
+  mtime=$(stat -c '%Y' "$GO_LIVE_LOCK_DIR" 2>/dev/null \
+    || stat -f '%m' "$GO_LIVE_LOCK_DIR" 2>/dev/null) || return 1
+  now=$(date +%s)
+  [ $((now - mtime)) -lt "$GO_LIVE_LOCK_STALE_SECONDS" ]
+}
+
+maybe_start_go_live_fetch() {
+  # Never wait for the network: spawn the fetch detached and keep rendering the current cache.
+  [ "${STATUSLINE_GO_LIVE:-1}" != "0" ] || return 0
+  local now fetched
+  now=$(date +%s)
+  fetched=$GO_LIVE_FETCHED_AT
+  if [[ "$fetched" =~ ^[0-9]+$ ]] \
+      && [ $((now - fetched)) -lt "$GO_LIVE_REFRESH_SECONDS" ]; then
+    return 0
+  fi
+  [ -f "$GO_FETCH_SCRIPT" ] || return 0
+  go_auth_has_key || return 0
+  go_live_lock_is_fresh && return 0
+  nohup bash "$GO_FETCH_SCRIPT" </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
 }
 
 line1=$(build_line1)
 line2=$(build_line2)
 load_go_summary
+load_go_live_cache
 line3=$(build_line3)
+maybe_start_go_live_fetch
 # --- Skill block (lines 4+) ---
 build_skill_block() {
   # Lines from last-skill.sh: "🔧 <skill> (main)", '🔧 <skill> (<agent>: "<desc>")'; or nothing.

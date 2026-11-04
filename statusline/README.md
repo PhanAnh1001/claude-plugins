@@ -6,13 +6,13 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.9.1).
+  `statusline` (bản 0.10.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
 - **Cập nhật:** chỉ cần `claude plugin marketplace update` và `claude plugin update`; không phải
   chạy lại setup, vì shim luôn chạy bản plugin đang cài.
-- **Yêu cầu:** `jq`, `python3` >= 3.9, `bash`, `git`.
+- **Yêu cầu:** `jq`, `curl` (phần Go thật), `python3` >= 3.9, `bash`, `git`.
 
 ## Các dòng statusline
 
@@ -20,7 +20,7 @@
 |---|---|---|
 | 1 | `user@host`, tên thư mục hiện tại (`~` nếu là thư mục home), nhánh git màu xanh | `anh@mac dev-workflow (main)` |
 | 2 | model (mức effort), tổng tokens của phiên, % context đang dùng | `Opus(high) \| tokens:6.5k \| ctx:55%` |
-| 3 | rate limit 5 giờ và 7 ngày kèm giờ reset; nối thêm mức OpenCode Go nếu có sổ của `hand-ext` | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46) \| DS 5h ~12% · tuần ~31%` |
+| 3 | rate limit 5 giờ và 7 ngày kèm giờ reset; nối thêm mức OpenCode Go thật (5h/tuần/tháng) hoặc số ước tính `DS` khi chưa có cache | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46) \| Go 5h:0%(reset 05/11 03:55) \| wk:1%(reset 09/11 07:00) \| mo:0%(reset 04/12 15:17)` |
 | 4+ | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
 - **Màu phần trăm:** xanh dưới 50%, vàng từ 50%, đỏ từ 80%.
@@ -60,13 +60,27 @@
 - **Rate limit** chỉ có sau phản hồi API đầu tiên của phiên. Trước đó dòng 3 hiện giá trị lưu ở
   `.statusline-cache.json` trong thư mục cấu hình Claude, có dấu `~` phía trước; chưa có gì thì
   hiện `--`.
-- **Mức OpenCode Go (`DS`)** nằm cuối dòng 3, đọc đúng một file JSON do `hand-ext` ghi:
-  `$HYBRID_HANDS_STATE_DIR/go_usage_summary.json`, mặc định `~/.hybrid-hands/go_usage_summary.json`
-  (`HYBRID_HANDS_STATE_DIR` chỉ dùng để test). Định dạng `DS 5h ~12% · tuần ~31%`; dấu `~` xuất
-  hiện khi bản tóm tắt đánh dấu `estimated` hoặc file cũ hơn 5 giờ. Phần trăm dùng cùng ngưỡng màu
-  với Claude (xanh dưới 50%, vàng từ 50%, đỏ từ 80%). File thiếu hoặc JSON hỏng thì không in gì và
-  statusline vẫn thoát 0; phần Go chỉ đọc đúng file này bằng một lần `jq`, không gọi `hand-ext`,
-  không gọi mạng. Đây là số ước tính (Go chưa công bố mốc reset); OpenCode Console là nguồn chuẩn.
+- **Mức OpenCode Go thật (`Go`)** nằm cuối dòng 3, lấy từ API usage của OpenCode
+  (`GET https://opencode.ai/zen/go/v1/usage`), cùng nguồn với plugin `opencode-go-usage-source`
+  của Paseo. `go-usage-fetch.sh` đọc khoá `opencode-go` trong
+  `${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json` (chỉ đọc, không in, không ghi khoá đi
+  đâu; header Authorization đi qua stdin của `curl` nên không nằm trong argv), gọi API rồi ghi
+  nguyên tử cache `$CLAUDE_HOME/.statusline-go-usage.json` (mặc định `~/.claude`, quyền 600).
+  Statusline chỉ đọc cache bằng một lần `jq`, không chờ mạng: cache thiếu hoặc cũ hơn 5 phút thì
+  khởi fetch tách hẳn ở nền (có lock 60 giây), lần vẽ hiện tại vẫn dùng số đang có. Nhãn
+  `Go 5h`, `wk`, `mo`; cửa sổ `rate-limited` tô đỏ; cache cũ hơn 15 phút thêm `~`; cửa sổ đã qua
+  giờ reset in `~0%` và bỏ giờ reset. Lỗi tạm thời (mạng, HTTP 5xx, JSON hỏng) giữ số của lần fetch
+  ok gần nhất tối đa 6 giờ kèm `~` thay vì tụt về `DS`; lỗi khoá (`rejected`) hoặc thiếu khoá
+  (`no_key`) thì bỏ số cũ. Đặt `STATUSLINE_GO_LIVE=0` để tắt hẳn phần gọi mạng.
+- **Dự phòng (`DS`)** khi chưa có cache Go thật (kể cả `no_key`, `rejected`, hoặc `error` đã quá
+  6 giờ): đọc đúng một file JSON do `hand-ext` ghi,
+  `$HYBRID_HANDS_STATE_DIR/go_usage_summary.json`, mặc định
+  `~/.hybrid-hands/go_usage_summary.json` (`HYBRID_HANDS_STATE_DIR` chỉ dùng để test). Định dạng
+  `DS 5h ~12% · tuần ~31%`; dấu `~` xuất hiện khi bản tóm tắt đánh dấu `estimated` hoặc file cũ hơn
+  5 giờ. Phần trăm dùng cùng ngưỡng màu với Claude (xanh dưới 50%, vàng từ 50%, đỏ từ 80%). Khi
+  cache Go ở trạng thái `rejected`, segment DS thêm chữ mờ `(khoá Go bị từ chối)`. File thiếu hoặc
+  JSON hỏng thì không in gì và statusline vẫn thoát 0; phần này chỉ đọc file bằng một lần `jq`,
+  không gọi `hand-ext`, không gọi mạng. Có cache Go thật thì không in `DS` để tránh trùng.
 
 ## Cài đặt
 
@@ -131,7 +145,8 @@ dòng nhắc, không lỗi.
 python3 -m unittest discover -s <thư-mục-repo>/statusline/tests
 ```
 
-Test chỉ dùng thư mục tạm làm `CLAUDE_HOME` và `HOME`, không đụng cấu hình Claude thật.
+Test chỉ dùng thư mục tạm làm `CLAUDE_HOME`, `HOME` và `XDG_DATA_HOME`, khoá Go giả, cùng một
+`curl` giả đặt đầu `PATH`; không đọc `auth.json` thật và không gọi API thật.
 
 ## Cấu trúc
 
@@ -142,6 +157,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 ├── plugins/statusline/
 │   ├── .claude-plugin/plugin.json
 │   ├── scripts/statusline.sh             # vẽ 3 dòng + các dòng skill
+│   ├── scripts/go-usage-fetch.sh         # gọi API usage OpenCode Go, ghi cache (chạy nền)
 │   ├── scripts/last-skill.sh, last_skill.py   # dòng skill gần nhất (port từ dev-workflow 0.3.0)
 │   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn agent + mô tả (cắt 30 ký tự)
 │   ├── scripts/install.sh                # setup / --dry-run / --uninstall

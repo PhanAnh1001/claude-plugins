@@ -15,7 +15,7 @@ SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 SUBPROCESS_TIMEOUT_SECONDS = 30
 # Env vars that would leak the developer's real Claude config into a test run.
 LEAKY_ENV_VARS = ("CLAUDE_HOME", "STATUSLINE_JSON_BACKEND", "STATUSLINE_LAST_SKILL_MAX_BYTES",
-                  "HYBRID_HANDS_STATE_DIR")
+                  "HYBRID_HANDS_STATE_DIR", "STATUSLINE_GO_LIVE", "XDG_DATA_HOME")
 
 
 def clean_env(**overrides: str) -> dict[str, str]:
