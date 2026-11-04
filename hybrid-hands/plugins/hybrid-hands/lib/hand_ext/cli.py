@@ -31,6 +31,8 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--timeout-min", type=float)
     r.add_argument("--max-tokens", type=int)
     r.add_argument("--sandbox", choices=SANDBOXES)
+    r.add_argument("--browser", action="store_true",
+                   help="bật Playwright MCP cô lập cho backend dsh (chỉ trang công khai)")
     sub.add_parser("status", help="sẵn sàng, hạn mức, lượt gần nhất").add_argument("--cwd")
     rep = sub.add_parser("report", help="tổng lượt và token")
     for flag in ("--since", "--backend", "--label", "--cwd"):
@@ -63,7 +65,7 @@ def cmd_doctor(cfg: ExtConfig, args: argparse.Namespace) -> int:
             checks = get_backend(name).doctor(with_sandbox(cfg, name))
         except BackendUnavailable as exc:
             checks = [Check("module", False, str(exc))]
-        ready = ready or all(c.ok for c in checks)
+        ready = ready or all(c.ok or not c.required for c in checks)
         rows.append((name, checks))
     print(render.doctor_table(rows))
     return EXIT_OK if ready else EXIT_FAIL

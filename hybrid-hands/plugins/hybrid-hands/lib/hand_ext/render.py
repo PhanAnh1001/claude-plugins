@@ -10,15 +10,17 @@ from .constants import REPORT_PREVIEW_LINES
 TOKEN_KEYS = ("input", "cached_input", "output")
 
 
-def mark(ok: bool) -> str:
-    return "đạt" if ok else "thiếu"
+def mark(ok: bool, required: bool = True) -> str:
+    if ok:
+        return "đạt"
+    return "thiếu" if required else "thiếu (tuỳ chọn)"
 
 
 def doctor_table(rows: Iterable[Tuple[str, List[Check]]]) -> str:
     out = ["| backend | kiểm | kết quả | chi tiết |", "|---|---|---|---|"]
     for name, checks in rows:
         for c in checks:
-            out.append(f"| {name} | {c.name} | {mark(c.ok)} | {c.detail} |")
+            out.append(f"| {name} | {c.name} | {mark(c.ok, c.required)} | {c.detail} |")
     return "\n".join(out)
 
 

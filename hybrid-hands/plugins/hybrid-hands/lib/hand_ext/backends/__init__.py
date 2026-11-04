@@ -5,7 +5,7 @@ import importlib
 
 from .base import Backend
 
-KNOWN_BACKENDS = ("codex", "claude", "dsh", "opencode", "gemini")
+KNOWN_BACKENDS = ("dsh", "opencode", "codex", "claude", "gemini")
 
 
 class BackendUnavailable(Exception):

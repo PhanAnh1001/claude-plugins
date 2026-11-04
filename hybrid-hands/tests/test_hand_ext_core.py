@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"))
 
@@ -42,6 +44,34 @@ def _register_stub() -> None:
     module = types.ModuleType(FAKE_MODULE)
     module.StubbBackend = StubbBackend
     sys.modules[FAKE_MODULE] = module
+
+
+class BrowserCliTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.sb = Sandbox(order=["codex", "dsh"])
+        self.addCleanup(self.sb.close)
+        path = self.sb.dir / ".claude" / "hybrid-hands.json"
+        config = json.loads(path.read_text(encoding="utf-8"))
+        dsh_home = self.sb.dir / "dsh-home"
+        config["ext_hand"]["backends"]["dsh"] = {
+            "home": str(dsh_home), "key_file": str(dsh_home / "go.key")}
+        path.write_text(json.dumps(config), encoding="utf-8")
+
+    def test_explicit_backend_codex_with_browser_errors(self) -> None:
+        code, out, err = self.sb.cli("run", "--brief", str(self.sb.brief),
+                                     "--backend", "codex", "--browser")
+        self.assertEqual(code, 2, (out, err))
+        self.assertIn("--browser", err)
+        self.assertIn("dsh", err)
+        self.assertEqual(self.sb.ledger(), [])
+
+    def test_auto_with_browser_only_considers_dsh(self) -> None:
+        with mock.patch.dict(os.environ, {"HAND_EXT_DSH_BIN": "/nonexistent/dsh"}):
+            code, out, err = self.sb.cli("run", "--brief", str(self.sb.brief), "--browser")
+        self.assertEqual(code, 7, (out, err))
+        self.assertIn("bỏ qua codex", err)
+        self.assertIn("không hỗ trợ --browser", err)
+        self.assertEqual(self.sb.ledger(), [])
 
 
 class CoreTest(unittest.TestCase):

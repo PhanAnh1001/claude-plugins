@@ -2,9 +2,9 @@
 
 ## Tóm tắt
 
-- **Mục đích:** plugin Claude Code điều phối brain/hand lai, bật theo từng dự án thay cho `parallel-subagents`: brain chạy trên gói Claude chính; việc code/tài liệu tự chứa mặc định giao hand ngoài chạy trên gói subscription thứ hai để giữ hạn mức gói chính.
+- **Mục đích:** plugin Claude Code điều phối brain/hand lai, bật theo từng dự án thay cho `parallel-subagents`: brain chạy trên gói Claude chính; việc code/tài liệu tự chứa mặc định giao hand ngoài chạy trên gói subscription thứ hai (mặc định DeepSeek V4.1 Flash qua `dsh`/`opencode`) để giữ hạn mức gói chính.
 - **Thành phần:**
-  - hand ngoài: lệnh `hand-ext` (backend `codex`, `claude`, `dsh`, `opencode` theo `order`; sổ token `output/llm/hand_usage.json`, không USD), skill `ext-hand`;
+  - hand ngoài: lệnh `hand-ext` (mặc định `dsh`, `opencode` — DeepSeek V4.1 Flash trên gói OpenCode Go — theo `order`; `codex`, `claude`, `gemini` chỉ khai báo để gọi tường minh; sổ token `output/llm/hand_usage.json`, không USD), skill `ext-hand`;
   - hand Claude: agent `hybrid-hands:hand` (gói chính) cho việc cần tool riêng của Claude Code, lệnh trả phí của dự án, hoặc khi `hand-ext` thoát 7;
   - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; skill `paseo` theo dõi từ điện thoại;
   - hook SessionStart (khuôn brief, luật chọn hand, luật hạn mức) và UserPromptSubmit (bản ngắn).
@@ -23,7 +23,7 @@ hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
     ├── bin/hand-ext, bin/side-session  # vào PATH của tool Bash khi plugin bật
-    ├── lib/hand_ext/ (backends/codex, claude, dsh, opencode), lib/side_session/
+    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode), lib/side_session/
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
@@ -62,7 +62,7 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 ```json
 {
   "ext_hand": {
-    "order": ["codex", "claude", "dsh", "opencode"],
+    "order": ["dsh", "opencode"],
     "timeout_min": 60,
     "max_tokens": null,
     "sandbox": "workspace-write",
@@ -72,7 +72,7 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
     "backends": {
       "codex": { "home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high" },
       "claude": { "config_dir": "~/.claude-hand", "model": "claude-opus-5-5", "effort": "medium", "max_turns": 80 },
-      "dsh": { "home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key", "model": "deepseek-v4.1-flash", "effort": "max", "base_url": "https://opencode.ai/inference/go/openai/v1" },
+      "dsh": { "home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key", "browser_dir": "~/.dsh-hand/browser", "model": "deepseek-v4.1-flash", "effort": "max", "base_url": "https://opencode.ai/inference/go/openai/v1" },
       "opencode": { "config": "<PL>/templates/opencode-hand.jsonc", "model": "opencode-go/deepseek-v4.1-flash", "variant": "max" },
       "gemini": { "home": "~/.gemini-hand", "model": "gemini-4-carbon" }
     }
@@ -84,19 +84,35 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 }
 ```
 
-Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định) và `lib/side_session/`; thiếu file thì dùng các giá trị mặc định trên. `<PL>` được thay bằng thư mục plugin. `gemini` chỉ khai báo, không nằm trong `order`.
+Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định) và `lib/side_session/`; thiếu file thì dùng các giá trị mặc định trên. `<PL>` được thay bằng thư mục plugin. `codex`, `claude` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|gemini` khi cần.
 
 ## 5. Backend của hand ngoài
 
-Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S]`, `hand-ext status`, `hand-ext report`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập.
+Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S]`, `hand-ext status`, `hand-ext report`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2.
 
 | Backend | Gói | Người dùng tự đăng nhập | Theo dõi hạn mức | Rủi ro tính tiền |
 |---|---|---|---|---|
 | `codex` | ChatGPT | `CODEX_HOME=~/.codex-hand codex login --device-auth` | `used_percent`, `resets_at` từ sự kiện của `codex exec --json` | đăng nhập API key thì tính tiền; `doctor` chặn, hand gỡ biến `OPENAI_API_KEY` |
 | `claude` | Claude tài khoản thứ hai | `CLAUDE_CONFIG_DIR=~/.claude-hand claude` rồi `/login` | lỗi hết hạn mức trong stream, `hand-ext status` | dùng nhầm tài khoản chính thì ăn hạn mức brain; hook repo vẫn chạy |
-| `dsh` | OpenCode Go qua DeepSeek Harness (`dsh --profile headless`, DeepSeek V4.1 Flash, reasoning `max`) | cài `npm install -g @deepseek-ai/dsh@latest`; người dùng tự chép API key Go từ OpenCode Console vào `~/.dsh-hand/go.key` (một dòng) rồi `chmod 600 ~/.dsh-hand/go.key` | lỗi `QUOTA`/`RATE_LIMIT` trong sự kiện `turn_end`, `hand-ext status` | như `opencode`: phải TẮT Extra Usage, để credit 0; dsh luôn đọc `<cwd>/.env` nên hand khởi chạy dsh từ `~/.dsh-hand/launch` và trỏ workspace sang repo bằng patch `templates/dsh-hand.yml`; không được tạo `~/.dsh-hand/.env`; dsh bản developer preview, `doctor` chỉ đạt với bản đã đọc mã nguồn (0.2.1-rc.5) |
+| `dsh` | OpenCode Go qua DeepSeek Harness (`dsh --profile headless`, DeepSeek V4.1 Flash, reasoning `max`); tuỳ chọn `--browser` qua Playwright MCP cô lập | cài `npm install -g @deepseek-ai/dsh@latest`; người dùng tự chép API key Go từ OpenCode Console vào `~/.dsh-hand/go.key` (một dòng) rồi `chmod 600 ~/.dsh-hand/go.key`; cài trình duyệt theo mục 5.1 nếu dùng `--browser` | lỗi `QUOTA`/`RATE_LIMIT` trong sự kiện `turn_end`, `hand-ext status` | như `opencode`: phải TẮT Extra Usage, để credit 0; dsh luôn đọc `<cwd>/.env` nên hand khởi chạy dsh từ `~/.dsh-hand/launch` và trỏ workspace sang repo bằng patch `templates/dsh-hand.yml`; không được tạo `~/.dsh-hand/.env`; dsh bản developer preview, `doctor` chỉ đạt với bản đã đọc mã nguồn (0.2.1-rc.5) |
 | `opencode` | OpenCode Go (DeepSeek V4.1 Flash, biến thể max) | `opencode auth login` chọn OpenCode Go | lỗi hết hạn mức, `hand-ext status` | Extra Usage bật hoặc Console còn credit thì tính tiền khi hết hạn mức: phải TẮT Extra Usage, để credit 0; metadata models.dev ghi 0910 nhưng OpenCode báo Go đã phục vụ 1017 dưới cùng id |
 | `gemini` | dự kiến | chưa có | chưa có | Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI |
+
+### 5.1 Trình duyệt cho `dsh` (`--browser`)
+
+`--browser` mặc định tắt. Khi bật, `hand-ext` ghi thêm một patch riêng cho lượt chạy tại `<runs_dir>/<run_id>/browser.patch.json` và truyền nó bằng `--patch` sau patch chung; file `~/.dsh-hand/hand.patch.yml` không bị sửa. Patch này thêm MCP server stdio `@deepseek-ai/dsh-mcp-client` tên `playwright`, chạy `node <browser_dir>/node_modules/@playwright/mcp/cli.js --headless --isolated --browser chromium --blocked-origins "<5 origin TikTok>" --output-dir <runs_dir>/<run_id>/browser`; env của server chỉ có `PLAYWRIGHT_BROWSERS_PATH=<browser_dir>/ms-playwright` (dsh tự lọc biến dạng key/token và `DSH_*`, nên key Go không sang tiến trình MCP).
+
+Cài một lần (thư mục mặc định `~/.dsh-hand/browser`, đổi bằng `backends.dsh.browser_dir`):
+
+```sh
+npm install --prefix ~/.dsh-hand/browser @playwright/mcp@0.0.83
+PLAYWRIGHT_BROWSERS_PATH=~/.dsh-hand/browser/ms-playwright \
+  ~/.dsh-hand/browser/node_modules/.bin/playwright install chromium
+```
+
+`hand-ext doctor --backend dsh` có dòng `browser` báo thiếu `cli.js`/`ms-playwright` nhưng không làm doctor fail vì trình duyệt là tuỳ chọn.
+
+Giới hạn: chỉ duyệt trang công khai; không đăng nhập, không tạo tài khoản, không điền form, không mua, không vượt captcha; không mở TikTok; không tải hay chạy file tải về. `--blocked-origins` chặn request tới 5 origin TikTok nhưng tài liệu Playwright ghi rõ nó không phải ranh giới bảo mật và không chặn redirect, nên luật trong prompt mới là lớp chính. `--isolated` giữ profile trình duyệt trong bộ nhớ; thư mục `<run>/browser` chỉ chứa output (ảnh, snapshot) của lượt chạy.
 
 ## 6. Cập nhật
 

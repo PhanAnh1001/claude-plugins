@@ -13,8 +13,8 @@ from .backends import BackendUnavailable, get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import ExtConfig
 from .constants import (
-    AUTO_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, LABEL_MAX_LEN, REPORT_FILE,
-    SECONDS_PER_MINUTE, STATUS_EXIT,
+    AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, LABEL_MAX_LEN,
+    REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
 from .prompt import STDIN_MARK, build_prompt, read_brief
 from .runner import RunOutcome, run_backend
@@ -29,7 +29,8 @@ def safe_label(args: argparse.Namespace) -> str:
 
 
 def backend_ready(backend: Backend, cfg: ExtConfig) -> bool:
-    return all(c.ok for c in backend.doctor(with_sandbox(cfg, backend.name)))
+    return all(c.ok or not c.required
+               for c in backend.doctor(with_sandbox(cfg, backend.name)))
 
 
 def with_sandbox(cfg: ExtConfig, name: str) -> dict:
@@ -38,11 +39,26 @@ def with_sandbox(cfg: ExtConfig, name: str) -> dict:
     return options
 
 
-def candidates(cfg: ExtConfig, choice: str) -> List[Backend]:
+def validate_browser(choice: str, browser: bool) -> None:
+    if browser and choice not in (AUTO_BACKEND, BROWSER_BACKEND):
+        raise ValueError(f"--browser chỉ hỗ trợ backend {BROWSER_BACKEND}, "
+                         f"không dùng được với --backend {choice}")
+
+
+def _browser_order(cfg: ExtConfig) -> List[str]:
+    for name in cfg.order:
+        if name != BROWSER_BACKEND:
+            print(f"bỏ qua {name}: không hỗ trợ --browser (chỉ {BROWSER_BACKEND})",
+                  file=sys.stderr)
+    return [BROWSER_BACKEND]
+
+
+def candidates(cfg: ExtConfig, choice: str, browser: bool = False) -> List[Backend]:
+    validate_browser(choice, browser)
     if choice != AUTO_BACKEND:
         return [get_backend(choice)]
     found: List[Backend] = []
-    for name in cfg.order:
+    for name in _browser_order(cfg) if browser else cfg.order:
         try:
             backend = get_backend(name)
         except BackendUnavailable as exc:
@@ -74,6 +90,7 @@ def _spec(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: st
         sandbox=args.sandbox or cfg.sandbox,
         timeout_s=int((args.timeout_min or cfg.timeout_min) * SECONDS_PER_MINUTE),
         max_tokens=max_tokens, options=options,
+        browser=bool(getattr(args, "browser", False)),
     )
 
 
@@ -115,10 +132,12 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
 
 
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
-    prompt = build_prompt(read_brief(args.brief))
+    browser = bool(getattr(args, "browser", False))
+    validate_browser(args.backend, browser)
+    prompt = build_prompt(read_brief(args.brief), browser=browser)
     cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd()
     label = safe_label(args)
-    backends = candidates(cfg, args.backend)
+    backends = candidates(cfg, args.backend, browser=browser)
     for index, backend in enumerate(backends):
         code = _attempt(cfg, args, backend, prompt, label, cwd)
         if code >= 0:

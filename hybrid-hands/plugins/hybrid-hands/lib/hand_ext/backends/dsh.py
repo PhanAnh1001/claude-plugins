@@ -15,6 +15,20 @@ Facts read from the installed @deepseek-ai/dsh 0.2.1-rc.5 (npm tag latest, 2026-
 - dsh-llm-pi-ai classifyPiAiError(): 401/403 -> AUTH, quota text -> QUOTA, 429 -> RATE_LIMIT;
   missing key -> MISSING_CREDENTIAL. The patch (templates/dsh-hand.yml) routes model calls
   through pi-ai `openai-completions` to the Go endpoint with `x-opencode-session` header.
+
+Browser (`--browser`) facts read from the same install:
+- dsh-app-boot/lib/index.js applyEntryPatches() (lines 61-109) applies `{insert: [entry]}`
+  by appending entries; `name` is the plugin module specifier (schema description lines
+  3013 and 3043-3044). A patch list is therefore `[{insert: [{id, name, config}]}]`.
+- dsh/lib/bin.js lines 27-28, 60 and 105: `--patch` is repeatable and applied in argv order
+  (profile-boot-C14i-8IN.js lines 231-245), so the browser MCP entry can live in a per-run
+  overlay while the shared `hand.patch.yml` stays untouched.
+- dsh-mcp-client/lib/index.js lines 781-801: stdio config schema (`transport`, `serverName`,
+  `command`, `args`, `env`, `cwd`); lines 38-48 build the StdioClientTransport; lines 26-30
+  pass `{...scrubbedParentEnv(), ...config.env}` as the child environment.
+- dsh-subprocess/lib/index.js line 32: scrubbedParentEnv() drops names matching
+  /KEY|PASSWORD|SECRET|TOKEN/i and every `DSH_*` name, so OPENCODE_GO_API_KEY does not reach
+  the MCP server unless explicitly re-added. This backend adds only PLAYWRIGHT_BROWSERS_PATH.
 """
 from __future__ import annotations
 
@@ -44,13 +58,30 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: same model id as the opencode backend
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.3.2"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.4.0"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
 # Versions whose env loading and patch keys were read from source (see module docstring).
 VERIFIED_VERSIONS = frozenset({"0.2.1-rc.5"})
 DOCTOR_TIMEOUT_S = 60
 GO_DOCS_URL = "https://opencode.ai/docs/go/"
 INSTALL_COMMAND = "npm install -g @deepseek-ai/dsh@latest"
+
+# Browser MCP overlay (see module docstring for the dsh source lines it relies on).
+BROWSER_DIR_NAME = "browser"
+BROWSER_CLI_RELPATH = "node_modules/@playwright/mcp/cli.js"
+BROWSER_STATE_DIR = "ms-playwright"
+BROWSER_PATCH_FILE = "browser.patch.json"
+BROWSER_OUTPUT_DIR = "browser"
+BROWSER_MCP_PLUGIN = "@deepseek-ai/dsh-mcp-client"
+BROWSER_MCP_SERVER = "playwright"
+BROWSER_MCP_ENTRY_ID = "hand-ext-browser"
+BROWSER_COMMAND = "node"
+BROWSER_SELECTED = "chromium"
+BROWSER_BLOCKED_ORIGINS = ";".join((
+    "https://www.tiktok.com", "https://tiktok.com", "https://m.tiktok.com",
+    "https://vt.tiktok.com", "https://webcast.tiktok.com",
+))
+PLAYWRIGHT_BROWSERS_PATH = "PLAYWRIGHT_BROWSERS_PATH"
 
 KEY_ENV = "OPENCODE_GO_API_KEY"  # matches apiKeyEnv in templates/dsh-hand.yml
 ENV_HOME = "DSH_HOME"
@@ -121,6 +152,26 @@ def launch_dir(options: dict) -> Path:
     return home_dir(options) / LAUNCH_DIR
 
 
+def browser_dir(options: dict) -> Path:
+    return _path(options, "browser_dir", str(home_dir(options) / BROWSER_DIR_NAME))
+
+
+def browser_cli(options: dict) -> Path:
+    return browser_dir(options) / BROWSER_CLI_RELPATH
+
+
+def browser_state(options: dict) -> Path:
+    return browser_dir(options) / BROWSER_STATE_DIR
+
+
+def _missing_browser(options: dict) -> List[str]:
+    cli, state = browser_cli(options), browser_state(options)
+    missing = [] if cli.is_file() else [str(cli)]
+    if not state.is_dir():
+        missing.append(str(state))
+    return missing
+
+
 def _clean_launch(launch: Path) -> bool:
     """Launch dir exists and holds no `.env` (existence check only, never opened)."""
     return launch.is_dir() and not (launch / ENV_FILE_NAME).exists()
@@ -180,6 +231,7 @@ class DshBackend(Backend):
         checks.append(self._key_check(key_file(options)))
         checks.extend(self._isolation_checks(options))
         checks.append(self._patch_check(options))
+        checks.append(self._browser_check(options))
         return checks
 
     @staticmethod
@@ -212,6 +264,16 @@ class DshBackend(Backend):
         ok = dumped is not None and "opencode-go" in dumped
         return Check("patch", ok, f"{patch} " + ("ghép được (--dump-config)" if ok
                                                  else "không ghép được với --dump-config"))
+
+    @staticmethod
+    def _browser_check(options: dict) -> Check:
+        missing = _missing_browser(options)
+        if missing:
+            return Check("browser", False,
+                         "chưa cài (tuỳ chọn cho --browser): thiếu " + ", ".join(missing),
+                         required=False)
+        return Check("browser", True,
+                     f"{browser_cli(options)} và {browser_state(options)} có")
 
     @staticmethod
     def _probe_dir(options: dict) -> Path:
@@ -252,9 +314,53 @@ class DshBackend(Backend):
             ENV_USER_AGENT: USER_AGENT,
         }
         argv = [sys.executable, "-c", CHDIR_EXEC, str(launch), bin_for(self.name),
-                "--profile", "headless", "--patch", str(patch_file(options)), "--json",
-                STDIN_MARKER]
+                "--profile", "headless"]
+        for patch in self._patches(options, spec):
+            argv += ["--patch", str(patch)]
+        argv += ["--json", STDIN_MARKER]
         return argv, env, spec.prompt
+
+    @staticmethod
+    def _patches(options: dict, spec: RunSpec) -> List[Path]:
+        patches = [patch_file(options)]
+        if spec.browser:
+            patches.append(DshBackend._write_browser_patch(options, spec))
+        return patches
+
+    @staticmethod
+    def _write_browser_patch(options: dict, spec: RunSpec) -> Path:
+        missing = _missing_browser(options)
+        if missing:
+            raise ValueError(
+                "--browser cần Playwright MCP và trình duyệt: thiếu " + ", ".join(missing)
+                + " (xem README mục 5.1: cách cài trình duyệt)")
+        spec.run_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = spec.run_dir / BROWSER_OUTPUT_DIR
+        output_dir.mkdir(parents=True, exist_ok=True)
+        args = [
+            str(browser_cli(options)), "--headless", "--isolated",
+            "--browser", BROWSER_SELECTED,
+            "--blocked-origins", BROWSER_BLOCKED_ORIGINS,
+            "--output-dir", str(output_dir),
+        ]
+        entry = {
+            "id": BROWSER_MCP_ENTRY_ID,
+            "name": BROWSER_MCP_PLUGIN,
+            "config": {
+                "transport": "stdio",
+                "serverName": BROWSER_MCP_SERVER,
+                "command": BROWSER_COMMAND,
+                "args": args,
+                # dsh mcp-client merges this over scrubbedParentEnv(); list only the browser
+                # path, never the Go key.
+                "env": {PLAYWRIGHT_BROWSERS_PATH: str(browser_state(options))},
+                "failOnStartupError": True,
+            },
+        }
+        path = spec.run_dir / BROWSER_PATCH_FILE
+        path.write_text(json.dumps([{"insert": [entry]}], ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8")
+        return path
 
     def parse_line(self, line: str, state: RunState) -> None:
         line = line.strip()

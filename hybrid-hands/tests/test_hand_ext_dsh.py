@@ -1,17 +1,20 @@
 """hand-ext dsh backend: argv/env, `.env` isolation, NDJSON usage, classification, doctor."""
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
 
+from hand_ext import cli, prompt as hand_prompt  # noqa: E402
 from hand_ext.backends.base import RunSpec, RunState, Status, Usage  # noqa: E402
 from hand_ext.backends import dsh  # noqa: E402
 from hand_ext.runner import run_backend  # noqa: E402
@@ -39,10 +42,15 @@ class _Home:
 
 
 def _spec(base: Path, options: dict, cwd: Path, effort: str = "max",
-          model: str = dsh.DEFAULT_MODEL, sandbox: str = "workspace-write") -> RunSpec:
+          model: str = dsh.DEFAULT_MODEL, sandbox: str = "workspace-write",
+          browser: bool = False) -> RunSpec:
+    kwargs = {}
+    if browser:
+        kwargs["browser"] = True
     return RunSpec(prompt="PREAMBLE\n\n## BRIEF\n\nbrief body", cwd=cwd,
                    run_dir=base / "runs" / "20261104-run-dsh", model=model, effort=effort,
-                   sandbox=sandbox, timeout_s=TIMEOUT_S, max_tokens=None, options=options)
+                   sandbox=sandbox, timeout_s=TIMEOUT_S, max_tokens=None, options=options,
+                   **kwargs)
 
 
 def _feed(name: str) -> RunState:
@@ -133,6 +141,101 @@ class BuildCommandTest(_TmpCase):
             self.assertIn(needle, text)
 
 
+class BrowserPatchTest(_TmpCase):
+    """`--browser` adds a per-run MCP overlay, never edits the shared patch."""
+
+    def setUp(self):
+        super().setUp()
+        self.home = _Home(self.base)
+        self.browser = self.base / "browser"
+        (self.browser / "node_modules" / "@playwright" / "mcp").mkdir(parents=True)
+        (self.browser / "node_modules" / "@playwright" / "mcp" / "cli.js").write_text(
+            "", encoding="utf-8")
+        (self.browser / "ms-playwright").mkdir()
+        self.options = dict(self.home.options, browser_dir=str(self.browser))
+        patcher = mock.patch.dict(os.environ, {BIN_ENV: "/fake/dsh"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _build(self, browser: bool):
+        spec = _spec(self.base, self.options, self.repo, browser=browser)
+        return spec, dsh.DshBackend().build_command(spec)
+
+    @staticmethod
+    def _patches(argv):
+        return [argv[index + 1] for index, arg in enumerate(argv) if arg == "--patch"]
+
+    def test_overlay_patch_has_isolated_stdio_mcp(self):
+        spec, (argv, env, _) = self._build(browser=True)
+        patches = self._patches(argv)
+        self.assertEqual(patches[0], str(dsh.patch_file(self.options)))
+        self.assertEqual(len(patches), 2)
+        overlay = json.loads(Path(patches[1]).read_text(encoding="utf-8"))
+        entry = overlay[0]["insert"][0]
+        self.assertEqual(entry["id"], "hand-ext-browser")
+        self.assertEqual(entry["name"], "@deepseek-ai/dsh-mcp-client")
+        config = entry["config"]
+        self.assertEqual(config["transport"], "stdio")
+        self.assertEqual(config["serverName"], "playwright")
+        self.assertEqual(config["command"], "node")
+        args = config["args"]
+        self.assertEqual(args[0], str(self.browser / "node_modules/@playwright/mcp/cli.js"))
+        for flag in ("--headless", "--isolated", "--browser", "chromium",
+                     "--blocked-origins", "--output-dir"):
+            self.assertIn(flag, args)
+        blocked = args[args.index("--blocked-origins") + 1]
+        for host in ("https://www.tiktok.com", "https://tiktok.com",
+                     "https://m.tiktok.com", "https://vt.tiktok.com",
+                     "https://webcast.tiktok.com"):
+            self.assertIn(host, blocked)
+        self.assertEqual(args[args.index("--output-dir") + 1],
+                         str(spec.run_dir / "browser"))
+        self.assertEqual(config["env"],
+                         {"PLAYWRIGHT_BROWSERS_PATH": str(self.browser / "ms-playwright")})
+        for name in config["env"]:
+            self.assertNotIn("KEY", name.upper())
+            self.assertNotIn("TOKEN", name.upper())
+            self.assertNotIn("SECRET", name.upper())
+        self.assertEqual(Path(patches[1]).parent.resolve(), spec.run_dir.resolve())
+        self.assertEqual(env[dsh.KEY_ENV], FAKE_KEY)
+
+    def test_off_keeps_single_patch_and_shared_patch(self):
+        shared = dsh.patch_file(self.options)
+        before = shared.read_bytes()
+        spec, (argv, _, _) = self._build(browser=False)
+        self.assertEqual(self._patches(argv), [str(shared)])
+        self.assertEqual(shared.read_bytes(), before)
+        self.assertFalse((spec.run_dir / "browser.patch.json").exists())
+
+    def test_on_never_edits_shared_patch(self):
+        shared = dsh.patch_file(self.options)
+        before = shared.read_bytes()
+        self._build(browser=True)
+        self.assertEqual(shared.read_bytes(), before)
+
+    def test_missing_browser_refuses(self):
+        options = dict(self.home.options, browser_dir=str(self.base / "missing"))
+        spec = _spec(self.base, options, self.repo, browser=True)
+        with self.assertRaises(ValueError) as raised:
+            dsh.DshBackend().build_command(spec)
+        self.assertIn("--browser", str(raised.exception))
+
+
+class BrowserPromptTest(unittest.TestCase):
+    def test_rules_only_when_enabled(self):
+        plain = hand_prompt.build_prompt("BRIEF body")
+        self.assertNotIn("Luật trình duyệt", plain)
+        self.assertNotIn("TikTok", plain)
+        with_browser = hand_prompt.build_prompt("BRIEF body", browser=True)
+        self.assertLess(with_browser.index("Luật trình duyệt"),
+                        with_browser.index("## BRIEF"))
+        haystack = with_browser.lower()
+        for needle in ("trang công khai", "không đăng nhập", "không tạo tài khoản",
+                       "không điền form", "không mua", "captcha", "tiktok",
+                       "không tải hay chạy file tải về"):
+            self.assertIn(needle, haystack)
+
+
 class RunIsolationTest(_TmpCase):
     """End to end through runner.run_backend with the fake dsh."""
 
@@ -216,14 +319,53 @@ class ParseAndFinalizeTest(unittest.TestCase):
                          Status.FAILED)
 
 
+class VersionTest(unittest.TestCase):
+    def test_plugin_version_0_4_0(self):
+        manifest = ROOT / "plugins" / "hybrid-hands" / ".claude-plugin" / "plugin.json"
+        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["version"], "0.4.0")
+        self.assertEqual(dsh.USER_AGENT, "hybrid-hands-hand-ext/0.4.0")
+
+
 class DoctorTest(_TmpCase):
     def test_doctor_ready_with_fake_bin(self):
         home = _Home(self.base)
         with mock.patch.dict(os.environ, {BIN_ENV: str(FAKE_BIN)}):
             checks = {c.name: c for c in dsh.DshBackend().doctor(home.options)}
-        self.assertTrue(all(c.ok for c in checks.values()), checks)
+        self.assertTrue(all(c.ok for c in checks.values() if c.required), checks)
         self.assertIn("0.2.1-rc.5", checks["installed"].detail)
         self.assertNotIn(FAKE_KEY, " ".join(c.detail for c in checks.values()))
+
+    def test_doctor_missing_browser_is_optional(self):
+        home = _Home(self.base)
+        with mock.patch.dict(os.environ, {BIN_ENV: str(FAKE_BIN)}):
+            checks = {c.name: c for c in dsh.DshBackend().doctor(home.options)}
+        self.assertIn("browser", checks)
+        self.assertFalse(checks["browser"].ok)
+        self.assertFalse(checks["browser"].required)
+        self.assertIn("chưa cài", checks["browser"].detail)
+
+    def test_doctor_browser_present(self):
+        home = _Home(self.base)
+        browser = dsh.browser_dir(home.options)
+        (browser / "node_modules/@playwright/mcp").mkdir(parents=True)
+        (browser / "node_modules/@playwright/mcp/cli.js").write_text("", encoding="utf-8")
+        (browser / "ms-playwright").mkdir()
+        with mock.patch.dict(os.environ, {BIN_ENV: str(FAKE_BIN)}):
+            checks = {c.name: c for c in dsh.DshBackend().doctor(home.options)}
+        self.assertTrue(checks["browser"].ok, checks["browser"])
+
+    def test_doctor_command_does_not_fail_without_browser(self):
+        home = _Home(self.base)
+        project = self.base / "project"
+        (project / ".claude").mkdir(parents=True)
+        (project / ".claude" / "hybrid-hands.json").write_text(json.dumps(
+            {"ext_hand": {"backends": {"dsh": home.options}}}), encoding="utf-8")
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {BIN_ENV: str(FAKE_BIN)}), redirect_stdout(out):
+            code = cli.main(["doctor", "--backend", "dsh", "--cwd", str(project)])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("browser", out.getvalue())
+        self.assertIn("thiếu (tuỳ chọn)", out.getvalue())
 
     def test_doctor_without_key(self):
         home = _Home(self.base, key=False)

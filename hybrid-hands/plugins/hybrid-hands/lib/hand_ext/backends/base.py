@@ -51,6 +51,7 @@ class Check:
     name: str
     ok: bool
     detail: str
+    required: bool = True  # optional checks are reported but never fail doctor/auto
 
 
 @dataclass
@@ -64,6 +65,7 @@ class RunSpec:
     timeout_s: int
     max_tokens: Optional[int]
     options: dict  # section backends.<name> of the config
+    browser: bool = False  # mount the Playwright MCP server (dsh only)
 
 
 @dataclass

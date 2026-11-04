@@ -8,8 +8,9 @@ CONFIG_SECTION = "ext_hand"
 PLUGIN_PLACEHOLDER = "<PL>"  # replaced by the plugin directory in config paths
 
 DEFAULTS = {
-    # gemini is declared below but kept out of the order: Gemini 4 Carbon is not on any plan yet.
-    "order": ["codex", "claude", "dsh", "opencode"],
+    # Both default hands run DeepSeek V4.1 Flash on the OpenCode Go plan: dsh first, then
+    # opencode. codex/claude/gemini stay declared for explicit `--backend` use only.
+    "order": ["dsh", "opencode"],
     "timeout_min": 60,
     "max_tokens": None,
     "sandbox": "workspace-write",
@@ -33,8 +34,10 @@ DEFAULTS = {
 SANDBOXES = ("read-only", "workspace-write", "danger-full-access")
 AUTO_BACKEND = "auto"
 ALL_BACKENDS = "all"
+BROWSER_BACKEND = "dsh"  # only backend that can mount the Playwright MCP server
 
 PREAMBLE_RELPATH = "templates/ext-hand-preamble.md"
+BROWSER_RULES_RELPATH = "templates/ext-hand-browser-rules.md"
 BRIEF_HEADER = "\n\n## BRIEF\n\n"
 REPORT_FILE = "report.md"
 EVENTS_FILE = "events.jsonl"
