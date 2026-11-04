@@ -8,13 +8,13 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import ledger, quota_state, render
+from . import go_usage, ledger, quota_state, render
 from .backends import BackendUnavailable, get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import ExtConfig
 from .constants import (
-    AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, LABEL_MAX_LEN,
-    REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
+    AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, GO_USAGE_BACKENDS,
+    LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
 from .prompt import STDIN_MARK, build_prompt, read_brief
 from .runner import RunOutcome, run_backend
@@ -120,6 +120,7 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
                              [f"không chạy được {backend.name}: {exc}"])
     entry = _entry(run_id, label, backend.name, spec, started, outcome)
     ledger.append_entry(cfg.ledger, entry)
+    go_line = _record_go(cfg, entry, outcome)
     quota = outcome.state.quota
     exhausted = outcome.status is Status.QUOTA or bool(quota and quota.exhausted)
     if quota is not None or exhausted:
@@ -127,8 +128,21 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
     report = spec.run_dir / REPORT_FILE
     text = report.read_text(encoding="utf-8") if report.is_file() else ""
     print(render.run_summary(entry, outcome.seconds, str(report) if report.is_file() else None,
-                             text, outcome.errors))
+                             text, outcome.errors, go_line=go_line))
     return STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
+
+
+def _record_go(cfg: ExtConfig, entry: dict, outcome: RunOutcome) -> Optional[str]:
+    """Write the machine-wide Go ledger/summary; a logging failure warns, never fails the run."""
+    if entry.get("backend") not in GO_USAGE_BACKENDS:
+        return None
+    try:
+        summary = go_usage.record_run(cfg, entry,
+                                      outcome.state.extra.get("go_allowance_usd"))
+    except OSError as exc:
+        print(f"cảnh báo: không ghi được sổ Go: {exc}", file=sys.stderr)
+        return None
+    return go_usage.summary_line(summary)
 
 
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:

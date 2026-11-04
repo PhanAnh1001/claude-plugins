@@ -40,7 +40,8 @@ class Sandbox:
         self.brief.write_text("MỤC TIÊU: thử\n")
         self._saved = dict(os.environ)
         os.environ.update({"HAND_EXT_CODEX_BIN": str(FAKE_CODEX), "FAKE_CODEX_LOG": str(self.log),
-                           "OPENAI_API_KEY": SECRET, "CODEX_API_KEY": SECRET})
+                           "OPENAI_API_KEY": SECRET, "CODEX_API_KEY": SECRET,
+                           "HYBRID_HANDS_STATE_DIR": str(self.dir / "state")})
 
     def scenario(self, name: str) -> None:
         os.environ["FAKE_CODEX_SCENARIO"] = name

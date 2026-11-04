@@ -11,8 +11,10 @@ https://github.com/anomalyco/opencode at commit ffe6fed (dev, 2026-11-04):
 - packages/core/src/session/to-session-error.ts: quota types `provider.go-limit`
   ("OpenCode Go ... usage limit reached"), `provider.quota`, `provider.free-limit`,
   `provider.budget-limit`, `provider.model-budget-limit`; login `provider.auth`.
-Local CLI checked: opencode 1.18.14 (`opencode run --help`: --pure = no external plugins;
-prompt only as positional message, so the brief is attached with -f).
+Local CLI checked: opencode 1.19.5 (`opencode run --help`: --pure = no external plugins;
+prompt only as positional message, so the brief is attached with -f). Its JSON keeps
+`step_finish.part.cost` and tokens but not `opencode.allowance`; for Go usage within the plan
+cost is 0, so the Go ledger estimates from tokens instead.
 """
 from __future__ import annotations
 
@@ -176,6 +178,15 @@ class OpencodeBackend(Backend):
         state.usage.output += int(tokens.get("output", 0)) + int(tokens.get("reasoning", 0))
         state.extra["cost_usd_reference"] = (state.extra.get("cost_usd_reference", 0.0)
                                              + float(part.get("cost") or 0))
+        # The Console API reports the authoritative Go charge as opencode.allowance; some
+        # future CLI may carry it on the event. The installed 1.19.5 does not, and part.cost
+        # is 0 for Go within its limits, so this stays absent and cost falls back to tokens.
+        meta = part.get("opencode") if isinstance(part.get("opencode"), dict) else {}
+        allowance = part.get("allowance", meta.get("allowance",
+                                                  part.get("opencode.allowance")))
+        if isinstance(allowance, (int, float)) and not isinstance(allowance, bool):
+            state.extra["go_allowance_usd"] = (state.extra.get("go_allowance_usd", 0.0)
+                                               + float(allowance))
 
     def finalize(self, spec: RunSpec, state: RunState, exit_code: int,
                  stderr_text: str) -> Status:

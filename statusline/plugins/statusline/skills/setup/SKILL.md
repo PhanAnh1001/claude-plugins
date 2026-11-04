@@ -37,6 +37,8 @@ description: Set up, check or remove the statusline plugin as Claude Code's stat
    ```
 
    The first shows `bash "$HOME/.claude/statusline-command.sh"`; the second prints three lines.
+   If `~/.hybrid-hands/go_usage_summary.json` exists, the third line also ends with the OpenCode
+   Go segment `DS 5h ~12% · tuần ~31%` (written by `hand-ext`, never by this plugin).
    If it prints `statusline plugin not found`, the plugin is not in `installed_plugins.json`:
    install it with `claude plugin install statusline@statusline-local`.
 
@@ -53,5 +55,8 @@ Same order with `--uninstall`: `--uninstall --dry-run`, then `--uninstall`. It r
 
 - `CLAUDE_HOME` overrides the config dir (default `$HOME/.claude`); only set it when the user
   runs Claude Code with a non-default config dir.
+- The optional `DS ...` tail on line 3 reads `~/.hybrid-hands/go_usage_summary.json` (or
+  `$HYBRID_HANDS_STATE_DIR`); the statusline never calls `hand-ext` or the network. A missing or
+  broken file is silent, so this needs no setup step.
 - Requirements: `jq` (rendering), `python3` >= 3.9 (skill segment; JSON fallback when `jq` is
   missing during setup).

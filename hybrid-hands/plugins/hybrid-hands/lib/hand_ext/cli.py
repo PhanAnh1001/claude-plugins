@@ -1,12 +1,13 @@
-"""hand-ext command line: setup, doctor, run, status, report."""
+"""hand-ext command line: setup, doctor, run, status, usage, report."""
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import ledger, quota_state, render
+from . import go_usage, ledger, quota_state, render
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
@@ -34,6 +35,9 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--browser", action="store_true",
                    help="bật Playwright MCP cô lập cho backend dsh (chỉ trang công khai)")
     sub.add_parser("status", help="sẵn sàng, hạn mức, lượt gần nhất").add_argument("--cwd")
+    use = sub.add_parser("usage", help="mức đã dùng gói OpenCode Go (5h/7d/30d)")
+    use.add_argument("--json", action="store_true", help="in JSON của bản tóm tắt")
+    use.add_argument("--cwd")
     rep = sub.add_parser("report", help="tổng lượt và token")
     for flag in ("--since", "--backend", "--label", "--cwd"):
         rep.add_argument(flag)
@@ -82,6 +86,19 @@ def cmd_status(cfg: ExtConfig, args: argparse.Namespace) -> int:
         last = last_run(cfg, name)
         shown = f"{last['started']} {last['status']}" if last else "-"
         print(f"| {name} | {ok} | {quota_state.iso(until) if until else '-'} | {shown} |")
+    summary = go_usage.read_summary(cfg.go_usage_summary)
+    if summary and summary.get("models"):
+        print()
+        print(go_usage.format_text(summary))
+    return EXIT_OK
+
+
+def cmd_usage(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    summary = go_usage.refresh(cfg)
+    if args.json:
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    else:
+        print(go_usage.format_text(summary))
     return EXIT_OK
 
 
@@ -97,7 +114,7 @@ def cmd_report(cfg: ExtConfig, args: argparse.Namespace) -> int:
 
 
 COMMANDS = {"setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
-            "status": cmd_status, "report": cmd_report}
+            "status": cmd_status, "usage": cmd_usage, "report": cmd_report}
 
 
 def main(argv: Optional[List[str]] = None) -> int:

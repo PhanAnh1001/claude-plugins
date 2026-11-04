@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .constants import CONFIG_SECTION, DEFAULTS, PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH
+from .constants import (
+    CONFIG_SECTION, DEFAULTS, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
+    GO_USAGE_LEDGER_NAME, GO_USAGE_SECTION, GO_USAGE_STATE_DIR_ENV, PLUGIN_PLACEHOLDER,
+    PROJECT_CONFIG_RELPATH,
+)
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]
 
@@ -25,6 +29,9 @@ class ExtConfig:
     quota_state: Path
     runs_dir: Path
     backends: Dict[str, Dict[str, Any]]
+    go_usage_ledger: Path
+    go_usage_summary: Path
+    go_monthly_limit_usd: float
 
     def options(self, name: str) -> Dict[str, Any]:
         return dict(self.backends.get(name, {}))
@@ -69,12 +76,37 @@ def merge_backends(base: Dict[str, Dict[str, Any]], over: Dict[str, Any]) -> Dic
     return {n: {k: _expand(v) for k, v in o.items()} for n, o in merged.items()}
 
 
+def _state_dir() -> Path:
+    raw = os.environ.get(GO_USAGE_STATE_DIR_ENV) or GO_USAGE_DEFAULT_DIR
+    return Path(os.path.expanduser(raw))
+
+
+def _go_usage(root: Path, section: Dict[str, Any]) -> tuple[Path, Path, float]:
+    """Ledger and summary beside each other; `HYBRID_HANDS_STATE_DIR` only sets the default."""
+    configured = section.get("ledger")
+    ledger = (_resolve(root, str(configured)) if configured
+              else _state_dir() / GO_USAGE_LEDGER_NAME)
+    summary = ledger.with_name(ledger.stem + "_summary.json")
+    limit = section.get("monthly_limit_usd", GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD)
+    try:
+        limit_usd = float(limit)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("go_usage.monthly_limit_usd phải là số") from exc
+    if limit_usd <= 0:
+        raise ValueError("go_usage.monthly_limit_usd phải lớn hơn 0")
+    return ledger, summary, limit_usd
+
+
 def load_config(cwd: Optional[Path] = None) -> ExtConfig:
     root = git_toplevel(Path(cwd or Path.cwd()))
     merged = copy.deepcopy(DEFAULTS)
     section = _read_section(root)
+    go_section = section.pop(GO_USAGE_SECTION, {}) or {}
+    if not isinstance(go_section, dict):
+        raise ValueError(f"{CONFIG_SECTION}.{GO_USAGE_SECTION} phải là object")
     backends = merge_backends(merged["backends"], section.pop("backends", {}) or {})
     merged.update(section)
+    go_ledger, go_summary, go_limit = _go_usage(root, go_section)
     max_tokens = merged["max_tokens"]
     return ExtConfig(
         root=root, order=[str(n) for n in merged["order"]],
@@ -85,4 +117,6 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
         quota_state=_resolve(root, str(merged["quota_state"])),
         runs_dir=_resolve(root, str(merged["runs_dir"])),
         backends=backends,
+        go_usage_ledger=go_ledger, go_usage_summary=go_summary,
+        go_monthly_limit_usd=go_limit,
     )

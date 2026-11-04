@@ -20,6 +20,10 @@ CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 # Last known rate-limit percentages/reset times, so line 3 shows real numbers on CLI startup
 # (before the first API response, when rate_limits is absent). Cached values are marked "~".
 CACHE_FILE="$CLAUDE_HOME/.statusline-cache.json"
+# Machine-wide OpenCode Go usage summary written by hand-ext (never called from here).
+GO_STATE_DIR="${HYBRID_HANDS_STATE_DIR:-$HOME/.hybrid-hands}"
+GO_SUMMARY_FILE="$GO_STATE_DIR/go_usage_summary.json"
+GO_STALE_SECONDS=$((5 * 3600))
 
 case "${BASH_SOURCE[0]}" in
   */*) SCRIPTS_DIR="${BASH_SOURCE[0]%/*}" ;;
@@ -202,14 +206,69 @@ save_cache() {
   [ -n "$new_cache" ] && echo "$new_cache" > "$CACHE_FILE" 2>/dev/null
 }
 
+# --- Go usage (line 3 tail, cached summary file only) ---
+load_go_summary() {
+  # One jq read of go_usage_summary.json; sets go_updated/go_five/... or leaves them empty.
+  [ -f "$GO_SUMMARY_FILE" ] || return 0
+  local row
+  row=$(jq -r '
+    (.models // {}) as $models
+    | ([$models | to_entries[]
+        | select((.key | type) == "string" and (.key | test("deepseek"; "i")))]
+       | .[0].value // {}) as $m
+    | (if ($m | type) == "object" then $m else {} end) as $w
+    | [ ((.updated_at // 0) | numbers // 0),
+        (($w["5h"].percent | numbers) // ""),
+        ($w["5h"].estimated == true),
+        (($w["7d"].percent | numbers) // ""),
+        ($w["7d"].estimated == true) ]
+    | @tsv
+  ' "$GO_SUMMARY_FILE" 2>/dev/null) || return 0
+  [ -n "$row" ] || return 0
+  IFS=$'\t' read -r go_updated go_five go_five_est go_week go_week_est <<< "$row"
+}
+
+go_pct_segment() {
+  # Args: label percent mark. Same colour thresholds as the Claude part; "--" when absent.
+  local label=$1 pct=$2 mark=$3
+  if [ -z "$pct" ]; then
+    printf '%s %s%s%s' "${DIM}${label}${RESET}" "$DIM" "$PLACEHOLDER" "$RESET"
+    return 0
+  fi
+  printf '%s %s%s%s%s%.0f%%%s' "${DIM}${label}${RESET}" "$DIM" "$mark" "$RESET" \
+    "$(col_for_pct "$pct")" "$pct" "$RESET"
+}
+
+go_usage_segment() {
+  # "DS 5h ~12% · tuần ~31%"; "~" when any value is estimated or the summary is >5h old.
+  [ -n "$go_five" ] || [ -n "$go_week" ] || return 0
+  local now stale="" mark5="" mark7=""
+  now=$(date +%s)
+  if ! [[ "$go_updated" =~ ^[0-9]+$ ]] || [ "$go_updated" -le 0 ] \
+      || [ $((now - go_updated)) -ge "$GO_STALE_SECONDS" ]; then
+    stale="$STALE_MARK"
+  fi
+  [ "$go_five_est" = "true" ] && mark5="$STALE_MARK"
+  [ "$go_week_est" = "true" ] && mark7="$STALE_MARK"
+  [ -n "$stale" ] && { mark5="$STALE_MARK"; mark7="$STALE_MARK"; }
+  printf '%s %s %s %s' "${DIM}DS${RESET}" \
+    "$(go_pct_segment 5h "$go_five" "$mark5")" "${DIM}·${RESET}" \
+    "$(go_pct_segment tuần "$go_week" "$mark7")"
+}
+
 build_line3() {
-  join_segments \
-    "$(rate_limit_segment 5h "$five" "$five_reset" "$cached_five" "$cached_five_reset")" \
-    "$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset")"
+  local segments=()
+  segments+=("$(rate_limit_segment 5h "$five" "$five_reset" "$cached_five" "$cached_five_reset")")
+  segments+=("$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset")")
+  local go_seg
+  go_seg=$(go_usage_segment)
+  [ -n "$go_seg" ] && segments+=("$go_seg")
+  join_segments "${segments[@]}"
 }
 
 line1=$(build_line1)
 line2=$(build_line2)
+load_go_summary
 line3=$(build_line3)
 # --- Skill block (lines 4+) ---
 build_skill_block() {

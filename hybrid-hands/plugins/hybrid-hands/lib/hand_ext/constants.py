@@ -7,6 +7,23 @@ PROJECT_CONFIG_RELPATH = ".claude/hybrid-hands.json"
 CONFIG_SECTION = "ext_hand"
 PLUGIN_PLACEHOLDER = "<PL>"  # replaced by the plugin directory in config paths
 
+# Go usage ledger lives on the machine, not per repo: plan limits follow the account.
+GO_USAGE_SECTION = "go_usage"
+GO_USAGE_STATE_DIR_ENV = "HYBRID_HANDS_STATE_DIR"
+GO_USAGE_DEFAULT_DIR = "~/.hybrid-hands"
+GO_USAGE_LEDGER_NAME = "go_usage.jsonl"
+GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD = 100.0
+# Share of the monthly limit that each sliding window may use (OpenCode Go docs).
+GO_USAGE_WINDOW_SHARES = (("5h", 5 * 3600, 0.2), ("7d", 7 * 86400, 0.5),
+                          ("30d", 30 * 86400, 1.0))
+# Backends billed through the OpenCode Go plan (DeepSeek V4.1 Flash).
+GO_USAGE_BACKENDS = ("dsh", "opencode")
+GO_PRICE_KEY = "go_price_per_mtok"
+# Peak prices from https://opencode.ai/docs/go (read 2026-11-04), USD per 1M tokens:
+# input $0.30, cached read $0.006, output $1.20. Off-peak is half; using peak keeps the
+# estimate an upper bound, and the OpenCode Console remains the authoritative meter.
+GO_USAGE_DEFAULT_PRICE = {"input": 0.30, "cached_input": 0.006, "output": 1.20}
+
 DEFAULTS = {
     # Both default hands run DeepSeek V4.1 Flash on the OpenCode Go plan: dsh first, then
     # opencode. codex/claude/gemini stay declared for explicit `--backend` use only.
@@ -24,9 +41,11 @@ DEFAULTS = {
         # DeepSeek Harness on the OpenCode Go key (templates/dsh-hand.yml); before opencode.
         "dsh": {"home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key",
                 "model": "deepseek-v4.1-flash", "effort": "max",
-                "base_url": "https://opencode.ai/inference/go/openai/v1"},
+                "base_url": "https://opencode.ai/inference/go/openai/v1",
+                "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
         "opencode": {"config": "<PL>/templates/opencode-hand.jsonc",
-                     "model": "opencode-go/deepseek-v4.1-flash", "variant": "max"},
+                     "model": "opencode-go/deepseek-v4.1-flash", "variant": "max",
+                     "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
         "gemini": {"home": "~/.gemini-hand", "model": "gemini-4-carbon"},
     },
 }

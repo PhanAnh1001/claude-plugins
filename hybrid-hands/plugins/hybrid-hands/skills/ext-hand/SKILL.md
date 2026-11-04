@@ -1,6 +1,6 @@
 ---
 name: ext-hand
-description: Giao một việc code hoặc tài liệu tự chứa cho hand ngoài chạy trên gói subscription thứ hai (mặc định DeepSeek V4.1 Flash qua DeepSeek Harness dsh hoặc OpenCode Go; Codex/Claude gọi tường minh) bằng lệnh hand-ext - viết brief vào file, run nền với --backend auto, đọc report, brain tự review diff, báo backend, token, % hạn mức; xử lý exit 7, quota, capped, timeout, not_logged_in; cài đặt lần đầu từng backend; tuỳ chọn --browser cho dsh qua Playwright MCP cô lập, chỉ trang công khai, không TikTok. Không dùng API key, không tính USD. Từ khoá kích hoạt - "hand ngoài", "hand-ext", "gói thứ hai", "Codex", "OpenCode Go", "DeepSeek Harness", "dsh", "trình duyệt", "Playwright", "hand rẻ", "hạn mức hand", "giao hand".
+description: Giao một việc code hoặc tài liệu tự chứa cho hand ngoài chạy trên gói subscription thứ hai (mặc định DeepSeek V4.1 Flash qua DeepSeek Harness dsh hoặc OpenCode Go; Codex/Claude gọi tường minh) bằng lệnh hand-ext - viết brief vào file, run nền với --backend auto, đọc report, brain tự review diff, báo backend, token, % hạn mức và USD Go ước tính; xử lý exit 7, quota, capped, timeout, not_logged_in; cài đặt lần đầu từng backend; tuỳ chọn --browser cho dsh qua Playwright MCP cô lập, chỉ trang công khai, không TikTok. Không dùng API key; USD Go chỉ là ước tính từ token, Console là nguồn chuẩn. Từ khoá kích hoạt - "hand ngoài", "hand-ext", "gói thứ hai", "Codex", "OpenCode Go", "DeepSeek Harness", "dsh", "trình duyệt", "Playwright", "hand rẻ", "hạn mức hand", "mức đã dùng Go", "giao hand".
 ---
 
 # Hand ngoài (hand-ext)
@@ -9,8 +9,9 @@ description: Giao một việc code hoặc tài liệu tự chứa cho hand ngo�
 
 - **Dùng khi (mặc định):** việc code/tài liệu tự chứa, phạm vi file rõ: sửa hay viết script, viết test, refactor trong vài file, soát hay sửa tài liệu, đọc code trả lời câu hỏi. Chạy trên gói subscription thứ hai để giữ hạn mức gói Claude chính cho brain.
 - **Không dùng khi:** cần tool riêng của Claude Code (Chrome, MCP, Skill, đọc ảnh, SendMessage), chạy lệnh trả phí của dự án → `hybrid-hands:hand`; `hand-ext` thoát 7 hoặc lỗi → cũng `hybrid-hands:hand`.
-- **Chuỗi bước:** brief vào file → `hand-ext run --backend auto` chạy nền → đọc report → brain review diff → báo backend, token, % hạn mức, thời điểm reset.
+- **Chuỗi bước:** brief vào file → `hand-ext run --backend auto` chạy nền → đọc report → brain review diff → báo backend, token, % hạn mức (Claude/Codex) hoặc % Go 5h/tuần kèm USD ước tính, thời điểm reset.
 - **Luật cứng:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; Codex, DeepSeek Harness và OpenCode không chịu hook của Claude Code nên brief chép nguyên văn luật cấm (nhất là cấm đọc `.env`) và PHẠM VI GHI hẹp.
+- **Mức Go:** hạn mức OpenCode Go tính bằng USD theo tháng cho từng model (DeepSeek V4.1 Flash: $100; 5 giờ = 20%, tuần = 50%, tháng = 100%). `dsh`/`opencode` ghi sổ toàn máy `~/.hybrid-hands/go_usage.jsonl`; `hand-ext usage [--json]` và `hand-ext status` đọc bản tóm tắt. Số là **ước tính** (OpenCode chưa công bố mốc reset, CLI không giữ `opencode.allowance`), Console là nguồn chuẩn; không bịa số khi thiếu đơn giá.
 - **Backend:** mặc định `order` chỉ có `dsh` (DeepSeek Harness trên key OpenCode Go, DeepSeek V4.1 Flash reasoning `max`) rồi `opencode` (OpenCode Go, cùng model, biến thể max). `codex` (ChatGPT), `claude` (Claude tài khoản thứ hai) và `gemini` (dự kiến) vẫn khai báo trong `backends` nhưng không nằm trong `order`; gọi tường minh `--backend codex|claude|gemini` khi cần. `--browser` chỉ dùng với `dsh`.
 
 ## 1. Cài đặt lần đầu (mỗi máy, mỗi backend)
@@ -37,7 +38,7 @@ PLAYWRIGHT_BROWSERS_PATH=~/.dsh-hand/browser/ms-playwright \
 
 `hand-ext doctor --backend dsh` kiểm `node_modules/@playwright/mcp/cli.js` và `ms-playwright`; thiếu thì báo "thiếu (tuỳ chọn)" và không làm doctor fail. Chỉ cần cài khi dùng `--browser`.
 
-Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` (mặc định `dsh`, `opencode`), `backends.<tên>` (dsh có thêm `browser_dir`, mặc định `~/.dsh-hand/browser`), `timeout_min` (60), `max_tokens`, `sandbox` (`workspace-write`), sổ `ledger` `output/llm/hand_usage.json` (token, không USD), `quota_state` `output/llm/hand_quota.json`, `runs_dir` `output/llm/hand-ext`.
+Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` (mặc định `dsh`, `opencode`), `backends.<tên>` (dsh có thêm `browser_dir`, mặc định `~/.dsh-hand/browser`; dsh/opencode có `go_price_per_mtok`), `timeout_min` (60), `max_tokens`, `sandbox` (`workspace-write`), sổ `ledger` `output/llm/hand_usage.json` (token), `quota_state` `output/llm/hand_quota.json`, `runs_dir` `output/llm/hand-ext`, `go_usage.ledger` (mặc định `~/.hybrid-hands/go_usage.jsonl`) và `go_usage.monthly_limit_usd` (mặc định 100; Go Plus 200).
 
 ## 2. Một lượt giao việc
 
@@ -45,9 +46,9 @@ Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` 
 2. **Run nền:** tool Bash với `run_in_background`:
    `hand-ext run --brief <file> --backend auto --label <nhãn> [--browser] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S]`
    Chờ thông báo khi lệnh thoát; không viết vòng chờ riêng. `auto` thử backend theo `order`, gặp hết hạn mức hoặc chưa đăng nhập thì sang backend kế tiếp. `--browser` chỉ dùng với `dsh`: `auto --browser` chỉ xét `dsh`; `--backend` khác `dsh` kèm `--browser` thoát 2. Khi bật, prompt có thêm luật trình duyệt và dsh nạp MCP Playwright cô lập cho riêng lượt chạy (không sửa patch chung).
-3. **Đọc kết quả:** khối tóm tắt cuối output (backend, token, `used_percent`, `resets_at`) và `report.md` theo đường dẫn được in.
+3. **Đọc kết quả:** khối tóm tắt cuối output (backend, token, `used_percent`/`resets_at` của backend, hoặc dòng `hạn mức: ~x% 5h, ~y% tuần (ước tính)` của Go) và `report.md` theo đường dẫn được in.
 4. **Review:** brain tự `git diff` các file hand đã đổi; lỗi thì một lượt `run` mới với brief gọn chép sẵn phát hiện (hand ngoài không nhận SendMessage).
-5. **Báo hạn mức:** backend, token, % hạn mức, thời điểm reset; không cần bảng USD vì gói không tính theo lượt. Xem trạng thái các gói: `hand-ext status`; tổng lượt và token: `hand-ext report [--since D] [--backend B] [--label L]`.
+5. **Báo hạn mức:** backend, token, % hạn mức, thời điểm reset; với Go báo thêm % 5h/tuần và USD ước tính. Xem trạng thái các gói: `hand-ext status`; mức Go chi tiết: `hand-ext usage [--json]`; tổng lượt và token: `hand-ext report [--since D] [--backend B] [--label L]`.
 
 ## 3. Xử lý lỗi và rủi ro
 
@@ -57,6 +58,7 @@ Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` 
 - **`timeout` (exit 6):** đọc report; việc dài thì chia nhỏ hoặc tăng `--timeout-min` có lý do.
 - **Lỗi khác hoặc `doctor` không đạt:** `hybrid-hands:hand` làm dự phòng, báo người dùng kèm output thật.
 - **OpenCode Go:** hết hạn mức mà Extra Usage còn bật hoặc Console còn credit thì bị tính tiền theo token, nên người dùng phải TẮT Extra Usage và để credit 0. Metadata models.dev vẫn ghi `release_date` 2026-09-10, nhưng OpenCode báo Go đã phục vụ bản 1017 dưới cùng id `deepseek-v4.1-flash` (khoảng 20/10/2026); `doctor` chỉ ghi chú, không coi là lỗi.
+- **Sổ Go:** mỗi lượt `dsh`/`opencode` ghi `run_id`, `ended`, `backend`, `model`, `tokens`, `cost_usd`, `cost_source`, `cwd_basename` (không ghi đường dẫn tuyệt đối) vào `~/.hybrid-hands/go_usage.jsonl`; bản tóm tắt cạnh đó có cửa sổ trượt 5 giờ / 7 ngày / 30 ngày. Nếu CLI không lộ `opencode.allowance` thì chi phí là `estimated` từ token × `go_price_per_mtok` (mặc định giá peak: input $0,30, cached $0,006, output $1,20 mỗi 1M token); thiếu đơn giá thì `cost_usd = null`, `cost_source = unknown`. Cửa sổ Go có thể không trượt, nên số chỉ để ước lượng và **OpenCode Console là nguồn chuẩn**; đừng trình bày như số chính xác.
 - **DeepSeek Harness (`dsh`):** dsh luôn đọc `<thư mục khởi chạy>/.env` (đã đọc mã nguồn bản 0.2.1-rc.5), nên `hand-ext` khởi chạy dsh từ `~/.dsh-hand/launch` (không có `.env`) và trỏ workspace sang repo bằng patch; không tạo `~/.dsh-hand/.env`. dsh không có luật chặn tool đọc `.env` theo mẫu file, nên brief vẫn phải chép luật cấm. Hết hạn mức (`QUOTA`, `RATE_LIMIT`) thì `auto` sang `opencode`. Bản dsh khác 0.2.1-rc.5 thì `doctor` không đạt tới khi đọc lại mã nguồn. `doctor` có dòng `browser`: thiếu `cli.js`/`ms-playwright` chỉ là ghi chú tuỳ chọn, không làm fail; nhưng `run --browser` sẽ báo lỗi rõ nếu thiếu.
 - **Trình duyệt (`--browser`):** chỉ backend `dsh`, MCP server stdio `@deepseek-ai/dsh-mcp-client` tên `playwright` chạy `node <browser_dir>/node_modules/@playwright/mcp/cli.js --headless --isolated --browser chromium --blocked-origins "<5 origin TikTok>" --output-dir <run>/browser`, env chỉ `PLAYWRIGHT_BROWSERS_PATH=<browser_dir>/ms-playwright`. Chỉ duyệt trang công khai; không đăng nhập, không tạo tài khoản, không điền form, không mua, không vượt captcha; không mở TikTok; không tải hay chạy file tải về. `--blocked-origins` không phải ranh giới bảo mật và không chặn redirect, nên luật prompt là lớp chính. Không dùng API key hay key Go cho MCP; dsh lọc biến dạng key/token khỏi env con.
 - **Gemini (dự kiến):** Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI. `backends.gemini` giữ khai báo nhưng không nằm trong `order`.

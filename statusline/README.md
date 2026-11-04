@@ -6,7 +6,7 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.9.0).
+  `statusline` (bản 0.9.1).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -20,7 +20,7 @@
 |---|---|---|
 | 1 | `user@host`, tên thư mục hiện tại (`~` nếu là thư mục home), nhánh git màu xanh | `anh@mac dev-workflow (main)` |
 | 2 | model (mức effort), tổng tokens của phiên, % context đang dùng | `Opus(high) \| tokens:6.5k \| ctx:55%` |
-| 3 | rate limit 5 giờ và 7 ngày kèm giờ reset | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46)` |
+| 3 | rate limit 5 giờ và 7 ngày kèm giờ reset; nối thêm mức OpenCode Go nếu có sổ của `hand-ext` | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46) \| DS 5h ~12% · tuần ~31%` |
 | 4+ | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
 - **Màu phần trăm:** xanh dưới 50%, vàng từ 50%, đỏ từ 80%.
@@ -60,6 +60,13 @@
 - **Rate limit** chỉ có sau phản hồi API đầu tiên của phiên. Trước đó dòng 3 hiện giá trị lưu ở
   `.statusline-cache.json` trong thư mục cấu hình Claude, có dấu `~` phía trước; chưa có gì thì
   hiện `--`.
+- **Mức OpenCode Go (`DS`)** nằm cuối dòng 3, đọc đúng một file JSON do `hand-ext` ghi:
+  `$HYBRID_HANDS_STATE_DIR/go_usage_summary.json`, mặc định `~/.hybrid-hands/go_usage_summary.json`
+  (`HYBRID_HANDS_STATE_DIR` chỉ dùng để test). Định dạng `DS 5h ~12% · tuần ~31%`; dấu `~` xuất
+  hiện khi bản tóm tắt đánh dấu `estimated` hoặc file cũ hơn 5 giờ. Phần trăm dùng cùng ngưỡng màu
+  với Claude (xanh dưới 50%, vàng từ 50%, đỏ từ 80%). File thiếu hoặc JSON hỏng thì không in gì và
+  statusline vẫn thoát 0; phần Go chỉ đọc đúng file này bằng một lần `jq`, không gọi `hand-ext`,
+  không gọi mạng. Đây là số ước tính (Go chưa công bố mốc reset); OpenCode Console là nguồn chuẩn.
 
 ## Cài đặt
 

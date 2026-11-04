@@ -12,6 +12,9 @@ Facts read from the installed @deepseek-ai/dsh 0.2.1-rc.5 (npm tag latest, 2026-
   `tool_call`, `tool_result`, `final` {text}; runner failures emit `error` {message}.
   usage = {inputTokens, outputTokens, totalTokens?, cacheReadTokens?, cacheWriteTokens?,
   reasoningTokens?}; turn_end reason = {kind: completed|aborted|error, error?: {code, message}}.
+- No spend data leaves dsh: dsh-llm-pi-ai/lib/index.js:271-280 says the harness never reads
+  pi-ai's cost metadata and no consumer reports spend, and dsh-headless json-stream
+  lines 214-226 publish only the token usage fields above (no cost/allowance).
 - dsh-llm-pi-ai classifyPiAiError(): 401/403 -> AUTH, quota text -> QUOTA, 429 -> RATE_LIMIT;
   missing key -> MISSING_CREDENTIAL. The patch (templates/dsh-hand.yml) routes model calls
   through pi-ai `openai-completions` to the Go endpoint with `x-opencode-session` header.
@@ -58,7 +61,7 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: same model id as the opencode backend
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.4.0"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.5.0"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
 # Versions whose env loading and patch keys were read from source (see module docstring).
 VERIFIED_VERSIONS = frozenset({"0.2.1-rc.5"})

@@ -8,7 +8,7 @@
     {
       "name": "hybrid-hands",
       "source": "./plugins/hybrid-hands",
-      "description": "Brain/hand lai: hand ngoài qua lệnh hand-ext (gói thứ hai, mặc định DeepSeek V4.1 Flash qua dsh/OpenCode Go; Codex/Claude gọi tường minh; --browser cho dsh qua Playwright MCP cô lập; không API), hand Claude (hybrid-hands:hand), phiên phụ qua lệnh side-session; policy chọn hand và luật hạn mức bơm qua hook."
+      "description": "Brain/hand lai: hand ngoài qua lệnh hand-ext (gói thứ hai, mặc định DeepSeek V4.1 Flash qua dsh/OpenCode Go; Codex/Claude gọi tường minh; --browser cho dsh qua Playwright MCP cô lập; không API), hand Claude (hybrid-hands:hand), phiên phụ qua lệnh side-session; policy chọn hand và luật hạn mức bơm qua hook; sổ Go toàn máy và lệnh hand-ext usage."
     }
   ]
 }

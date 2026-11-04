@@ -1,6 +1,7 @@
 """hand-ext opencode backend: argv, env blocking, usage parsing, classification, doctor."""
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -121,6 +122,16 @@ class ParseAndFinalizeTest(unittest.TestCase):
         self.backend.parse_line("not json", state)
         self.backend.parse_line("{broken", state)
         self.assertEqual(self.backend.finalize(self.spec, state, 2, "boom"), Status.FAILED)
+
+    def test_allowance_is_summed_when_an_event_carries_it(self):
+        state = RunState(usage=Usage())
+        event = {"type": "step_finish", "part": {
+            "cost": 0, "allowance": 0.02,
+            "tokens": {"input": 10, "output": 2, "cache": {"read": 0, "write": 0}}}}
+        self.backend.parse_line(json.dumps(event), state)
+        event["part"]["allowance"] = 0.03
+        self.backend.parse_line(json.dumps(event), state)
+        self.assertAlmostEqual(state.extra["go_allowance_usd"], 0.05)
 
 
 class DoctorTest(unittest.TestCase):
