@@ -224,7 +224,7 @@ class HhFixture:
         meta_dir.mkdir()
         (meta_dir / "WP-23b.meta").write_text(
             f"uuid={MAIN_SESSION}\ncap_usd=200000\nstarted={int(NOW - 7200)}\n"
-            f"screen_pid={self.main_pid}\nexempt=0\n", encoding="utf-8")
+            f"screen_pid={self.main_pid}\nexempt=1\n", encoding="utf-8")
         state_dir = self.project / "output" / "state"
         state_dir.mkdir(parents=True)
         (state_dir / "side.json").write_text(json.dumps({

@@ -27,9 +27,8 @@ def project_root(cwd: Path) -> Path:
 
 def _cap_for(session, meta: Dict[str, SessionMeta],
              side: Dict[str, dict]) -> Optional[int]:
+    # `exempt` in a launcher .meta waives the daily budget only; the token cap still applies.
     found = meta.get(session.session_id)
-    if found is not None and found.exempt:
-        return None
     if found is not None and found.cap_tokens:
         return int(found.cap_tokens)
     state = side.get(session.session_id) or {}
