@@ -1,0 +1,11 @@
+#!/usr/bin/env python3
+"""side-session CLI. Ported from live-tiktok-games
+docs/work-in-progress/2026-11-03-live-room-game-orchestration.md (section 7)."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+from side_session.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

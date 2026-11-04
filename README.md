@@ -8,8 +8,9 @@
   `https://github.com/PhanAnh1001/claude-plugins.git`) chứa mọi plugin; các thư mục plugin không
   có git repo riêng. `parallel-subagents` trước đây là repo riêng `brain-hand-plugins`, `dev-workflow` cũng từng là
   repo riêng, nay đều gộp vào đây; lịch sử git cũ của chúng (và của `jira-tools`) không được giữ.
-- **Plugin hiện có (5):** `dev-workflow`, `jira-tools`, `parallel-subagents`, `statusline`,
-  `summary-first-docs`.
+- **Plugin hiện có (6):** `dev-workflow`, `hybrid-hands`, `jira-tools`, `parallel-subagents`,
+  `statusline`, `summary-first-docs`. `hybrid-hands` và `parallel-subagents` thay thế nhau, bật
+  theo từng dự án (scope project).
 - **Cài đặt:** clone repo này, rồi mỗi plugin hai lệnh
   `claude plugin marketplace add <thư-mục-repo>/<plugin>` rồi
   `claude plugin install <plugin>@<plugin>-local --scope user`; chi tiết trong README của
@@ -22,6 +23,7 @@
 | Thư mục | Marketplace | Plugin | Nội dung |
 |---|---|---|---|
 | `dev-workflow/` | `dev-workflow-local` | `dev-workflow` | quy trình phát triển có AI: 13 skill (khởi tạo dự án, phân làn L0–L3, spec/plan, điều tra bug, truy vết, chốt phiên, Jira), wrapper `dw`, hook SessionStart và PreToolUse(Skill) |
+| `hybrid-hands/` | `hybrid-hands-local` | `hybrid-hands` | brain/hand lai: agent `hand`, lệnh `hand-gpt` (hand GPT-6.1 Sol Flex qua Codex, có estimate và trần chi phí), lệnh `side-session` (phiên phụ), skill `gpt-hand`, `side-session`, hook bơm policy; cài scope project thay cho `parallel-subagents` |
 | `jira-tools/` | `jira-tools-local` | `jira-tools` | CLI Jira Server (REST v2, PAT Bearer), skill `jira`, SessionStart hook |
 | `parallel-subagents/` | `parallel-subagents-local` | `parallel-subagents` | điều phối brain/hand: agent `hand`, hook bơm policy |
 | `statusline/` | `statusline-local` | `statusline` | thanh trạng thái 3 dòng (thư mục/nhánh git; model, tokens, ctx, skill gần nhất; rate limit), skill `setup` |

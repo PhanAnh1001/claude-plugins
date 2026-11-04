@@ -1,0 +1,8 @@
+{
+  "name": "hybrid-hands",
+  "version": "0.1.0",
+  "description": "Điều phối brain/hand lai cho Claude Code: brain chạy trên gói Claude; hand Claude (agent hybrid-hands:hand) cho việc cần tool riêng của Claude Code; hand GPT-6.1 Sol Flex qua Codex (lệnh hand-gpt) cho việc code/tài liệu tự chứa, có estimate và trần chi phí; phiên phụ (lệnh side-session) cho gói việc dài. Bật/tắt theo dự án, thay thế parallel-subagents.",
+  "author": {
+    "name": "hybrid-hands"
+  }
+}
