@@ -3,7 +3,7 @@
 # which `hand-ext` builds (see lib/hand_ext/backends/dsh.py):
 #   HAND_EXT_DSH_WORKSPACE  absolute repo dir the hand works in (dsh itself is launched from
 #                           an empty dir so it never reads `<repo>/.env`)
-#   HAND_EXT_DSH_SESSION    run id, sent as the stable `x-opencode-session` header OpenCode Go asks for
+#   HAND_EXT_DSH_SESSION    UUID v5 of the run id, sent as the stable `x-opencode-session` header OpenCode Go asks for
 #   HAND_EXT_DSH_MODEL / HAND_EXT_DSH_EFFORT / HAND_EXT_DSH_BASE_URL / HAND_EXT_DSH_USER_AGENT
 #   OPENCODE_GO_API_KEY     the Go key, read by the wrapper from its own key file
 # Grammar: `dsh --profile headless --dump-config-schema` (dsh 0.2.1-rc.5). Each row replaces

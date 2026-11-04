@@ -26,6 +26,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -43,7 +44,7 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: same model id as the opencode backend
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.3.0"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.3.2"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
 # Versions whose env loading and patch keys were read from source (see module docstring).
 VERIFIED_VERSIONS = frozenset({"0.2.1-rc.5"})
@@ -58,6 +59,18 @@ ENV_TELEMETRY = "DSH_TELEMETRY_MODE"
 TELEMETRY_OFF = "DISABLED"
 ENV_WORKSPACE = "HAND_EXT_DSH_WORKSPACE"
 ENV_SESSION = "HAND_EXT_DSH_SESSION"
+# OpenCode Go routes by `x-opencode-session` (400 MissingSessionID without it). Discussion
+# https://github.com/deepseek-ai/deepseek-harness/discussions/5495 (09-10/2026): explicit `api:`
+# routes bypass pi-ai's own header wrapper, a shared static id is slower/costlier, and non-UUID
+# or per-request ids fell into a `model_coming_soon` bucket; only a stable RFC 4122 UUID per
+# conversation worked consistently. So: one UUID per run, derived from the run id (opaque, not
+# dsh's internal session id).
+SESSION_NAMESPACE = uuid.UUID("6f0c5d3e-2b1a-5c8e-9f47-0d2e6b1a7c35")
+
+
+def session_uuid(run_id: str) -> str:
+    """Stable RFC 4122 UUID (v5) for one hand run; same run id -> same header value."""
+    return str(uuid.uuid5(SESSION_NAMESPACE, run_id))
 ENV_MODEL = "HAND_EXT_DSH_MODEL"
 ENV_EFFORT = "HAND_EXT_DSH_EFFORT"
 ENV_BASE_URL = "HAND_EXT_DSH_BASE_URL"
@@ -232,7 +245,7 @@ class DshBackend(Backend):
             ENV_TELEMETRY: TELEMETRY_OFF,
             ENV_PERMISSION: spec.sandbox,
             ENV_WORKSPACE: str(Path(spec.cwd).resolve()),
-            ENV_SESSION: spec.run_dir.name,
+            ENV_SESSION: session_uuid(spec.run_dir.name),
             ENV_MODEL: model_id(spec.model or _opt(options, "model", DEFAULT_MODEL)),
             ENV_EFFORT: effort,
             ENV_BASE_URL: _opt(options, "base_url", DEFAULT_BASE_URL),
