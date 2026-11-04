@@ -62,6 +62,19 @@
   config:
     policy: never
 
+# Presets must match the sandbox/approval pair above, otherwise the entry fails to activate
+# ("composed sandbox and approval defaults match no preset", seen on the first live run 2026-11-04).
+- id: permission
+  config:
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: never
+      workspace-write:
+        sandbox: workspace-write
+        approval: never
+    defaultPreset: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+
 # Web search and the DeepSeek web API bill a DeepSeek API key; the hand has none.
 - id: web-search-deepseek
   disabled: true
