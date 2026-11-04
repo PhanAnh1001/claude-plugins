@@ -38,7 +38,10 @@ SHORT_MESSAGE = ("Follow the attached brief (prompt.md) exactly. "
                  "End with the report format it asks for.")
 CONFIG_ENV = "OPENCODE_CONFIG"
 AUTH_PROVIDER_NAME = "OpenCode Go"
-EXPECTED_RELEASE = "2026-10-17"  # DeepSeek V4.1 Flash 1017; Go still serves 0910
+EXPECTED_RELEASE = "2026-10-17"  # DeepSeek V4.1 Flash 1017
+# models.dev keeps release_date 2026-09-10 for opencode-go, but OpenCode announced on X
+# (https://x.com/opencode/status/2112220734768779441, ~2026-10-20) that Go serves 1017 under
+# the same id; so an older date is informational only and never fails doctor.
 DOCTOR_TIMEOUT_S = 30
 GO_DOCS_URL = "https://opencode.ai/docs/go/"
 
@@ -108,11 +111,10 @@ class OpencodeBackend(Backend):
         start = verbose.find(model)
         found = RELEASE_PATTERN.search(verbose, start if start >= 0 else 0)
         release = found.group(1) if found else "unknown"
-        ok = release >= EXPECTED_RELEASE
         detail = "release_date %s" % release
-        if not ok:
-            detail += " (not the %s build; Go still serves the older one)" % EXPECTED_RELEASE
-        return Check("model_release", ok, detail)
+        if release < EXPECTED_RELEASE:
+            detail += (" (metadata cũ; OpenCode báo Go đã phục vụ bản 1017 dưới cùng id)")
+        return Check("model_release", True, detail)
 
     def _probe(self, args: List[str]) -> Optional[str]:
         try:

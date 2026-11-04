@@ -131,7 +131,7 @@ class DoctorTest(unittest.TestCase):
         self.assertIn("1.18.14", checks["installed"].detail)
         self.assertTrue(checks["login"].ok)
         self.assertTrue(checks["model"].ok)
-        self.assertFalse(checks["model_release"].ok)
+        self.assertTrue(checks["model_release"].ok)
         self.assertIn("2026-09-10", checks["model_release"].detail)
         self.assertTrue(checks["config"].ok)
         joined = " ".join(c.detail for c in checks.values())

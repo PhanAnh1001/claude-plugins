@@ -9,7 +9,7 @@ PLUGIN_PLACEHOLDER = "<PL>"  # replaced by the plugin directory in config paths
 
 DEFAULTS = {
     # gemini is declared below but kept out of the order: Gemini 4 Carbon is not on any plan yet.
-    "order": ["codex", "claude", "opencode"],
+    "order": ["codex", "claude", "dsh", "opencode"],
     "timeout_min": 60,
     "max_tokens": None,
     "sandbox": "workspace-write",
@@ -20,6 +20,10 @@ DEFAULTS = {
         "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high"},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",
                    "effort": "medium", "max_turns": 80},
+        # DeepSeek Harness on the OpenCode Go key (templates/dsh-hand.yml); before opencode.
+        "dsh": {"home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key",
+                "model": "deepseek-v4.1-flash", "effort": "max",
+                "base_url": "https://opencode.ai/inference/go/openai/v1"},
         "opencode": {"config": "<PL>/templates/opencode-hand.jsonc",
                      "model": "opencode-go/deepseek-v4.1-flash", "variant": "max"},
         "gemini": {"home": "~/.gemini-hand", "model": "gemini-4-carbon"},

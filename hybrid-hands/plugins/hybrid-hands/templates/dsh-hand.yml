@@ -1,0 +1,69 @@
+# hybrid-hands: patch layer for `dsh --profile headless` used by `hand-ext --backend dsh`.
+# Passed with `--patch`; every value the wrapper varies per run comes from the child env,
+# which `hand-ext` builds (see lib/hand_ext/backends/dsh.py):
+#   HAND_EXT_DSH_WORKSPACE  absolute repo dir the hand works in (dsh itself is launched from
+#                           an empty dir so it never reads `<repo>/.env`)
+#   HAND_EXT_DSH_SESSION    run id, sent as the stable `x-opencode-session` header OpenCode Go asks for
+#   HAND_EXT_DSH_MODEL / HAND_EXT_DSH_EFFORT / HAND_EXT_DSH_BASE_URL / HAND_EXT_DSH_USER_AGENT
+#   OPENCODE_GO_API_KEY     the Go key, read by the wrapper from its own key file
+# Grammar: `dsh --profile headless --dump-config-schema` (dsh 0.2.1-rc.5). Each row replaces
+# that entry's whole config.
+
+# Route: OpenCode Go, OpenAI-compatible Chat Completions, through the pi-ai adapter
+# (the native DeepSeek route has no custom-header field).
+- id: llm-pi-ai
+  config:
+    providers:
+      opencode-go:
+        displayName: OpenCode Go
+        apiKeyEnv: OPENCODE_GO_API_KEY
+        api: openai-completions
+        baseURL: !!js process.env.HAND_EXT_DSH_BASE_URL
+        headers:
+          x-opencode-session: !!js process.env.HAND_EXT_DSH_SESSION
+          User-Agent: !!js process.env.HAND_EXT_DSH_USER_AGENT
+        compat:
+          thinkingFormat: deepseek
+          supportsReasoningEffort: true
+          requiresReasoningContentOnAssistantMessages: true
+        retryPolicy:
+          mode: normal
+          maxRetries: 2
+        models:
+          - id: !!js process.env.HAND_EXT_DSH_MODEL
+            contextWindow: 1048576
+            maxTokens: 256000
+            reasoningEfforts:
+              low: low
+              high: high
+              max: max
+
+- id: agent-default-model
+  config:
+    provider: opencode-go
+    model: !!js process.env.HAND_EXT_DSH_MODEL
+    reasoningEffort: !!js process.env.HAND_EXT_DSH_EFFORT
+
+# Workspace: the repo, although the process cwd is the empty launch dir.
+- id: fs-sandbox
+  config:
+    cwd: !!js process.env.HAND_EXT_DSH_WORKSPACE
+- id: bash-sandbox
+  config:
+    cwd: !!js process.env.HAND_EXT_DSH_WORKSPACE
+    timeoutMs: 60000
+- id: sandbox-policy
+  config:
+    mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+    workspaceRoot: !!js process.env.HAND_EXT_DSH_WORKSPACE
+
+# Unattended: never escalate out of the sandbox (no human answers approvals).
+- id: approval
+  config:
+    policy: never
+
+# Web search and the DeepSeek web API bill a DeepSeek API key; the hand has none.
+- id: web-search-deepseek
+  disabled: true
+- id: web-deepseek-api
+  disabled: true

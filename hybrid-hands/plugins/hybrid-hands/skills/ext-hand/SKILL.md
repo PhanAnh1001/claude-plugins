@@ -1,6 +1,6 @@
 ---
 name: ext-hand
-description: Giao một việc code hoặc tài liệu tự chứa cho hand ngoài chạy trên gói subscription thứ hai (Codex gói ChatGPT, Claude tài khoản thứ hai, OpenCode Go) bằng lệnh hand-ext - viết brief vào file, run nền với --backend auto, đọc report, brain tự review diff, báo backend, token, % hạn mức; xử lý exit 7, quota, capped, timeout, not_logged_in; cài đặt lần đầu từng backend. Không dùng API key, không tính USD. Từ khoá kích hoạt - "hand ngoài", "hand-ext", "gói thứ hai", "Codex", "OpenCode Go", "hand rẻ", "hạn mức hand", "giao hand".
+description: Giao một việc code hoặc tài liệu tự chứa cho hand ngoài chạy trên gói subscription thứ hai (Codex gói ChatGPT, Claude tài khoản thứ hai, OpenCode Go qua DeepSeek Harness hoặc OpenCode) bằng lệnh hand-ext - viết brief vào file, run nền với --backend auto, đọc report, brain tự review diff, báo backend, token, % hạn mức; xử lý exit 7, quota, capped, timeout, not_logged_in; cài đặt lần đầu từng backend. Không dùng API key, không tính USD. Từ khoá kích hoạt - "hand ngoài", "hand-ext", "gói thứ hai", "Codex", "OpenCode Go", "DeepSeek Harness", "dsh", "hand rẻ", "hạn mức hand", "giao hand".
 ---
 
 # Hand ngoài (hand-ext)
@@ -10,8 +10,8 @@ description: Giao một việc code hoặc tài liệu tự chứa cho hand ngo�
 - **Dùng khi (mặc định):** việc code/tài liệu tự chứa, phạm vi file rõ: sửa hay viết script, viết test, refactor trong vài file, soát hay sửa tài liệu, đọc code trả lời câu hỏi. Chạy trên gói subscription thứ hai để giữ hạn mức gói Claude chính cho brain.
 - **Không dùng khi:** cần tool riêng của Claude Code (Chrome, MCP, Skill, đọc ảnh, SendMessage), chạy lệnh trả phí của dự án → `hybrid-hands:hand`; `hand-ext` thoát 7 hoặc lỗi → cũng `hybrid-hands:hand`.
 - **Chuỗi bước:** brief vào file → `hand-ext run --backend auto` chạy nền → đọc report → brain review diff → báo backend, token, % hạn mức, thời điểm reset.
-- **Luật cứng:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; Codex và OpenCode không chịu hook của Claude Code nên brief chép nguyên văn luật cấm (nhất là cấm đọc `.env`) và PHẠM VI GHI hẹp.
-- **Backend:** `codex` (gói ChatGPT), `claude` (gói Claude thứ hai), `opencode` (OpenCode Go, DeepSeek V4.1 Flash biến thể max); `gemini` dự kiến, chưa nằm trong `order`.
+- **Luật cứng:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; Codex, DeepSeek Harness và OpenCode không chịu hook của Claude Code nên brief chép nguyên văn luật cấm (nhất là cấm đọc `.env`) và PHẠM VI GHI hẹp.
+- **Backend:** `codex` (gói ChatGPT), `claude` (gói Claude thứ hai), `dsh` (DeepSeek Harness trên key OpenCode Go, DeepSeek V4.1 Flash reasoning `max`), `opencode` (OpenCode Go, DeepSeek V4.1 Flash biến thể max); `gemini` dự kiến, chưa nằm trong `order`.
 
 ## 1. Cài đặt lần đầu (mỗi máy, mỗi backend)
 
@@ -21,10 +21,11 @@ Lệnh chung: `hand-ext setup [--backend B|all] [--cwd D]` ghi cấu hình CLI v
 |---|---|---|
 | `codex` | ChatGPT, thư mục riêng `~/.codex-hand` | `CODEX_HOME=~/.codex-hand codex login --device-auth` |
 | `claude` | Claude tài khoản THỨ HAI, thư mục riêng `~/.claude-hand` | `CLAUDE_CONFIG_DIR=~/.claude-hand claude` rồi `/login` tài khoản thứ hai |
+| `dsh` | OpenCode Go qua DeepSeek Harness, thư mục riêng `~/.dsh-hand` | cài `npm install -g @deepseek-ai/dsh@latest`; chép API key Go từ OpenCode Console vào `~/.dsh-hand/go.key`, `chmod 600`; TẮT Extra Usage, credit Console 0 |
 | `opencode` | OpenCode Go | `opencode auth login` chọn OpenCode Go; trên Console TẮT Extra Usage, để credit Console 0 |
 | `gemini` | dự kiến | chưa dùng được (xem mục 3) |
 
-Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` (mặc định `codex`, `claude`, `opencode`), `backends.<tên>`, `timeout_min` (60), `max_tokens`, `sandbox` (`workspace-write`), sổ `ledger` `output/llm/hand_usage.json` (token, không USD), `quota_state` `output/llm/hand_quota.json`, `runs_dir` `output/llm/hand-ext`.
+Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` (mặc định `codex`, `claude`, `dsh`, `opencode`), `backends.<tên>`, `timeout_min` (60), `max_tokens`, `sandbox` (`workspace-write`), sổ `ledger` `output/llm/hand_usage.json` (token, không USD), `quota_state` `output/llm/hand_quota.json`, `runs_dir` `output/llm/hand-ext`.
 
 ## 2. Một lượt giao việc
 
@@ -43,5 +44,6 @@ Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` 
 - **`capped` (exit 4, chạm `--max-tokens`):** đọc report xem phần đã xong; lượt tiếp là `run` mới với brief phần còn lại.
 - **`timeout` (exit 6):** đọc report; việc dài thì chia nhỏ hoặc tăng `--timeout-min` có lý do.
 - **Lỗi khác hoặc `doctor` không đạt:** `hybrid-hands:hand` làm dự phòng, báo người dùng kèm output thật.
-- **OpenCode Go:** hết hạn mức mà Extra Usage còn bật hoặc Console còn credit thì bị tính tiền theo token, nên người dùng phải TẮT Extra Usage và để credit 0. Go hiện phục vụ DeepSeek V4.1 Flash bản 0910, chưa phải 1017; `doctor` cảnh báo khi lệch.
+- **OpenCode Go:** hết hạn mức mà Extra Usage còn bật hoặc Console còn credit thì bị tính tiền theo token, nên người dùng phải TẮT Extra Usage và để credit 0. Metadata models.dev vẫn ghi `release_date` 2026-09-10, nhưng OpenCode báo Go đã phục vụ bản 1017 dưới cùng id `deepseek-v4.1-flash` (khoảng 20/10/2026); `doctor` chỉ ghi chú, không coi là lỗi.
+- **DeepSeek Harness (`dsh`):** dsh luôn đọc `<thư mục khởi chạy>/.env` (đã đọc mã nguồn bản 0.2.1-rc.5), nên `hand-ext` khởi chạy dsh từ `~/.dsh-hand/launch` (không có `.env`) và trỏ workspace sang repo bằng patch; không tạo `~/.dsh-hand/.env`. dsh không có luật chặn tool đọc `.env` theo mẫu file, nên brief vẫn phải chép luật cấm. Hết hạn mức (`QUOTA`, `RATE_LIMIT`) thì `auto` sang `opencode`. Bản dsh khác 0.2.1-rc.5 thì `doctor` không đạt tới khi đọc lại mã nguồn.
 - **Gemini (dự kiến):** Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI. `backends.gemini` giữ khai báo nhưng không nằm trong `order`.
