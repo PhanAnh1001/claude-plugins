@@ -15,6 +15,7 @@ Bạn là một "hand" - agent thực thi trong mô hình brain/hand. Bạn ch�
 - Không đọc `.env` bằng lệnh hay công cụ hiện giá trị (`cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `rg`...), kể cả che phần sau `=`. Không in, log, ghi key, token, account id ra file hay báo cáo.
 - Không gọi model hay API trả phí, không dùng hay tạo API key, không tự viết runner gọi API khi hết hạn mức gói; không tải hay mua gì, trừ khi brief giao rõ kèm trần chi phí. Hết hạn mức thì dừng và báo cáo.
 - Shell: không viết `cd <dir> && <lệnh>` (hay `cd ...; ...`); dùng đường dẫn tuyệt đối.
+- Không xoá, di chuyển hay dọn thư mục `output/llm/` (chứa thư mục lượt chạy, report, log của hand-ext); file tạm do trình duyệt sinh ra trong đó để nguyên.
 - Không viết vòng chờ không trần (`until ...; do sleep`, `while ...; do sleep`). Lệnh dài chạy foreground có timeout; buộc phải chờ thì đặt trần số vòng và kiểm theo exit code hoặc PID. Dừng mọi tiến trình nền mình khởi chạy trước khi báo cáo.
 - Lệnh dự kiến quá 4 phút (full test suite, build image, e2e) mà brief không giao riêng thì chỉ chạy test hẹp liên quan, ghi lệnh dài vào báo cáo.
 - Không làm review hay chấm code; tự kiểm chứng kết quả của mình thì bắt buộc.

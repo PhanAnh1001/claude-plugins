@@ -5,15 +5,18 @@ import os
 import queue
 import signal
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Dict, IO, List, Optional
+from pathlib import Path
+from typing import Dict, IO, List, Optional, Tuple
 
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .constants import EVENTS_FILE, POLL_SECONDS, REPORT_FILE, STDERR_FILE, TERM_GRACE_SECONDS
 
 _EOF = None  # queue sentinel: stdout closed
+RUN_DIR_REMOVED_WARNING = "cảnh báo: thư mục lượt chạy bị xoá trong lúc chạy"
 
 
 @dataclass
@@ -96,15 +99,42 @@ def _write_stdin(proc: subprocess.Popen, text: Optional[str]) -> None:
         pass
 
 
+def _dir_identity(path: Path) -> Optional[Tuple[int, int]]:
+    """Identity of a directory, so a delete-and-recreate is still noticed."""
+    if not path.is_dir():
+        return None
+    info = path.stat()
+    return info.st_dev, info.st_ino
+
+
+def _read_stderr(handle: IO[str]) -> str:
+    """Read the child's stderr from the open handle; works after the file is unlinked."""
+    try:
+        handle.flush()
+        handle.seek(0)
+        return handle.read()
+    except (OSError, ValueError):
+        return ""
+
+
+def _restore_run_dir(run_dir: Path, identity: Optional[Tuple[int, int]]) -> None:
+    """Warn once and recreate run_dir when the hand deleted it while the child ran."""
+    if identity is not None and _dir_identity(run_dir) == identity:
+        return
+    print(RUN_DIR_REMOVED_WARNING, file=sys.stderr)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+
 def run_backend(backend: Backend, spec: RunSpec) -> RunOutcome:
     spec.run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir_identity = _dir_identity(spec.run_dir)
     argv, extra_env, stdin_text = backend.build_command(spec)
     state = RunState(usage=Usage())
     started = time.monotonic()
     lines: "queue.Queue[Optional[str]]" = queue.Queue()
     stderr_path = spec.run_dir / STDERR_FILE
     with open(spec.run_dir / EVENTS_FILE, "w", encoding="utf-8") as sink, \
-            open(stderr_path, "w", encoding="utf-8") as err:
+            open(stderr_path, "w+", encoding="utf-8", errors="replace") as err:
         proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=err, text=True, cwd=str(spec.cwd),
                                 env=child_env(backend, extra_env))
@@ -115,9 +145,11 @@ def run_backend(backend: Backend, spec: RunSpec) -> RunOutcome:
         cap = _watch(backend, proc, lines, spec, state, started)
         pump.join()
         _drain(backend, lines, state, 0)
+        stderr_text = _read_stderr(err)
+        proc.stdout.close()
+    _restore_run_dir(spec.run_dir, run_dir_identity)
     backend.poll(spec, state)
     exit_code = proc.returncode
-    stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
     status = backend.finalize(spec, state, exit_code, stderr_text)
     if cap is not None:
         status = cap
