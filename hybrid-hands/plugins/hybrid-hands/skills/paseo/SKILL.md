@@ -1,6 +1,6 @@
 ---
 name: paseo
-description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi và điều khiển phiên brain/hand từ xa - cài đặt, khởi và dừng daemon, ghép điện thoại (người dùng tự làm), chạy hand Codex với CODEX_HOME riêng (~/.codex-hand, GPT-6.1 Sol Flex, đăng nhập API key) qua provider tuỳ biến, theo dõi bằng ls/logs/wait/send, và giới hạn (phiên claude mở ngoài Paseo không tự hiện). Từ khoá kích hoạt - "paseo", "điện thoại", "theo dõi phiên", "điều khiển từ xa", "ghép điện thoại", "pair", "xem hand trên điện thoại", "daemon paseo".
+description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi và điều khiển phiên brain/hand từ xa - cài đặt, khởi và dừng daemon, ghép điện thoại (người dùng tự làm), chạy hand Codex với CODEX_HOME riêng (~/.codex-hand, đăng nhập gói ChatGPT, không API key) qua provider tuỳ biến, theo dõi bằng ls/logs/wait/send, và giới hạn (phiên claude mở ngoài Paseo không tự hiện). Từ khoá kích hoạt - "paseo", "điện thoại", "theo dõi phiên", "điều khiển từ xa", "ghép điện thoại", "pair", "xem hand trên điện thoại", "daemon paseo".
 ---
 
 # Paseo: theo dõi và điều khiển phiên từ điện thoại
@@ -39,7 +39,7 @@ Agent chỉ được nhắc các bước, không chạy hộ (bật relay mở �
 
 ## 4. Chạy hand Codex với CODEX_HOME riêng
 
-`~/.codex` là đăng nhập ChatGPT của người dùng, không dùng cho hand. Hand dùng `~/.codex-hand` (đăng nhập API key, GPT-6.1 Sol Flex).
+Paseo dùng lại đăng nhập gói của CLI, không cần API key. `~/.codex` là đăng nhập ChatGPT chính của người dùng; hand dùng `~/.codex-hand` (gói ChatGPT riêng cho hand, cùng thư mục với backend `codex` của `hand-ext`).
 
 - **Cách nên dùng — provider tuỳ biến** (đề xuất; người dùng duyệt rồi mới ghi vào `~/.paseo/config.json`, sau đó `paseo reload`) ([custom providers](https://paseo.sh/docs/custom-providers), 11/2026):
 
@@ -49,10 +49,10 @@ Agent chỉ được nhắc các bước, không chạy hộ (bật relay mở �
     "providers": {
       "codex-hand": {
         "extends": "codex",
-        "label": "Codex hand (API key)",
+        "label": "Codex hand (gói ChatGPT)",
         "env": { "CODEX_HOME": "/Users/anhtp/.codex-hand" },
         "models": [
-          { "id": "<model id GPT-6.1 Sol trong ~/.codex-hand>", "label": "GPT-6.1 Sol Flex", "isDefault": true }
+          { "id": "<model id GPT-6.1 Sol trong ~/.codex-hand>", "label": "GPT-6.1 Sol", "isDefault": true }
         ]
       }
     }
@@ -62,8 +62,8 @@ Agent chỉ được nhắc các bước, không chạy hộ (bật relay mở �
 
   Rồi: `paseo provider models codex-hand` (kiểm model), `paseo run --provider codex-hand --title hand-x --no-wait "$(cat brief.md)"`.
 - **Một lần, không sửa config:** `paseo run --provider codex --env CODEX_HOME=/Users/anhtp/.codex-hand --model <id> --no-wait "..."` (`--env`, `--model`, `--provider provider/model` có trong `paseo run --help`, 0.15.0). Danh sách model của provider `codex` mặc định lấy từ `~/.codex` nên có thể không có GPT-6.1 Sol (trên máy chỉ thấy `gpt-5.6-terra`, `gpt-5.6-luna`) — vì vậy ưu tiên provider tuỳ biến.
-- **service_tier / profile `-p hand`:** Paseo không có cờ riêng. Cách chắc nhất: đặt `model`, `service_tier = "flex"` làm mặc định trong `~/.codex-hand/config.toml` (CODEX_HOME riêng nên không ảnh hưởng `~/.codex`). Trường `command` của provider thay toàn bộ lệnh khởi (`["codex", ...]`) nhưng Paseo tự thêm subcommand nên chèn `-p hand` **chưa kiểm**, đừng dùng khi chưa thử.
-- **Chi phí:** mỗi `paseo run` với hand thật là lượt trả phí; vẫn theo skill `gpt-hand` (estimate, bảng chi phí, ngưỡng duyệt) trước khi chạy.
+- **Cấu hình model:** đặt `model` mặc định trong `~/.codex-hand/config.toml` (`hand-ext setup --backend codex` ghi sẵn; CODEX_HOME riêng nên không ảnh hưởng `~/.codex`). Trường `command` của provider thay toàn bộ lệnh khởi nhưng Paseo tự thêm subcommand nên chèn profile `-p` **chưa kiểm**, đừng dùng khi chưa thử.
+- **Hạn mức:** mỗi `paseo run` với hand dùng hạn mức gói ChatGPT của `~/.codex-hand`; theo dõi bằng `hand-ext status`, luật như skill `ext-hand`.
 
 ## 5. Theo dõi và điều khiển
 
@@ -84,5 +84,5 @@ Theo [orchestration](https://paseo.sh/docs/orchestration) (11/2026) và `--help`
 ## 6. Giới hạn: phiên nào hiện
 
 - **Hiện:** agent tạo bằng `paseo run`, app, MCP; và phiên provider nhập vào bằng `paseo import <session-id> --provider claude|codex --cwd <dir>` (`paseo import --help`, 0.15.0).
-- **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên `screen` của side-session, hand Codex chạy qua `hand-gpt` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở (suy luận từ mô tả lệnh, chưa thử).
+- **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên `screen` của side-session, hand chạy qua `hand-ext` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở (suy luận từ mô tả lệnh, chưa thử).
 - Muốn xem brain trên điện thoại thì brain phải chạy trong Paseo (tạo bằng `paseo run --provider claude`) hoặc import.

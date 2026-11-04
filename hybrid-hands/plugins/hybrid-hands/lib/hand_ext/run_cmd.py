@@ -1,0 +1,137 @@
+"""`hand-ext run`: pick backend(s), run, record ledger and quota state, summarise."""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import re
+import sys
+from pathlib import Path
+from typing import List, Optional
+
+from . import ledger, quota_state, render
+from .backends import BackendUnavailable, get_backend
+from .backends.base import Backend, RunSpec, RunState, Status, Usage
+from .config import ExtConfig
+from .constants import (
+    AUTO_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, LABEL_MAX_LEN, REPORT_FILE,
+    SECONDS_PER_MINUTE, STATUS_EXIT,
+)
+from .prompt import STDIN_MARK, build_prompt, read_brief
+from .runner import RunOutcome, run_backend
+
+LABEL_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+DEFAULT_LABEL = "hand"
+
+
+def safe_label(args: argparse.Namespace) -> str:
+    raw = args.label or (Path(args.brief).stem if args.brief != STDIN_MARK else DEFAULT_LABEL)
+    return LABEL_SAFE_RE.sub("-", raw).strip("-")[:LABEL_MAX_LEN] or DEFAULT_LABEL
+
+
+def backend_ready(backend: Backend, cfg: ExtConfig) -> bool:
+    return all(c.ok for c in backend.doctor(with_sandbox(cfg, backend.name)))
+
+
+def with_sandbox(cfg: ExtConfig, name: str) -> dict:
+    options = cfg.options(name)
+    options.setdefault("sandbox", cfg.sandbox)
+    return options
+
+
+def candidates(cfg: ExtConfig, choice: str) -> List[Backend]:
+    if choice != AUTO_BACKEND:
+        return [get_backend(choice)]
+    found: List[Backend] = []
+    for name in cfg.order:
+        try:
+            backend = get_backend(name)
+        except BackendUnavailable as exc:
+            print(f"bỏ qua {name}: {exc}", file=sys.stderr)
+            continue
+        until = quota_state.exhausted_until(cfg.quota_state, name)
+        if until is not None:
+            print(f"bỏ qua {name}: hết hạn mức tới {quota_state.iso(until)}", file=sys.stderr)
+        elif not backend_ready(backend, cfg):
+            print(f"bỏ qua {name}: doctor chưa đạt (`hand-ext doctor --backend {name}`)",
+                  file=sys.stderr)
+        else:
+            found.append(backend)
+    return found
+
+
+def _now() -> str:
+    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _spec(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
+          cwd: Path, run_id: str) -> RunSpec:
+    options = with_sandbox(cfg, backend.name)
+    max_tokens = args.max_tokens if args.max_tokens is not None else cfg.max_tokens
+    return RunSpec(
+        prompt=prompt, cwd=cwd, run_dir=cfg.runs_dir / run_id,
+        model=args.model or str(options.get("model", "")),
+        effort=args.effort or str(options.get("effort", options.get("variant", ""))),
+        sandbox=args.sandbox or cfg.sandbox,
+        timeout_s=int((args.timeout_min or cfg.timeout_min) * SECONDS_PER_MINUTE),
+        max_tokens=max_tokens, options=options,
+    )
+
+
+def _entry(run_id: str, label: str, backend: str, spec: RunSpec, started: str,
+           outcome: RunOutcome) -> dict:
+    usage, quota = outcome.state.usage, outcome.state.quota
+    return {
+        "run_id": run_id, "label": label, "backend": backend, "model": spec.model,
+        "effort": spec.effort, "started": started, "ended": _now(), "cwd": str(spec.cwd),
+        "status": outcome.status.value, "exit_code": outcome.exit_code,
+        "tokens": {"input": usage.input, "cached_input": usage.cached_input,
+                   "output": usage.output},
+        "quota": {"used_percent": quota.used_percent if quota else None,
+                  "resets_at": quota.resets_at if quota else None},
+    }
+
+
+def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
+             label: str, cwd: Path) -> int:
+    run_id = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}-{backend.name}"
+    spec = _spec(cfg, args, backend, prompt, cwd, run_id)
+    started = _now()
+    try:
+        outcome = run_backend(backend, spec)
+    except OSError as exc:
+        outcome = RunOutcome(Status.FAILED, None, RunState(usage=Usage()), 0.0,
+                             [f"không chạy được {backend.name}: {exc}"])
+    entry = _entry(run_id, label, backend.name, spec, started, outcome)
+    ledger.append_entry(cfg.ledger, entry)
+    quota = outcome.state.quota
+    exhausted = outcome.status is Status.QUOTA or bool(quota and quota.exhausted)
+    if quota is not None or exhausted:
+        quota_state.record(cfg.quota_state, backend.name, quota, exhausted)
+    report = spec.run_dir / REPORT_FILE
+    text = report.read_text(encoding="utf-8") if report.is_file() else ""
+    print(render.run_summary(entry, outcome.seconds, str(report) if report.is_file() else None,
+                             text, outcome.errors))
+    return STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
+
+
+def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    prompt = build_prompt(read_brief(args.brief))
+    cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd()
+    label = safe_label(args)
+    backends = candidates(cfg, args.backend)
+    for index, backend in enumerate(backends):
+        code = _attempt(cfg, args, backend, prompt, label, cwd)
+        if code >= 0:
+            return code
+        if args.backend != AUTO_BACKEND:
+            break
+        if index + 1 < len(backends):
+            print(f"{backend.name} hết hạn mức/chưa đăng nhập; thử backend kế tiếp",
+                  file=sys.stderr)
+    print("Không backend nào chạy được (hết hạn mức hoặc chưa đăng nhập).", file=sys.stderr)
+    return EXIT_ALL_UNAVAILABLE
+
+
+def last_run(cfg: ExtConfig, name: str) -> Optional[dict]:
+    runs = [e for e in ledger.read_entries(cfg.ledger) if e.get("backend") == name]
+    return runs[-1] if runs else None

@@ -3,12 +3,12 @@
   "owner": {
     "name": "hybrid-hands"
   },
-  "description": "Marketplace tự host chứa plugin hybrid-hands (brain gói Claude, hand Claude, hand GPT-6.1 Sol Flex qua Codex, phiên phụ) cho Claude Code.",
+  "description": "Marketplace tự host chứa plugin hybrid-hands (brain gói Claude, hand ngoài chạy gói subscription thứ hai, hand Claude, phiên phụ) cho Claude Code.",
   "plugins": [
     {
       "name": "hybrid-hands",
       "source": "./plugins/hybrid-hands",
-      "description": "Brain/hand lai: hand Claude (hybrid-hands:hand), hand GPT qua lệnh hand-gpt, phiên phụ qua lệnh side-session; policy chọn hand và luật chi phí bơm qua hook."
+      "description": "Brain/hand lai: hand ngoài qua lệnh hand-ext (gói thứ hai Codex, Claude, OpenCode Go; không API), hand Claude (hybrid-hands:hand), phiên phụ qua lệnh side-session; policy chọn hand và luật hạn mức bơm qua hook."
     }
   ]
 }

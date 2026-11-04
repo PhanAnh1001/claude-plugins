@@ -23,7 +23,7 @@
 | Thư mục | Marketplace | Plugin | Nội dung |
 |---|---|---|---|
 | `dev-workflow/` | `dev-workflow-local` | `dev-workflow` | quy trình phát triển có AI: 13 skill (khởi tạo dự án, phân làn L0–L3, spec/plan, điều tra bug, truy vết, chốt phiên, Jira), wrapper `dw`, hook SessionStart và PreToolUse(Skill) |
-| `hybrid-hands/` | `hybrid-hands-local` | `hybrid-hands` | brain/hand lai: agent `hand`, lệnh `hand-gpt` (hand GPT-6.1 Sol Flex qua Codex, có estimate và trần chi phí), lệnh `side-session` (phiên phụ), skill `gpt-hand`, `side-session`, hook bơm policy; cài scope project thay cho `parallel-subagents` |
+| `hybrid-hands/` | `hybrid-hands-local` | `hybrid-hands` | brain/hand lai: agent `hand`, lệnh `hand-ext` (hand ngoài trên gói subscription thứ hai: Codex gói ChatGPT, Claude tài khoản thứ hai, OpenCode Go; không API key, theo dõi hạn mức), lệnh `side-session` (phiên phụ), skill `ext-hand`, `side-session`, hook bơm policy; cài scope project thay cho `parallel-subagents` |
 | `jira-tools/` | `jira-tools-local` | `jira-tools` | CLI Jira Server (REST v2, PAT Bearer), skill `jira`, SessionStart hook |
 | `parallel-subagents/` | `parallel-subagents-local` | `parallel-subagents` | điều phối brain/hand: agent `hand`, hook bơm policy |
 | `statusline/` | `statusline-local` | `statusline` | thanh trạng thái 3 dòng (thư mục/nhánh git; model, tokens, ctx, skill gần nhất; rate limit), skill `setup` |

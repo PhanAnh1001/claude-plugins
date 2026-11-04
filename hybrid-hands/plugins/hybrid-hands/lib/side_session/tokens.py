@@ -56,7 +56,7 @@ def claude_tokens(path: Path) -> int:
 
 def codex_rollout(codex_home: Path, uuid: str, since: float = 0.0) -> Path | None:
     """Newest rollout touched at/after `since` (session start), so rollouts of other
-    runs sharing this CODEX_HOME (e.g. hand-gpt) that ended earlier are not counted."""
+    runs sharing this CODEX_HOME (e.g. hand-ext) that ended earlier are not counted."""
     root = codex_home / C.CODEX_SESSIONS_SUBDIR
     if not root.is_dir():
         return None

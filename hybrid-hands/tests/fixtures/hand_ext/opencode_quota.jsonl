@@ -1,0 +1,2 @@
+{"type":"step_start","timestamp":1762243200000,"sessionID":"ses_fx","part":{"type":"step-start"}}
+{"type":"error","timestamp":1762243201000,"sessionID":"ses_fx","error":{"type":"provider.go-limit","message":"OpenCode Go 5 hour usage limit reached. Switch to a free model, or turn on Extra Usage on the Go page in OpenCode Console to keep going.","status":429}}

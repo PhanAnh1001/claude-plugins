@@ -30,5 +30,5 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 ## 3. Dự phòng và đồng bộ
 
-- **Provider:** mặc định `claude`; khi hết hạn mức gói Claude hoặc phiên claude lỗi, dùng `--provider codex` (trả phí: báo bảng chi phí và xét ngưỡng duyệt như hand GPT).
+- **Provider:** mặc định `claude`; khi hết hạn mức gói Claude hoặc phiên claude lỗi, dùng `--provider codex` (chạy trên đăng nhập gói của Codex, không dùng API key).
 - **Đồng bộ:** phiên phụ hiện trong ListAgents; gửi SendMessage trước khi ghi file chung, dùng tài nguyên trả phí hay Chrome, và sau mỗi commit. Hai phiên không ghi cùng một file.
