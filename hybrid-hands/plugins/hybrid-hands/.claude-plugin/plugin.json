@@ -1,6 +1,6 @@
 {
   "name": "hybrid-hands",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Điều phối brain/hand lai cho Claude Code: brain chạy trên gói Claude chính; hand ngoài (lệnh hand-ext) mặc định cho việc code/tài liệu tự chứa, chạy trên gói subscription thứ hai (Codex gói ChatGPT, Claude tài khoản thứ hai, OpenCode Go qua DeepSeek Harness hoặc OpenCode), không API key, theo dõi token và hạn mức; hand Claude (agent hybrid-hands:hand) cho việc cần tool riêng của Claude Code hoặc khi gói thứ hai hết hạn mức; phiên phụ (lệnh side-session) cho gói việc dài. Bật/tắt theo dự án, thay thế parallel-subagents.",
   "author": {
     "name": "hybrid-hands"
