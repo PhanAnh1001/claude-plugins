@@ -48,7 +48,7 @@ Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` 
    Chờ thông báo khi lệnh thoát; không viết vòng chờ riêng. `auto` thử backend theo `order`, gặp hết hạn mức hoặc chưa đăng nhập thì sang backend kế tiếp. `--browser` chỉ dùng với `dsh`: `auto --browser` chỉ xét `dsh`; `--backend` khác `dsh` kèm `--browser` thoát 2. Khi bật, prompt có thêm luật trình duyệt và dsh nạp MCP Playwright cô lập cho riêng lượt chạy (không sửa patch chung).
 3. **Đọc kết quả:** khối tóm tắt cuối output (backend, token, `used_percent`/`resets_at` của backend, hoặc dòng `hạn mức: ~x% 5h, ~y% tuần (ước tính)` của Go) và `report.md` theo đường dẫn được in.
 4. **Review:** brain tự `git diff` các file hand đã đổi; lỗi thì một lượt `run` mới với brief gọn chép sẵn phát hiện (hand ngoài không nhận SendMessage).
-5. **Báo hạn mức:** backend, token, % hạn mức, thời điểm reset; với Go báo thêm % 5h/tuần và USD ước tính. Xem trạng thái các gói: `hand-ext status`; mức Go chi tiết: `hand-ext usage [--json]`; tổng lượt và token: `hand-ext report [--since D] [--backend B] [--label L]`.
+5. **Báo hạn mức:** backend, token, % hạn mức, thời điểm reset; với Go báo thêm % 5h/tuần và USD ước tính. Xem trạng thái các gói: `hand-ext status`; mức Go chi tiết: `hand-ext usage [--json]`; tổng lượt và token: `hand-ext report [--since D] [--backend B] [--label L]`; theo dõi lượt đang chạy và cây phiên/subagent: `hh-ps` (`--watch 5`, `--json`).
 
 ## 3. Xử lý lỗi và rủi ro
 

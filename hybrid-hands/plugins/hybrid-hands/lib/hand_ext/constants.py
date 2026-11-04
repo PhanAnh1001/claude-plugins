@@ -24,6 +24,15 @@ GO_PRICE_KEY = "go_price_per_mtok"
 # estimate an upper bound, and the OpenCode Console remains the authoritative meter.
 GO_USAGE_DEFAULT_PRICE = {"input": 0.30, "cached_input": 0.006, "output": 1.20}
 
+# Live registry of run attempts (one JSON per run under <state>/runs, machine-wide).
+HAND_RUNS_SUBDIR = "runs"
+HAND_RUNS_UPDATE_SECONDS = 15.0
+HAND_RUNS_RETENTION_SECONDS = 7 * 86400
+HAND_RUN_STATUS_RUNNING = "running"
+PARENT_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
+PARENT_CLAUDE_PID_ENV = "CLAUDE_PID"
+RUN_REGISTRY_WARNING = "cảnh báo: không ghi được sổ lượt hand"
+
 DEFAULTS = {
     # Both default hands run DeepSeek V4.1 Flash on the OpenCode Go plan: dsh first, then
     # opencode. codex/claude/gemini stay declared for explicit `--backend` use only.

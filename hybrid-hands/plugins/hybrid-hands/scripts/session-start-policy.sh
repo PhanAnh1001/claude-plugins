@@ -28,5 +28,5 @@ EOT
 TEXT="POLICY hybrid-hands - KHUÔN BRIEF (bắt buộc khi gọi Agent với hybrid-hands:hand và khi viết brief cho hand-ext; điền đủ các mục, ngắn gọn):
 ${BRIEF}
 ${RULES}
-Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): ${ROOT}/bin/hand-ext, ${ROOT}/bin/side-session"
+Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): ${ROOT}/bin/hand-ext, ${ROOT}/bin/side-session, ${ROOT}/bin/hh-ps"
 jq -n --arg ctx "$TEXT" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$ctx}}'

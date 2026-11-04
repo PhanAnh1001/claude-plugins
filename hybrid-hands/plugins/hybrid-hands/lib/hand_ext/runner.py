@@ -10,10 +10,13 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, IO, List, Optional, Tuple
+from typing import Dict, IO, List, Optional, Tuple, TYPE_CHECKING
 
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .constants import EVENTS_FILE, POLL_SECONDS, REPORT_FILE, STDERR_FILE, TERM_GRACE_SECONDS
+
+if TYPE_CHECKING:
+    from .run_registry import RunRegistry
 
 _EOF = None  # queue sentinel: stdout closed
 RUN_DIR_REMOVED_WARNING = "cảnh báo: thư mục lượt chạy bị xoá trong lúc chạy"
@@ -74,11 +77,14 @@ def _drain(backend: Backend, lines: "queue.Queue[Optional[str]]", state: RunStat
 
 
 def _watch(backend: Backend, proc: subprocess.Popen, lines: "queue.Queue[Optional[str]]",
-           spec: RunSpec, state: RunState, started: float) -> Optional[Status]:
+           spec: RunSpec, state: RunState, started: float,
+           registry: Optional["RunRegistry"] = None) -> Optional[Status]:
     closed = False
     while not closed or proc.poll() is None:
         closed = _drain(backend, lines, state, POLL_SECONDS) or closed
         backend.poll(spec, state)
+        if registry is not None:
+            registry.tick(state.usage)
         if _over_tokens(spec, state):
             _stop(proc)
             return Status.CAPPED
@@ -125,7 +131,8 @@ def _restore_run_dir(run_dir: Path, identity: Optional[Tuple[int, int]]) -> None
     run_dir.mkdir(parents=True, exist_ok=True)
 
 
-def run_backend(backend: Backend, spec: RunSpec) -> RunOutcome:
+def run_backend(backend: Backend, spec: RunSpec,
+                registry: Optional["RunRegistry"] = None) -> RunOutcome:
     spec.run_dir.mkdir(parents=True, exist_ok=True)
     run_dir_identity = _dir_identity(spec.run_dir)
     argv, extra_env, stdin_text = backend.build_command(spec)
@@ -138,11 +145,13 @@ def run_backend(backend: Backend, spec: RunSpec) -> RunOutcome:
         proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=err, text=True, cwd=str(spec.cwd),
                                 env=child_env(backend, extra_env))
+        if registry is not None:
+            registry.child(proc.pid)
         assert proc.stdout is not None
         pump = threading.Thread(target=_pump, args=(proc.stdout, sink, lines), daemon=True)
         pump.start()
         _write_stdin(proc, stdin_text)
-        cap = _watch(backend, proc, lines, spec, state, started)
+        cap = _watch(backend, proc, lines, spec, state, started, registry)
         pump.join()
         _drain(backend, lines, state, 0)
         stderr_text = _read_stderr(err)

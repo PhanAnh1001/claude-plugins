@@ -14,9 +14,10 @@ from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import ExtConfig
 from .constants import (
     AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, GO_USAGE_BACKENDS,
-    LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
+    HAND_RUNS_SUBDIR, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
 from .prompt import STDIN_MARK, build_prompt, read_brief
+from .run_registry import RunRegistry
 from .runner import RunOutcome, run_backend
 
 LABEL_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -113,11 +114,21 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
     run_id = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}-{backend.name}"
     spec = _spec(cfg, args, backend, prompt, cwd, run_id)
     started = _now()
+    registry = RunRegistry(
+        cfg.machine_state_dir / HAND_RUNS_SUBDIR, run_id, label, backend.name,
+        spec.model, spec.cwd, spec.run_dir)
+    registry.start()
     try:
-        outcome = run_backend(backend, spec)
+        outcome = run_backend(backend, spec, registry=registry)
     except OSError as exc:
         outcome = RunOutcome(Status.FAILED, None, RunState(usage=Usage()), 0.0,
                              [f"không chạy được {backend.name}: {exc}"])
+        registry.finish(outcome.status.value, None, outcome.state.usage)
+    except BaseException:
+        registry.finish(Status.FAILED.value, None, None)
+        raise
+    else:
+        registry.finish(outcome.status.value, outcome.exit_code, outcome.state.usage)
     entry = _entry(run_id, label, backend.name, spec, started, outcome)
     ledger.append_entry(cfg.ledger, entry)
     go_line = _record_go(cfg, entry, outcome)

@@ -9,7 +9,7 @@ description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex c
 
 - **Dùng khi:** gói việc dài nhiều bước (ước trên 1 giờ) cần ngữ cảnh brain riêng, ví dụ cả một tính năng hay một chương; việc ngắn thì giao hand.
 - **Giới hạn:** tối đa `max_parallel` phiên (mặc định 2) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`).
-- **Chuỗi bước:** viết prompt giao việc → `side-session start` (thử `--dry-run` trước) → theo dõi `ls`/`watch` → đọc `handoff` → brain review → `stop`.
+- **Chuỗi bước:** viết prompt giao việc → `side-session start` (thử `--dry-run` trước) → theo dõi `ls`/`watch` → đọc `handoff` → brain review → `stop`. Xem toàn cảnh phiên chính, phiên phụ, subagent và hand ngoài bằng `hh-ps` (`--watch 5`, `--json`).
 
 Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt đối `${CLAUDE_PLUGIN_ROOT}/bin/side-session`.
 

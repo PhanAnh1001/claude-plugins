@@ -32,6 +32,7 @@ class ExtConfig:
     go_usage_ledger: Path
     go_usage_summary: Path
     go_monthly_limit_usd: float
+    machine_state_dir: Path
 
     def options(self, name: str) -> Dict[str, Any]:
         return dict(self.backends.get(name, {}))
@@ -119,4 +120,5 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
         backends=backends,
         go_usage_ledger=go_ledger, go_usage_summary=go_summary,
         go_monthly_limit_usd=go_limit,
+        machine_state_dir=_state_dir(),
     )

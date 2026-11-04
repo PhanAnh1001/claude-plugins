@@ -6,7 +6,7 @@
 - **Thành phần:**
   - hand ngoài: lệnh `hand-ext` (mặc định `dsh`, `opencode` — DeepSeek V4.1 Flash trên gói OpenCode Go — theo `order`; `codex`, `claude`, `gemini` chỉ khai báo để gọi tường minh; sổ token `output/llm/hand_usage.json` và sổ USD Go toàn máy `~/.hybrid-hands/go_usage.jsonl`, lệnh `hand-ext usage`), skill `ext-hand`;
   - hand Claude: agent `hybrid-hands:hand` (gói chính) cho việc cần tool riêng của Claude Code, lệnh trả phí của dự án, hoặc khi `hand-ext` thoát 7;
-  - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; skill `paseo` theo dõi từ điện thoại;
+  - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; skill `paseo` theo dõi từ điện thoại;
   - hook SessionStart (khuôn brief, luật chọn hand, luật hạn mức) và UserPromptSubmit (bản ngắn).
 - **Luật hạn mức:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; sau mỗi lượt báo backend, token, % hạn mức (Claude/Codex) hoặc % Go 5h/tuần kèm USD ước tính, thời điểm reset.
 - **Bật theo dự án:** cài ở scope project trong thư mục dự án, tắt `parallel-subagents` ở scope project (xem mục 3).
@@ -22,8 +22,8 @@ hybrid-hands/
 └── plugins/hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
-    ├── bin/hand-ext, bin/side-session  # vào PATH của tool Bash khi plugin bật
-    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode), lib/side_session/
+    ├── bin/hand-ext, bin/side-session, bin/hh-ps  # vào PATH của tool Bash khi plugin bật
+    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode), lib/side_session/, lib/hh_ps/
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
@@ -84,11 +84,14 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
   "side_session": {
     "max_parallel": 2,
     "handoff_dir": "docs/work-in-progress/handoffs"
+  },
+  "ps": {
+    "session_meta_globs": ["docs/work-in-progress/*.meta"]
   }
 }
 ```
 
-Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định) và `lib/side_session/`; thiếu file thì dùng các giá trị mặc định trên. `<PL>` được thay bằng thư mục plugin. `codex`, `claude` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|gemini` khi cần. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test).
+Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=`); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. `codex`, `claude` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|gemini` khi cần. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test).
 
 ## 5. Backend của hand ngoài
 
@@ -128,6 +131,12 @@ Cách tính chi phí: nếu backend kịp lộ `opencode.allowance` thì cộng 
 
 Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố mốc reset, nên số của `hand-ext usage`, `hand-ext status` và statusline chỉ là ước tính để biết đang ở đâu; **OpenCode Console là nguồn chuẩn**. `hand-ext status` in thêm bảng Go khi đã có tóm tắt; khối cuối mỗi `run` in `hạn mức: ~x% 5h, ~y% tuần (ước tính)`.
 
-## 6. Cập nhật
+## 6. Theo dõi phiên và hand: `hh-ps`
+
+`hh-ps [--since 6h] [--all] [--json] [--watch N] [--count K] [--cwd D]` vẽ cây chỉ đọc: phiên Claude (phiên chính đánh dấu `[chính]` theo `CLAUDE_CODE_SESSION_ID`, phiên phụ và phiên đã kết thúc) → subagent `hybrid-hands:hand` → lượt `hand-ext run` do phiên đó gọi, kèm trạng thái, ngữ cảnh token, trần token/tỉ lệ (nếu có meta), thời gian bắt đầu, lần hoạt động cuối và thời lượng. Mặc định chỉ lấy project của git toplevel cwd (mọi phiên đang sống vẫn hiện); `--since` (m/h/d) lọc phiên/subagent/lượt đã xong; `--all` lấy mọi project; `--watch N` vẽ lại mỗi N giây (tối thiểu 2), dừng bằng Ctrl-C hoặc `--count K`; màu chỉ bật khi stdout là TTY và tắt bằng `NO_COLOR`.
+
+Nguồn: `~/.claude/sessions/<pid>.json` (hoặc `CLAUDE_CONFIG_DIR`) đối chiếu `os.kill(pid, 0)`, transcript `~/.claude/projects/<slug>/<sessionId>.jsonl` (tìm theo tên file trên mọi slug; `customTitle` cuối cùng thắng), subagent `.../<sessionId>/subagents/agent-*.meta.json|.jsonl` (`finished` khác true và jsonl im quá 30 phút → "im lặng"), và sổ lượt đang chạy `~/.hybrid-hands/runs/<run_id>.json` (đổi gốc bằng `HYBRID_HANDS_STATE_DIR`). Không đọc file `.key`, không in nội dung tin nhắn/prompt hay socket token, không gửi mạng. `--json` in schema `schema`, `generated_at`, `since_seconds`, `cwd`, `all_projects`, `main_session_id`, `sessions[]` (mỗi phiên có `subagents[]`, `hand_runs[]`), `orphan_runs[]` và `totals`; lượt `running` mà pid đã chết hiện `mất (tiến trình đã chết)`.
+
+## 7. Cập nhật
 
 Tăng `version` trong `plugins/hybrid-hands/.claude-plugin/plugin.json`, chạy `claude plugin validate`, rồi `claude plugin marketplace update hybrid-hands-local` và `claude plugin update hybrid-hands@hybrid-hands-local`.
