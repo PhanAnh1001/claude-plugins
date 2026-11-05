@@ -6,7 +6,7 @@
 - **Thành phần:**
   - hand ngoài: lệnh `hand-ext` (mặc định `dsh`, `opencode` — DeepSeek V4.1 Flash trên gói OpenCode Go — theo `order`; `codex`, `claude`, `gemini` chỉ khai báo để gọi tường minh; sổ token `output/llm/hand_usage.json` và sổ USD Go toàn máy `~/.hybrid-hands/go_usage.jsonl`, lệnh `hand-ext usage`), skill `ext-hand`;
   - hand Claude: agent `hybrid-hands:hand` (gói chính) cho việc cần tool riêng của Claude Code, lệnh trả phí của dự án, hoặc khi `hand-ext` thoát 7;
-  - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; skill `paseo` theo dõi từ điện thoại;
+  - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; lệnh `cc-switch` chuyển một phiên Claude qua lại giữa terminal và Paseo mà không để transcript rẽ nhánh; skill `paseo` theo dõi từ điện thoại;
   - hook SessionStart (khuôn brief, luật chọn hand, luật hạn mức) và UserPromptSubmit (bản ngắn).
 - **Luật hạn mức:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; sau mỗi lượt báo backend, token, % hạn mức (Claude/Codex) hoặc % Go 5h/tuần kèm USD ước tính, thời điểm reset.
 - **Bật theo dự án:** cài ở scope project trong thư mục dự án, tắt `parallel-subagents` ở scope project (xem mục 3).
@@ -19,12 +19,12 @@ hybrid-hands/
 ├── .claude-plugin/marketplace.json     # marketplace hybrid-hands-local
 ├── README.md
 ├── paseo-hh-tree/                      # plugin Paseo hiện cây phiên trong app
-├── tests/                              # test của hand-ext, side-session
+├── tests/                              # test của hand-ext, side-session, hh-ps, cc-switch
 └── plugins/hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
-    ├── bin/hand-ext, bin/side-session, bin/hh-ps  # vào PATH của tool Bash khi plugin bật
-    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode), lib/side_session/, lib/hh_ps/
+    ├── bin/hand-ext, bin/side-session, bin/hh-ps, bin/cc-switch  # vào PATH của tool Bash khi plugin bật
+    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode), lib/side_session/, lib/hh_ps/, lib/cc_switch/
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
@@ -138,10 +138,20 @@ Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố m�
 
 Nguồn: `~/.claude/sessions/<pid>.json` (hoặc `CLAUDE_CONFIG_DIR`) đối chiếu `os.kill(pid, 0)`, transcript `~/.claude/projects/<slug>/<sessionId>.jsonl` (tìm theo tên file trên mọi slug; `customTitle` cuối cùng thắng), subagent `.../<sessionId>/subagents/agent-*.meta.json|.jsonl` (`finished` khác true và jsonl im quá 30 phút → "im lặng"), và sổ lượt đang chạy `~/.hybrid-hands/runs/<run_id>.json` (đổi gốc bằng `HYBRID_HANDS_STATE_DIR`). Không đọc file `.key`, không in nội dung tin nhắn/prompt hay socket token, không gửi mạng. `--json` in schema `schema`, `generated_at`, `since_seconds`, `cwd`, `all_projects`, `main_session_id`, `sessions[]` (mỗi phiên có `subagents[]`, `hand_runs[]`), `orphan_runs[]` và `totals`; lượt `running` mà pid đã chết hiện `mất (tiến trình đã chết)`.
 
-## 7. Xem cây trên Paseo
+## 7. Chuyển phiên giữa terminal và Paseo: `cc-switch`
+
+`cc-switch term [--agent ID|--session SID] [--dry-run] [-- <đối số thêm cho claude>]` lấy agent Paseo provider `claude` của project hiện tại (hoặc chọn theo id/tiền tố/session), chờ `paseo wait` nếu agent đang chạy, từ chối nếu đã có TUI `claude` sống cùng session, rồi `chdir` vào cwd agent và `exec claude --resume <sid> [--model <model>]`. Sau đó đừng gửi tin cho agent từ Paseo cho tới khi chuyển lại.
+
+`cc-switch paseo [--session SID] [--dry-run]` lấy transcript sửa gần nhất có dòng `user` trong project (hoặc session chỉ định), từ chối nếu TUI còn sống (phải `/exit` trước), rồi `paseo agent reload <id>` nếu đã có agent, không thì `paseo import <sid> --provider claude --cwd <cwd> --json`. Xong thì mở Paseo trên điện thoại để tiếp tục. `cc-switch term` ghi sổ bàn giao ở `~/.hybrid-hands/cc-switch/handoff.json` (đổi gốc bằng `HYBRID_HANDS_STATE_DIR`); `cc-switch paseo` không có `--session` dùng phiên trong sổ nếu transcript còn và xoá mục sau khi nạp lại/import thành công. `cc-switch status [--all]` in bảng id/title/status Paseo/session/TUI và nơi đang giữ (`terminal`, `paseo`, `không`).
+
+**Vì sao phải reload:** tiến trình `claude` do Paseo giữ hội thoại trong bộ nhớ. Lượt làm ở terminal ghi tiếp vào cùng transcript; nếu Paseo trả lời mà không reload, nó dựa vào lịch sử cũ và ghi một nhánh rẽ. Lần `--resume` sau đi theo lá mới nhất nên lượt terminal bị mất khỏi ngữ cảnh. `paseo agent reload` khởi lại tiến trình lười, resume từ transcript nên thấy đủ lượt terminal. `cc-switch` chỉ đọc các trường agent đã khai báo và không đọc `.key`; việc ghi trạng thái là do `paseo`.
+
+Mã thoát: 2 sai cách dùng hoặc nhiều agent, 3 không tìm thấy agent/transcript, 4 TUI còn sống, 5 lệnh `paseo` lỗi.
+
+## 8. Xem cây trên Paseo
 
 Plugin `hh-tree` trong `paseo-hh-tree/` hiện cây phiên Claude → subagent → lượt hand ngoài trong app Paseo (desktop và điện thoại): panel cạnh từng agent, màn hình đầy đủ mở từ sidebar, và ô cài đặt đường dẫn `hh-ps`; dữ liệu tự làm mới mỗi 5 giây. Xem `paseo-hh-tree/OVERVIEW.md` để biết cách cài, cách đặt đường dẫn `hh-ps` và những dữ liệu plugin chỉ đọc trên máy.
 
-## 8. Cập nhật
+## 9. Cập nhật
 
 Tăng `version` trong `plugins/hybrid-hands/.claude-plugin/plugin.json`, chạy `claude plugin validate`, rồi `claude plugin marketplace update hybrid-hands-local` và `claude plugin update hybrid-hands@hybrid-hands-local`.
