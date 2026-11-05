@@ -45,13 +45,14 @@ def _run_sort_key(run: HandRun):
 
 
 def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
-                   now: Optional[float] = None) -> Snapshot:
+                   now: Optional[float] = None,
+                   main_session_id: Optional[str] = None) -> Snapshot:
     cwd = Path(cwd)
     moment = time.time() if now is None else float(now)
     cutoff = moment - since_seconds
     root = project_root(cwd)
     config = load_ps_config(root)
-    main_session_id = os.environ.get(PARENT_SESSION_ENV) or None
+    main_session_id = main_session_id or os.environ.get(PARENT_SESSION_ENV) or None
     sessions = load_sessions(claude_config_dir(), cutoff, root, all_projects,
                              main_session_id, moment)
     meta = load_session_meta(config)

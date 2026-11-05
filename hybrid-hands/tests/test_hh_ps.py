@@ -21,7 +21,7 @@ from fixture import (  # noqa: E402
 from hh_ps import cli  # noqa: E402
 from hh_ps.timeutil import parse_since  # noqa: E402
 
-WATCH_MIN_ERROR = 2
+ARGPARSE_EXIT = 2
 
 
 class HhPsTest(unittest.TestCase):
@@ -117,6 +117,23 @@ class HhPsTest(unittest.TestCase):
         self.assertEqual(set(run["tokens"]), {"input", "cached_input", "output"})
         self.assertEqual(len(data["orphan_runs"]), 1)
 
+    def test_main_session_flag_overrides_env(self) -> None:
+        data = self.json_cli("--main-session", SIDE_SESSION)
+        self.assertEqual(data["main_session_id"], SIDE_SESSION)
+        sessions = {item["session_id"]: item for item in data["sessions"]}
+        self.assertTrue(sessions[SIDE_SESSION]["is_main"])
+        self.assertFalse(sessions[MAIN_SESSION]["is_main"])
+        self.assertEqual([session_id for session_id, item in sessions.items() if item["is_main"]],
+                         [SIDE_SESSION])
+
+    def test_main_session_rejects_non_uuid(self) -> None:
+        stderr = io.StringIO()
+        with self.fx.env(), redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as raised:
+                cli.main(["--main-session", "not-a-uuid", "--cwd", str(self.fx.project)])
+        self.assertEqual(raised.exception.code, ARGPARSE_EXIT)
+        self.assertIn("UUID", stderr.getvalue())
+
     def test_no_secret_key_prompt_or_socket_is_read_or_printed(self) -> None:
         self.assertEqual(self.fx.key_path.stat().st_mode & 0o777, 0)
         code, out = self.run_cli("--all")
@@ -134,7 +151,7 @@ class HhPsTest(unittest.TestCase):
         with self.fx.env(), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as raised:
                 cli.main(["--watch", "1", "--cwd", str(self.fx.project)])
-        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(raised.exception.code, ARGPARSE_EXIT)
 
     def test_watch_one_iteration_returns(self) -> None:
         code, out = self.run_cli("--watch", "2", "--count", "1")
