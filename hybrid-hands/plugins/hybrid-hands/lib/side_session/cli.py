@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from . import actions
+from . import attach
 from . import constants as C
 from .config import load_config
 
@@ -46,6 +47,9 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--once", action="store_true")
     h = sub.add_parser("handoff", help="print the handoff summary block")
     h.add_argument("name")
+    at = sub.add_parser("attach", help="gắn vào screen của phiên phụ đang chạy")
+    at.add_argument("name", nargs="?", default=None,
+                    help="tên phiên phụ (bỏ trống để chọn trong menu)")
     return p
 
 
@@ -55,5 +59,8 @@ HANDLERS = {"start": actions.start, "ls": actions.ls, "stop": actions.stop,
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.cmd == "attach":
+        # Paseo runs terminal profiles from an arbitrary cwd with no project config.
+        return attach.main(args.name)
     cfg = load_config(Path.cwd())
     return HANDLERS[args.cmd](cfg, args)

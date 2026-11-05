@@ -87,3 +87,17 @@ Theo [orchestration](https://paseo.sh/docs/orchestration) (11/2026) và `--help`
 - **Hiện:** agent tạo bằng `paseo run`, app, MCP; và phiên provider nhập vào bằng `paseo import <session-id> --provider claude|codex --cwd <dir>` (`paseo import --help`, 0.15.0).
 - **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên `screen` của side-session, hand chạy qua `hand-ext` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở (suy luận từ mô tả lệnh, chưa thử).
 - Muốn xem brain trên điện thoại thì brain phải chạy trong Paseo (tạo bằng `paseo run --provider claude`) hoặc import.
+
+## 7. Xem phiên phụ từ Paseo
+
+Paseo không tự thấy screen của side-session, nhưng một terminal profile có thể mở đúng screen đó để xem và gõ.
+
+- **Profile:** thêm trong Settings → host → Terminals → Terminal profiles → Add với Name `Phiên phụ (screen)`, Command là đường dẫn tuyệt đối tới `bin/side-session` của plugin, Arguments `attach` (một dòng, không kèm tên). UI lưu cả mảng profile nên giữ các profile cũ; không sửa `~/.paseo/config.json` bằng tay.
+
+```json
+{ "id": "side-attach", "name": "Phiên phụ (screen)", "command": "<đường dẫn tuyệt đối tới plugin>/bin/side-session", "args": ["attach"] }
+```
+
+- **Chạy:** mở profile từ menu terminal của Paseo; `attach` không cần `.claude/hybrid-hands.json`, tự tìm `screen` và in menu đánh số. Chọn số để gắn, Ctrl-a d để detach rồi menu hiện lại, `q` để thoát.
+- **Chỉ là PTY:** profile này chỉ mở terminal vào screen, không tạo agent Paseo và không có trạng thái agent; terminal agent hooks không thấy tiến trình đã chạy ngoài Paseo.
+- **Gõ là điều khiển thật:** phím gõ trong screen đi thẳng vào phiên phụ; thoát bằng Ctrl-a d, đừng dùng Ctrl-c vì Ctrl-c gửi vào phiên và có thể dừng việc đang chạy.
