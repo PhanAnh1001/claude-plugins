@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -12,6 +13,16 @@ from .constants import MIN_WATCH_SECONDS
 from .render import color_enabled, render_json, render_text
 from .timeutil import parse_since
 from .tree import build_snapshot
+
+UUID_RE = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+def _uuid(raw: str) -> str:
+    if not UUID_RE.match(raw):
+        raise argparse.ArgumentTypeError("--main-session cần một UUID hợp lệ")
+    return raw
 
 
 def _watch_seconds(raw: str) -> int:
@@ -47,6 +58,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--count", type=_positive_int,
                         help="dừng sau K lần vẽ (dùng với --watch)")
     parser.add_argument("--cwd", help="thư mục dự án để lọc (mặc định cwd)")
+    parser.add_argument("--main-session", type=_uuid,
+                        help="UUID phiên chính, đè CLAUDE_CODE_SESSION_ID")
     return parser
 
 
@@ -70,7 +83,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     drawn = 0
     try:
         while True:
-            snapshot = build_snapshot(cwd, since, args.all)
+            snapshot = build_snapshot(cwd, since, args.all,
+                                      main_session_id=args.main_session)
             color = color_enabled(sys.stdout)
             if args.watch is not None and drawn and sys.stdout.isatty():
                 print("\033[2J\033[H", end="")

@@ -18,6 +18,7 @@
 hybrid-hands/
 ├── .claude-plugin/marketplace.json     # marketplace hybrid-hands-local
 ├── README.md
+├── paseo-hh-tree/                      # plugin Paseo hiện cây phiên trong app
 ├── tests/                              # test của hand-ext, side-session
 └── plugins/hybrid-hands/
     ├── .claude-plugin/plugin.json
@@ -133,10 +134,14 @@ Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố m�
 
 ## 6. Theo dõi phiên và hand: `hh-ps`
 
-`hh-ps [--since 6h] [--all] [--json] [--watch N] [--count K] [--cwd D]` vẽ cây chỉ đọc: phiên Claude (phiên chính đánh dấu `[chính]` theo `CLAUDE_CODE_SESSION_ID`, phiên phụ và phiên đã kết thúc) → subagent `hybrid-hands:hand` → lượt `hand-ext run` do phiên đó gọi, kèm trạng thái, ngữ cảnh token, trần token/tỉ lệ (nếu có meta), thời gian bắt đầu, lần hoạt động cuối và thời lượng. Mặc định chỉ lấy project của git toplevel cwd (mọi phiên đang sống vẫn hiện); `--since` (m/h/d) lọc phiên/subagent/lượt đã xong; `--all` lấy mọi project; `--watch N` vẽ lại mỗi N giây (tối thiểu 2), dừng bằng Ctrl-C hoặc `--count K`; màu chỉ bật khi stdout là TTY và tắt bằng `NO_COLOR`.
+`hh-ps [--since 6h] [--all] [--json] [--watch N] [--count K] [--cwd D] [--main-session UUID]` vẽ cây chỉ đọc: phiên Claude (phiên chính đánh dấu `[chính]` theo `CLAUDE_CODE_SESSION_ID`, phiên phụ và phiên đã kết thúc) → subagent `hybrid-hands:hand` → lượt `hand-ext run` do phiên đó gọi, kèm trạng thái, ngữ cảnh token, trần token/tỉ lệ (nếu có meta), thời gian bắt đầu, lần hoạt động cuối và thời lượng. Mặc định chỉ lấy project của git toplevel cwd (mọi phiên đang sống vẫn hiện); `--since` (m/h/d) lọc phiên/subagent/lượt đã xong; `--all` lấy mọi project; `--watch N` vẽ lại mỗi N giây (tối thiểu 2), dừng bằng Ctrl-C hoặc `--count K`; màu chỉ bật khi stdout là TTY và tắt bằng `NO_COLOR`. `--main-session <UUID>` đè phiên chính lấy từ `CLAUDE_CODE_SESSION_ID`; id không đúng dạng UUID thì argparse báo lỗi.
 
 Nguồn: `~/.claude/sessions/<pid>.json` (hoặc `CLAUDE_CONFIG_DIR`) đối chiếu `os.kill(pid, 0)`, transcript `~/.claude/projects/<slug>/<sessionId>.jsonl` (tìm theo tên file trên mọi slug; `customTitle` cuối cùng thắng), subagent `.../<sessionId>/subagents/agent-*.meta.json|.jsonl` (`finished` khác true và jsonl im quá 30 phút → "im lặng"), và sổ lượt đang chạy `~/.hybrid-hands/runs/<run_id>.json` (đổi gốc bằng `HYBRID_HANDS_STATE_DIR`). Không đọc file `.key`, không in nội dung tin nhắn/prompt hay socket token, không gửi mạng. `--json` in schema `schema`, `generated_at`, `since_seconds`, `cwd`, `all_projects`, `main_session_id`, `sessions[]` (mỗi phiên có `subagents[]`, `hand_runs[]`), `orphan_runs[]` và `totals`; lượt `running` mà pid đã chết hiện `mất (tiến trình đã chết)`.
 
-## 7. Cập nhật
+## 7. Xem cây trên Paseo
+
+Plugin `hh-tree` trong `paseo-hh-tree/` hiện cây phiên Claude → subagent → lượt hand ngoài trong app Paseo (desktop và điện thoại): panel cạnh từng agent, màn hình đầy đủ mở từ sidebar, và ô cài đặt đường dẫn `hh-ps`; dữ liệu tự làm mới mỗi 5 giây. Xem `paseo-hh-tree/OVERVIEW.md` để biết cách cài, cách đặt đường dẫn `hh-ps` và những dữ liệu plugin chỉ đọc trên máy.
+
+## 8. Cập nhật
 
 Tăng `version` trong `plugins/hybrid-hands/.claude-plugin/plugin.json`, chạy `claude plugin validate`, rồi `claude plugin marketplace update hybrid-hands-local` và `claude plugin update hybrid-hands@hybrid-hands-local`.

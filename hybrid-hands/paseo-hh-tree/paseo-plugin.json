@@ -1,0 +1,9 @@
+{
+  "id": "hh-tree",
+  "name": "Cây phiên hybrid-hands",
+  "description": "Hiện cây phiên Claude, subagent và lượt hand ngoài ngay trong Paseo.",
+  "media": [],
+  "requirements": {
+    "paseo": ">=0.15.0"
+  }
+}
