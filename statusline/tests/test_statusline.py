@@ -137,37 +137,42 @@ class StatuslineTest(unittest.TestCase):
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
         self.assertEqual(plain, "5h:-- | 7d:--")
 
-    def test_go_usage_after_claude_with_estimated_marks(self) -> None:
+    def test_go_usage_on_its_own_line_under_claude_with_estimated_marks(self) -> None:
         self.write_go_summary(five=12.3, week=31)
-        line = self.render(go_state=self.state_dir)[2]
+        lines = self.render(go_state=self.state_dir)
+        self.assertRegex(ANSI_ESCAPE.sub("", lines[2]), r"^5h:[^|]+ \| 7d:[^|]+$")
+        self.assertEqual(lines[4:], SKILL_BLOCK)
+        line = lines[3]
         plain = ANSI_ESCAPE.sub("", line)
-        self.assertRegex(plain, r"\| DS 5h ~12% · tuần ~31%$")
+        self.assertRegex(plain, r"^DS 5h ~12% · tuần ~31%$")
         self.assertIn(f"{GREEN}12%{RESET}", line)
         self.assertIn(f"{GREEN}31%{RESET}", line)
 
     def test_go_usage_exact_and_fresh_has_no_tilde(self) -> None:
         self.write_go_summary(five=88, week=12, estimated=False)
-        line = self.render(go_state=self.state_dir)[2]
+        line = self.render(go_state=self.state_dir)[3]
         plain = ANSI_ESCAPE.sub("", line)
-        self.assertRegex(plain, r"\| DS 5h 88% · tuần 12%$")
+        self.assertRegex(plain, r"^DS 5h 88% · tuần 12%$")
         self.assertIn(f"{RED}88%{RESET}", line)
         self.assertIn(f"{GREEN}12%{RESET}", line)
 
     def test_go_usage_older_than_five_hours_is_marked_stale(self) -> None:
         self.write_go_summary(five=12, week=31, estimated=False,
                               updated_at=int(time.time()) - STALE_SECONDS - 60)
-        plain = ANSI_ESCAPE.sub("", self.render(go_state=self.state_dir)[2])
-        self.assertRegex(plain, r"\| DS 5h ~12% · tuần ~31%$")
+        plain = ANSI_ESCAPE.sub("", self.render(go_state=self.state_dir)[3])
+        self.assertRegex(plain, r"^DS 5h ~12% · tuần ~31%$")
 
     def test_go_usage_missing_file_is_silent(self) -> None:
-        plain = ANSI_ESCAPE.sub("", self.render(go_state=self.state_dir)[2])
-        self.assertNotIn("DS ", plain)
+        lines = self.render(go_state=self.state_dir)
+        self.assertEqual(len(lines), EXPECTED_LINES + len(SKILL_BLOCK))
+        self.assertNotIn("DS ", ANSI_ESCAPE.sub("", "\n".join(lines)))
 
     def test_go_usage_broken_json_is_silent_and_exits_zero(self) -> None:
         self.state_dir.mkdir(parents=True)
         (self.state_dir / GO_SUMMARY).write_text("{broken", encoding="utf-8")
         lines = self.render(go_state=self.state_dir)
-        self.assertNotIn("DS ", ANSI_ESCAPE.sub("", lines[2]))
+        self.assertEqual(len(lines), EXPECTED_LINES + len(SKILL_BLOCK))
+        self.assertNotIn("DS ", ANSI_ESCAPE.sub("", "\n".join(lines)))
 
 
 if __name__ == "__main__":

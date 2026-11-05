@@ -163,11 +163,14 @@ class GoUsageTest(unittest.TestCase):
         env.update(extra_env or {})
         return run_bash(FETCH, [], env)
 
-    def line3(self, result) -> str:
+    def go_line(self, result) -> str:
+        # Go has its own line 4, right under Claude's 5h/7d line, which keeps only Claude.
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = result.stdout.split("\n")
-        self.assertGreaterEqual(len(lines), 3, result.stdout)
-        return lines[2]
+        self.assertGreaterEqual(len(lines), 4, result.stdout)
+        claude = ANSI_ESCAPE.sub("", lines[2])
+        self.assertRegex(claude, r"^5h:[^|]+ \| 7d:[^|]+$")
+        return lines[3]
 
     def wait_for(self, predicate, timeout: float = 12.0) -> bool:
         deadline = time.monotonic() + timeout
@@ -185,7 +188,7 @@ class GoUsageTest(unittest.TestCase):
 
     # --- rendering an ok cache ---
 
-    def test_ok_cache_renders_go_after_claude_and_hides_ds(self) -> None:
+    def test_ok_cache_renders_go_on_its_own_line_and_hides_ds(self) -> None:
         now = int(time.time())
         windows = {
             "rolling": go_window(0, now + 3600),
@@ -194,14 +197,14 @@ class GoUsageTest(unittest.TestCase):
         }
         self.write_cache(windows)
         self.write_go_summary(12, 31)
-        line = self.line3(self.run_statusline())
+        line = self.go_line(self.run_statusline())
         plain = ANSI_ESCAPE.sub("", line)
-        tail = (
-            f"| Go 5h:0%(reset {fmt_epoch(now + 3600)})"
+        expected = (
+            f"Go 5h:0%(reset {fmt_epoch(now + 3600)})"
             f" | wk:1%(reset {fmt_epoch(now + 7200)})"
             f" | mo:0%(reset {fmt_epoch(now + 86400)})"
         )
-        self.assertTrue(plain.endswith(tail), plain)
+        self.assertEqual(plain, expected)
         self.assertNotIn("DS", plain)
         self.assertIn(f"{DIM}Go{RESET} ", line)
         self.assertIn(f"{GREEN}0%{RESET}", line)
@@ -210,7 +213,7 @@ class GoUsageTest(unittest.TestCase):
     def test_cache_older_than_fifteen_minutes_marks_every_window_stale(self) -> None:
         windows = self.future_windows(rolling=12, weekly=31, monthly=5)
         self.write_cache(windows, fetched_at=int(time.time()) - STALE_SECONDS - 60)
-        plain = ANSI_ESCAPE.sub("", self.line3(self.run_statusline()))
+        plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
         self.assertIn("Go 5h:~12%", plain)
         self.assertIn("| wk:~31%", plain)
         self.assertIn("| mo:~5%", plain)
@@ -223,7 +226,7 @@ class GoUsageTest(unittest.TestCase):
             "monthly": go_window(0, now + 86400),
         }
         self.write_cache(windows)
-        plain = ANSI_ESCAPE.sub("", self.line3(self.run_statusline()))
+        plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
         self.assertIn("Go 5h:~0% | wk:", plain)
         self.assertNotIn("5h:~0%(reset", plain)
 
@@ -235,14 +238,14 @@ class GoUsageTest(unittest.TestCase):
             "monthly": go_window(0, now + 86400),
         }
         self.write_cache(windows)
-        line = self.line3(self.run_statusline())
+        line = self.go_line(self.run_statusline())
         self.assertIn(f"{RED}5%{RESET}", line)
         self.assertNotIn(f"{GREEN}5%{RESET}", line)
 
     def test_rejected_cache_keeps_ds_with_dim_note(self) -> None:
         self.write_cache(None, state="rejected")
         self.write_go_summary(12, 31)
-        line = self.line3(self.run_statusline())
+        line = self.go_line(self.run_statusline())
         plain = ANSI_ESCAPE.sub("", line)
         self.assertIn("DS 5h ~12% · tuần ~31%", plain)
         self.assertIn(f"{DIM}(khoá Go bị từ chối){RESET}", line)
@@ -250,7 +253,7 @@ class GoUsageTest(unittest.TestCase):
     def test_error_cache_keeps_ds_without_note(self) -> None:
         self.write_cache(None, state="error")
         self.write_go_summary(12, 31)
-        plain = ANSI_ESCAPE.sub("", self.line3(self.run_statusline()))
+        plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
         self.assertIn("DS 5h ~12% · tuần ~31%", plain)
         self.assertNotIn("bị từ chối", plain)
 
@@ -260,7 +263,7 @@ class GoUsageTest(unittest.TestCase):
         self.write_cache(windows, state="error", fetched_at=now - 120,
                          last_ok_at=now - 120)
         self.write_go_summary(99, 99)
-        plain = ANSI_ESCAPE.sub("", self.line3(self.run_statusline()))
+        plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
         self.assertIn("Go 5h:~12%", plain)
         self.assertIn("| wk:~31%", plain)
         self.assertNotIn("DS", plain)
@@ -271,7 +274,7 @@ class GoUsageTest(unittest.TestCase):
                          state="error", fetched_at=now,
                          last_ok_at=now - ERROR_KEEP_SECONDS - 60)
         self.write_go_summary(12, 31)
-        plain = ANSI_ESCAPE.sub("", self.line3(self.run_statusline()))
+        plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
         self.assertIn("DS 5h ~12% · tuần ~31%", plain)
         self.assertNotIn("Go 5h:", plain)
 
@@ -418,7 +421,7 @@ class GoUsageTest(unittest.TestCase):
         self.assertEqual(document["last_ok_at"], old_fetched_at)
         self.assertGreater(document["fetched_at"], old_fetched_at)
         self.write_go_summary(99, 99)
-        plain = ANSI_ESCAPE.sub("", self.line3(self.run_statusline()))
+        plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
         self.assertIn("Go 5h:~12%", plain)
         self.assertNotIn("DS", plain)
 
@@ -444,7 +447,7 @@ class GoUsageTest(unittest.TestCase):
         self.assertNotIn("windows", document)
         self.assertNotIn("last_ok_at", document)
         self.write_go_summary(12, 31)
-        line = self.line3(self.run_statusline())
+        line = self.go_line(self.run_statusline())
         plain = ANSI_ESCAPE.sub("", line)
         self.assertIn("DS 5h ~12% · tuần ~31%", plain)
         self.assertIn("(khoá Go bị từ chối)", plain)

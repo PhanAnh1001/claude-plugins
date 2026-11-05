@@ -2,11 +2,11 @@
 
 ## Tóm tắt
 
-- **Mục đích:** đóng gói thanh trạng thái (status line) 3 dòng, kèm các dòng skill nạp gần nhất của
+- **Mục đích:** đóng gói thanh trạng thái (status line) 3–4 dòng, kèm các dòng skill nạp gần nhất của
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.10.0).
+  `statusline` (bản 0.11.0).
 - **Cài trên máy mới (3 bước):** `claude plugin marketplace add <thư-mục-repo>/statusline`,
   `claude plugin install statusline@statusline-local --scope user`, rồi chạy skill
   `statusline:setup` (hoặc `install.sh` của plugin).
@@ -20,8 +20,9 @@
 |---|---|---|
 | 1 | `user@host`, tên thư mục hiện tại (`~` nếu là thư mục home), nhánh git màu xanh | `anh@mac dev-workflow (main)` |
 | 2 | model (mức effort), tổng tokens của phiên, % context đang dùng | `Opus(high) \| tokens:6.5k \| ctx:55%` |
-| 3 | rate limit 5 giờ và 7 ngày kèm giờ reset; nối thêm mức OpenCode Go thật (5h/tuần/tháng) hoặc số ước tính `DS` khi chưa có cache | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46) \| Go 5h:0%(reset 05/11 03:55) \| wk:1%(reset 09/11 07:00) \| mo:0%(reset 04/12 15:17)` |
-| 4+ | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
+| 3 | rate limit 5 giờ và 7 ngày của Claude kèm giờ reset | `5h:12%(reset 09/10 15:53) \| 7d:85%(reset 15/10 10:46)` |
+| 4 | mức OpenCode Go thật (5h/tuần/tháng) kèm giờ reset, hoặc số ước tính `DS` (không có giờ reset) khi chưa có cache; không có cả hai thì không có dòng này | `Go 5h:0%(reset 05/11 03:55) \| wk:1%(reset 09/11 07:00) \| mo:0%(reset 04/12 15:17)` |
+| sau đó | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
 - **Màu phần trăm:** xanh dưới 50%, vàng từ 50%, đỏ từ 80%.
 - **Tokens** cộng mọi bản ghi `usage` trong transcript nên chỉ tăng, không giảm khi nén context.
@@ -60,7 +61,7 @@
 - **Rate limit** chỉ có sau phản hồi API đầu tiên của phiên. Trước đó dòng 3 hiện giá trị lưu ở
   `.statusline-cache.json` trong thư mục cấu hình Claude, có dấu `~` phía trước; chưa có gì thì
   hiện `--`.
-- **Mức OpenCode Go thật (`Go`)** nằm cuối dòng 3, lấy từ API usage của OpenCode
+- **Mức OpenCode Go thật (`Go`)** nằm ở dòng riêng ngay dưới dòng hạn mức Claude, lấy từ API usage của OpenCode
   (`GET https://opencode.ai/zen/go/v1/usage`), cùng nguồn với plugin `opencode-go-usage-source`
   của Paseo. `go-usage-fetch.sh` đọc khoá `opencode-go` trong
   `${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json` (chỉ đọc, không in, không ghi khoá đi

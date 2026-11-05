@@ -1,7 +1,7 @@
 {
   "name": "statusline",
-  "version": "0.10.0",
-  "description": "Three-line Claude Code status line: user@host dir (git branch); model (effort), session tokens, context %; 5-hour/7-day Claude rate limits with reset times; live OpenCode Go usage (5h/wk/mo) from the OpenCode Zen usage API, with the hand-ext DS estimate as fallback; then one \"🔧 <skill> (main)\" line for the skill most recently loaded by the main agent and one per recent subagent, tagged with its agent type and its description (cut to 30 characters plus \"...\"); the skill name uses Claude Code's inline-code colour and the note in parentheses is dimmed. The statusline:setup skill installs a stable shim in the Claude config dir that always runs the installed plugin version.",
+  "version": "0.11.0",
+  "description": "Three- or four-line Claude Code status line: user@host dir (git branch); model (effort), session tokens, context %; 5-hour/7-day Claude rate limits with reset times; a line of its own below them with live OpenCode Go usage (5h/wk/mo, with reset times) from the OpenCode Zen usage API, with the hand-ext DS estimate as fallback; then one \"🔧 <skill> (main)\" line for the skill most recently loaded by the main agent and one per recent subagent, tagged with its agent type and its description (cut to 30 characters plus \"...\"); the skill name uses Claude Code's inline-code colour and the note in parentheses is dimmed. The statusline:setup skill installs a stable shim in the Claude config dir that always runs the installed plugin version.",
   "author": {
     "name": "statusline"
   }
