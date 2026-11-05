@@ -27,6 +27,7 @@ hybrid-hands/
     ├── agents/hand.md                  # hand Claude
     ├── bin/hand-ext, bin/side-session, bin/hh-ps, bin/cc-switch  # vào PATH của tool Bash khi plugin bật
     ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode; isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
+    ├── commands/to-paseo.md, commands/to-term.md  # slash command chuyển phiên hai chiều
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
@@ -176,9 +177,13 @@ Nguồn: `~/.claude/sessions/<pid>.json` (hoặc `CLAUDE_CONFIG_DIR`) đối chi
 
 **Chuyển chính phiên TUI đang mở:** `cc-switch paseo --self [--idle-sec 20] [--exit-timeout 30] [--dry-run]` dùng ngay bên trong phiên Claude Code TUI, không cần `/exit` bằng tay. Lệnh lấy session từ `CLAUDE_CODE_SESSION_ID`, tìm pid TUI đang mở qua sổ `~/.claude/sessions/<pid>.json` (nhiều pid thì chọn pid là tổ tiên của tiến trình gọi bằng `ps -o ppid=`), rồi tách một tiến trình nền độc lập; log ở `~/.hybrid-hands/cc-switch/self-<sid8>.log` (đổi gốc bằng `HYBRID_HANDS_STATE_DIR`). Tiến trình nền chờ transcript đứng yên `--idle-sec` giây (tối đa 30 phút), kiểm lại pid vẫn là TUI của session, gửi SIGTERM và chờ TUI thoát tối đa `--exit-timeout` giây (không SIGKILL), rồi chạy đúng luồng `cc-switch paseo --session <sid>`. Lệnh cha trả về ngay và in pid TUI, thời gian chờ, đường log cùng cách quay lại (`cc-switch term`); đừng gõ hay nhấn Enter cho tới khi TUI tự đóng. `--dry-run` chỉ in kế hoạch, không tách tiến trình; `--self` không đi cùng `--session` (sai cách dùng, thoát 2).
 
+**Chuyển chính phiên Paseo về terminal:** `cc-switch term --self [--idle-sec 20] [--app Terminal|iTerm] [--dry-run]` dùng bên trong phiên Claude Code do Paseo giữ (agent Paseo provider `claude`). Lệnh lấy session từ `CLAUDE_CODE_SESSION_ID`, từ chối nếu phiên đã mở trong terminal, tìm agent Paseo theo session (không có thì báo "phiên không do Paseo giữ" và gợi ý `cc-switch term --session`), và chỉ chạy trên macOS. `--dry-run` in kế hoạch gồm session/agent rút gọn, cwd, app, lệnh sẽ chạy trong cửa sổ và đường log. Không dry-run: lệnh tách một tiến trình nền rồi in hướng dẫn đừng gửi tin cho agent từ Paseo cho tới khi chạy `/to-paseo` hoặc `cc-switch paseo`; cửa sổ sẽ mở sau khi lượt hiện tại xong. Tiến trình nền chờ transcript đứng yên `--idle-sec` giây (tối đa 30 phút), kiểm lại không còn TUI sống cho session, rồi ghi `cd <cwd> && exec <bin/cc-switch> term --session <sid>` vào `~/.hybrid-hands/cc-switch/term-<sid8>.command` (quyền 700) và chạy `open -a Terminal` (hoặc `iTerm`) với file đó — đúng luồng `cc-switch term` hiện có: ghi sổ bàn giao và `exec claude --resume`. Log ở `~/.hybrid-hands/cc-switch/self-<sid8>.log` (đổi gốc bằng `HYBRID_HANDS_STATE_DIR`). Cách mở bằng `open` không cần quyền Automation của macOS. `--self` không đi cùng `--agent`/`--session` và không nhận đối số sau `--` (sai cách dùng, thoát 2).
+
+**Slash command `/to-paseo` và `/to-term`:** plugin có hai lệnh trong `commands/`; mỗi lệnh chỉ chạy đúng một lệnh `cc-switch paseo --self` hoặc `cc-switch term --self` bằng tool Bash làm hành động cuối, rồi trả lời một câu ngắn. Nếu `cc-switch` không có trong `PATH`, dùng đường dẫn tuyệt đối mà hook SessionStart in ra. Chưa kiểm hai slash command chạy được bên trong agent Paseo (cần máy có Terminal.app và quyền Automation).
+
 **Vì sao phải reload:** tiến trình `claude` do Paseo giữ hội thoại trong bộ nhớ. Lượt làm ở terminal ghi tiếp vào cùng transcript; nếu Paseo trả lời mà không reload, nó dựa vào lịch sử cũ và ghi một nhánh rẽ. Lần `--resume` sau đi theo lá mới nhất nên lượt terminal bị mất khỏi ngữ cảnh. `paseo agent reload` khởi lại tiến trình lười, resume từ transcript nên thấy đủ lượt terminal. `cc-switch` chỉ đọc các trường agent đã khai báo và không đọc `.key`; việc ghi trạng thái là do `paseo`.
 
-Mã thoát: 2 sai cách dùng (kể cả `--self` đi cùng `--session`), 3 không tìm thấy agent/transcript hoặc pid TUI, 4 TUI còn sống hoặc không xác định được pid, 5 lệnh `paseo` lỗi.
+Mã thoát: 2 sai cách dùng (kể cả `--self` đi cùng `--agent`/`--session` hoặc có đối số sau `--`) và `term --self` trên hệ điều hành không phải macOS, 3 không tìm thấy agent/transcript hoặc pid TUI (kể cả session không do Paseo giữ), 4 TUI còn sống, không xác định được pid, hoặc không mở được cửa sổ terminal (`open` lỗi), 5 lệnh `paseo` lỗi.
 
 ## 8. Xem cây trên Paseo
 

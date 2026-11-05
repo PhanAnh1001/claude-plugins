@@ -15,16 +15,21 @@ from typing import List, Optional
 from hh_ps.constants import PARENT_SESSION_ENV
 
 from .constants import (
-    BIN_SUBDIR, EXIT_CONFLICT, EXIT_NOT_FOUND, EXIT_OK, EXIT_USAGE,
-    HANDOFF_SUBDIR, SELF_ENTRY_NAME, SELF_EXIT_POLL_SECONDS,
-    SELF_EXIT_TIMEOUT_SECONDS, SELF_IDLE_SECONDS, SELF_LOG_PREFIX,
-    SELF_LOG_SUFFIX, SELF_LOG_TIME_FORMAT, SELF_MAX_WAIT_MINUTES,
-    SELF_MAX_WAIT_SECONDS, SELF_MIN_SLEEP_SECONDS, SELF_POLL_SECONDS,
-    SELF_WORKER_COMMAND,
+    EXIT_CONFLICT, EXIT_NOT_FOUND, EXIT_OK, EXIT_USAGE, SELF_ENTRY_NAME,
+    SELF_EXIT_POLL_SECONDS, SELF_EXIT_TIMEOUT_SECONDS, SELF_IDLE_SECONDS,
+    SELF_MAX_WAIT_MINUTES, SELF_MIN_SLEEP_SECONDS, SELF_WORKER_COMMAND,
+)
+from .detach import (
+    check_duration as _check_duration,
+    entry_path as _entry_path,
+    log as _log,
+    spawn_worker,
+    wait_for_idle,
+    worker_log_path as self_log_path,
 )
 from .errors import CcSwitchError
 from .models import Transcript
-from .paths import short_id, state_dir
+from .paths import short_id
 from .paseo_cmd import run_paseo
 from .proc import process_alive, select_tui_pid
 from .sessions import find_transcript, live_session_cwd, tui_pids
@@ -38,19 +43,6 @@ class SelfPlan:
     log_path: Path
     idle_seconds: int
     exit_timeout: int
-
-
-def _stamp() -> str:
-    return time.strftime(SELF_LOG_TIME_FORMAT)
-
-
-def _log(message: str) -> None:
-    print(f"[{_stamp()}] {message}", flush=True)
-
-
-def _check_duration(name: str, value: int) -> None:
-    if value < 0:
-        raise CcSwitchError(f"{name} phải là số nguyên không âm.", EXIT_USAGE)
 
 
 def _session_from_env() -> str:
@@ -70,22 +62,6 @@ def _session_cwd(transcript: Transcript, session_id: str) -> str:
         return str(Path(cwd).resolve())
     except (OSError, RuntimeError):
         return cwd
-
-
-def self_log_path(session_id: str) -> Path:
-    name = f"{SELF_LOG_PREFIX}{short_id(session_id)}{SELF_LOG_SUFFIX}"
-    return state_dir() / HANDOFF_SUBDIR / name
-
-
-def _entry_path() -> str:
-    """The real `bin/cc-switch` beside this plugin, else the current script."""
-    candidate = Path(__file__).resolve().parents[2] / BIN_SUBDIR / SELF_ENTRY_NAME
-    if candidate.is_file():
-        return str(candidate)
-    path = Path(sys.argv[0])
-    if not path.is_absolute():
-        path = Path.cwd() / path
-    return str(path)
 
 
 def _print_plan(plan: SelfPlan, dry_run: bool) -> None:
@@ -113,32 +89,10 @@ def _worker_command(plan: SelfPlan) -> List[str]:
 
 
 def _spawn_worker(plan: SelfPlan) -> subprocess.Popen:
-    log_path = plan.log_path
-    try:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        handle = open(log_path, "a", encoding="utf-8")
-    except OSError as exc:
-        raise CcSwitchError(
-            f"Không mở được file log {log_path}: {exc}", EXIT_NOT_FOUND) from exc
-    try:
-        header = (f"[{_stamp()}] nhận lệnh --self: phiên "
-                  f"{short_id(plan.session_id)}, TUI pid {plan.pid}, "
-                  f"cwd {plan.cwd}, idle {plan.idle_seconds}s, "
-                  f"exit-timeout {plan.exit_timeout}s")
-        handle.write(header + "\n")
-        handle.flush()
-        return subprocess.Popen(
-            _worker_command(plan),
-            stdin=subprocess.DEVNULL, stdout=handle,
-            stderr=subprocess.STDOUT, start_new_session=True,
-            cwd=plan.cwd, close_fds=True,
-        )
-    except OSError as exc:
-        raise CcSwitchError(
-            f"Không tách được tiến trình nền: {exc}\nLog: {log_path}",
-            EXIT_NOT_FOUND) from exc
-    finally:
-        handle.close()
+    header = (f"nhận lệnh --self: phiên {short_id(plan.session_id)}, "
+              f"TUI pid {plan.pid}, cwd {plan.cwd}, idle {plan.idle_seconds}s, "
+              f"exit-timeout {plan.exit_timeout}s")
+    return spawn_worker(_worker_command(plan), plan.log_path, plan.cwd, header)
 
 
 def run_paseo_self(opts) -> int:
@@ -212,24 +166,6 @@ def build_worker_parser() -> argparse.ArgumentParser:
                         help=f"chờ TUI thoát sau SIGTERM (mặc định "
                              f"{SELF_EXIT_TIMEOUT_SECONDS})")
     return parser
-
-
-def wait_for_idle(path: Path, idle_seconds: float,
-                  max_wait_seconds: float = SELF_MAX_WAIT_SECONDS,
-                  poll_seconds: float = SELF_POLL_SECONDS) -> bool:
-    """True once the transcript mtime is at least `idle_seconds` old."""
-    deadline = time.monotonic() + max_wait_seconds
-    while True:
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            return False
-        if time.time() - mtime >= idle_seconds:
-            return True
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            return False
-        time.sleep(max(min(poll_seconds, remaining), SELF_MIN_SLEEP_SECONDS))
 
 
 def wait_for_exit(pid: int, timeout_seconds: float,

@@ -82,9 +82,13 @@ Theo [orchestration](https://paseo.sh/docs/orchestration) (11/2026) và `--help`
 - Id nhận tiền tố. Không viết vòng chờ không trần; dùng `paseo wait --timeout`.
 - Agent trong Paseo gọi agent khác qua tool MCP `create_agent`, `send_agent_prompt` khi bật `daemon.mcp.injectIntoAgents` ([MCP](https://paseo.sh/docs/mcp), 11/2026).
 
-### 5.1 Chuyển chính phiên TUI sang Paseo
+### 5.1 Chuyển chính phiên TUI sang Paseo và ngược lại
 
 **Chuyển phiên TUI đang mở sang Paseo:** khi người dùng nói "switch sang paseo" hoặc "chuyển sang paseo" ngay trong một phiên Claude Code TUI, brain chạy `cc-switch paseo --self` ở **lượt cuối của câu trả lời** (sau khi đã viết xong nội dung cần trả lời, trước khi kết thúc lượt), rồi báo người dùng **đừng gõ hay nhấn Enter** cho tới khi TUI tự đóng. Lệnh trả về ngay và tách tiến trình nền chờ transcript đứng yên, gửi SIGTERM cho TUI rồi nạp phiên sang Paseo theo đúng luồng `cc-switch paseo --session <sid>`; log ở `~/.hybrid-hands/cc-switch/self-<sid8>.log`. Muốn quay lại terminal sau đó thì dùng `cc-switch term`. Dùng cách này thay cho việc `/exit` bằng tay rồi chạy `cc-switch paseo --session`.
+
+**Chuyển chính phiên Paseo về terminal:** khi người dùng nói "về terminal" hoặc "chuyển về terminal" ngay trong một phiên Claude Code do Paseo giữ (agent Paseo provider `claude`), brain chạy `cc-switch term --self` ở **lượt cuối của câu trả lời**, rồi báo người dùng cửa sổ Terminal sẽ mở sau khi lượt này xong và **đừng gửi tin cho agent từ Paseo** cho tới khi chuyển lại. Lệnh trả về ngay và tách tiến trình nền chờ transcript đứng yên, kiểm lại không còn TUI sống, rồi mở cửa sổ `Terminal` (hoặc `--app iTerm`) bằng `open -a` một file `.command` chạy `cd <cwd> && exec <bin/cc-switch> term --session <sid>` — luồng ghi sổ bàn giao và `exec claude --resume` hiện có. Không cần quyền Automation của macOS. Dùng `--dry-run` để xem kế hoạch, `--idle-sec` để đổi thời gian chờ transcript đứng yên.
+
+**Slash command:** `/to-paseo` chạy `cc-switch paseo --self`, `/to-term` chạy `cc-switch term --self`; mỗi lệnh là hành động cuối của lượt, không làm gì khác. Chưa kiểm hai slash command chạy được bên trong agent Paseo.
 
 ## 6. Giới hạn: phiên nào hiện
 
