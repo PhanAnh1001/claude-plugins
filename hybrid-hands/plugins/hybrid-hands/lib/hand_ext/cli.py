@@ -11,13 +11,16 @@ from . import go_usage, ledger, quota_state, render
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
-from .constants import ALL_BACKENDS, AUTO_BACKEND, EXIT_FAIL, EXIT_OK, EXIT_USAGE, SANDBOXES
+from .constants import (
+    ALL_BACKENDS, AUTO_BACKEND, EXIT_FAIL, EXIT_OK, EXIT_USAGE, ISOLATIONS, SANDBOXES,
+)
 from .run_cmd import backend_ready, cmd_run, last_run, with_sandbox
 
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="hand-ext", description="Chạy hand ngoài qua CLI đăng nhập gói subscription (không API).")
+        prog="hand-ext",
+        description="Chạy hand ngoài qua CLI đăng nhập gói subscription (không API).")
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, text in (("setup", "ghi cấu hình CLI, in lệnh đăng nhập gói"),
                        ("doctor", "kiểm cài đặt, đăng nhập gói, cấu hình")):
@@ -32,6 +35,12 @@ def _parser() -> argparse.ArgumentParser:
     r.add_argument("--timeout-min", type=float)
     r.add_argument("--max-tokens", type=int)
     r.add_argument("--sandbox", choices=SANDBOXES)
+    r.add_argument("--isolation", choices=ISOLATIONS,
+                   help="chạy trong git worktree sạch (mặc định) hoặc trực tiếp (none)")
+    r.add_argument("--no-apply", action="store_true",
+                   help="chỉ lưu changes.patch, không áp về thư mục gốc")
+    r.add_argument("--keep-worktree", action="store_true",
+                   help="giữ worktree sau khi chạy để kiểm tra")
     r.add_argument("--browser", action="store_true",
                    help="bật Playwright MCP cô lập cho backend dsh (chỉ trang công khai)")
     sub.add_parser("status", help="sẵn sàng, hạn mức, lượt gần nhất").add_argument("--cwd")
@@ -49,7 +58,9 @@ def _cfg(args: argparse.Namespace) -> ExtConfig:
 
 
 def _names(cfg: ExtConfig, choice: str) -> List[str]:
-    return list(dict.fromkeys(cfg.order + list(KNOWN_BACKENDS))) if choice == ALL_BACKENDS else [choice]
+    if choice == ALL_BACKENDS:
+        return list(dict.fromkeys(cfg.order + list(KNOWN_BACKENDS)))
+    return [choice]
 
 
 def cmd_setup(cfg: ExtConfig, args: argparse.Namespace) -> int:

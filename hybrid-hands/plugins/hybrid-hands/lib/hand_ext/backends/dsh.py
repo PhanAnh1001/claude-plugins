@@ -61,7 +61,7 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: same model id as the opencode backend
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.8.0"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.9.0"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
 # Versions whose env loading and patch keys were read from source (see module docstring).
 VERIFIED_VERSIONS = frozenset({"0.2.1-rc.5"})
@@ -299,7 +299,8 @@ class DshBackend(Backend):
         options = spec.options or {}
         launch = launch_dir(options)
         if not _clean_launch(launch):
-            raise ValueError(f"{launch} phải tồn tại và không có .env (hand-ext setup --backend dsh)")
+            raise ValueError(
+                f"{launch} phải tồn tại và không có .env (hand-ext setup --backend dsh)")
         if (home_dir(options) / ENV_FILE_NAME).exists():
             raise ValueError(f"{home_dir(options) / ENV_FILE_NAME} tồn tại: dsh sẽ nạp nó")
         effort = spec.effort if spec.effort in EFFORTS else _opt(options, "effort",
