@@ -17,6 +17,15 @@ GO_USAGE_STATE_DIR_ENV = "HYBRID_HANDS_STATE_DIR"
 GO_USAGE_DEFAULT_DIR = "~/.hybrid-hands"
 GO_USAGE_LEDGER_NAME = "go_usage.jsonl"
 GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD = 100.0
+GO_USAGE_LIVE_KEY = "live"
+GO_USAGE_LIVE_DEFAULT = True
+# Live Go numbers come from the statusline plugin's fetch script and its shared cache.
+GO_LIVE_ENV = "HYBRID_HANDS_GO_LIVE"
+GO_FETCH_ENV = "HYBRID_HANDS_GO_FETCH"
+GO_SUMMARY_PREFIX = "hạn mức: "
+GO_ESTIMATE_PREFIX = "ước tính từ sổ: "
+GO_LIVE_MISSING = ("hạn mức Go (thật): chưa lấy được "
+                   "(cần plugin statusline và đăng nhập OpenCode Go)")
 # Share of the monthly limit that each sliding window may use (OpenCode Go docs).
 GO_USAGE_WINDOW_SHARES = (("5h", 5 * 3600, 0.2), ("7d", 7 * 86400, 0.5),
                           ("30d", 30 * 86400, 1.0))

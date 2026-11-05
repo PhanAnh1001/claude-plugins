@@ -11,8 +11,9 @@ from typing import Any, Dict, List, Optional
 
 from .constants import (
     CONFIG_SECTION, DEFAULTS, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
-    GO_USAGE_LEDGER_NAME, GO_USAGE_SECTION, GO_USAGE_STATE_DIR_ENV, ISOLATIONS,
-    PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH, WORKTREES_DIRNAME,
+    GO_USAGE_LEDGER_NAME, GO_USAGE_LIVE_DEFAULT, GO_USAGE_LIVE_KEY, GO_USAGE_SECTION,
+    GO_USAGE_STATE_DIR_ENV, ISOLATIONS, PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH,
+    WORKTREES_DIRNAME,
 )
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]
@@ -35,6 +36,7 @@ class ExtConfig:
     go_usage_ledger: Path
     go_usage_summary: Path
     go_monthly_limit_usd: float
+    go_usage_live: bool
     machine_state_dir: Path
 
     def options(self, name: str) -> Dict[str, Any]:
@@ -86,7 +88,7 @@ def _state_dir() -> Path:
     return Path(os.path.expanduser(raw))
 
 
-def _go_usage(root: Path, section: Dict[str, Any]) -> tuple[Path, Path, float]:
+def _go_usage(root: Path, section: Dict[str, Any]) -> tuple[Path, Path, float, bool]:
     """Ledger and summary beside each other; `HYBRID_HANDS_STATE_DIR` only sets the default."""
     configured = section.get("ledger")
     ledger = (_resolve(root, str(configured)) if configured
@@ -99,7 +101,10 @@ def _go_usage(root: Path, section: Dict[str, Any]) -> tuple[Path, Path, float]:
         raise ValueError("go_usage.monthly_limit_usd phải là số") from exc
     if limit_usd <= 0:
         raise ValueError("go_usage.monthly_limit_usd phải lớn hơn 0")
-    return ledger, summary, limit_usd
+    live = section.get(GO_USAGE_LIVE_KEY, GO_USAGE_LIVE_DEFAULT)
+    if not isinstance(live, bool):
+        raise ValueError(f"go_usage.{GO_USAGE_LIVE_KEY} phải là true hoặc false")
+    return ledger, summary, limit_usd, live
 
 
 def load_config(cwd: Optional[Path] = None) -> ExtConfig:
@@ -113,7 +118,7 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
         raise ValueError(f"{CONFIG_SECTION}.{GO_USAGE_SECTION} phải là object")
     backends = merge_backends(merged["backends"], section.pop("backends", {}) or {})
     merged.update(section)
-    go_ledger, go_summary, go_limit = _go_usage(root, go_section)
+    go_ledger, go_summary, go_limit, go_live = _go_usage(root, go_section)
     max_tokens = merged["max_tokens"]
     isolation = str(merged["isolation"])
     if isolation not in ISOLATIONS:
@@ -133,5 +138,6 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
         backends=backends,
         go_usage_ledger=go_ledger, go_usage_summary=go_summary,
         go_monthly_limit_usd=go_limit,
+        go_usage_live=go_live,
         machine_state_dir=_state_dir(),
     )

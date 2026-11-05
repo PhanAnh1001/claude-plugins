@@ -3,19 +3,21 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 import re
 import sys
+import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from . import go_usage, isolation, ledger, quota_state, render
+from . import go_live, go_usage, isolation, ledger, quota_state, render
 from .backends import BackendUnavailable, get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import ExtConfig
 from .constants import (
     AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_USAGE, FALLBACK_STATUSES,
-    GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE,
-    STATUS_EXIT,
+    GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
+    LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
 from .prompt import STDIN_MARK, build_prompt, read_brief
 from .run_registry import RunRegistry
@@ -157,7 +159,7 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
             ctx, apply_result, kept=keep_worktree, cleanup_note=cleanup_note)
     entry = _entry(run_id, label, backend.name, spec, started, cwd, outcome)
     ledger.append_entry(cfg.ledger, entry)
-    go_line = _record_go(cfg, entry, outcome)
+    go_line, go_extra = _record_go(cfg, entry, outcome)
     quota = outcome.state.quota
     exhausted = outcome.status is Status.QUOTA or bool(quota and quota.exhausted)
     if quota is not None or exhausted:
@@ -166,21 +168,32 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
     text = report.read_text(encoding="utf-8") if report.is_file() else ""
     print(render.run_summary(entry, outcome.seconds, str(report) if report.is_file() else None,
                              text, outcome.errors, go_line=go_line,
-                             extra_lines=[isolation_line]))
+                             extra_lines=[*go_extra, isolation_line]))
     return STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
 
 
-def _record_go(cfg: ExtConfig, entry: dict, outcome: RunOutcome) -> Optional[str]:
-    """Write the machine-wide Go ledger/summary; a logging failure warns, never fails the run."""
+def _record_go(cfg: ExtConfig, entry: dict,
+               outcome: RunOutcome) -> Tuple[Optional[str], List[str]]:
+    """Write the Go ledger, then prefer the real statusline numbers over the estimate.
+
+    A logging or live-fetch failure warns/degrades, never fails the run.
+    """
     if entry.get("backend") not in GO_USAGE_BACKENDS:
-        return None
+        return None, []
     try:
         summary = go_usage.record_run(cfg, entry,
                                       outcome.state.extra.get("go_allowance_usd"))
     except OSError as exc:
         print(f"cảnh báo: không ghi được sổ Go: {exc}", file=sys.stderr)
-        return None
-    return go_usage.summary_line(summary)
+        return None, []
+    estimated = go_usage.summary_line(summary)
+    live = go_live.refresh_and_read(cfg.go_usage_live, os.environ)
+    if live is None:
+        return estimated, []
+    extra = []
+    if estimated and estimated.startswith(GO_SUMMARY_PREFIX):
+        extra.append(GO_ESTIMATE_PREFIX + estimated[len(GO_SUMMARY_PREFIX):])
+    return go_live.live_line(live, time.time()), extra
 
 
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
