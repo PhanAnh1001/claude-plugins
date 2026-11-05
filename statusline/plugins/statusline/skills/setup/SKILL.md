@@ -36,8 +36,8 @@ description: Set up, check or remove the statusline plugin as Claude Code's stat
    echo '{"model":{"display_name":"test"},"cwd":"/"}' | bash "${CLAUDE_HOME:-$HOME/.claude}/statusline-command.sh"
    ```
 
-   The first shows `bash "$HOME/.claude/statusline-command.sh"`; the second prints three lines.
-   Line 3 ends with the live OpenCode Go windows (`Go 5h:... | wk:... | mo:...`) once a fetch has
+   The first shows `bash "$HOME/.claude/statusline-command.sh"`; the second prints three or four lines.
+   Line 4, under Claude's limits, shows the live OpenCode Go windows (`Go 5h:... | wk:... | mo:...`) once a fetch has
    filled `$CLAUDE_HOME/.statusline-go-usage.json`; until then it falls back to the estimated
    `DS 5h ~12% · tuần ~31%` segment from `~/.hybrid-hands/go_usage_summary.json` (written by
    `hand-ext`, never by this plugin). The first render only starts the fetch in the background.
@@ -57,7 +57,7 @@ Same order with `--uninstall`: `--uninstall --dry-run`, then `--uninstall`. It r
 
 - `CLAUDE_HOME` overrides the config dir (default `$HOME/.claude`); only set it when the user
   runs Claude Code with a non-default config dir.
-- The live `Go` tail on line 3 reads the OpenCode Go usage API
+- The live `Go` line (line 4) reads the OpenCode Go usage API
   (`GET https://opencode.ai/zen/go/v1/usage`), the same source as Paseo's
   `opencode-go-usage-source` plugin. `scripts/go-usage-fetch.sh` reads the `opencode-go` key from
   `${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json`, passes it to `curl` on stdin (never

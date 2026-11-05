@@ -10,7 +10,7 @@
 #    "last_ok_at": <epoch of the last ok fetch, absent for rejected/no_key>,
 #    "windows": {"rolling"|"weekly"|"monthly": {"percent", "status", "resets_at"}}}
 # A transient error (network, 5xx, malformed JSON) reuses the windows and last_ok_at of the last
-# ok cache so line 3 can keep showing real numbers with "~"; rejected/no_key drop them.
+# ok cache so the Go line can keep showing real numbers with "~"; rejected/no_key drop them.
 # A directory lock stops overlapping fetches; a lock older than 60 s is considered stale.
 # Run from statusline.sh in the background; safe to run by hand too.
 

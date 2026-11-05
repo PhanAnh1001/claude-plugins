@@ -196,7 +196,7 @@ build_line2() {
   join_segments "${segments[@]}"
 }
 
-# --- Line 3: rate limits ---
+# --- Line 3: Claude rate limits ---
 rate_limit_segment() {
   # Args: label live_pct live_reset cached_pct cached_reset [color] [mark].
   # Live values win; cached ones get "~". Callers may force a colour (rate-limited Go windows)
@@ -236,7 +236,7 @@ save_cache() {
   [ -n "$new_cache" ] && echo "$new_cache" > "$CACHE_FILE" 2>/dev/null
 }
 
-# --- Go usage (line 3 tail, cached summary file only) ---
+# --- Go usage (line 4, under the Claude limits; cached summary file only) ---
 load_go_summary() {
   # One jq read of go_usage_summary.json; sets go_updated/go_five/... or leaves them empty.
   [ -f "$GO_SUMMARY_FILE" ] || return 0
@@ -360,7 +360,7 @@ go_live_window_segment() {
 }
 
 go_live_segments() {
-  # Append the Go windows to build_line3's segments array; the first one carries the dim "Go" tag.
+  # Append the Go windows to build_line_go's segments array; the first one carries the dim "Go" tag.
   segments+=("${DIM}Go${RESET} $(go_live_window_segment 5h \
     "$GO_LIVE_ROLLING_PCT" "$GO_LIVE_ROLLING_STATUS" "$GO_LIVE_ROLLING_RESET")")
   segments+=("$(go_live_window_segment wk \
@@ -370,9 +370,17 @@ go_live_segments() {
 }
 
 build_line3() {
+  # Claude's own 5h/7d limits only; OpenCode Go has its own line right below (build_line_go).
   local segments=()
   segments+=("$(rate_limit_segment 5h "$five" "$five_reset" "$cached_five" "$cached_five_reset")")
   segments+=("$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset")")
+  join_segments "${segments[@]}"
+}
+
+build_line_go() {
+  # OpenCode Go under Claude's line: live 5h/wk/mo with reset times, else the DS estimate
+  # (no reset time) from go_usage_summary.json, else nothing (no line).
+  local segments=()
   if go_live_ok; then
     go_live_segments
   else
@@ -425,8 +433,9 @@ line2=$(build_line2)
 load_go_summary
 load_go_live_cache
 line3=$(build_line3)
+line_go=$(build_line_go)
 maybe_start_go_live_fetch
-# --- Skill block (lines 4+) ---
+# --- Skill block (after the rate-limit lines) ---
 build_skill_block() {
   # Lines from last-skill.sh: "🔧 <skill> (main)", '🔧 <skill> (<agent>: "<desc>")'; or nothing.
   [ -n "$transcript_path" ] && [ -f "$LAST_SKILL_SCRIPT" ] || return 0
@@ -439,6 +448,7 @@ skill_block=$(build_skill_block)
 out="$line1"
 [ -n "$line2" ] && out="${out}\n${line2}"
 [ -n "$line3" ] && out="${out}\n${line3}"
+[ -n "$line_go" ] && out="${out}\n${line_go}"
 printf "%b" "$out"
 # printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
 [ -n "$skill_block" ] && printf '\n%s' "$skill_block"
