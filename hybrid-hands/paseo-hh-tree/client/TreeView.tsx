@@ -8,7 +8,8 @@ import { Text, View } from "react-native";
 import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
 import { OrphanBlock } from "./ChildRows";
 import { durationText, clockText } from "./format";
-import { SessionBlock } from "./SessionBlock";
+import { nestSessions } from "./nest";
+import { OrphanSideBlock, SessionBlock } from "./SessionBlock";
 
 const REFRESH_INTERVAL_MS = 5_000;
 const REFRESH_SECONDS = REFRESH_INTERVAL_MS / 1_000;
@@ -57,6 +58,7 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
   const tree = query.data.tree;
   const now = Date.now();
   const empty = tree.sessions.length === 0 && tree.orphan_runs.length === 0;
+  const nested = nestSessions(tree.sessions);
 
   const toggleSession = (session: TreeSession) => {
     const runningChild = session.subagents.some((agent) => agent.status === "running");
@@ -90,18 +92,27 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
           Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
         </Text>
       ) : null}
-      {tree.sessions.map((session) => (
+      {nested.roots.map((session) => (
         <View key={session.session_id} style={{ marginBottom: 6 }}>
           <SessionBlock
             session={session}
+            depth={0}
             theme={theme}
             compact={layout.compact}
             now={now}
-            expanded={expanded[session.session_id]}
-            onToggle={() => toggleSession(session)}
+            expanded={expanded}
+            onToggle={toggleSession}
           />
         </View>
       ))}
+      <OrphanSideBlock
+        sessions={nested.orphanSides}
+        theme={theme}
+        compact={layout.compact}
+        now={now}
+        expanded={expanded}
+        onToggle={toggleSession}
+      />
       <OrphanBlock
         runs={tree.orphan_runs}
         theme={theme}

@@ -43,6 +43,9 @@ const sessionSchema = z
   .object({
     session_id: z.string(),
     name: z.string(),
+    parent_session: z.string().nullable().optional(),
+    side_name: z.string().nullable().optional(),
+    provider: z.string().optional(),
     status: z.string(),
     cwd: z.string(),
     context_tokens: z.number().nullable(),

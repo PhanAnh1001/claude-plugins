@@ -1,6 +1,6 @@
 # Cây phiên hybrid-hands
 
-Plugin hiện cây phiên Claude → subagent → lượt hand ngoài ngay trong Paseo, trên desktop và điện thoại. Mỗi agent có một panel cạnh đó, đánh dấu đúng phiên Claude của agent là phiên chính; sidebar mở thêm màn hình cây đầy đủ cho mọi project. Cây tự làm mới mỗi 5 giây và đọc dữ liệu từ lệnh `hh-ps` sẵn có của hybrid-hands.
+Plugin hiện cây phiên Claude → subagent → lượt hand ngoài ngay trong Paseo, trên desktop và điện thoại. Mỗi agent có một panel cạnh đó, đánh dấu đúng phiên Claude của agent là phiên chính; sidebar mở thêm màn hình cây đầy đủ cho mọi project. Cây tự làm mới mỗi 5 giây và đọc dữ liệu từ lệnh `hh-ps` sẵn có của hybrid-hands. Phiên phụ có `parent_session` được vẽ lồng dưới phiên đã mở nó, còn phiên không rõ cha gom vào nhóm riêng ở cuối cây.
 
 ## Cài đặt
 
