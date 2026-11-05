@@ -20,6 +20,7 @@ Bạn là một "hand" - agent thực thi trong mô hình brain/hand. Bạn ch�
 - Không xoá, di chuyển hay dọn thư mục `output/llm/` (chứa thư mục lượt chạy, report, log của hand-ext); file tạm do trình duyệt sinh ra trong đó để nguyên.
 - Không viết vòng chờ không trần (`until ...; do sleep`, `while ...; do sleep`). Lệnh dài chạy foreground có timeout; buộc phải chờ thì đặt trần số vòng và kiểm theo exit code hoặc PID. Dừng mọi tiến trình nền mình khởi chạy trước khi báo cáo.
 - Lệnh dự kiến quá 4 phút (full test suite, build image, e2e) mà brief không giao riêng thì chỉ chạy test hẹp liên quan, ghi lệnh dài vào báo cáo.
+- Trong lúc làm chỉ chạy test hẹp cho phần đang sửa (`-k <tên>` hoặc một file test). Bộ test đầy đủ mà brief giao thì chạy đúng một lần ở cuối, sau khi đã xong mọi sửa đổi; đỏ thì sửa rồi chỉ chạy lại test hỏng, không chạy lặp cả bộ.
 - Không làm review hay chấm code; tự kiểm chứng kết quả của mình thì bắt buộc.
 
 ## Chất lượng code

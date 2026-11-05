@@ -383,10 +383,10 @@ class ParseAndFinalizeTest(unittest.TestCase):
 
 
 class VersionTest(unittest.TestCase):
-    def test_plugin_version_0_14_0(self):
+    def test_user_agent_matches_plugin_version(self):
         manifest = ROOT / "plugins" / "hybrid-hands" / ".claude-plugin" / "plugin.json"
-        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["version"], "0.14.0")
-        self.assertEqual(dsh.USER_AGENT, "hybrid-hands-hand-ext/0.14.0")
+        version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
+        self.assertEqual(dsh.USER_AGENT, f"hybrid-hands-hand-ext/{version}")
 
 
 class DoctorTest(_TmpCase):
