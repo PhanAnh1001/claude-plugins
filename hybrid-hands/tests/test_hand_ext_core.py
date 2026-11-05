@@ -78,6 +78,8 @@ class CoreTest(unittest.TestCase):
     def setUp(self) -> None:
         _register_stub()
         self.sb = Sandbox(order=["codex", "stubb"])
+        # `status` reads the shared statusline cache: never point a test at the real ~/.claude.
+        os.environ["CLAUDE_HOME"] = str(self.sb.dir / "claude-home")
         self.sb.cli("setup", "--backend", "codex")
 
     def tearDown(self) -> None:

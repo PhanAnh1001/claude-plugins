@@ -144,7 +144,11 @@ class UsageCommandTest(unittest.TestCase):
             record(self.now - 600, 2.0, "estimated"),
             record(self.now - 2 * 86400, 3.0, "exact"),
         )) + "\n", encoding="utf-8")
-        patcher = mock.patch.dict(os.environ, {STATE_ENV: str(self.state)})
+        patcher = mock.patch.dict(os.environ, {
+            STATE_ENV: str(self.state),
+            "CLAUDE_HOME": str(self.base / "claude"),
+            "HYBRID_HANDS_GO_FETCH": "",
+        })
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -222,6 +226,7 @@ class RecordRunTest(unittest.TestCase):
             self.go_usage_ledger = base / "go_usage.jsonl"
             self.go_usage_summary = base / "go_usage_summary.json"
             self.go_monthly_limit_usd = MONTHLY_LIMIT
+            self.go_usage_live = True
 
         def options(self, name: str) -> dict:
             return {"go_price_per_mtok": PRICE} if name == "dsh" else {}
@@ -234,6 +239,12 @@ class RecordRunTest(unittest.TestCase):
         self.entry = {"run_id": "run-1", "ended": iso(NOW), "backend": "dsh",
                       "model": MODEL, "tokens": dict(TOKENS),
                       "cwd": "/srv/example/secret/repo"}
+        patcher = mock.patch.dict(os.environ, {
+            "CLAUDE_HOME": str(self.base / "claude"),
+            "HYBRID_HANDS_GO_FETCH": "",
+        })
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_run_appends_estimated_cost_and_refreshes_summary(self) -> None:
         summary = go_usage.record_run(self.cfg, self.entry, now=NOW)
@@ -255,12 +266,13 @@ class RecordRunTest(unittest.TestCase):
 
     def test_run_hook_only_records_go_backends_and_returns_summary_line(self) -> None:
         outcome = RunOutcome(Status.OK, 0, RunState(usage=Usage(1000, 400, 100)), 1.0, [])
-        line = run_cmd._record_go(self.cfg, self.entry, outcome)
+        line, extra = run_cmd._record_go(self.cfg, self.entry, outcome)
         self.assertIsNotNone(line)
         self.assertTrue(line.startswith("hạn mức: "))
+        self.assertEqual(extra, [])
         self.assertEqual(len(self.cfg.go_usage_ledger.read_text(encoding="utf-8").splitlines()), 1)
-        self.assertIsNone(run_cmd._record_go(
-            self.cfg, dict(self.entry, backend="codex"), outcome))
+        self.assertEqual(run_cmd._record_go(
+            self.cfg, dict(self.entry, backend="codex"), outcome), (None, []))
         self.assertEqual(len(self.cfg.go_usage_ledger.read_text(encoding="utf-8").splitlines()), 1)
 
 

@@ -3,16 +3,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Optional
 
-from . import go_usage, ledger, quota_state, render
+from . import go_live, go_usage, ledger, quota_state, render
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
 from .constants import (
-    ALL_BACKENDS, AUTO_BACKEND, EXIT_FAIL, EXIT_OK, EXIT_USAGE, ISOLATIONS, SANDBOXES,
+    ALL_BACKENDS, AUTO_BACKEND, EXIT_FAIL, EXIT_OK, EXIT_USAGE, GO_LIVE_MISSING, ISOLATIONS,
+    SANDBOXES,
 )
 from .run_cmd import backend_ready, cmd_run, last_run, with_sandbox
 
@@ -98,6 +101,11 @@ def cmd_status(cfg: ExtConfig, args: argparse.Namespace) -> int:
         shown = f"{last['started']} {last['status']}" if last else "-"
         print(f"| {name} | {ok} | {quota_state.iso(until) if until else '-'} | {shown} |")
     summary = go_usage.read_summary(cfg.go_usage_summary)
+    now = time.time()
+    live = go_live.read_live(go_live.cache_path(go_live.claude_home(os.environ)), now)
+    if live is not None:
+        print()
+        print(go_live.live_line(live, now))
     if summary and summary.get("models"):
         print()
         print(go_usage.format_text(summary))
@@ -105,10 +113,14 @@ def cmd_status(cfg: ExtConfig, args: argparse.Namespace) -> int:
 
 
 def cmd_usage(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    live = go_live.refresh_and_read(cfg.go_usage_live, os.environ)
+    now = time.time()
     summary = go_usage.refresh(cfg)
     if args.json:
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        print(json.dumps({**summary, "live": live}, ensure_ascii=False, indent=2))
     else:
+        print(go_live.live_line(live, now) if live is not None else GO_LIVE_MISSING)
+        print()
         print(go_usage.format_text(summary))
     return EXIT_OK
 
