@@ -107,7 +107,7 @@ class SideFixture(HhFixture):
                          status="stopped", max_tokens=10000, tokens_used=100)
 
     def _write_side_runs(self) -> None:
-        self._run("dsh-side-run", label="side:dsh-side", parent_session=MAIN_SESSION,
+        self._run("dsh-side-run", label="side-dsh-side", parent_session=MAIN_SESSION,
                   backend="dsh", status="ok", exit=0, started=iso(NOW - 900),
                   ended=iso(NOW - 200),
                   tokens={"input": 700, "cached_input": 800, "output": 120})

@@ -28,6 +28,8 @@ RUNS_GLOB = "*.json"
 RUN_STATUS_RUNNING = "running"
 PROVIDER_CLAUDE = "claude"
 SIDE_RUN_LABEL_PREFIX = "side:"
+# hand-ext sanitises ":" to "-", so the registry holds side-<name>.
+SIDE_RUN_LABEL_SANITIZED_PREFIX = "side-"
 SIDE_SESSION_LABEL = "phiên phụ"
 SIDE_UNKNOWN_HEADING = "phiên phụ chưa rõ phiên cha"
 

@@ -49,14 +49,15 @@ Mỗi phần tử `sessions[]` thêm (mọi consumer phải chịu được khi 
 
 ### 1.3 Nhãn hand-ext của phiên phụ ngoài
 
-`side:<tên>`; `hh-ps` và `side-session watch` tìm lượt chạy theo nhãn này và `started_at >= state.started`.
+`side:<tên>`. `hand-ext` đổi `:` thành `-` khi lưu, nên registry giữ `side-<tên>`; `hh-ps` và `side-session watch` nhận cả hai dạng, tìm lượt chạy theo nhãn và `started_at >= state.started`.
 
 ## 2. side-session
 
 - `--chrome` thay `--no-chrome` trong `claude_args`; `--chrome` với provider khác `claude` → thoát 2.
 - Trần ngày: `budget_check_cmd` (argv, đường dẫn tương đối tính từ repo). `start`: mã khác 0 → từ chối thoát 4, trừ `--budget-exempt` hoặc `--force-budget`. `watch`: mã 20 và không miễn → dừng phiên, trạng thái `daystop`.
-- Provider ngoài: chạy `hand-ext run --backend <p> --brief <file prompt> --label side:<tên> --cwd <worktree> --max-tokens <trần>` trong `screen`; `watch` đọc token từ registry `hand-ext`, khi lượt chạy kết thúc thì chép `report.md` thành file bàn giao `<handoff_dir>/<tên>.md` nếu chưa có.
+- Provider ngoài: chạy `hand-ext run --backend <p> --brief <file prompt> --label side:<tên> --cwd <worktree> [--timeout-min <giờ×60>]` trong `screen`. Không truyền `--max-tokens`: `hand-ext` tính cả token đọc cache nên sẽ dừng lượt dài quá sớm; `watch` canh trần theo token không tính cache; `watch` đọc token từ registry `hand-ext`, khi lượt chạy kết thúc thì chép `report.md` thành file bàn giao `<handoff_dir>/<tên>.md` nếu chưa có.
 - Biến môi trường của phiên con: bỏ `CLAUDE_CODE_CHILD_SESSION` (như `launch.sh`).
+- `status_line_cmd` (đường dẫn tính từ repo): phiên phụ `claude` chạy với `--settings` trỏ status line này, để giữ nguồn số liệu cho lệnh trần ngày (repo live-tiktok-games trỏ `cost-tap.sh`).
 
 ## 3. Hiển thị cây
 
@@ -65,7 +66,7 @@ Mỗi phần tử `sessions[]` thêm (mọi consumer phải chịu được khi 
 ## 4. Kế hoạch
 
 - [x] T-SS2-01 Nhánh nền: trường state dùng chung, tài liệu này — covers: §1.1 — estimate: 0.5h
-- [ ] T-SS2-02 side-session: Chrome, phiên cha, trần ngày, provider dsh/opencode, test — covers: §2 — estimate: 2h (hand dsh)
+- [x] T-SS2-02 side-session: Chrome, phiên cha, trần ngày, provider dsh/opencode, test — covers: §2 — estimate: 2h (hand dsh)
 - [x] T-SS2-03 hh-ps: trường mới, phiên phụ ngoài phạm vi cwd, dòng phiên ngoài, dạng chữ lồng nhau, test — covers: §1.2, §1.3, §3 — estimate: 1.5h (hand dsh)
 - [x] T-SS2-04 Plugin Paseo hh-tree: schema và vẽ lồng nhau — covers: §3 — estimate: 1h (hand dsh)
 - [x] T-SS2-05 Dải terminal hh-tree-band vẽ lồng nhau, test mod — covers: §3 — estimate: 0.5h (brain)
@@ -74,5 +75,5 @@ Mỗi phần tử `sessions[]` thêm (mọi consumer phải chịu được khi 
 
 ### Kiểm chứng
 
-- [ ] `python3 -m unittest discover -s hybrid-hands/tests -q` xanh trên nhánh gộp
-- [ ] `claude plugin validate hybrid-hands/plugins/hybrid-hands` đạt
+- [x] `python3 -m unittest discover -s hybrid-hands/tests -q` xanh trên nhánh gộp
+- [x] `claude plugin validate hybrid-hands/plugins/hybrid-hands` đạt

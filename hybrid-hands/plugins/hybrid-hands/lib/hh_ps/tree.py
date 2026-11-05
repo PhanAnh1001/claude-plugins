@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from .claude_source import claude_config_dir, load_sessions, short_session_id
 from .constants import (
     PARENT_SESSION_ENV, PROVIDER_CLAUDE, RUN_STATUS_RUNNING, SIDE_RUN_LABEL_PREFIX,
+    SIDE_RUN_LABEL_SANITIZED_PREFIX,
 )
 from .models import HandRun, Session, Snapshot
 from .registry_source import (
@@ -168,8 +169,9 @@ def _side_run_targets(sessions: List[Session],
         if not session.side_name:
             continue
         state = side.get(session.session_id) or {}
-        targets[SIDE_RUN_LABEL_PREFIX + session.side_name] = (
-            session, to_epoch(state.get("started")))
+        found = (session, to_epoch(state.get("started")))
+        for prefix in (SIDE_RUN_LABEL_PREFIX, SIDE_RUN_LABEL_SANITIZED_PREFIX):
+            targets[prefix + session.side_name] = found
     return targets
 
 
@@ -205,8 +207,8 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     orphans: List[HandRun] = []
     for run in load_hand_runs(state_root(), cutoff):
         target = _label_target(run, targets)
-        if target is None and run.parent_session and \
-                not run.label.startswith(SIDE_RUN_LABEL_PREFIX):
+        side_label = run.label in targets or run.label.startswith(SIDE_RUN_LABEL_PREFIX)
+        if target is None and run.parent_session and not side_label:
             target = by_id.get(run.parent_session)
         if target is not None:
             target.hand_runs.append(run)
