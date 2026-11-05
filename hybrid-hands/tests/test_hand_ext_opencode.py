@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Optional
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,10 +23,10 @@ TIMEOUT_S = 60
 
 
 def _spec(run_dir: Path, model: str = oc.DEFAULT_MODEL, effort: str = "max",
-          sandbox: str = "workspace-write") -> RunSpec:
+          sandbox: str = "workspace-write", options: Optional[dict] = None) -> RunSpec:
     return RunSpec(prompt="brief body", cwd=Path("/repo"), run_dir=run_dir, model=model,
                    effort=effort, sandbox=sandbox, timeout_s=TIMEOUT_S, max_tokens=None,
-                   options={})
+                   options=options or {})
 
 
 def _feed(name: str) -> RunState:
@@ -58,7 +59,9 @@ class BuildCommandTest(unittest.TestCase):
         self.assertIn("--auto", argv)
         self.assertEqual(argv[-1], oc.SHORT_MESSAGE)
         self.assertEqual(prompt.read_text(encoding="utf-8"), "brief body")
-        self.assertEqual(env, {oc.CONFIG_ENV: str(oc.DEFAULT_CONFIG)})
+        self.assertEqual(env[oc.CONFIG_ENV], str(oc.DEFAULT_CONFIG))
+        content = json.loads(env[oc.CONFIG_CONTENT_ENV])
+        self.assertTrue(content["compaction"]["auto"])
         self.assertIsNone(stdin)
 
     def test_effort_outside_variants_falls_back(self):
@@ -88,6 +91,64 @@ class BuildCommandTest(unittest.TestCase):
         self.assertIn('"external_directory": "deny"', text)
         self.assertIn('"share": "disabled"', text)
         self.assertIn('"%s"' % oc.AGENT_READONLY, text)
+
+
+class CompactionTest(unittest.TestCase):
+    """Per-run OPENCODE_CONFIG_CONTENT moves the auto-compact threshold to 272k."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.run_dir = Path(self.tmp.name)
+        self.backend = oc.OpencodeBackend()
+        patcher = mock.patch.dict(os.environ, {BIN_ENV: "/fake/opencode"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    def _env(self, options: Optional[dict] = None,
+             model: str = oc.DEFAULT_MODEL) -> dict:
+        _, env, _ = self.backend.build_command(
+            _spec(self.run_dir, model=model, options=options))
+        return env
+
+    def test_default_content_targets_272k(self):
+        content = json.loads(self._env()[oc.CONFIG_CONTENT_ENV])
+        self.assertIs(content["compaction"]["auto"], True)
+        reserved = content["compaction"]["reserved"]
+        self.assertEqual(reserved, oc.COMPACTION_RESERVED)
+        model = content["provider"]["opencode-go"]["models"]["deepseek-v4.1-flash"]
+        self.assertIsNone(model["limit"].get("context"))
+        self.assertEqual(model["limit"]["input"] - reserved, 272_000)
+
+    def test_custom_compact_at_changes_input_limit(self):
+        content = json.loads(self._env({"compact_at": 200_000})[oc.CONFIG_CONTENT_ENV])
+        self.assertEqual(content["compaction"]["reserved"], oc.COMPACTION_RESERVED)
+        model = content["provider"]["opencode-go"]["models"]["deepseek-v4.1-flash"]
+        self.assertEqual(model["limit"]["input"] - oc.COMPACTION_RESERVED, 200_000)
+
+    def test_content_follows_model_of_the_run(self):
+        content = json.loads(self._env(model="opencode-go/deepseek-v4.1-pro")
+                             [oc.CONFIG_CONTENT_ENV])
+        models = content["provider"]["opencode-go"]["models"]
+        self.assertEqual(list(models), ["deepseek-v4.1-pro"])
+
+    def test_zero_compact_at_sets_no_content_env(self):
+        env = self._env({"compact_at": 0})
+        self.assertEqual(env, {oc.CONFIG_ENV: str(oc.DEFAULT_CONFIG)})
+
+    def test_invalid_compact_at_raises(self):
+        for value in (-1, "272000", 1.5, True, oc.COMPACTION_RESERVED,
+                      oc.COMPACTION_RESERVED - 1):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self._env({"compact_at": value})
+
+    def test_model_without_model_id_raises(self):
+        with self.assertRaises(ValueError):
+            self._env(model="opencode-go/")
+
+    def test_disable_autocompact_is_blocked_from_child_env(self):
+        self.assertIn("OPENCODE_DISABLE_AUTOCOMPACT", oc.OpencodeBackend.BLOCKED_ENV)
 
 
 class ParseAndFinalizeTest(unittest.TestCase):

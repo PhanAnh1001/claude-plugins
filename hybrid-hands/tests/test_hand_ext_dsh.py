@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
 from hand_ext import cli, prompt as hand_prompt  # noqa: E402
 from hand_ext.backends.base import RunSpec, RunState, Status, Usage  # noqa: E402
 from hand_ext.backends import dsh  # noqa: E402
+from hand_ext.constants import DEFAULT_COMPACT_AT  # noqa: E402
 from hand_ext.runner import run_backend  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "hand_ext"
@@ -85,7 +86,9 @@ class BuildCommandTest(_TmpCase):
         launch = dsh.launch_dir(self.home.options)
         self.assertEqual(argv[:4], [sys.executable, "-c", dsh.CHDIR_EXEC, str(launch)])
         self.assertEqual(argv[4:], ["/fake/dsh", "--profile", "headless", "--patch",
-                                    str(dsh.patch_file(self.home.options)), "--json", "-"])
+                                    str(dsh.patch_file(self.home.options)), "--patch",
+                                    str(spec.run_dir / dsh.COMPACTION_PATCH_FILE),
+                                    "--json", "-"])
         self.assertEqual(stdin, spec.prompt)
         self.assertEqual(env[dsh.KEY_ENV], FAKE_KEY)
         self.assertEqual(env[dsh.ENV_WORKSPACE], str(self.repo))
@@ -141,6 +144,63 @@ class BuildCommandTest(_TmpCase):
             self.assertIn(needle, text)
 
 
+class CompactionTest(_TmpCase):
+    """Per-run dsh patch: auto-compact at 272k by default, configurable, never shared."""
+
+    def setUp(self):
+        super().setUp()
+        self.home = _Home(self.base)
+        patcher = mock.patch.dict(os.environ, {BIN_ENV: "/fake/dsh"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _build(self, **overrides):
+        options = dict(self.home.options, **overrides)
+        spec = _spec(self.base, options, self.repo)
+        argv, _, _ = dsh.DshBackend().build_command(spec)
+        patches = [argv[index + 1] for index, arg in enumerate(argv) if arg == "--patch"]
+        return spec, patches
+
+    def test_default_patch_is_after_hand_patch_and_targets_272k(self):
+        self.assertEqual(DEFAULT_COMPACT_AT, 272_000)
+        spec, patches = self._build()
+        target = spec.run_dir / dsh.COMPACTION_PATCH_FILE
+        self.assertEqual(patches, [str(dsh.patch_file(self.home.options)), str(target)])
+        text = target.read_text(encoding="utf-8")
+        self.assertIn("- id: compaction-basic", text)
+        self.assertIn("name: '@deepseek-ai/dsh-compaction-basic'", text)
+        self.assertIn("thresholdRatio: 0.2593994140625", text)
+
+    def test_custom_compact_at_changes_ratio(self):
+        spec, patches = self._build(compact_at=200_000)
+        text = Path(patches[-1]).read_text(encoding="utf-8")
+        self.assertIn("thresholdRatio: 0.19073486328125", text)
+        self.assertEqual(Path(patches[-1]), spec.run_dir / dsh.COMPACTION_PATCH_FILE)
+
+    def test_custom_context_window_changes_ratio(self):
+        _, patches = self._build(compact_at=200_000, context_window=1_000_000)
+        text = Path(patches[-1]).read_text(encoding="utf-8")
+        self.assertIn("thresholdRatio: 0.2", text)
+
+    def test_zero_compact_at_writes_no_patch(self):
+        spec, patches = self._build(compact_at=0)
+        self.assertEqual(patches, [str(dsh.patch_file(self.home.options))])
+        self.assertFalse((spec.run_dir / dsh.COMPACTION_PATCH_FILE).exists())
+
+    def test_invalid_compact_at_raises(self):
+        for value in (-1, "272000", 1.5, True, dsh.DEFAULT_CONTEXT_WINDOW,
+                      dsh.DEFAULT_CONTEXT_WINDOW + 1):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self._build(compact_at=value)
+
+    def test_invalid_context_window_raises(self):
+        for value in (0, -1, "1048576", 1.5, True):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    self._build(context_window=value)
+
+
 class BrowserPatchTest(_TmpCase):
     """`--browser` adds a per-run MCP overlay, never edits the shared patch."""
 
@@ -169,7 +229,9 @@ class BrowserPatchTest(_TmpCase):
         spec, (argv, env, _) = self._build(browser=True)
         patches = self._patches(argv)
         self.assertEqual(patches[0], str(dsh.patch_file(self.options)))
-        self.assertEqual(len(patches), 2)
+        self.assertEqual(len(patches), 3)
+        self.assertEqual(Path(patches[1]).name, dsh.BROWSER_PATCH_FILE)
+        self.assertEqual(Path(patches[2]), spec.run_dir / dsh.COMPACTION_PATCH_FILE)
         overlay = json.loads(Path(patches[1]).read_text(encoding="utf-8"))
         entry = overlay[0]["insert"][0]
         self.assertEqual(entry["id"], "hand-ext-browser")
@@ -199,11 +261,12 @@ class BrowserPatchTest(_TmpCase):
         self.assertEqual(Path(patches[1]).parent.resolve(), spec.run_dir.resolve())
         self.assertEqual(env[dsh.KEY_ENV], FAKE_KEY)
 
-    def test_off_keeps_single_patch_and_shared_patch(self):
+    def test_off_keeps_hand_and_compaction_patches(self):
         shared = dsh.patch_file(self.options)
         before = shared.read_bytes()
         spec, (argv, _, _) = self._build(browser=False)
-        self.assertEqual(self._patches(argv), [str(shared)])
+        self.assertEqual(self._patches(argv), [str(shared),
+                                               str(spec.run_dir / dsh.COMPACTION_PATCH_FILE)])
         self.assertEqual(shared.read_bytes(), before)
         self.assertFalse((spec.run_dir / "browser.patch.json").exists())
 
@@ -320,10 +383,10 @@ class ParseAndFinalizeTest(unittest.TestCase):
 
 
 class VersionTest(unittest.TestCase):
-    def test_plugin_version_0_11_0(self):
+    def test_plugin_version_0_12_0(self):
         manifest = ROOT / "plugins" / "hybrid-hands" / ".claude-plugin" / "plugin.json"
-        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["version"], "0.11.0")
-        self.assertEqual(dsh.USER_AGENT, "hybrid-hands-hand-ext/0.11.0")
+        self.assertEqual(json.loads(manifest.read_text(encoding="utf-8"))["version"], "0.12.0")
+        self.assertEqual(dsh.USER_AGENT, "hybrid-hands-hand-ext/0.12.0")
 
 
 class DoctorTest(_TmpCase):
