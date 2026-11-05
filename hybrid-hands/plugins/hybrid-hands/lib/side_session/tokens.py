@@ -1,11 +1,10 @@
 """Count tokens used by a side session.
 
-Source plan (live-tiktok-games §7.3) measured `context_window.total_input_tokens +
-total_output_tokens` from the status line; its helper scripts (cost-tap.sh,
-day-budget.sh) are not on this machine, so we read the transcript instead:
-claude = sum over unique assistant message ids of input_tokens +
-cache_creation_input_tokens + output_tokens (cache_read_input_tokens NOT counted);
-codex = last `token_count` event total in the rollout file.
+Claude sessions can use the status-line token file configured as
+`side_session.token_file` (one non-negative integer); otherwise the transcript is summed
+over unique assistant message ids of input_tokens + cache_creation_input_tokens +
+output_tokens (cache_read_input_tokens NOT counted). Codex = last `token_count` event
+total in the rollout file.
 """
 from __future__ import annotations
 
@@ -52,6 +51,18 @@ def claude_tokens(path: Path) -> int:
         key = msg.get("id") or rec.get("uuid") or str(len(per_msg))
         per_msg[key] = max(per_msg.get(key, 0), total)  # same id repeats per content block
     return sum(per_msg.values())
+
+
+def token_file_tokens(template: str, uuid: str) -> int:
+    """Read the status-line counter; missing, unreadable or malformed files count as 0."""
+    path = Path(template.replace(C.TOKEN_FILE_PLACEHOLDER, uuid))
+    try:
+        raw = path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeError):
+        return 0
+    if not raw or not raw.isascii() or not raw.isdecimal():
+        return 0
+    return int(raw)
 
 
 def codex_rollout(codex_home: Path, uuid: str, since: float = 0.0) -> Path | None:

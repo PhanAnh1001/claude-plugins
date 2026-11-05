@@ -30,6 +30,8 @@ DEFAULTS: dict = {
     "budget_check_cmd": [],
     # status line command for claude side sessions (relative to repo), "" = Claude default.
     "status_line_cmd": "",
+    # status-line token file for claude side sessions (relative to repo), "" = transcript.
+    "token_file": "",
 }
 
 PROVIDER_CLAUDE = "claude"
@@ -43,6 +45,7 @@ EXTERNAL_PROVIDERS = (PROVIDER_DSH, PROVIDER_OPENCODE)
 SCREEN_PREFIX = "side-"
 WATCH_SUFFIX = "-watch"
 BRANCH_PREFIX = "side/"
+DEFAULT_BASE = "HEAD"
 
 STATUS_RUNNING = "running"
 STATUS_STOPPED = "stopped"
@@ -85,3 +88,7 @@ BRAIN_PLACEHOLDER = "{brain}"
 NAME_PLACEHOLDER = "{name}"
 HANDOFF_PLACEHOLDER = "{handoff}"
 BRAIN_LINE_MARKER = "[[brain]]"
+
+TOKEN_FILE_PLACEHOLDER = "{uuid}"
+RESUME_PROMPT = ("Phiên này được mở lại sau khi bị dừng. Đọc lại việc đang dở, "
+                 "không làm lại bước đã xong, rồi làm tiếp đến hết theo yêu cầu ban đầu.")

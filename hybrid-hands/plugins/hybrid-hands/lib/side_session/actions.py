@@ -49,15 +49,7 @@ def _refuse_budget(result: budget.BudgetResult) -> int:
     return C.EXIT_BUDGET
 
 
-def start(cfg: SideConfig, a) -> int:
-    name = a.name
-    prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
-    handoff = cfg.handoff_dir / f"{name}.md"
-    full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "",
-                               external=a.provider in C.EXTERNAL_PROVIDERS)
-    refused = _validate_start(a, full_prompt)
-    if refused:
-        return refused
+def _preflight(cfg: SideConfig, a) -> int | None:
     if cfg.budget_check_cmd and not (a.budget_exempt or a.force_budget):
         result = budget.check(cfg)
         if result.refused:
@@ -66,11 +58,57 @@ def start(cfg: SideConfig, a) -> int:
     if not a.dry_run and len(running) >= cfg.max_parallel:
         print(f"side-session: {len(running)} running >= max_parallel {cfg.max_parallel}: "
               + ", ".join(s.name for s in running))
-        return 2
+        return C.EXIT_USAGE
+    return None
+
+
+def _launch(cfg: SideConfig, a, st: state.SessionState, cmds: list[list[str]], *,
+            dry_run_kind: str, done_message: str, prompt_file: Path | None = None,
+            prompt_text: str = "") -> int:
+    if a.dry_run:
+        print(f"# dry-run: {dry_run_kind} {st.name} uuid={st.uuid} provider={st.provider} "
+              f"chrome={'yes' if st.chrome else 'no'} max_tokens={st.max_tokens} dir={st.dir}")
+        if prompt_file is not None:
+            print(f"# prompt: {prompt_file}")
+        print(f"# state: {state.state_path(cfg.state_dir, st.name)}  handoff: {st.handoff}")
+        for cmd in cmds:
+            print(shlex.join(cmd))
+        return 0
+    if prompt_file is not None:
+        cfg.state_dir.mkdir(parents=True, exist_ok=True)
+        prompt_file.write_text(prompt_text, encoding="utf-8")
+    for cmd in cmds[:-1]:
+        if subprocess.run(cmd).returncode != 0:
+            print(f"side-session: failed: {shlex.join(cmd)}")
+            return 1
+    state.save(cfg.state_dir, st)
+    if subprocess.run(cmds[-1]).returncode != 0:
+        print("side-session: warning: watchdog failed to start")
+    print(done_message)
+    return 0
+
+
+def start(cfg: SideConfig, a) -> int:
+    if a.resume:
+        return resume(cfg, a)
+    if a.prompt is None and a.prompt_file is None:
+        print("side-session: start cần --prompt hoặc --prompt-file")
+        return C.EXIT_USAGE
+    name = a.name
+    prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
+    handoff = cfg.handoff_dir / f"{name}.md"
+    full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "",
+                               external=a.provider in C.EXTERNAL_PROVIDERS)
+    refused = _validate_start(a, full_prompt)
+    if refused:
+        return refused
+    preflight = _preflight(cfg, a)
+    if preflight is not None:
+        return preflight
     if not a.dry_run and state.state_path(cfg.state_dir, name).is_file() \
             and state.load(cfg.state_dir, name).status in C.ACTIVE_STATUSES:
         print(f"side-session: {name} already running")
-        return 2
+        return C.EXIT_USAGE
     sid = str(uuidlib.uuid4())
     workdir = str(cfg.worktree_root / name) if a.worktree else str(cfg.repo)
     max_tokens = K.max_tokens_for(cfg, a.max_tokens, a.hours)
@@ -80,39 +118,87 @@ def start(cfg: SideConfig, a) -> int:
     started = time.time()
     cmds = []
     if a.worktree:
-        cmds.append(K.worktree_cmd(cfg, name, a.base))
+        cmds.append(K.worktree_cmd(cfg, name, a.base or C.DEFAULT_BASE))
     cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
                               prompt_file, a.hours))
     cmds.append(K.watch_cmd(cfg, name))
-    if a.dry_run:
-        print(f"# dry-run: session {name} uuid={sid} provider={a.provider} "
-              f"chrome={'yes' if chrome else 'no'} max_tokens={max_tokens} dir={workdir}")
-        if prompt_file is not None:
-            print(f"# prompt: {prompt_file}")
-        print(f"# state: {state.state_path(cfg.state_dir, name)}  handoff: {handoff}")
-        for cmd in cmds:
-            print(shlex.join(cmd))
-        return 0
-    if prompt_file is not None:
-        cfg.state_dir.mkdir(parents=True, exist_ok=True)
-        prompt_file.write_text(full_prompt, encoding="utf-8")
-    for cmd in cmds[:-1]:
-        if subprocess.run(cmd).returncode != 0:
-            print(f"side-session: failed: {shlex.join(cmd)}")
-            return 1
-    state.save(cfg.state_dir, state.SessionState(
+    st = state.SessionState(
         name=name, uuid=sid, provider=a.provider, dir=workdir, screen=K.session_screen(name),
         watch_screen=K.watch_screen(name), max_tokens=max_tokens, started=started,
         status=C.STATUS_RUNNING, handoff=str(handoff), worktree=bool(a.worktree),
         parent_session=os.environ.get(C.PARENT_SESSION_ENV, ""), chrome=chrome,
-        budget_exempt=bool(a.budget_exempt)))
-    if subprocess.run(cmds[-1]).returncode != 0:
-        print("side-session: warning: watchdog failed to start")
-    print(f"started {name} (screen -r {K.session_screen(name)}), uuid {sid}, cap {max_tokens}")
-    return 0
+        budget_exempt=bool(a.budget_exempt))
+    return _launch(cfg, a, st, cmds, prompt_file=prompt_file, prompt_text=full_prompt,
+                   dry_run_kind="session",
+                   done_message=f"started {name} (screen -r {K.session_screen(name)}), "
+                                f"uuid {sid}, cap {max_tokens}")
+
+
+def _validate_resume(a) -> int | None:
+    if a.provider != C.PROVIDER_CLAUDE:
+        print(f"side-session: --resume chỉ dùng với provider {C.PROVIDER_CLAUDE}, "
+              f"không dùng được với {a.provider}")
+        return C.EXIT_USAGE
+    if a.worktree:
+        print("side-session: --resume không dùng với --worktree; "
+              "giữ worktree của state cũ")
+        return C.EXIT_USAGE
+    if a.base is not None:
+        print("side-session: --resume không dùng với --base")
+        return C.EXIT_USAGE
+    if a.prompt is not None:
+        print("side-session: --resume dùng --prompt-file, không dùng --prompt")
+        return C.EXIT_USAGE
+    return None
+
+
+def resume(cfg: SideConfig, a) -> int:
+    refused = _validate_resume(a)
+    if refused is not None:
+        return refused
+    path = state.state_path(cfg.state_dir, a.name)
+    if not path.is_file():
+        print(f"side-session: no session named {a.name!r} ({path})")
+        return C.EXIT_USAGE
+    old = state.load(cfg.state_dir, a.name)
+    if old.provider != C.PROVIDER_CLAUDE:
+        print(f"side-session: --resume chỉ dùng cho phiên {C.PROVIDER_CLAUDE}, "
+              f"{a.name} là {old.provider}")
+        return C.EXIT_USAGE
+    screen_name = K.session_screen(a.name)
+    if screen_name in screen.screen_ids():
+        print(f"side-session: {screen_name} vẫn còn sống; dừng phiên rồi mới --resume")
+        return C.EXIT_USAGE
+    preflight = _preflight(cfg, a)
+    if preflight is not None:
+        return preflight
+    if a.prompt_file:
+        text = Path(a.prompt_file).read_text(encoding="utf-8")
+        prompt = build_prompt(text, a.name, Path(old.handoff), a.brain or "")
+    else:
+        prompt = C.RESUME_PROMPT
+    max_tokens = a.max_tokens if a.max_tokens is not None else old.max_tokens
+    chrome = old.chrome if a.chrome is None else a.chrome
+    st = state.SessionState(
+        name=a.name, uuid=old.uuid, provider=C.PROVIDER_CLAUDE, dir=old.dir,
+        screen=screen_name, watch_screen=K.watch_screen(a.name), max_tokens=max_tokens,
+        started=time.time(), status=C.STATUS_RUNNING, handoff=old.handoff,
+        worktree=old.worktree,
+        parent_session=os.environ.get(C.PARENT_SESSION_ENV) or old.parent_session,
+        chrome=chrome, budget_exempt=bool(a.budget_exempt), tokens_used=0)
+    cmds = [
+        K.session_cmd(cfg, C.PROVIDER_CLAUDE, a.name, old.uuid, old.dir, prompt, chrome,
+                      resume=True),
+        K.watch_cmd(cfg, a.name),
+    ]
+    return _launch(cfg, a, st, cmds, dry_run_kind="resume",
+                   done_message=f"resumed {a.name} (screen -r {screen_name}), "
+                                f"uuid {old.uuid}, cap {max_tokens}")
 
 
 def count_tokens(cfg: SideConfig, st: state.SessionState) -> int:
+    if st.provider == C.PROVIDER_CLAUDE and cfg.token_file:
+        return tokens.token_file_tokens(cfg.token_file, st.uuid)
     if st.provider in C.EXTERNAL_PROVIDERS:
         run = external.run_for(st)
         return external.tokens_used(run) if run is not None else 0
