@@ -24,6 +24,16 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--max-tokens", type=int)
     s.add_argument("--hours", type=float)
     s.add_argument("--brain", default="", help="brain session name for SendMessage")
+    chrome = s.add_mutually_exclusive_group()
+    chrome.add_argument("--chrome", dest="chrome", action="store_true",
+                        help="mở Chrome (chỉ provider claude)")
+    chrome.add_argument("--no-chrome", dest="chrome", action="store_false",
+                        help="không mở Chrome")
+    s.set_defaults(chrome=None)
+    s.add_argument("--budget-exempt", action="store_true",
+                   help="bỏ kiểm tra budget_check_cmd khi start và mã 20 khi watch")
+    s.add_argument("--force-budget", action="store_true",
+                   help="start dù budget_check_cmd từ chối (watch vẫn kiểm)")
     s.add_argument("--dry-run", action="store_true")
     sub.add_parser("ls", help="list sessions")
     st = sub.add_parser("stop", help="stop a session and its watchdog")

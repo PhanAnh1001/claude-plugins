@@ -26,11 +26,19 @@ DEFAULTS: dict = {
     "state_dir": "output/llm/side-sessions",
     "codex_home": "~/.codex-hand",
     "codex_profile": "",  # empty: use top-level keys of the hand-only CODEX_HOME
+    # argv of the day-budget guard, e.g. ["scripts/day-budget.sh", "status"]; [] = off.
+    "budget_check_cmd": [],
+    # status line command for claude side sessions (relative to repo), "" = Claude default.
+    "status_line_cmd": "",
 }
 
 PROVIDER_CLAUDE = "claude"
 PROVIDER_CODEX = "codex"
-PROVIDERS = (PROVIDER_CLAUDE, PROVIDER_CODEX)
+PROVIDER_DSH = "dsh"
+PROVIDER_OPENCODE = "opencode"
+PROVIDERS = (PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_DSH, PROVIDER_OPENCODE)
+# Providers run as an external hand through `hand-ext run` (no Claude transcript).
+EXTERNAL_PROVIDERS = (PROVIDER_DSH, PROVIDER_OPENCODE)
 
 SCREEN_PREFIX = "side-"
 WATCH_SUFFIX = "-watch"
@@ -40,7 +48,31 @@ STATUS_RUNNING = "running"
 STATUS_STOPPED = "stopped"
 STATUS_CAPPED = "capped"
 STATUS_DEAD = "dead"
+STATUS_DAYSTOP = "daystop"
 ACTIVE_STATUSES = (STATUS_RUNNING,)
+
+# Exit codes of `side-session start`/`watch`.
+EXIT_USAGE = 2
+EXIT_BUDGET = 4
+
+# Day-budget guard: `budget_check_cmd` exits 20 when today's budget is spent.
+BUDGET_DAYSTOP_CODE = 20
+BUDGET_TIMEOUT_S = 30
+
+PARENT_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
+CHILD_SESSION_ENV = "CLAUDE_CODE_CHILD_SESSION"
+
+CHROME_FLAG = "--chrome"
+NO_CHROME_FLAG = "--no-chrome"
+PROMPT_RULES_MARKER = "LUẬT BẮT BUỘC"
+
+# External-hand contract: label side:<name>, prompt file and report in the hand-ext run dir.
+EXT_LABEL_PREFIX = "side:"
+# hand-ext sanitises ':' to '-', so the registry may hold this form instead.
+EXT_LABEL_SANITIZED_PREFIX = "side-"
+PROMPT_FILE_SUFFIX = ".prompt.md"
+EXT_REPORT_FILE = "report.md"
+HAND_RUN_STATUS_OK = "ok"
 
 CLAUDE_PROJECTS_DIR = "~/.claude/projects"
 # Env override for the projects dir (tests point it at a fixture tree).

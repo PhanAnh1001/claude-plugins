@@ -94,6 +94,18 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 
 Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=` chỉ là miễn trần ngày, trần token vẫn hiện); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. `codex`, `claude` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|gemini` khi cần. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test).
 
+### 4.1 Phiên phụ: Chrome, phiên cha, trần ngày, hand ngoài
+
+`side-session start` nhận thêm:
+- `--chrome` / `--no-chrome`: mặc định theo `claude_args` (mặc định `--no-chrome`). `--chrome` thay mọi `--no-chrome` trong argv claude bằng `--chrome` và ghi `chrome` vào state; chỉ dùng với provider `claude`, provider khác in lỗi và thoát 2.
+- `--provider dsh|opencode`: chạy hand ngoài trong screen bằng `hand-ext run --backend <p> --brief <state_dir>/<tên>.prompt.md --label side:<tên> --cwd <worktree> [--timeout-min <giờ×60>]`; không truyền `--max-tokens` vì hand-ext tính cả token đọc cache, trần do `watch` canh (không tính cached). Bắt buộc `--worktree` (thiếu thoát 2); prompt sau khi ghép template phải có mục `LUẬT BẮT BUỘC` (thiếu thoát 2). `watch`/`ls` đọc token của lượt `hand-ext` nhãn `side:<tên>` bắt đầu từ `state.started` (vào + ra, không tính cached); khi lượt kết thúc, chép `report.md` thành `<handoff_dir>/<tên>.md` nếu chưa có và đặt `stopped` (ok) hoặc `dead` (lỗi).
+- `--budget-exempt` / `--force-budget`: bỏ qua trần ngày ở lần `start` này; `--budget-exempt` ghi `budget_exempt=True` và cũng miễn mã 20 khi `watch`, còn `--force-budget` chỉ bỏ qua một lần.
+- Mọi phiên ghi `parent_session` = `CLAUDE_CODE_SESSION_ID` của phiên gọi; môi trường phiên con bỏ `CLAUDE_CODE_CHILD_SESSION`.
+
+`side_session.budget_check_cmd` (mặc định `[]` = tắt) là argv của lệnh kiểm trần ngày, chạy không qua shell, timeout 30 s; phần tử đầu là đường dẫn tương đối thì tính từ repo (ví dụ `["scripts/day-budget.sh", "status"]`). `start`: mã khác 0 (kể cả lỗi không chạy được lệnh) in stdout của lệnh rồi từ chối, thoát 4, trừ khi có `--budget-exempt` hoặc `--force-budget`. `watch`: chạy lại mỗi vòng; mã 20 và state không `budget_exempt` thì dừng phiên với trạng thái `daystop`. `side-session ls` thêm cột `CHROME`.
+
+`side_session.status_line_cmd` (mặc định `""` = status line mặc định) là lệnh status line cho phiên phụ provider `claude`, đường dẫn tương đối tính từ repo; `start` truyền `--settings {"statusLine":{"type":"command","command":<đường dẫn tuyệt đối>}}`, ví dụ để phiên phụ ghi số liệu cho lệnh trần ngày.
+
 ## 5. Backend của hand ngoài
 
 Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2.
