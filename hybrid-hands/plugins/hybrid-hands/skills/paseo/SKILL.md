@@ -12,7 +12,7 @@ description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi v�
 - **Daemon:** `paseo start` chạy nền, nghe `127.0.0.1:6767`, cấu hình ở `~/.paseo/config.json`; relay (để điện thoại kết nối qua internet) **tắt mặc định**. Không thấy cơ chế tự khởi động khi đăng nhập máy.
 - **Hand Codex riêng:** khai provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME`) trong config, `paseo reload`, rồi `paseo run --provider codex-hand ...`; hoặc một lần bằng `paseo run --provider codex --env CODEX_HOME=...`.
 - **Giới hạn chính:** chỉ agent do Paseo tạo (hoặc `paseo import <session-id>`) mới hiện; phiên `claude` brain đang chạy trong terminal và phiên `screen` của side-session **không tự hiện** (đã kiểm: `paseo ls -a -g` rỗng khi có phiên claude đang mở).
-- **Chuyển phiên terminal ↔ Paseo:** dùng `cc-switch term|paseo|status` (README hybrid-hands mục 7); reload/import trước khi gửi tin để transcript không rẽ nhánh.
+- **Chuyển phiên terminal ↔ Paseo:** dùng `cc-switch term|paseo|status` (README hybrid-hands mục 7); trong phiên TUI đang mở thì `cc-switch paseo --self` (brain chạy ở lượt cuối); reload/import trước khi gửi tin để transcript không rẽ nhánh.
 - **Người dùng phải tự làm:** bật relay, quét QR trên điện thoại, cài app; agent không ghép điện thoại hộ, không ghi `~/.paseo/config.json` khi chưa được duyệt.
 
 ## 1. Cài đặt và phiên bản
@@ -81,6 +81,10 @@ Theo [orchestration](https://paseo.sh/docs/orchestration) (11/2026) và `--help`
 
 - Id nhận tiền tố. Không viết vòng chờ không trần; dùng `paseo wait --timeout`.
 - Agent trong Paseo gọi agent khác qua tool MCP `create_agent`, `send_agent_prompt` khi bật `daemon.mcp.injectIntoAgents` ([MCP](https://paseo.sh/docs/mcp), 11/2026).
+
+### 5.1 Chuyển chính phiên TUI sang Paseo
+
+**Chuyển phiên TUI đang mở sang Paseo:** khi người dùng nói "switch sang paseo" hoặc "chuyển sang paseo" ngay trong một phiên Claude Code TUI, brain chạy `cc-switch paseo --self` ở **lượt cuối của câu trả lời** (sau khi đã viết xong nội dung cần trả lời, trước khi kết thúc lượt), rồi báo người dùng **đừng gõ hay nhấn Enter** cho tới khi TUI tự đóng. Lệnh trả về ngay và tách tiến trình nền chờ transcript đứng yên, gửi SIGTERM cho TUI rồi nạp phiên sang Paseo theo đúng luồng `cc-switch paseo --session <sid>`; log ở `~/.hybrid-hands/cc-switch/self-<sid8>.log`. Muốn quay lại terminal sau đó thì dùng `cc-switch term`. Dùng cách này thay cho việc `/exit` bằng tay rồi chạy `cc-switch paseo --session`.
 
 ## 6. Giới hạn: phiên nào hiện
 

@@ -5,8 +5,12 @@ import argparse
 import sys
 from typing import List, Optional
 
+from .constants import (
+    SELF_EXIT_TIMEOUT_SECONDS, SELF_IDLE_SECONDS, SELF_WORKER_COMMAND,
+)
 from .errors import CcSwitchError
 from .paseo_cmd import run_paseo
+from .self_cmd import build_worker_parser, run_paseo_self, run_self_worker
 from .status_cmd import run_status
 from .term import run_term
 
@@ -27,8 +31,18 @@ def build_parser() -> argparse.ArgumentParser:
     paseo = commands.add_parser(
         "paseo", help="nạp lại (hoặc import) phiên để Paseo tiếp tục")
     paseo.add_argument("--session", help="sessionId Claude cần chuyển")
+    paseo.add_argument("--self", dest="self_mode", action="store_true",
+                       help="tự tìm phiên TUI hiện tại rồi chuyển nền "
+                            "(không đi với --session)")
+    paseo.add_argument("--idle-sec", type=int, default=SELF_IDLE_SECONDS,
+                       help=f"chờ transcript đứng yên bao nhiêu giây "
+                            f"(mặc định {SELF_IDLE_SECONDS})")
+    paseo.add_argument("--exit-timeout", type=int,
+                       default=SELF_EXIT_TIMEOUT_SECONDS,
+                       help=f"chờ TUI thoát sau SIGTERM bao nhiêu giây "
+                            f"(mặc định {SELF_EXIT_TIMEOUT_SECONDS})")
     paseo.add_argument("--dry-run", action="store_true",
-                       help="chỉ in lệnh paseo, không chạy")
+                       help="chỉ in kế hoạch hoặc lệnh paseo, không chạy")
 
     status = commands.add_parser("status", help="bảng agent và nơi đang giữ phiên")
     status.add_argument("--all", action="store_true",
@@ -44,8 +58,21 @@ def _split_extra(argv: List[str]) -> tuple:
     return argv, []
 
 
+def _report(exc: CcSwitchError) -> int:
+    stream = sys.stdout if exc.to_stdout else sys.stderr
+    print(exc.message, file=stream)
+    return exc.code
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
+    if raw[:1] == [SELF_WORKER_COMMAND]:
+        opts = build_worker_parser().parse_args(raw[1:])
+        try:
+            return run_self_worker(opts)
+        except CcSwitchError as exc:
+            return _report(exc)
+
     raw, extra = _split_extra(raw)
     parser = build_parser()
     opts = parser.parse_args(raw)
@@ -54,9 +81,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         if opts.command == "term":
             return run_term(opts)
         if opts.command == "paseo":
+            if opts.self_mode:
+                return run_paseo_self(opts)
             return run_paseo(opts)
         return run_status(opts)
     except CcSwitchError as exc:
-        stream = sys.stdout if exc.to_stdout else sys.stderr
-        print(exc.message, file=stream)
-        return exc.code
+        return _report(exc)

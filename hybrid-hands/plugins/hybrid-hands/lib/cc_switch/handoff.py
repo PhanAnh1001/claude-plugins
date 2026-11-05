@@ -10,9 +10,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
 
-from hh_ps.constants import STATE_DIR_DEFAULT, STATE_DIR_ENV
-
 from .constants import HANDOFF_FILENAME, HANDOFF_SUBDIR
+from .paths import state_dir
 
 
 @dataclass(frozen=True)
@@ -22,13 +21,8 @@ class Handoff:
     at: float
 
 
-def _state_dir() -> Path:
-    raw = os.environ.get(STATE_DIR_ENV) or STATE_DIR_DEFAULT
-    return Path(os.path.expanduser(raw))
-
-
 def ledger_path() -> Path:
-    return _state_dir() / HANDOFF_SUBDIR / HANDOFF_FILENAME
+    return state_dir() / HANDOFF_SUBDIR / HANDOFF_FILENAME
 
 
 def _key(root: Path) -> str:
