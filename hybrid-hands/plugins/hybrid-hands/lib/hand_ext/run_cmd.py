@@ -8,13 +8,14 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from . import go_usage, ledger, quota_state, render
+from . import go_usage, isolation, ledger, quota_state, render
 from .backends import BackendUnavailable, get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import ExtConfig
 from .constants import (
-    AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, FALLBACK_STATUSES, GO_USAGE_BACKENDS,
-    HAND_RUNS_SUBDIR, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
+    AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_USAGE, FALLBACK_STATUSES,
+    GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE,
+    STATUS_EXIT,
 )
 from .prompt import STDIN_MARK, build_prompt, read_brief
 from .run_registry import RunRegistry
@@ -81,11 +82,11 @@ def _now() -> str:
 
 
 def _spec(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
-          cwd: Path, run_id: str) -> RunSpec:
+          run_cwd: Path, run_id: str) -> RunSpec:
     options = with_sandbox(cfg, backend.name)
     max_tokens = args.max_tokens if args.max_tokens is not None else cfg.max_tokens
     return RunSpec(
-        prompt=prompt, cwd=cwd, run_dir=cfg.runs_dir / run_id,
+        prompt=prompt, cwd=run_cwd, run_dir=cfg.runs_dir / run_id,
         model=args.model or str(options.get("model", "")),
         effort=args.effort or str(options.get("effort", options.get("variant", ""))),
         sandbox=args.sandbox or cfg.sandbox,
@@ -96,11 +97,11 @@ def _spec(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: st
 
 
 def _entry(run_id: str, label: str, backend: str, spec: RunSpec, started: str,
-           outcome: RunOutcome) -> dict:
+           cwd: Path, outcome: RunOutcome) -> dict:
     usage, quota = outcome.state.usage, outcome.state.quota
     return {
         "run_id": run_id, "label": label, "backend": backend, "model": spec.model,
-        "effort": spec.effort, "started": started, "ended": _now(), "cwd": str(spec.cwd),
+        "effort": spec.effort, "started": started, "ended": _now(), "cwd": str(cwd),
         "status": outcome.status.value, "exit_code": outcome.exit_code,
         "tokens": {"input": usage.input, "cached_input": usage.cached_input,
                    "output": usage.output},
@@ -110,26 +111,51 @@ def _entry(run_id: str, label: str, backend: str, spec: RunSpec, started: str,
 
 
 def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
-             label: str, cwd: Path) -> int:
+             label: str, cwd: Path, choice: isolation.IsolationChoice) -> int:
     run_id = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}-{backend.name}"
-    spec = _spec(cfg, args, backend, prompt, cwd, run_id)
+    run_dir = cfg.runs_dir / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        ctx = isolation.prepare(cfg, cwd, run_id, run_dir, choice)
+    except isolation.IsolationError as exc:
+        isolation.append_report(run_dir / REPORT_FILE, isolation.failure_block(str(exc)))
+        print(f"hand-ext: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    spec = _spec(cfg, args, backend, prompt, ctx.run_cwd, run_id)
     started = _now()
     registry = RunRegistry(
         cfg.machine_state_dir / HAND_RUNS_SUBDIR, run_id, label, backend.name,
-        spec.model, spec.cwd, spec.run_dir)
+        spec.model, cwd, spec.run_dir)
     registry.start()
+    no_apply = bool(getattr(args, "no_apply", False))
+    keep_worktree = bool(getattr(args, "keep_worktree", False))
+    apply_result = isolation.ApplyResult()
+    cleanup_note = ""
+    fatal = False
     try:
-        outcome = run_backend(backend, spec, registry=registry)
-    except OSError as exc:
-        outcome = RunOutcome(Status.FAILED, None, RunState(usage=Usage()), 0.0,
-                             [f"không chạy được {backend.name}: {exc}"])
-        registry.finish(outcome.status.value, None, outcome.state.usage)
-    except BaseException:
-        registry.finish(Status.FAILED.value, None, None)
-        raise
-    else:
-        registry.finish(outcome.status.value, outcome.exit_code, outcome.state.usage)
-    entry = _entry(run_id, label, backend.name, spec, started, outcome)
+        try:
+            outcome = run_backend(backend, spec, registry=registry)
+        except OSError as exc:
+            outcome = RunOutcome(Status.FAILED, None, RunState(usage=Usage()), 0.0,
+                                 [f"không chạy được {backend.name}: {exc}"])
+            registry.finish(outcome.status.value, None, outcome.state.usage)
+        except BaseException:
+            registry.finish(Status.FAILED.value, None, None)
+            fatal = True
+            raise
+        else:
+            registry.finish(outcome.status.value, outcome.exit_code, outcome.state.usage)
+    finally:
+        apply_result = isolation.finalize(
+            ctx, run_dir, apply_changes=not no_apply and not fatal,
+            skip_reason="không áp sau lỗi" if fatal else "--no-apply")
+        if not keep_worktree:
+            cleanup_note = isolation.cleanup(ctx, keep=False)
+        isolation.append_report(run_dir / REPORT_FILE, isolation.report_block(
+            ctx, apply_result, kept=keep_worktree, cleanup_note=cleanup_note))
+        isolation_line = isolation.summary_line(
+            ctx, apply_result, kept=keep_worktree, cleanup_note=cleanup_note)
+    entry = _entry(run_id, label, backend.name, spec, started, cwd, outcome)
     ledger.append_entry(cfg.ledger, entry)
     go_line = _record_go(cfg, entry, outcome)
     quota = outcome.state.quota
@@ -139,7 +165,8 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
     report = spec.run_dir / REPORT_FILE
     text = report.read_text(encoding="utf-8") if report.is_file() else ""
     print(render.run_summary(entry, outcome.seconds, str(report) if report.is_file() else None,
-                             text, outcome.errors, go_line=go_line))
+                             text, outcome.errors, go_line=go_line,
+                             extra_lines=[isolation_line]))
     return STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
 
 
@@ -162,9 +189,16 @@ def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
     prompt = build_prompt(read_brief(args.brief), browser=browser)
     cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd()
     label = safe_label(args)
+    try:
+        choice = isolation.resolve_choice(cfg, cwd, getattr(args, "isolation", None))
+    except isolation.IsolationError as exc:
+        print(f"hand-ext: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    if choice.warning:
+        print(f"hand-ext: {choice.warning}", file=sys.stderr)
     backends = candidates(cfg, args.backend, browser=browser)
     for index, backend in enumerate(backends):
-        code = _attempt(cfg, args, backend, prompt, label, cwd)
+        code = _attempt(cfg, args, backend, prompt, label, cwd, choice)
         if code >= 0:
             return code
         if args.backend != AUTO_BACKEND:

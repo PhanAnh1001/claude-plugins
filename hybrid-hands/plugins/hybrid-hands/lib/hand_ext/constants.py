@@ -33,6 +33,26 @@ PARENT_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
 PARENT_CLAUDE_PID_ENV = "CLAUDE_PID"
 RUN_REGISTRY_WARNING = "cảnh báo: không ghi được sổ lượt hand"
 
+# Isolation of a run from the caller's working tree (see lib/hand_ext/isolation.py).
+ISOLATION_WORKTREE = "worktree"
+ISOLATION_NONE = "none"
+ISOLATIONS = (ISOLATION_WORKTREE, ISOLATION_NONE)
+WORKTREES_DIRNAME = "worktrees"
+CHANGES_PATCH_FILE = "changes.patch"
+APPLY_OK = "ok"
+APPLY_CONFLICT = "conflict"
+APPLY_EMPTY = "empty"
+APPLY_SKIPPED = "skipped"
+APPLY_ERROR = "error"
+# Second isolation layer: untracked files whose basename looks like a secret never enter
+# the hand's worktree, even when the repo forgot to ignore them. Basename match, fnmatch.
+SECRET_FILE_PATTERNS = (
+    ".env", ".env.*", "*.env", "*.pem", "*.key", "id_rsa*", ".netrc", ".npmrc", ".pypirc",
+)
+SECRET_FILE_ALLOW = (".env.example", ".env.sample", ".env.template", "*.env.example")
+SECRET_SKIP_PREFIX = "- Bỏ qua file nghi bí mật: "
+SYMLINK_OUTSIDE_NOTE = "symlink tuyệt đối hoặc ra ngoài repo hoặc tới file bí mật"
+
 DEFAULTS = {
     # Both default hands run DeepSeek V4.1 Flash on the OpenCode Go plan: dsh first, then
     # opencode. codex/claude/gemini stay declared for explicit `--backend` use only.
@@ -43,6 +63,11 @@ DEFAULTS = {
     "ledger": "output/llm/hand_usage.json",
     "quota_state": "output/llm/hand_quota.json",
     "runs_dir": "output/llm/hand-ext",
+    # Default when cwd is a git repo; a non-git cwd falls back to none with a warning.
+    # worktree_root is outside the repo; without an explicit value it follows
+    # HYBRID_HANDS_STATE_DIR (default ~/.hybrid-hands/worktrees).
+    "isolation": ISOLATION_WORKTREE,
+    "worktree_root": "~/.hybrid-hands/worktrees",
     "backends": {
         "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high"},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",

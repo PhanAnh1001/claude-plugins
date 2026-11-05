@@ -11,8 +11,8 @@ from typing import Any, Dict, List, Optional
 
 from .constants import (
     CONFIG_SECTION, DEFAULTS, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
-    GO_USAGE_LEDGER_NAME, GO_USAGE_SECTION, GO_USAGE_STATE_DIR_ENV, PLUGIN_PLACEHOLDER,
-    PROJECT_CONFIG_RELPATH,
+    GO_USAGE_LEDGER_NAME, GO_USAGE_SECTION, GO_USAGE_STATE_DIR_ENV, ISOLATIONS,
+    PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH, WORKTREES_DIRNAME,
 )
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]
@@ -28,6 +28,9 @@ class ExtConfig:
     ledger: Path
     quota_state: Path
     runs_dir: Path
+    worktree_root: Path
+    isolation: str
+    isolation_explicit: bool
     backends: Dict[str, Dict[str, Any]]
     go_usage_ledger: Path
     go_usage_summary: Path
@@ -68,7 +71,8 @@ def _expand(value: Any) -> Any:
     return value
 
 
-def merge_backends(base: Dict[str, Dict[str, Any]], over: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def merge_backends(base: Dict[str, Dict[str, Any]],
+                   over: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     merged = copy.deepcopy(base)
     for name, opts in over.items():
         if not isinstance(opts, dict):
@@ -102,6 +106,8 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
     root = git_toplevel(Path(cwd or Path.cwd()))
     merged = copy.deepcopy(DEFAULTS)
     section = _read_section(root)
+    isolation_explicit = "isolation" in section
+    worktree_root_raw = section.get("worktree_root")
     go_section = section.pop(GO_USAGE_SECTION, {}) or {}
     if not isinstance(go_section, dict):
         raise ValueError(f"{CONFIG_SECTION}.{GO_USAGE_SECTION} phải là object")
@@ -109,6 +115,11 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
     merged.update(section)
     go_ledger, go_summary, go_limit = _go_usage(root, go_section)
     max_tokens = merged["max_tokens"]
+    isolation = str(merged["isolation"])
+    if isolation not in ISOLATIONS:
+        raise ValueError(f"{CONFIG_SECTION}.isolation phải là một trong {ISOLATIONS}")
+    worktree_root = (_resolve(root, str(worktree_root_raw)) if worktree_root_raw
+                     else _state_dir() / WORKTREES_DIRNAME)
     return ExtConfig(
         root=root, order=[str(n) for n in merged["order"]],
         timeout_min=float(merged["timeout_min"]),
@@ -117,6 +128,8 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
         ledger=_resolve(root, str(merged["ledger"])),
         quota_state=_resolve(root, str(merged["quota_state"])),
         runs_dir=_resolve(root, str(merged["runs_dir"])),
+        worktree_root=worktree_root.resolve(),
+        isolation=isolation, isolation_explicit=isolation_explicit,
         backends=backends,
         go_usage_ledger=go_ledger, go_usage_summary=go_summary,
         go_monthly_limit_usd=go_limit,

@@ -9,6 +9,8 @@
   - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; lệnh `cc-switch` chuyển một phiên Claude qua lại giữa terminal và Paseo mà không để transcript rẽ nhánh; skill `paseo` theo dõi từ điện thoại;
   - hook SessionStart (khuôn brief, luật chọn hand, luật hạn mức) và UserPromptSubmit (bản ngắn).
 - **Luật hạn mức:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; sau mỗi lượt báo backend, token, % hạn mức (Claude/Codex) hoặc % Go 5h/tuần kèm USD ước tính, thời điểm reset.
+- **Luật dữ liệu:** không giao hand ngoài việc phải đọc hoặc gửi secret (`.env`, token, mật khẩu, URL DB có mật khẩu) hay dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân); việc đó dùng hand Claude. Được giao code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được.
+- **Cách ly worktree:** `hand-ext run` mặc định chạy hand trong git worktree sạch (chỉ file tracked + thay đổi chưa commit/untracked không bị ignore; `.env` bị ignore không có trong workspace), lưu `changes.patch` rồi áp về cwd gốc; xem mục 5.3.
 - **Bật theo dự án:** cài ở scope project trong thư mục dự án, tắt `parallel-subagents` ở scope project (xem mục 3).
 - **Việc cần làm lần đầu:** `hand-ext setup`, người dùng tự đăng nhập từng backend (mục 5), rồi `hand-ext doctor`.
 
@@ -24,7 +26,7 @@ hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
     ├── bin/hand-ext, bin/side-session, bin/hh-ps, bin/cc-switch  # vào PATH của tool Bash khi plugin bật
-    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode), lib/side_session/, lib/hh_ps/, lib/cc_switch/
+    ├── lib/hand_ext/ (backends/: codex | claude | dsh | opencode; isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
@@ -70,6 +72,8 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
     "ledger": "output/llm/hand_usage.json",
     "quota_state": "output/llm/hand_quota.json",
     "runs_dir": "output/llm/hand-ext",
+    "isolation": "worktree",
+    "worktree_root": "~/.hybrid-hands/worktrees",
     "go_usage": {
       "ledger": "~/.hybrid-hands/go_usage.jsonl",
       "monthly_limit_usd": 100
@@ -94,6 +98,8 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 
 Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=` chỉ là miễn trần ngày, trần token vẫn hiện); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. `codex`, `claude` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|gemini` khi cần. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test).
 
+`ext_hand.isolation` nhận `worktree` (mặc định khi cwd là git repo) hoặc `none`; cờ `--isolation` ghi đè cho một lượt. `ext_hand.worktree_root` là thư mục chứa worktree tạm, mặc định `~/.hybrid-hands/worktrees` (nếu không khai báo thì đi theo `HYBRID_HANDS_STATE_DIR`); đường dẫn tương đối tính từ git toplevel. Không nên đặt `worktree_root` trong repo trừ khi thư mục đó bị ignore. Cwd không phải git repo mà isolation là mặc định thì lượt chạy rơi về `none` kèm cảnh báo trong report; nếu `worktree` được yêu cầu tường minh (config hoặc cờ) mà không tạo được worktree sạch thì `run` thoát 2, không âm thầm chạy trong repo gốc.
+
 ### 4.1 Phiên phụ: Chrome, phiên cha, trần ngày, hand ngoài
 
 `side-session start` nhận thêm:
@@ -108,7 +114,7 @@ Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_s
 
 ## 5. Backend của hand ngoài
 
-Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2.
+Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2.
 
 | Backend | Gói | Người dùng tự đăng nhập | Theo dõi hạn mức | Rủi ro tính tiền |
 |---|---|---|---|---|
@@ -143,6 +149,18 @@ Mỗi lượt `dsh`/`opencode` ghi một dòng vào sổ toàn máy `~/.hybrid-h
 Cách tính chi phí: nếu backend kịp lộ `opencode.allowance` thì cộng số thật (`exact`); nếu không thì ước tính `(input − cached_input) × giá input + cached_input × giá cached + output × giá output`, chia 1 triệu. Bản dsh 0.2.1-rc.5 bỏ metadata cost của pi-ai, còn opencode 1.19.5 không giữ `opencode.allowance` và `step_finish.cost` bằng 0 với Go trong hạn mức, nên hiện tại mọi lượt là `estimated` theo giá peak; thiếu `go_price_per_mtok` thì `cost_usd = null`, `cost_source = unknown`.
 
 Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố mốc reset, nên số của `hand-ext usage`, `hand-ext status` và statusline chỉ là ước tính để biết đang ở đâu; **OpenCode Console là nguồn chuẩn**. `hand-ext status` in thêm bảng Go khi đã có tóm tắt; khối cuối mỗi `run` in `hạn mức: ~x% 5h, ~y% tuần (ước tính)`.
+
+### 5.3 Cách ly worktree (mặc định)
+
+Vì hook của Claude Code không chạy trong dsh/opencode/codex/gemini, hàng rào chắc nhất là secret không tồn tại trong thư mục hand làm việc. Khi `isolation=worktree` (mặc định nếu cwd là git repo), `hand-ext run`:
+
+1. Tạo worktree detached tại `HEAD` dưới `worktree_root` (mặc định `~/.hybrid-hands/worktrees/<repo>-<run-id>`), ngoài repo.
+2. Chép trạng thái làm việc: áp `git diff HEAD --binary` của file tracked rồi chép các file untracked **không bị ignore** (`git ls-files --others --exclude-standard`). File bị ignore như `.env`, `*.demo.env` không bao giờ được chép, nên không có trong workspace. Lớp chặn thứ hai: untracked có basename giống secret (`.env`, `*.env`, `*.pem`, `*.key`, `id_rsa*`, `.netrc`, `.npmrc`, `.pypirc`; trừ `.env.example`/`.env.sample`/`.env.template`/`*.env.example`) bị bỏ qua dù repo quên ignore, và symlink untracked chỉ được chép khi là đường dẫn tương đối, đích resolve nằm trong repo và không giống secret; tên bị bỏ được ghi vào report.
+3. Chạy backend với cwd/worktree (dsh nhận worktree qua `HAND_EXT_DSH_WORKSPACE`).
+4. Sau run, chụp trạng thái worktree bằng một git index riêng, ghi diff nhị phân vào `<runs_dir>/<run-id>/changes.patch`, rồi áp về cwd gốc bằng `git apply --check` + `git apply`. Xung đột thì không ghi đè thay đổi người dùng: report ghi `xung đột` kèm danh sách file, patch vẫn nằm trong thư mục lượt chạy. Patch rỗng thì bỏ qua áp.
+5. Dọn worktree (`git worktree remove --force` + `git worktree prune`) kể cả khi timeout/lỗi; patch vẫn được lưu. `--keep-worktree` giữ worktree để kiểm tra; `--no-apply` chỉ lưu patch, không áp.
+
+Cờ `--isolation none` tắt cách ly cho một lượt (chỉ dùng khi biết repo không có secret/dữ liệu khách hàng). Cwd không phải git repo và isolation là mặc định: chạy trực tiếp `none` kèm cảnh báo trong report. `--isolation worktree` tường minh mà không tạo được worktree sạch (không phải git repo, HEAD chưa có commit, đường dẫn đã tồn tại, lỗi git) thì thoát 2. Worktree được tạo từ `HEAD` nhưng có thay đổi chưa commit, nên hand thấy đúng trạng thái làm việc; hand không thấy file bị ignore hay file untracked nghi bí mật.
 
 ## 6. Theo dõi phiên và hand: `hh-ps`
 
