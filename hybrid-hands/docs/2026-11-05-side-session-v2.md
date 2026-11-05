@@ -70,7 +70,7 @@ Mỗi phần tử `sessions[]` thêm (mọi consumer phải chịu được khi 
 - [x] T-SS2-03 hh-ps: trường mới, phiên phụ ngoài phạm vi cwd, dòng phiên ngoài, dạng chữ lồng nhau, test — covers: §1.2, §1.3, §3 — estimate: 1.5h (hand dsh)
 - [x] T-SS2-04 Plugin Paseo hh-tree: schema và vẽ lồng nhau — covers: §3 — estimate: 1h (hand dsh)
 - [x] T-SS2-05 Dải terminal hh-tree-band vẽ lồng nhau, test mod — covers: §3 — estimate: 0.5h (brain)
-- [ ] T-SS2-06 live-tiktok-games: cấu hình `budget_check_cmd`, `launch.sh` thành lớp chuyển tiếp — covers: §2 — estimate: 0.5h (brain)
+- [x] T-SS2-06 live-tiktok-games: cấu hình `budget_check_cmd`, `launch.sh` thành lớp chuyển tiếp — covers: §2 — estimate: 0.5h (brain)
 - [ ] T-SS2-07 Thử thật: một phiên phụ Claude và một phiên phụ dsh nhỏ, xem cây — covers: §1–§3 — estimate: 0.5h (brain)
 
 ### Kiểm chứng
