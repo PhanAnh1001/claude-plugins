@@ -67,8 +67,8 @@ def ext_argv(provider: str, name: str, prompt_path: Path, workdir: str,
 
 def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
                   workdir: str, prompt: str, chrome: bool | None = None,
-                  prompt_path: Path | None = None,
-                  hours: float | None = None) -> tuple[list[str], dict[str, str]]:
+                  prompt_path: Path | None = None, hours: float | None = None,
+                  resume: bool = False) -> tuple[list[str], dict[str, str]]:
     if provider == C.PROVIDER_CODEX:
         profile = ["-p", cfg.codex_profile] if cfg.codex_profile else []
         return (["codex", *profile, "-C", workdir, prompt],
@@ -81,14 +81,16 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
     if cfg.status_line_cmd:
         line = {"statusLine": {"type": "command", "command": cfg.status_line_cmd}}
         argv = [*argv, "--settings", json.dumps(line, separators=(",", ":"))]
-    return (["claude", "--session-id", uuid, "-n", name, *argv, prompt], {})
+    session_flag = ["--resume", uuid] if resume else ["--session-id", uuid]
+    return (["claude", *session_flag, "-n", name, *argv, prompt], {})
 
 
 def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
                 workdir: str, prompt: str, chrome: bool | None = None,
-                prompt_path: Path | None = None, hours: float | None = None) -> list[str]:
+                prompt_path: Path | None = None, hours: float | None = None,
+                resume: bool = False) -> list[str]:
     argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
-                              prompt_path, hours)
+                              prompt_path, hours, resume)
     return screen.start_cmd(session_screen(name), argv, workdir, env,
                             unset=(C.CHILD_SESSION_ENV,))
 

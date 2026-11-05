@@ -23,6 +23,7 @@ class SideConfig:
     codex_profile: str = ""
     budget_check_cmd: list[str] = field(default_factory=list)
     status_line_cmd: str = ""
+    token_file: str = ""
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -49,6 +50,13 @@ def _budget_cmd(repo: Path, raw: object) -> list[str]:
     return argv
 
 
+def _relpath(repo: Path, raw: object, key: str) -> str:
+    """A repo-relative path setting; the empty string disables it."""
+    if not isinstance(raw, str):
+        raise ValueError(f"side_session.{key} phải là chuỗi, nhận {raw!r}")
+    return str(_resolve(repo, raw)) if raw else ""
+
+
 def load_config(cwd: Path) -> SideConfig:
     repo = git_toplevel(cwd)
     merged = dict(C.DEFAULTS)
@@ -70,4 +78,5 @@ def load_config(cwd: Path) -> SideConfig:
         budget_check_cmd=_budget_cmd(repo, merged["budget_check_cmd"]),
         status_line_cmd=(str(_resolve(repo, merged["status_line_cmd"]))
                          if merged["status_line_cmd"] else ""),
+        token_file=_relpath(repo, merged["token_file"], "token_file"),
     )
