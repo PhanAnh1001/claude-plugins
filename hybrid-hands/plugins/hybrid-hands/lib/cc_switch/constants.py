@@ -40,6 +40,20 @@ SELF_MIN_SLEEP_SECONDS = 0.05
 SELF_ENTRY_NAME = "cc-switch"
 BIN_SUBDIR = "bin"
 
+TERM_WORKER_COMMAND = "_term-worker"
+TERM_APP_TERMINAL = "Terminal"
+TERM_APP_ITERM = "iTerm"
+TERM_APP_CHOICES = (TERM_APP_TERMINAL, TERM_APP_ITERM)
+TERM_APP_DEFAULT = TERM_APP_TERMINAL
+TERM_WINDOW_COMMAND = "cd {cwd} && exec {entry} term --session {session}"
+# `open -a <app> <file>.command` needs no Automation permission (osascript does).
+TERM_COMMAND_FILE_PREFIX = "term-"
+TERM_COMMAND_FILE_SUFFIX = ".command"
+TERM_COMMAND_SHEBANG = "#!/bin/zsh"
+OPEN_BIN = "open"
+OPEN_TIMEOUT_SECONDS = 30
+MACOS_PLATFORM = "darwin"
+
 PS_TIMEOUT_SECONDS = 5
 ZOMBIE_STATE_PREFIX = "Z"
 MAX_ANCESTRY_DEPTH = 64

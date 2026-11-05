@@ -17,6 +17,28 @@ SECRET_SOCKET = "SOCKET_SECRET_MUST_NOT_LEAK"
 SECRET_PROMPT = "PROMPT_SECRET_MUST_NOT_LEAK"
 SECRET_KEY = "KEY_SECRET_MUST_NOT_LEAK"
 
+FAKE_OPEN = '''#!/usr/bin/env python3
+"""Fake open: log argv and the .command file instead of opening a window."""
+import json
+import os
+import sys
+
+path = os.environ.get("CC_SWITCH_OPEN_LOG")
+if path:
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({
+            "argv": sys.argv[1:], "cwd": os.getcwd(),
+            "script": (open(sys.argv[-1], encoding="utf-8").read()
+                       if sys.argv[1:] and os.path.isfile(sys.argv[-1]) else None),
+            "mode": (oct(os.stat(sys.argv[-1]).st_mode & 0o777)
+                     if sys.argv[1:] and os.path.isfile(sys.argv[-1]) else None),
+        }) + "\\n")
+stderr = os.environ.get("CC_SWITCH_OPEN_STDERR", "")
+if stderr:
+    sys.stderr.write(stderr)
+sys.exit(int(os.environ.get("CC_SWITCH_OPEN_EXIT", "0")))
+'''
+
 MODEL = "claude-sonnet-4-5"
 TITLE_A = "Phiên A"
 TITLE_IMPORT = "Phiên import"
@@ -106,10 +128,12 @@ class CcFixture:
         self.projects.mkdir()
         self.agents.mkdir()
         self.call_log = self.base / "calls.jsonl"
+        self.open_log = self.base / "open.jsonl"
         self.fake_bin = self.base / "bin"
         shutil.copytree(Path(__file__).resolve().parent / "bin", self.fake_bin)
         for name in ("paseo", "claude"):
             (self.fake_bin / name).chmod(0o755)
+        self._write_fake_open()
         self.sleeper = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(300)"])
         self.tui_pid = self.sleeper.pid
@@ -230,6 +254,18 @@ class CcFixture:
         body = lines if lines is not None else [user_line(project, moment)]
         return self._transcript(project, session_id, body, moment)
 
+    def _write_fake_open(self) -> None:
+        path = self.fake_bin / "open"
+        path.write_text(FAKE_OPEN, encoding="utf-8")
+        path.chmod(0o755)
+
+    def open_calls(self) -> List[Dict[str, Any]]:
+        if not self.open_log.exists():
+            return []
+        return [json.loads(line) for line in
+                self.open_log.read_text(encoding="utf-8").splitlines()
+                if line]
+
     # ---- runtime -------------------------------------------------------
     def ls_json(self, statuses: Optional[Dict[str, str]] = None) -> str:
         statuses = statuses or {
@@ -267,6 +303,9 @@ class CcFixture:
             "HYBRID_HANDS_STATE_DIR": str(self.state),
             "PATH": str(self.fake_bin) + os.pathsep + env.get("PATH", ""),
             "CC_SWITCH_CALL_LOG": str(self.call_log),
+            "CC_SWITCH_OPEN_LOG": str(self.open_log),
+            "CC_SWITCH_OPEN_EXIT": "0",
+            "CC_SWITCH_OPEN_STDERR": "",
             "PASEO_FAKE_LS_STDOUT": self.ls_json(),
             "PASEO_FAKE_IMPORT_STDOUT": "Importing provider session...\n" +
             json.dumps({"agentId": IMPORTED_AGENT, "status": "created"}) + "\n",
