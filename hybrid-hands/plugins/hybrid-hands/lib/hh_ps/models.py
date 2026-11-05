@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .constants import (
-    RUN_STATE_FINISHED, RUN_STATE_LOST, RUN_STATE_RUNNING, RUN_STATUS_RUNNING,
-    SUBAGENT_FINISHED, SUBAGENT_RUNNING, SUBAGENT_SILENT,
+    PROVIDER_CLAUDE, RUN_STATE_FINISHED, RUN_STATE_LOST, RUN_STATE_RUNNING,
+    RUN_STATUS_RUNNING, SUBAGENT_FINISHED, SUBAGENT_RUNNING, SUBAGENT_SILENT,
 )
 
 
@@ -84,6 +84,10 @@ class Session:
     transcript_path: Optional[Path] = None
     token_cap: Optional[int] = None
     token_ratio: Optional[float] = None
+    parent_session: Optional[str] = None
+    side_name: Optional[str] = None
+    provider: str = PROVIDER_CLAUDE
+    pulled_in: bool = False
     subagents: List[Subagent] = field(default_factory=list)
     hand_runs: List[HandRun] = field(default_factory=list)
 

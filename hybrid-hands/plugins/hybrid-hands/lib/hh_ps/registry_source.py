@@ -11,9 +11,10 @@ from side_session.state import load_all as load_side_states
 
 from .claude_source import pid_alive
 from .constants import (
-    PROJECT_CONFIG_RELPATH, PS_SECTION, REPO_PLACEHOLDER, RUNS_GLOB, RUNS_SUBDIR,
-    RUN_STATUS_RUNNING, SESSION_META_GLOBS_KEY, SESSION_META_SUFFIX, SIDE_SESSION_SECTION,
-    SIDE_STATE_DIR_DEFAULT, SIDE_STATE_DIR_KEY, STATE_DIR_DEFAULT, STATE_DIR_ENV,
+    PROJECT_CONFIG_RELPATH, PROVIDER_CLAUDE, PS_SECTION, REPO_PLACEHOLDER, RUNS_GLOB,
+    RUNS_SUBDIR, RUN_STATUS_RUNNING, SESSION_META_GLOBS_KEY, SESSION_META_SUFFIX,
+    SIDE_SESSION_SECTION, SIDE_STATE_DIR_DEFAULT, SIDE_STATE_DIR_KEY, STATE_DIR_DEFAULT,
+    STATE_DIR_ENV,
 )
 from .models import HandRun
 from .timeutil import to_epoch
@@ -117,6 +118,19 @@ def _parse_meta(path: Path) -> Optional[Tuple[str, SessionMeta]]:
     return uuid, meta
 
 
+def _side_entry(state: Any) -> Dict[str, Any]:
+    return {
+        "name": str(getattr(state, "name", "") or ""),
+        "provider": str(getattr(state, "provider", "") or PROVIDER_CLAUDE),
+        "status": str(getattr(state, "status", "") or ""),
+        "parent_session": str(getattr(state, "parent_session", "") or "") or None,
+        "dir": str(getattr(state, "dir", "") or ""),
+        "max_tokens": getattr(state, "max_tokens", None),
+        "started": getattr(state, "started", None),
+        "tokens_used": getattr(state, "tokens_used", None),
+    }
+
+
 def side_state_caps(cfg: PsConfig) -> Dict[str, dict]:
     try:
         states = load_side_states(cfg.side_state_dir)
@@ -126,10 +140,7 @@ def side_state_caps(cfg: PsConfig) -> Dict[str, dict]:
     for state in states:
         uuid = str(getattr(state, "uuid", "") or "")
         if uuid and uuid not in found:
-            found[uuid] = {"name": getattr(state, "name", None),
-                           "max_tokens": getattr(state, "max_tokens", None),
-                           "started": getattr(state, "started", None),
-                           "tokens_used": getattr(state, "tokens_used", None)}
+            found[uuid] = _side_entry(state)
     return found
 
 

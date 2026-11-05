@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from .constants import (
     CLAUDE_CONFIG_DEFAULT, CLAUDE_CONFIG_ENV, LIVE_STATUSES, PROJECTS_SUBDIR,
@@ -169,7 +169,8 @@ def _merge(session: Session, info: TranscriptInfo, path: Path) -> None:
 
 def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
                   all_projects: bool, main_session_id: Optional[str],
-                  now: float) -> List[Session]:
+                  now: float,
+                  include_ids: Optional[Set[str]] = None) -> List[Session]:
     records = _live_sessions(config_dir)
     live = {sid: data for sid, data in records.items() if data.get("_alive")}
     dead = {sid: data for sid, data in records.items() if not data.get("_alive")}
@@ -186,10 +187,15 @@ def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
         session = sessions.get(session_id)
         if session is None:
             old = dead.get(session_id, {})
-            if not all_projects and not _in_project(
-                    info.cwd or str(old.get("cwd") or ""), info.slug, project_root):
-                continue
+            pulled = False
+            if not all_projects:
+                inside = _in_project(info.cwd or str(old.get("cwd") or ""),
+                                     info.slug, project_root)
+                if not inside and (include_ids is None or session_id not in include_ids):
+                    continue
+                pulled = not inside
             session = _ended_session(session_id, info, old, project_root, main_session_id)
+            session.pulled_in = pulled
             sessions[session_id] = session
         else:
             _merge(session, info, path)
