@@ -21,6 +21,8 @@ class SideConfig:
     state_dir: Path = Path(".")
     codex_home: Path = Path(".")
     codex_profile: str = ""
+    budget_check_cmd: list[str] = field(default_factory=list)
+    status_line_cmd: str = ""
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -34,6 +36,17 @@ def git_toplevel(cwd: Path) -> Path:
 def _resolve(repo: Path, raw: str) -> Path:
     path = Path(raw.replace("{repo}", repo.name)).expanduser()
     return path if path.is_absolute() else (repo / path).resolve()
+
+
+def _budget_cmd(repo: Path, raw: object) -> list[str]:
+    """argv of the day-budget guard; a relative first element is resolved from the repo."""
+    if not isinstance(raw, list) or not all(isinstance(part, str) and part for part in raw):
+        raise ValueError(f"side_session.budget_check_cmd phải là list chuỗi, nhận {raw!r}")
+    argv = list(raw)
+    if argv:
+        first = Path(argv[0]).expanduser()
+        argv[0] = str(first if first.is_absolute() else (repo / first).resolve())
+    return argv
 
 
 def load_config(cwd: Path) -> SideConfig:
@@ -54,4 +67,7 @@ def load_config(cwd: Path) -> SideConfig:
         state_dir=_resolve(repo, merged["state_dir"]),
         codex_home=Path(merged["codex_home"]).expanduser(),
         codex_profile=str(merged["codex_profile"]),
+        budget_check_cmd=_budget_cmd(repo, merged["budget_check_cmd"]),
+        status_line_cmd=(str(_resolve(repo, merged["status_line_cmd"]))
+                         if merged["status_line_cmd"] else ""),
     )

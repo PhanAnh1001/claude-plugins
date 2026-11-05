@@ -1,6 +1,6 @@
 ---
 name: side-session
-description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, đọc tóm tắt bàn giao, dự phòng provider codex, đồng bộ bằng ListAgents/SendMessage. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
+description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, đọc tóm tắt bàn giao, dự phòng provider codex hoặc hand ngoài dsh/opencode trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
 ---
 
 # Phiên phụ (side-session)
@@ -8,7 +8,7 @@ description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex c
 ## Tóm tắt
 
 - **Dùng khi:** gói việc dài nhiều bước (ước trên 1 giờ) cần ngữ cảnh brain riêng, ví dụ cả một tính năng hay một chương; việc ngắn thì giao hand.
-- **Giới hạn:** tối đa `max_parallel` phiên (mặc định 2) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`).
+- **Giới hạn:** tối đa `max_parallel` phiên (mặc định 2) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`); phiên phụ ngoài (`dsh`/`opencode`) chỉ chạy trong worktree.
 - **Chuỗi bước:** viết prompt giao việc → `side-session start` (thử `--dry-run` trước) → theo dõi `ls`/`watch` → đọc `handoff` → brain review → `stop`. Xem toàn cảnh phiên chính, phiên phụ, subagent và hand ngoài bằng `hh-ps` (`--watch 5`, `--json`).
 
 Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt đối `${CLAUDE_PLUGIN_ROOT}/bin/side-session`.
@@ -23,12 +23,18 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 ## 2. Lệnh
 
-- Mở: `side-session start --name <tên> --prompt-file <file> [--worktree [--base <nhánh>]] [--provider claude|codex] [--max-tokens N] [--hours H] [--brain <tên brain>] [--dry-run]` (`--prompt "<text>"` cho prompt ngắn).
+- Mở: `side-session start --name <tên> --prompt-file <file> [--worktree [--base <nhánh>]] [--provider claude|codex|dsh|opencode] [--chrome|--no-chrome] [--budget-exempt|--force-budget] [--max-tokens N] [--hours H] [--brain <tên brain>] [--dry-run]` (`--prompt "<text>"` cho prompt ngắn).
 - Danh sách: `side-session ls`. Theo dõi: `side-session watch --name <tên> [--once]` (chạy nền bằng `run_in_background`, không tự viết vòng chờ).
 - Bàn giao: `side-session handoff <tên>` in tóm tắt bàn giao; brain đọc, tự review diff của phiên phụ trước khi báo người dùng.
 - Dừng: `side-session stop <tên>` sau khi đã đọc bàn giao.
 
 ## 3. Dự phòng và đồng bộ
 
-- **Provider:** mặc định `claude`; khi hết hạn mức gói Claude hoặc phiên claude lỗi, dùng `--provider codex` (chạy trên đăng nhập gói của Codex, không dùng API key).
+- **Provider:** mặc định `claude`; khi hết hạn mức gói Claude hoặc phiên claude lỗi, dùng `--provider codex` (chạy trên đăng nhập gói của Codex, không dùng API key) hoặc hand ngoài `dsh`/`opencode` (xem mục 4, không API key).
 - **Đồng bộ:** phiên phụ hiện trong ListAgents; gửi SendMessage trước khi ghi file chung, dùng tài nguyên trả phí hay Chrome, và sau mỗi commit. Hai phiên không ghi cùng một file.
+
+## 4. Chrome và hand ngoài
+
+- **Khi dùng `--chrome`:** chỉ khi việc thật sự cần trình duyệt có phiên đăng nhập sẵn (kiểm UI web, thao tác trang cần Chrome của người dùng); việc code/tài liệu bình thường để mặc định `--no-chrome` cho nhẹ ngữ cảnh. `--chrome` chỉ dùng với provider `claude`; provider khác thoát 2. `--no-chrome` để đè `claude_args` đang bật Chrome.
+- **Khi dùng provider `dsh`:** việc code/test/tài liệu tự chứa dài, cần thêm một hand ngoài song song trên gói thứ hai (OpenCode Go, không API key), nhất là khi hạn mức Claude căng. Bắt buộc `--worktree` — hand ngoài chỉ làm trong worktree, không đụng cây chính — và prompt sau khi ghép template phải chép nguyên văn mục `LUẬT BẮT BUỘC` (cấm đọc `.env`/API key, không commit, không xoá `output/llm/`...). `start` ghi prompt ra `<state_dir>/<tên>.prompt.md` rồi chạy `hand-ext run ... --label side:<tên>` trong screen; `watch` đọc token từ sổ lượt `hand-ext` (vào + ra, không tính cached) và chép `report.md` thành bàn giao khi lượt xong.
+- **Trần ngày:** `side_session.budget_check_cmd` chạy ở `start` (mã khác 0 → thoát 4, trừ `--budget-exempt`/`--force-budget`) và mỗi vòng `watch` (mã 20 và không `budget_exempt` → `daystop`). `--budget-exempt` ghi vào state để `watch` cũng miễn; `--force-budget` chỉ bỏ qua lần `start` đó.

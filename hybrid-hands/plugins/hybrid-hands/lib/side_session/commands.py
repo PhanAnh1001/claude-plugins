@@ -1,6 +1,7 @@
 """Build the shell commands that `start` runs (pure, testable, used by --dry-run)."""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from . import screen
 from .config import SideConfig
 
 SIDE_BIN = Path(__file__).resolve().parents[2] / "bin" / "side-session"
+HAND_EXT_BIN = Path(__file__).resolve().parents[2] / "bin" / "hand-ext"
 
 
 def session_screen(name: str) -> str:
@@ -32,19 +34,63 @@ def worktree_cmd(cfg: SideConfig, name: str, base: str) -> list[str]:
             str(cfg.worktree_root / name), "-b", f"{C.BRANCH_PREFIX}{name}", base]
 
 
+def chrome_enabled(cfg: SideConfig, explicit: bool | None) -> bool:
+    """`--chrome`/`--no-chrome`, else whatever `claude_args` already says."""
+    if explicit is not None:
+        return explicit
+    return C.CHROME_FLAG in cfg.claude_args and C.NO_CHROME_FLAG not in cfg.claude_args
+
+
+def with_chrome(args: list[str], chrome: bool) -> list[str]:
+    """Swap every `--no-chrome` for `--chrome` (or the reverse), always leaving one flag."""
+    unwanted, wanted = ((C.NO_CHROME_FLAG, C.CHROME_FLAG) if chrome
+                        else (C.CHROME_FLAG, C.NO_CHROME_FLAG))
+    out = [wanted if part == unwanted else part for part in args]
+    return out if wanted in out else [*out, wanted]
+
+
+def ext_argv(provider: str, name: str, prompt_path: Path, workdir: str,
+             hours: float | None = None) -> list[str]:
+    """`hand-ext run` argv for an external side session.
+
+    No `--max-tokens`: hand-ext caps on input incl. cache reads, which would stop a long
+    dsh run early; `side-session watch` enforces the cap without cache reads instead.
+    `--hours` becomes hand-ext's `--timeout-min` so long packages are not cut at its default.
+    """
+    argv = [str(HAND_EXT_BIN), "run", "--backend", provider,
+            "--brief", str(prompt_path), "--label", f"{C.EXT_LABEL_PREFIX}{name}",
+            "--cwd", workdir]
+    if hours:
+        argv += ["--timeout-min", str(max(1, round(hours * 60)))]
+    return argv
+
+
 def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
-                  workdir: str, prompt: str) -> tuple[list[str], dict[str, str]]:
+                  workdir: str, prompt: str, chrome: bool | None = None,
+                  prompt_path: Path | None = None,
+                  hours: float | None = None) -> tuple[list[str], dict[str, str]]:
     if provider == C.PROVIDER_CODEX:
         profile = ["-p", cfg.codex_profile] if cfg.codex_profile else []
         return (["codex", *profile, "-C", workdir, prompt],
                 {"CODEX_HOME": str(cfg.codex_home)})
-    return (["claude", "--session-id", uuid, "-n", name, *cfg.claude_args, prompt], {})
+    if provider in C.EXTERNAL_PROVIDERS:
+        if prompt_path is None:
+            raise ValueError(f"{provider} cần prompt_path để chạy hand-ext")
+        return ext_argv(provider, name, prompt_path, workdir, hours), {}
+    argv = with_chrome(cfg.claude_args, chrome_enabled(cfg, chrome))
+    if cfg.status_line_cmd:
+        line = {"statusLine": {"type": "command", "command": cfg.status_line_cmd}}
+        argv = [*argv, "--settings", json.dumps(line, separators=(",", ":"))]
+    return (["claude", "--session-id", uuid, "-n", name, *argv, prompt], {})
 
 
 def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
-                workdir: str, prompt: str) -> list[str]:
-    argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt)
-    return screen.start_cmd(session_screen(name), argv, workdir, env)
+                workdir: str, prompt: str, chrome: bool | None = None,
+                prompt_path: Path | None = None, hours: float | None = None) -> list[str]:
+    argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
+                              prompt_path, hours)
+    return screen.start_cmd(session_screen(name), argv, workdir, env,
+                            unset=(C.CHILD_SESSION_ENV,))
 
 
 def watch_cmd(cfg: SideConfig, name: str) -> list[str]:

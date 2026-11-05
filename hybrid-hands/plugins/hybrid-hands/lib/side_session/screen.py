@@ -19,10 +19,13 @@ def is_alive(name: str) -> bool:
     return name in screen_names()
 
 
-def start_cmd(name: str, argv: list[str], cwd: str, env: dict[str, str] | None = None) -> list[str]:
-    """screen -dmS NAME sh -c 'cd DIR && [ENV=..] exec ARGV' (runs inside screen, not our shell)."""
+def start_cmd(name: str, argv: list[str], cwd: str, env: dict[str, str] | None = None,
+              unset: tuple[str, ...] = ()) -> list[str]:
+    """screen -dmS NAME sh -c 'cd DIR && [unset VARS;] [ENV=..] exec ARGV'."""
     env_part = " ".join(f"{k}={shlex.quote(v)}" for k, v in (env or {}).items())
-    inner = f"cd {shlex.quote(cwd)} && {env_part + ' ' if env_part else ''}exec {shlex.join(argv)}"
+    unset_part = "".join(f"unset {shlex.quote(var)}; " for var in unset)
+    inner = (f"cd {shlex.quote(cwd)} && {unset_part}{env_part + ' ' if env_part else ''}"
+             f"exec {shlex.join(argv)}")
     return ["screen", "-dmS", name, "sh", "-c", inner]
 
 

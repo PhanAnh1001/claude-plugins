@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 PL = ROOT / "plugins" / "hybrid-hands"
@@ -45,10 +46,12 @@ class SideSessionTest(unittest.TestCase):
             (bindir / name).chmod(0o755)
         (self.tmp / "alive").write_text("")
         self.projects = self.tmp / "projects"
+        self.machine = self.tmp / "machine"
         self._env = dict(os.environ)
         os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ['PATH']}"
         os.environ["FAKE_DIR"] = str(self.tmp)
         os.environ["SIDE_SESSION_CLAUDE_PROJECTS"] = str(self.projects)
+        os.environ["HYBRID_HANDS_STATE_DIR"] = str(self.machine)
         self._cwd = os.getcwd()
         os.chdir(self.repo)
 
@@ -67,6 +70,33 @@ class SideSessionTest(unittest.TestCase):
     def screen_log(self) -> str:
         log = self.tmp / "screen.log"
         return log.read_text() if log.exists() else ""
+
+    def state(self, name: str) -> dict:
+        return json.loads((self.repo / "output/llm/side-sessions" / f"{name}.json").read_text())
+
+    def start_ext(self, name: str) -> int:
+        with mock.patch.object(actions.K, "worktree_cmd", return_value=["true"]):
+            code, _ = self.run_cli("start", "--name", name, "--provider", "dsh",
+                                   "--worktree", "--prompt",
+                                   "## LUẬT BẮT BUỘC\n- Không đọc .env.\n")
+        return code
+
+    def write_run(self, st: dict, *, status: str = "running", label: str | None = None,
+                  started: float | None = None, report: str | None = None) -> None:
+        run_dir = self.tmp / "run-1"
+        run_dir.mkdir(exist_ok=True)
+        if report is not None:
+            (run_dir / "report.md").write_text(report)
+        run_started = st["started"] + 1 if started is None else started
+        data = {"run_id": "run-1", "label": label or f"side:{st['name']}",
+                "backend": st["provider"],
+                "status": status, "tokens": {"input": 1200, "cached_input": 999,
+                                             "output": 34},
+                "started": run_started, "ended": run_started + 1, "run_dir": str(run_dir),
+                "pid": os.getpid()}
+        runs = self.machine / "runs"
+        runs.mkdir(parents=True, exist_ok=True)
+        (runs / "run-1.json").write_text(json.dumps(data))
 
     def test_config_defaults_and_override(self) -> None:
         cfg = load_config(self.repo)
@@ -130,10 +160,52 @@ class SideSessionTest(unittest.TestCase):
         self.assertEqual(st["tokens_used"], 1615)
         self.assertIn("-S side-w -X quit", self.screen_log())
 
+    def test_watch_reads_ext_tokens_and_copies_report(self) -> None:
+        self.assertEqual(self.start_ext("x"), 0)
+        st = self.state("x")
+        self.write_run(st)
+        self.run_cli("watch", "--name", "x", "--once")
+        # input includes cached in hand-ext; cached is subtracted (claude counter parity)
+        self.assertEqual(self.state("x")["tokens_used"], 235)
+        self.assertEqual(self.state("x")["status"], "running")
+        self.assertIn("235/300000", self.run_cli("ls")[1])
+        self.write_run(st, status="ok", report="## Tóm tắt\n- Kết quả: xong\n")
+        self.run_cli("watch", "--name", "x", "--once")
+        final = self.state("x")
+        self.assertEqual(final["status"], "stopped")
+        self.assertEqual(Path(final["handoff"]).read_text(),
+                         "## Tóm tắt\n- Kết quả: xong\n")
+
+    def test_watch_ext_failed_run_marks_dead(self) -> None:
+        self.assertEqual(self.start_ext("bad"), 0)
+        self.write_run(self.state("bad"), status="failed")
+        self.run_cli("watch", "--name", "bad", "--once")
+        self.assertEqual(self.state("bad")["status"], "dead")
+
+    def test_watch_ext_accepts_sanitized_label_and_keeps_existing_handoff(self) -> None:
+        self.assertEqual(self.start_ext("san"), 0)
+        st = self.state("san")
+        handoff = Path(st["handoff"])
+        handoff.parent.mkdir(parents=True)
+        handoff.write_text("bàn giao cũ")
+        self.write_run(st, status="ok", label="side-san", report="mới")
+        self.run_cli("watch", "--name", "san", "--once")
+        self.assertEqual(self.state("san")["status"], "stopped")
+        self.assertEqual(handoff.read_text(), "bàn giao cũ")
+
+    def test_watch_ext_accepts_registry_second_precision(self) -> None:
+        self.assertEqual(self.start_ext("sec"), 0)
+        st = self.state("sec")
+        st["started"] = 100.9
+        (self.repo / "output/llm/side-sessions/sec.json").write_text(json.dumps(st))
+        self.write_run(st, status="ok", started=100.0)  # RunRegistry truncates to seconds
+        self.run_cli("watch", "--name", "sec", "--once")
+        self.assertEqual(self.state("sec")["status"], "stopped")
+
     def test_token_counters(self) -> None:
         self.assertEqual(tokens.claude_tokens(FIX / "claude_transcript.jsonl"), 1615)
         self.assertEqual(tokens.codex_tokens(FIX / "codex_rollout.jsonl"), 4500)
-        self.assertEqual(tokens.project_slug("/Users/x/app/a.b"), "-Users-x-app-a-b")
+        self.assertEqual(tokens.project_slug("/home/x/app/a.b"), "-home-x-app-a-b")
 
     def test_handoff_summary(self) -> None:
         block = summary_block(FIX / "handoff.md")
