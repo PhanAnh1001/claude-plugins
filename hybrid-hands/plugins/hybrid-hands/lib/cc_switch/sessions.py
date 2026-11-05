@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from hh_ps.claude_source import pid_alive, slugify
+from hh_ps.claude_source import slugify
 from hh_ps.constants import (
     PROJECTS_SUBDIR, SESSIONS_SUBDIR, TRANSCRIPT_SUFFIX, TRANSCRIPT_TITLE_TYPE,
 )
@@ -14,6 +14,7 @@ from hh_ps.constants import (
 from .constants import SESSION_ENTRYPOINT_TUI, TRANSCRIPT_USER_TYPE
 from .models import LiveSession, Transcript
 from .paths import claude_dir, read_json
+from .proc import process_alive
 
 
 def _as_int(value: object) -> int:
@@ -36,7 +37,7 @@ def live_sessions() -> List[LiveSession]:
         session_id = raw.get("sessionId")
         if not pid or not isinstance(session_id, str) or not session_id:
             continue
-        if not pid_alive(pid):
+        if not process_alive(pid):
             continue
         found.append(LiveSession(
             pid=pid,

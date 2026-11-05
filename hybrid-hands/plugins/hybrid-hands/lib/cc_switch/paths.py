@@ -8,11 +8,18 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from hh_ps.claude_source import claude_config_dir
+from hh_ps.constants import STATE_DIR_DEFAULT, STATE_DIR_ENV
 
 from .constants import (
     AGENT_FILE_SUFFIX, AGENTS_SUBDIR, GIT_TIMEOUT_SECONDS, PASEO_HOME_DEFAULT,
     PASEO_HOME_ENV, SHORT_ID_CHARS,
 )
+
+
+def state_dir() -> Path:
+    """Machine-wide state root, overridable for tests like the handoff ledger."""
+    raw = os.environ.get(STATE_DIR_ENV) or STATE_DIR_DEFAULT
+    return Path(os.path.expanduser(raw))
 
 
 def paseo_home() -> Path:

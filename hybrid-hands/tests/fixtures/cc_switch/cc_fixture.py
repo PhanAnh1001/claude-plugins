@@ -215,6 +215,21 @@ class CcFixture:
         self._transcript(self.other, SID_OTHER,
                          [user_line(self.other, NOW - 5)], NOW - 5)
 
+    # ---- extra live entries for --self tests ---------------------------
+    def add_live_session(self, pid: int, session_id: str,
+                         cwd: Optional[Path] = None,
+                         entrypoint: str = "cli", status: str = "idle",
+                         name: str = "test-live") -> None:
+        self._write_session(pid, session_id, cwd or self.project,
+                            entrypoint, status, name)
+
+    def add_transcript(self, project: Path, session_id: str,
+                       mtime: Optional[float] = None,
+                       lines: Optional[List[str]] = None) -> Path:
+        moment = time.time() - 10 if mtime is None else mtime
+        body = lines if lines is not None else [user_line(project, moment)]
+        return self._transcript(project, session_id, body, moment)
+
     # ---- runtime -------------------------------------------------------
     def ls_json(self, statuses: Optional[Dict[str, str]] = None) -> str:
         statuses = statuses or {
