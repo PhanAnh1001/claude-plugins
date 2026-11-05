@@ -12,6 +12,12 @@ DEFAULT_MAX_TOKENS = 300_000
 TOKENS_PER_HOUR = 150_000
 # Source plan: watchdog warns above 80 % of the cap.
 WARN_RATIO = 0.8
+# Soft cap: false keeps counting and warning but never stops the session at the cap.
+DEFAULT_ENFORCE_TOKEN_CAP = True
+# `ls` TOKENS/CAP suffix when tokens_used >= max_tokens (both cap modes).
+OVER_CAP_SUFFIX = " !"
+# One `watch` warning per tick when the cap is exceeded with enforce_token_cap=false.
+OVER_CAP_WARNING = "{name}: over cap {used}/{cap} (không dừng: enforce_token_cap=false)"
 # Source plan: final summary block is at most 15 lines.
 SUMMARY_MAX_LINES = 15
 SUMMARY_HEADING = "## Tóm tắt"
@@ -32,6 +38,8 @@ DEFAULTS: dict = {
     "status_line_cmd": "",
     # status-line token file for claude side sessions (relative to repo), "" = transcript.
     "token_file": "",
+    # true = stop at the token cap; false = keep running and only warn.
+    "enforce_token_cap": DEFAULT_ENFORCE_TOKEN_CAP,
 }
 
 PROVIDER_CLAUDE = "claude"
