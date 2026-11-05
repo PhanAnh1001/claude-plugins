@@ -16,15 +16,16 @@ const ORPHAN_HEADING = "hand ngoài không rõ phiên gọi";
 
 export function SubagentRow({
   agent,
+  depth,
   theme,
   compact,
-}: TreeThemeProps & { agent: TreeSubagent }) {
+}: TreeThemeProps & { agent: TreeSubagent; depth: number }) {
   const statusColor = subagentStatusColor(theme, agent);
   const context = tokenText(agent.context_tokens);
   const duration = durationText(agent.duration_seconds);
   const description = truncate(agent.description);
   return (
-    <Row depth={1}>
+    <Row depth={depth}>
       <Text style={{ color: theme.colors.foreground, fontSize: compact ? 12 : 13 }}>
         <Text style={{ color: theme.colors.foregroundMuted }}>{BULLET}</Text>
         {agent.agent_type ? (
@@ -58,13 +59,14 @@ export function SubagentRow({
 
 export function HandRunRow({
   run,
+  depth,
   theme,
   compact,
-}: TreeThemeProps & { run: TreeHandRun }) {
+}: TreeThemeProps & { run: TreeHandRun; depth: number }) {
   const statusColor = handRunStatusColor(theme, run);
   const duration = durationText(run.duration_seconds);
   return (
-    <Row depth={1}>
+    <Row depth={depth}>
       <Text style={{ color: theme.colors.foreground, fontSize: compact ? 12 : 13 }}>
         <Text style={{ color: theme.colors.foregroundMuted }}>{BULLET}</Text>
         <Text style={{ fontWeight: "600" }}>{run.backend || "hand"}</Text>
@@ -116,7 +118,14 @@ export function OrphanBlock({
         </Text>
       </Row>
       {runs.map((run) => (
-        <HandRunRow key={run.run_id} run={run} theme={theme} compact={compact} now={now} />
+        <HandRunRow
+          key={run.run_id}
+          run={run}
+          depth={1}
+          theme={theme}
+          compact={compact}
+          now={now}
+        />
       ))}
     </>
   );
