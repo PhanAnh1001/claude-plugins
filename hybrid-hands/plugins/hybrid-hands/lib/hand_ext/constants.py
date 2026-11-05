@@ -6,6 +6,10 @@ from .backends.base import Status
 PROJECT_CONFIG_RELPATH = ".claude/hybrid-hands.json"
 CONFIG_SECTION = "ext_hand"
 PLUGIN_PLACEHOLDER = "<PL>"  # replaced by the plugin directory in config paths
+# Auto-compaction threshold for each hand run (tokens); 0 disables it per backend.
+DEFAULT_COMPACT_AT = 272_000
+# dsh model window from templates/dsh-hand.yml; compaction is a ratio of this window.
+DEFAULT_CONTEXT_WINDOW = 1_048_576
 
 # Go usage ledger lives on the machine, not per repo: plan limits follow the account.
 GO_USAGE_SECTION = "go_usage"
@@ -51,9 +55,12 @@ DEFAULTS = {
         "dsh": {"home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key",
                 "model": "deepseek-v4.1-flash", "effort": "max",
                 "base_url": "https://opencode.ai/inference/go/openai/v1",
+                "compact_at": DEFAULT_COMPACT_AT,
+                "context_window": DEFAULT_CONTEXT_WINDOW,
                 "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
         "opencode": {"config": "<PL>/templates/opencode-hand.jsonc",
                      "model": "opencode-go/deepseek-v4.1-flash", "variant": "max",
+                     "compact_at": DEFAULT_COMPACT_AT,
                      "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
         "gemini": {"home": "~/.gemini-hand", "model": "gemini-4-carbon"},
     },

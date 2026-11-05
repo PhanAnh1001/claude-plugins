@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .base import Backend, Check, RunSpec, RunState, Status, bin_for
+from ..constants import DEFAULT_COMPACT_AT, DEFAULT_CONTEXT_WINDOW
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_PATCH = PLUGIN_ROOT / "templates" / "dsh-hand.yml"
@@ -61,8 +62,12 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: same model id as the opencode backend
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.10.0"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.11.0"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
+# Per-run overlay: dsh applies --patch in argv order, so this wins over hand.patch.yml.
+COMPACTION_PATCH_FILE = "compaction.patch.yml"
+COMPACTION_ENTRY_ID = "compaction-basic"
+COMPACTION_ENTRY_NAME = "@deepseek-ai/dsh-compaction-basic"
 # Versions whose env loading and patch keys were read from source (see module docstring).
 VERIFIED_VERSIONS = frozenset({"0.2.1-rc.5"})
 DOCTOR_TIMEOUT_S = 60
@@ -137,6 +142,37 @@ def _path(options: dict, key: str, default: str) -> Path:
 
 def _opt(options: dict, key: str, default: str) -> str:
     return str((options or {}).get(key) or default)
+
+
+def _int_option(options: dict, key: str, default: int) -> int:
+    value = (options or {}).get(key)
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{key} phải là số nguyên, nhận {value!r}")
+    return value
+
+
+def compact_at_option(options: dict) -> int:
+    """Auto-compact threshold in tokens; 0 disables the per-run patch."""
+    value = _int_option(options, "compact_at", DEFAULT_COMPACT_AT)
+    if value < 0:
+        raise ValueError(f"compact_at phải >= 0 (0 là tắt tự nén), nhận {value}")
+    return value
+
+
+def context_window_option(options: dict) -> int:
+    value = _int_option(options, "context_window", DEFAULT_CONTEXT_WINDOW)
+    if value <= 0:
+        raise ValueError(f"context_window phải > 0, nhận {value}")
+    return value
+
+
+def compaction_ratio(compact_at: int, context_window: int) -> float:
+    if not 0 < compact_at < context_window:
+        raise ValueError(
+            f"compact_at phải trong (0, {context_window}), nhận {compact_at}")
+    return compact_at / context_window
 
 
 def home_dir(options: dict) -> Path:
@@ -328,7 +364,21 @@ class DshBackend(Backend):
         patches = [patch_file(options)]
         if spec.browser:
             patches.append(DshBackend._write_browser_patch(options, spec))
+        if compact_at_option(options):
+            patches.append(DshBackend._write_compaction_patch(options, spec))
         return patches
+
+    @staticmethod
+    def _write_compaction_patch(options: dict, spec: RunSpec) -> Path:
+        compact_at = compact_at_option(options)
+        ratio = compaction_ratio(compact_at, context_window_option(options))
+        spec.run_dir.mkdir(parents=True, exist_ok=True)
+        path = spec.run_dir / COMPACTION_PATCH_FILE
+        path.write_text(
+            "- id: %s\n  name: '%s'\n  config:\n    thresholdRatio: %r\n"
+            % (COMPACTION_ENTRY_ID, COMPACTION_ENTRY_NAME, ratio),
+            encoding="utf-8")
+        return path
 
     @staticmethod
     def _write_browser_patch(options: dict, spec: RunSpec) -> Path:

@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .base import Backend, Check, RunSpec, RunState, Status, bin_for
+from ..constants import DEFAULT_COMPACT_AT
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG = PLUGIN_ROOT / "templates" / "opencode-hand.jsonc"
@@ -39,6 +40,9 @@ PROMPT_FILE = "prompt.md"
 SHORT_MESSAGE = ("Follow the attached brief (prompt.md) exactly. "
                  "End with the report format it asks for.")
 CONFIG_ENV = "OPENCODE_CONFIG"
+CONFIG_CONTENT_ENV = "OPENCODE_CONFIG_CONTENT"
+COMPACTION_RESERVED = 20_000
+COMPACTION_DISABLE_ENV = "OPENCODE_DISABLE_AUTOCOMPACT"
 AUTH_PROVIDER_NAME = "OpenCode Go"
 EXPECTED_RELEASE = "2026-10-17"  # DeepSeek V4.1 Flash 1017
 # models.dev keeps release_date 2026-09-10 for opencode-go, but OpenCode announced on X
@@ -69,11 +73,43 @@ def _opt(options: dict, key: str, default):
     return value if value else default
 
 
+def _int_option(options: dict, key: str, default: int) -> int:
+    value = (options or {}).get(key)
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{key} phải là số nguyên, nhận {value!r}")
+    return value
+
+
+def compact_at_option(options: dict) -> int:
+    """Auto-compact threshold in tokens; 0 disables OPENCODE_CONFIG_CONTENT."""
+    value = _int_option(options, "compact_at", DEFAULT_COMPACT_AT)
+    if value < 0:
+        raise ValueError(f"compact_at phải >= 0 (0 là tắt tự nén), nhận {value}")
+    return value
+
+
+def compaction_content(model: str, compact_at: int) -> str:
+    """Inline config: limit.input - compaction.reserved == compact_at for this run."""
+    provider, _, model_id = model.partition("/")
+    if not provider or not model_id:
+        raise ValueError(f"model phải có dạng provider/model, nhận {model!r}")
+    if compact_at <= COMPACTION_RESERVED:
+        raise ValueError(
+            f"compact_at phải lớn hơn {COMPACTION_RESERVED} (reserved), nhận {compact_at}")
+    return json.dumps({
+        "compaction": {"auto": True, "reserved": COMPACTION_RESERVED},
+        "provider": {provider: {"models": {model_id: {
+            "limit": {"input": compact_at + COMPACTION_RESERVED}}}}},
+    }, ensure_ascii=False, separators=(",", ":"))
+
+
 class OpencodeBackend(Backend):
     name = "opencode"
-    BLOCKED_ENV = ("OPENCODE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
-                   "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY",
-                   "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY")
+    BLOCKED_ENV = ("OPENCODE_API_KEY", COMPACTION_DISABLE_ENV, "OPENAI_API_KEY",
+                   "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+                   "GOOGLE_GENERATIVE_AI_API_KEY", "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY")
 
     # ---- setup / doctor -------------------------------------------------
     def setup(self, options: dict) -> List[str]:
@@ -146,7 +182,11 @@ class OpencodeBackend(Backend):
         argv = [bin_for(self.name), "run", "--pure", "--model", model,
                 "--variant", variant, "--format", "json", "--dir", str(spec.cwd),
                 "--agent", agent, "--auto", "-f", str(prompt_path), "--", SHORT_MESSAGE]
-        return argv, {CONFIG_ENV: str(self._config(options))}, None
+        env = {CONFIG_ENV: str(self._config(options))}
+        compact_at = compact_at_option(options)
+        if compact_at:
+            env[CONFIG_CONTENT_ENV] = compaction_content(model, compact_at)
+        return argv, env, None
 
     def parse_line(self, line: str, state: RunState) -> None:
         line = line.strip()

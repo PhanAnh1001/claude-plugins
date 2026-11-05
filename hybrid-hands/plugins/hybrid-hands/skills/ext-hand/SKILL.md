@@ -39,6 +39,7 @@ PLAYWRIGHT_BROWSERS_PATH=~/.dsh-hand/browser/ms-playwright \
 `hand-ext doctor --backend dsh` kiểm `node_modules/@playwright/mcp/cli.js` và `ms-playwright`; thiếu thì báo "thiếu (tuỳ chọn)" và không làm doctor fail. Chỉ cần cài khi dùng `--browser`.
 
 Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order` (mặc định `dsh`, `opencode`), `backends.<tên>` (dsh có thêm `browser_dir`, mặc định `~/.dsh-hand/browser`; dsh/opencode có `go_price_per_mtok`), `timeout_min` (60), `max_tokens`, `sandbox` (`workspace-write`), sổ `ledger` `output/llm/hand_usage.json` (token), `quota_state` `output/llm/hand_quota.json`, `runs_dir` `output/llm/hand-ext`, `go_usage.ledger` (mặc định `~/.hybrid-hands/go_usage.jsonl`) và `go_usage.monthly_limit_usd` (mặc định 100; Go Plus 200).
+- **Tự nén ngữ cảnh:** `backends.dsh.compact_at` và `backends.opencode.compact_at` (mặc định 272000 token) đặt ngưỡng tự nén cho riêng lượt chạy; `0` tắt. Với `dsh`, `context_window` (mặc định 1048576, khớp `templates/dsh-hand.yml`) quyết định `thresholdRatio` trong patch `compaction.patch.yml` của lượt; với `opencode`, hand đặt `OPENCODE_CONFIG_CONTENT` riêng lượt (`limit.input − reserved = compact_at`, `reserved` 20000). Không sửa `~/.dsh-hand/hand.patch.yml` hay `~/.config/opencode`; giá trị âm, không phải số nguyên, hoặc dsh `compact_at >= context_window` bị từ chối.
 
 ## 2. Một lượt giao việc
 
