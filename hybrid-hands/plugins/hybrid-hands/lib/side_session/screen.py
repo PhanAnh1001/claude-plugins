@@ -5,14 +5,28 @@ import shlex
 import subprocess
 
 
-def screen_names() -> set[str]:
+def screen_ids() -> dict[str, str]:
+    """name -> `pid.name` of every running screen."""
     out = subprocess.run(["screen", "-ls"], capture_output=True, text=True)
-    names: set[str] = set()
+    ids: dict[str, str] = {}
     for line in out.stdout.splitlines():
         token = line.strip().split("\t")[0].strip()
         if "." in token and token.split(".", 1)[0].isdigit():
-            names.add(token.split(".", 1)[1])
-    return names
+            ids[token.split(".", 1)[1]] = token
+    return ids
+
+
+def screen_names() -> set[str]:
+    return set(screen_ids())
+
+
+def quit(name: str) -> bool:
+    """Quit screen `name` by its exact `pid.name`: `screen -S side-x` alone is ambiguous
+    while `side-x-watch` runs, and screen then refuses to quit either."""
+    full = screen_ids().get(name)
+    if full is None:
+        return False
+    return run(quit_cmd(full)) == 0
 
 
 def is_alive(name: str) -> bool:

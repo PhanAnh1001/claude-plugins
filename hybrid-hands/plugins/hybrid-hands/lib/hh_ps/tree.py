@@ -181,7 +181,8 @@ def _label_target(run: HandRun,
     if found is None:
         return None
     session, started = found
-    if run.started_at is None or started is None or run.started_at < started:
+    # The registry stores `started` with second precision; state.started is fractional.
+    if run.started_at is None or started is None or run.started_at < int(started):
         return None
     return session
 

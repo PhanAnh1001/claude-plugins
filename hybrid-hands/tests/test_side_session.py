@@ -27,7 +27,7 @@ echo "$@" >> "$FAKE_DIR/screen.log"
 case "$1" in
   -ls) while read n; do printf '\\t1234.%s\\t(Detached)\\n' "$n"; done < "$FAKE_DIR/alive"; exit 1;;
   -dmS) echo "$2" >> "$FAKE_DIR/alive";;
-  -S) grep -vx "$2" "$FAKE_DIR/alive" > "$FAKE_DIR/alive.new"; mv "$FAKE_DIR/alive.new" "$FAKE_DIR/alive";;
+  -S) grep -vx "${2#*.}" "$FAKE_DIR/alive" > "$FAKE_DIR/alive.new"; mv "$FAKE_DIR/alive.new" "$FAKE_DIR/alive";;
 esac
 """
 FAKE_FAIL = "#!/bin/sh\necho fake-must-not-run >&2\nexit 99\n"
@@ -141,8 +141,8 @@ class SideSessionTest(unittest.TestCase):
         self.assertIn("0/300000", out)
         code, out = self.run_cli("stop", "a")
         self.assertEqual(code, 0)
-        self.assertIn("-S side-a -X quit", self.screen_log())
-        self.assertIn("-S side-a-watch -X quit", self.screen_log())
+        self.assertIn("-S 1234.side-a -X quit", self.screen_log())
+        self.assertIn(".side-a-watch -X quit", self.screen_log())
         st = json.loads((self.repo / "output/llm/side-sessions/a.json").read_text())
         self.assertEqual(st["status"], "stopped")
 
@@ -158,7 +158,7 @@ class SideSessionTest(unittest.TestCase):
         st = json.loads((self.repo / "output/llm/side-sessions/w.json").read_text())
         self.assertEqual(st["status"], "capped")
         self.assertEqual(st["tokens_used"], 1615)
-        self.assertIn("-S side-w -X quit", self.screen_log())
+        self.assertIn("-S 1234.side-w -X quit", self.screen_log())
 
     def test_watch_reads_ext_tokens_and_copies_report(self) -> None:
         self.assertEqual(self.start_ext("x"), 0)
@@ -230,3 +230,18 @@ class SideSessionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScreenQuitExactTest(unittest.TestCase):
+    """`screen -S side-x` also matches `side-x-watch`; quitting must target pid.name."""
+
+    LS = ("There are screens on:\n\t111.side-x\t(Detached)\n"
+          "\t222.side-x-watch\t(Detached)\n2 Sockets in /tmp.\n")
+
+    def test_quit_targets_exact_pid_name(self) -> None:
+        from side_session import screen
+        done = subprocess.CompletedProcess([], 0, stdout=self.LS, stderr="")
+        with mock.patch.object(screen.subprocess, "run", return_value=done) as run:
+            screen.quit("side-x")
+        self.assertEqual(run.call_args_list[-1].args[0],
+                         ["screen", "-S", "111.side-x", "-X", "quit"])

@@ -141,8 +141,7 @@ def ls(cfg: SideConfig, _a) -> int:
 
 
 def _quit(name: str) -> None:
-    if screen.is_alive(name):
-        screen.run(screen.quit_cmd(name))
+    screen.quit(name)
 
 
 def stop_session(cfg: SideConfig, st: state.SessionState, status: str, *, stop_watch: bool) -> None:

@@ -112,3 +112,18 @@ class HhPsSideTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SideLabelTargetTest(unittest.TestCase):
+    def test_run_registered_in_same_second_as_fractional_state_start(self) -> None:
+        from hh_ps.models import HandRun, Session
+        from hh_ps.tree import _label_target
+
+        session = Session(session_id="s", name="x", status="running", cwd="",
+                          context_tokens=None, started_at=None, last_activity=None,
+                          is_main=False, live=True)
+        run = HandRun(run_id="r", label="side-x", backend="dsh", status="running",
+                      started_at=1000.0, ended_at=None, parent_session=None, tokens={},
+                      model="", pid=None, child_pid=None, lost=False)
+        self.assertIs(_label_target(run, {"side-x": (session, 1000.7)}), session)
+        self.assertIsNone(_label_target(run, {"side-x": (session, 1001.2)}))
