@@ -26,7 +26,18 @@ def summary_block(path: Path) -> str | None:
     return "\n".join(body[: C.SUMMARY_MAX_LINES + 1])  # heading + <= 15 lines
 
 
-def build_prompt(user_prompt: str, name: str, handoff: Path, brain: str) -> str:
+EXTERNAL_RULES = """---
+Luật bàn giao cho phiên phụ {name} (hand ngoài, chạy không có người trực):
+- Không hỏi người dùng; việc ngoài phạm vi thì dừng phần đó và ghi lại trong báo cáo.
+- Chỉ làm trong thư mục làm việc hiện tại; không ghi file ngoài thư mục làm việc.
+- Báo cáo cuối của lượt chạy mở đầu bằng khối "## Tóm tắt" tối đa 15 dòng: kết quả (xong / xong một phần / bị chặn), file đã đổi, kiểm chứng đã chạy và kết quả thật, việc còn lại. side-session tự chép báo cáo này thành file bàn giao cho brain.
+"""
+
+
+def build_prompt(user_prompt: str, name: str, handoff: Path, brain: str,
+                 external: bool = False) -> str:
+    if external:
+        return f"{user_prompt.rstrip()}\n\n{EXTERNAL_RULES.format(name=name).strip()}\n"
     tpl = (PLUGIN_ROOT / C.TEMPLATE_RELPATH).read_text(encoding="utf-8")
     out_lines = []
     for line in tpl.splitlines():

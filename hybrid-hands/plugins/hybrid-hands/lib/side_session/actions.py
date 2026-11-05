@@ -53,7 +53,8 @@ def start(cfg: SideConfig, a) -> int:
     name = a.name
     prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
     handoff = cfg.handoff_dir / f"{name}.md"
-    full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "")
+    full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "",
+                               external=a.provider in C.EXTERNAL_PROVIDERS)
     refused = _validate_start(a, full_prompt)
     if refused:
         return refused

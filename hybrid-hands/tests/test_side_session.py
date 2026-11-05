@@ -227,6 +227,13 @@ class SideSessionTest(unittest.TestCase):
         self.assertIn('phiên brain "main"', p)
         self.assertIn("/h/n1.md", p)
 
+    def test_prompt_for_external_hand_does_not_ask_to_write_outside_worktree(self) -> None:
+        p = build_prompt("Task", "n1", Path("/h/n1.md"), "main", external=True)
+        self.assertNotIn("/h/n1.md", p)
+        self.assertNotIn("SendMessage", p)
+        self.assertIn("## Tóm tắt", p)
+        self.assertIn("không ghi file ngoài thư mục làm việc", p)
+
 
 if __name__ == "__main__":
     unittest.main()

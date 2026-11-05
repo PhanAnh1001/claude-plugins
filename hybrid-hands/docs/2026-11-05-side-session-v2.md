@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: completed
 lane: L2
 approved: 2026-11-05 (người dùng: "làm hết, tận dụng dsh")
 ---
@@ -71,7 +71,7 @@ Mỗi phần tử `sessions[]` thêm (mọi consumer phải chịu được khi 
 - [x] T-SS2-04 Plugin Paseo hh-tree: schema và vẽ lồng nhau — covers: §3 — estimate: 1h (hand dsh)
 - [x] T-SS2-05 Dải terminal hh-tree-band vẽ lồng nhau, test mod — covers: §3 — estimate: 0.5h (brain)
 - [x] T-SS2-06 live-tiktok-games: cấu hình `budget_check_cmd`, `launch.sh` thành lớp chuyển tiếp — covers: §2 — estimate: 0.5h (brain)
-- [ ] T-SS2-07 Thử thật: một phiên phụ Claude và một phiên phụ dsh nhỏ, xem cây — covers: §1–§3 — estimate: 0.5h (brain)
+- [x] T-SS2-07 Thử thật: một phiên phụ Claude và một phiên phụ dsh nhỏ, xem cây — covers: §1–§3 — estimate: 0.5h (brain)
 
 ### Kiểm chứng
 
