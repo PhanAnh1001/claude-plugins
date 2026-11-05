@@ -217,9 +217,12 @@ def ls(cfg: SideConfig, _a) -> int:
     rows = [("NAME", "PROVIDER", "CHROME", "STATUS", "LIVE", "TOKENS/CAP", "AGE", "HANDOFF")]
     for st in state.load_all(cfg.state_dir):
         used = count_tokens(cfg, st) if st.status == C.STATUS_RUNNING else st.tokens_used
+        token_cell = f"{used}/{st.max_tokens}"
+        if used >= st.max_tokens:
+            token_cell += C.OVER_CAP_SUFFIX
         rows.append((st.name, st.provider, "yes" if st.chrome else "no", st.status,
-                     "alive" if st.screen in alive else "dead",
-                     f"{used}/{st.max_tokens}", _age(time.time() - st.started),
+                     "alive" if st.screen in alive else "dead", token_cell,
+                     _age(time.time() - st.started),
                      "yes" if Path(st.handoff).is_file() else "no"))
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
     for r in rows:
@@ -284,7 +287,8 @@ def _external_tick(cfg: SideConfig, st: state.SessionState, run) -> bool:
 
 
 def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
-    if st.tokens_used >= st.max_tokens:
+    over_cap = st.tokens_used >= st.max_tokens
+    if over_cap and cfg.enforce_token_cap:
         stop_session(cfg, st, C.STATUS_CAPPED, stop_watch=False)
         print(f"{st.name}: capped at {st.tokens_used}/{st.max_tokens}")
         return False
@@ -292,7 +296,10 @@ def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
         st.status = C.STATUS_DEAD
         state.save(cfg.state_dir, st)
         return False
-    if st.tokens_used >= C.WARN_RATIO * st.max_tokens:
+    if over_cap:
+        print(C.OVER_CAP_WARNING.format(name=st.name, used=st.tokens_used,
+                                        cap=st.max_tokens))
+    elif st.tokens_used >= C.WARN_RATIO * st.max_tokens:
         print(f"{st.name}: warning {st.tokens_used}/{st.max_tokens} (>= {C.WARN_RATIO:.0%})")
     state.save(cfg.state_dir, st)
     return True

@@ -24,6 +24,7 @@ class SideConfig:
     budget_check_cmd: list[str] = field(default_factory=list)
     status_line_cmd: str = ""
     token_file: str = ""
+    enforce_token_cap: bool = True
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -57,6 +58,13 @@ def _relpath(repo: Path, raw: object, key: str) -> str:
     return str(_resolve(repo, raw)) if raw else ""
 
 
+def _bool_setting(raw: object, key: str) -> bool:
+    """A boolean setting; integers are rejected because JSON `1` is not a bool."""
+    if not isinstance(raw, bool):
+        raise ValueError(f"side_session.{key} phải là bool, nhận {raw!r}")
+    return raw
+
+
 def load_config(cwd: Path) -> SideConfig:
     repo = git_toplevel(cwd)
     merged = dict(C.DEFAULTS)
@@ -79,4 +87,5 @@ def load_config(cwd: Path) -> SideConfig:
         status_line_cmd=(str(_resolve(repo, merged["status_line_cmd"]))
                          if merged["status_line_cmd"] else ""),
         token_file=_relpath(repo, merged["token_file"], "token_file"),
+        enforce_token_cap=_bool_setting(merged["enforce_token_cap"], "enforce_token_cap"),
     )
