@@ -11,10 +11,13 @@ from .constants import (
     PARENT_SESSION_ENV, PROVIDER_CLAUDE, RUN_STATUS_RUNNING, SIDE_RUN_LABEL_PREFIX,
     SIDE_RUN_LABEL_SANITIZED_PREFIX,
 )
+from .limits import collect_limits, load_hand_ext_config
 from .models import HandRun, Session, Snapshot
 from .registry_source import SessionMeta, load_hand_runs, load_ps_config, state_root
 from .repos import RepoState, SideMap, project_root
 from .timeutil import to_epoch
+from .week import (ClaudeWeek, GoWeek, apply_claude_week, read_claude_week,
+                   read_go_week)
 
 
 def _cap_for(session, meta: Dict[str, SessionMeta],
@@ -64,11 +67,11 @@ def _reachable_ids(side: SideMap, seeds: Set[str]) -> Set[str]:
 
 def _claude_sessions(root: Path, cutoff: float, all_projects: bool,
                      main_session_id: Optional[str], moment: float,
-                     side: SideMap) -> List[Session]:
+                     side: SideMap, since: Optional[float]) -> List[Session]:
     include_ids = set(side) if side else None
     sessions = load_sessions(claude_config_dir(), cutoff, root,
                              all_projects, main_session_id, moment,
-                             include_ids=include_ids)
+                             include_ids=include_ids, since=since)
     seeds = {session.session_id for session in sessions if not session.pulled_in}
     reached = _reachable_ids(side, seeds)
     return [session for session in sessions
@@ -177,22 +180,49 @@ def _label_target(run: HandRun,
     return session
 
 
+def _run_in_week(run: HandRun, week: Optional[GoWeek]) -> bool:
+    if week is None:
+        return False
+    return run.ended_at is None or run.ended_at >= week.window_start
+
+
+def _apply_weeks(sessions: List[Session], claude_week: Optional[ClaudeWeek],
+                 go_week: Optional[GoWeek]) -> None:
+    for session in sessions:
+        session.usage = apply_claude_week(session.usage, claude_week)
+        for agent in session.subagents:
+            agent.usage = apply_claude_week(agent.usage, claude_week)
+        for run in session.hand_runs:
+            run.week_limit_usd = (go_week.limit_usd
+                                  if go_week is not None and _run_in_week(run, go_week)
+                                  else None)
+            run.week_pct_estimated = bool(go_week and go_week.total_estimated)
+
+
 def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
                    now: Optional[float] = None,
                    main_session_id: Optional[str] = None) -> Snapshot:
     cwd = Path(cwd)
     moment = time.time() if now is None else float(now)
     cutoff = moment - since_seconds
-    root = project_root(cwd)
+    # The hand-ext config owns the repo root and the Go limit; read it once and reuse
+    # its root instead of running git --show-toplevel a second time.
+    cfg = load_hand_ext_config(cwd)
+    root = cfg.root if cfg is not None else project_root(cwd)
+    home = claude_config_dir()
+    claude_week = read_claude_week(home, moment)
+    go_week = read_go_week(cfg.machine_state_dir if cfg is not None else state_root(),
+                           home, moment)
+    since = claude_week.window_start if claude_week is not None else None
     main_session_id = main_session_id or os.environ.get(PARENT_SESSION_ENV) or None
     repos = RepoState()
     repos.add_root(root, load_ps_config(root))
     sessions = _claude_sessions(root, cutoff, all_projects, main_session_id,
-                                moment, repos.side)
+                                moment, repos.side, since)
     if repos.add_cwds(_session_dirs(sessions)):
         # Side state from another repo may pull in ended sessions; load once more.
         sessions = _claude_sessions(root, cutoff, all_projects, main_session_id,
-                                    moment, repos.side)
+                                    moment, repos.side, since)
     meta, side = repos.meta, repos.side
     _add_external_sessions(sessions, side, cutoff)
     for session in sessions:
@@ -212,6 +242,14 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     for session in sessions:
         session.hand_runs.sort(key=_run_sort_key)
     orphans.sort(key=_run_sort_key)
+    _apply_weeks(sessions, claude_week, go_week)
+    for run in orphans:
+        run.week_limit_usd = (go_week.limit_usd
+                              if go_week is not None and _run_in_week(run, go_week)
+                              else None)
+        run.week_pct_estimated = bool(go_week and go_week.total_estimated)
     return Snapshot(sessions=sessions, orphan_runs=orphans, since_seconds=since_seconds,
                     cwd=str(cwd), all_projects=all_projects,
-                    main_session_id=main_session_id, generated_at=moment)
+                    main_session_id=main_session_id, generated_at=moment,
+                    limits=collect_limits(root, moment, cfg=cfg,
+                                          claude_week=claude_week, go_week=go_week))

@@ -2,6 +2,10 @@
 
 Plugin hiện cây phiên Claude → subagent → lượt hand ngoài ngay trong Paseo, trên desktop và điện thoại. Mỗi agent có một panel cạnh đó, đánh dấu đúng phiên Claude của agent là phiên chính; sidebar mở thêm màn hình cây đầy đủ cho mọi project. Cây tự làm mới mỗi 5 giây và đọc dữ liệu từ lệnh `hh-ps` sẵn có của hybrid-hands. Phiên phụ có `parent_session` được vẽ lồng dưới phiên đã mở nó, còn phiên không rõ cha gom vào nhóm riêng ở cuối cây.
 
+Đầu panel có khối **Hạn mức tuần** với đúng một dòng cho mỗi gói (Claude, Go): `Claude tuần   máy này 6.2% · máy khác 3.8% · tổng 10.0% · reset T6 13:00`, cùng dạng cho Go. Chỉ kỳ tuần được hiện; kỳ 5h và tháng bị bỏ hẳn. Tổng Go là số thật toàn tài khoản từ cache statusline; `máy này` = USD sổ Go trong cửa sổ `reset tuần - 7 ngày` ÷ `7d.limit_usd` của `go_usage_summary.json` (đúng `go_sessions.load_go_week`); `máy khác` = tổng − máy này (kẹp 0.0%). Claude lấy `local`/`other` từ `.statusline-week-split.json` và tổng tuần từ `.statusline-cache.json`; thiếu nguồn thì để trống. Số statusline đánh dấu ước tính có tiền tố `~`. Phần trăm làm tròn 1 chữ số thập phân, khác 0 mà dưới 0.05% hiện `<0.1%`.
+
+Mỗi dòng (phiên, subagent, lượt hand) không hiện số token nào (kể cả `ctx` hay vào/cache/ra), chỉ hiện `$0.78 · 1.6% tuần`: USD ước tính theo giá niêm yết (`$0.42`, `<$0.01`, `$0`) và phần hạn mức tuần đã dùng với 1 chữ số thập phân. Claude dùng `USD / usd_per_pct`; Go (`dsh`) dùng `USD / 7d.limit_usd × 100`; dòng thiếu nguồn để trống ô `%`, không bịa. Dòng phiên có thêm thời gian chạy và giờ kết thúc; subagent/lượt hand có thời lượng và giờ kết thúc. Test định dạng: `node --experimental-strip-types --test client/*.test.ts`.
+
 ## Cài đặt
 
 Cần Paseo 0.15.0 trở lên và Python 3 để chạy `hh-ps`.

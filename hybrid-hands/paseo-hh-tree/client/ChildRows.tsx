@@ -2,12 +2,13 @@ import { Text } from "react-native";
 
 import type { TreeHandRun, TreeSubagent } from "../shared/tree";
 import {
+  costText,
   durationText,
   handRunStatusColor,
   handRunStatusLabel,
+  resetText,
   subagentStatusColor,
   subagentStatusLabel,
-  tokenText,
   truncate,
 } from "./format";
 import { BULLET, Row, SEPARATOR, type TreeThemeProps } from "./TreeRow";
@@ -19,10 +20,12 @@ export function SubagentRow({
   depth,
   theme,
   compact,
+  now,
 }: TreeThemeProps & { agent: TreeSubagent; depth: number }) {
   const statusColor = subagentStatusColor(theme, agent);
-  const context = tokenText(agent.context_tokens);
+  const cost = costText(agent.usage);
   const duration = durationText(agent.duration_seconds);
+  const ended = agent.status === "finished" ? resetText(agent.ended_at, now) : "";
   const description = truncate(agent.description);
   return (
     <Row depth={depth}>
@@ -41,15 +44,22 @@ export function SubagentRow({
           {SEPARATOR}
           {subagentStatusLabel(agent)}
         </Text>
-        {context ? (
+        {cost ? (
           <Text style={{ color: theme.colors.foregroundMuted }}>
-            {SEPARATOR}ctx {context}
+            {SEPARATOR}
+            {cost}
           </Text>
         ) : null}
         {duration ? (
           <Text style={{ color: theme.colors.foregroundMuted }}>
             {SEPARATOR}
             {duration}
+          </Text>
+        ) : null}
+        {ended ? (
+          <Text style={{ color: theme.colors.foregroundMuted }}>
+            {SEPARATOR}
+            {ended}
           </Text>
         ) : null}
       </Text>
@@ -62,9 +72,12 @@ export function HandRunRow({
   depth,
   theme,
   compact,
+  now,
 }: TreeThemeProps & { run: TreeHandRun; depth: number }) {
   const statusColor = handRunStatusColor(theme, run);
   const duration = durationText(run.duration_seconds);
+  const ended = run.state === "running" ? "" : resetText(run.ended_at, now);
+  const cost = costText(run.usage);
   return (
     <Row depth={depth}>
       <Text style={{ color: theme.colors.foreground, fontSize: compact ? 12 : 13 }}>
@@ -78,15 +91,22 @@ export function HandRunRow({
           {SEPARATOR}
           {handRunStatusLabel(run)}
         </Text>
-        <Text style={{ color: theme.colors.foregroundMuted }}>
-          {SEPARATOR}vào {tokenText(run.tokens.input) || "0"}
-          {SEPARATOR}cache {tokenText(run.tokens.cached_input) || "0"}
-          {SEPARATOR}ra {tokenText(run.tokens.output) || "0"}
-        </Text>
+        {cost ? (
+          <Text style={{ color: theme.colors.foregroundMuted }}>
+            {SEPARATOR}
+            {cost}
+          </Text>
+        ) : null}
         {duration ? (
           <Text style={{ color: theme.colors.foregroundMuted }}>
             {SEPARATOR}
             {duration}
+          </Text>
+        ) : null}
+        {ended ? (
+          <Text style={{ color: theme.colors.foregroundMuted }}>
+            {SEPARATOR}
+            {ended}
           </Text>
         ) : null}
       </Text>

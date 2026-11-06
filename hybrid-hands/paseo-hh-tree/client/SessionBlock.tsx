@@ -5,10 +5,11 @@ import type { TreeSession } from "../shared/tree";
 import { HandRunRow, SubagentRow } from "./ChildRows";
 import {
   ageText,
+  costText,
+  resetText,
   sessionRuntimeText,
   sessionStatusColor,
   sessionStatusLabel,
-  sessionTokenText,
 } from "./format";
 import type { NestedSession } from "./nest";
 import { Row, SEPARATOR, type TreeThemeProps } from "./TreeRow";
@@ -49,8 +50,9 @@ function SessionRow({
   onToggle(): void;
 }) {
   const statusColor = sessionStatusColor(theme, session);
-  const tokens = sessionTokenText(session);
+  const cost = costText(session.usage);
   const runtime = sessionRuntimeText(session, now);
+  const ended = session.live ? "" : resetText(session.last_activity, now);
   const age = ageText(session.last_activity, now);
   const provider = providerLabel(session);
   const label = hasChildren
@@ -92,10 +94,10 @@ function SessionRow({
               {session.cwd}
             </Text>
           ) : null}
-          {tokens ? (
+          {cost ? (
             <Text style={{ color: theme.colors.foreground }}>
               {SEPARATOR}
-              {tokens}
+              {cost}
             </Text>
           ) : null}
           {runtime ? (
@@ -103,7 +105,12 @@ function SessionRow({
               {SEPARATOR}chạy {runtime}
             </Text>
           ) : null}
-          {!compact && age ? (
+          {ended ? (
+            <Text style={{ color: theme.colors.foregroundMuted }}>
+              {SEPARATOR}kết thúc {ended}
+            </Text>
+          ) : null}
+          {!compact && !ended && age ? (
             <Text style={{ color: theme.colors.foregroundMuted }}>
               {SEPARATOR}hoạt động {age}
             </Text>

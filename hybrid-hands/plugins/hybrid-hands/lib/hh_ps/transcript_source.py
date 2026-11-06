@@ -79,11 +79,16 @@ def _usage_key(message: dict, item: dict) -> Optional[str]:
 class _UsageAccumulator:
     """Sum assistant usage in one stream; the last record per message id wins."""
 
-    def __init__(self) -> None:
+    def __init__(self, since: Optional[float] = None) -> None:
         self._by_key: Dict[str, Tuple[dict, str]] = {}
         self._extra: List[Tuple[dict, str]] = []
+        self._since = since
 
     def add(self, item: dict) -> None:
+        if self._since is not None:
+            moment = to_epoch(item.get("timestamp"))
+            if moment is not None and moment < self._since:
+                return
         message = item.get("message")
         if not isinstance(message, dict):
             return
@@ -136,14 +141,14 @@ def _iter_objects(path: Path):
         return
 
 
-def parse_transcript(path: Path) -> TranscriptInfo:
+def parse_transcript(path: Path, since: Optional[float] = None) -> TranscriptInfo:
     """Stream one transcript, keeping only title, cwd, usage and timestamps."""
     try:
         mtime = path.stat().st_mtime
     except OSError:
         mtime = 0.0
     info = TranscriptInfo(mtime=mtime, slug=path.parent.name)
-    usage = _UsageAccumulator()
+    usage = _UsageAccumulator(since)
     for item in _iter_objects(path):
         cwd = item.get("cwd")
         if isinstance(cwd, str) and cwd:
@@ -174,11 +179,12 @@ def parse_transcript(path: Path) -> TranscriptInfo:
 
 
 def _parse_agent(
-        path: Path) -> Tuple[Optional[int], Optional[float], Optional[float], Optional[Usage]]:
+        path: Path, since: Optional[float] = None
+) -> Tuple[Optional[int], Optional[float], Optional[float], Optional[Usage]]:
     context: Optional[int] = None
     first: Optional[float] = None
     last: Optional[float] = None
-    usage = _UsageAccumulator()
+    usage = _UsageAccumulator(since)
     if not path.is_file():
         return context, first, last, None
     for item in _iter_objects(path):
@@ -194,7 +200,8 @@ def _parse_agent(
     return context, first, last, usage.result()
 
 
-def load_subagents(dirs: Iterable[Path], cutoff: float, now: float) -> List[Subagent]:
+def load_subagents(dirs: Iterable[Path], cutoff: float, now: float,
+                   since: Optional[float] = None) -> List[Subagent]:
     agents: List[Subagent] = []
     for folder in dirs:
         for meta_path in sorted(folder.glob(SUBAGENT_META_GLOB)):
@@ -202,7 +209,7 @@ def load_subagents(dirs: Iterable[Path], cutoff: float, now: float) -> List[Suba
             agent_id = meta_path.name[len("agent-"):-len(SUBAGENT_META_SUFFIX)]
             jsonl = meta_path.with_name(
                 meta_path.name[:-len(SUBAGENT_META_SUFFIX)] + SUBAGENT_JSONL_SUFFIX)
-            context, first, last, usage = _parse_agent(jsonl)
+            context, first, last, usage = _parse_agent(jsonl, since)
             try:
                 mtime = (jsonl if jsonl.is_file() else meta_path).stat().st_mtime
             except OSError:

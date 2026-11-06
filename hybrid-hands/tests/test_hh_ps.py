@@ -89,9 +89,8 @@ class HhPsTest(unittest.TestCase):
     def test_token_caps_and_ratios_from_meta_and_side_state(self) -> None:
         code, out = self.run_cli()
         self.assertEqual(code, 0, out)
-        # Text shows context only; caps and ratios stay in --json.
-        self.assertIn("ctx 6k", out)
-        self.assertIn("ctx 12k", out)
+        # Text shows no token counts; context, caps and ratios stay in --json.
+        self.assertNotIn("ctx ", out)
         self.assertNotIn("/200k", out)
         data = self.json_cli()
         caps = {item["session_id"]: item["token_cap"] for item in data["sessions"]}
@@ -125,7 +124,8 @@ class HhPsTest(unittest.TestCase):
                                     "duration_seconds", "parent_session", "pid",
                                     "child_pid"})
         self.assertEqual(set(session["usage"]),
-                         {"read", "cache_read", "cache_write", "out", "usd"})
+                         {"read", "cache_read", "cache_write", "out", "usd",
+                          "week_pct", "week_pct_estimated"})
         self.assertIn("ai_title", session)
         self.assertEqual(set(run["tokens"]), {"input", "cached_input", "output"})
         self.assertEqual(len(data["orphan_runs"]), 1)

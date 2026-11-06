@@ -70,7 +70,7 @@ class HideEndedTreesTest(unittest.TestCase):
         self.assertEqual(snap.hidden_ended_sessions, 0)
         lines = render_text(snap).splitlines()
         side = next(line for line in lines if "○ phụ:s" in line)
-        self.assertIn("04/11 23:50  -|-|-|-", side)
+        self.assertIn("04/11 23:50  -", side)
         main = next(line for line in lines if "● main" in line)
         self.assertNotRegex(main, r"\d\d:\d\d")  # no end time on a live session
 

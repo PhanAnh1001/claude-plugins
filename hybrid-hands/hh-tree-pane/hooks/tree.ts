@@ -1,25 +1,30 @@
 // Turns `hh-ps --json` into compact pane rows, in the same layout as the hh-ps
 // text tree (lib/hh_ps/compact.py; change both together):
-//   session: `<mark> <name>  <quiet | end>  <status>  <tokens>  <usd>  ctx <N>`
-//   child:   `<mark> <kind>  <duration>  [<end>]  <tokens>  <usd>  <size>  <description>  [<bad status>]`
-//   side session as a child: `<mark> phụ:<name>  <quiet | duration>  [<end>]  <tokens>  <usd>  ctx <N>  [<ai title>]`
-// Session, side-session and child rows share one column table, so the token
-// block and the size cell (`ctx`/`out`) start at the same display column at
-// every depth. `<tokens>` is `read|cache_read|cache_write|out`, right-aligned,
-// with the pipes skipping the column gap. Every session lists its children
+//   session: `<mark> <name>  <quiet | end>  <status>  <usd>  <limit %>`
+//   child:   `<mark> <kind>  <duration>  [<end>]  <usd>  <limit %>  <description>  [<bad status>]`
+//   side session as a child: `<mark> phụ:<name>  <quiet | duration>  [<end>]  <usd>  <limit %>  [<ai title>]`
+// Session, side-session and child rows share one column table, so the USD and
+// week-% cells line up at every depth. No token count is shown (not even
+// `ctx`); `<week %>` is the share of the weekly plan limit, one decimal, `-`
+// when hh-ps has none for the row. Only the weekly plan window is rendered. Every session lists its children
 // (subagents, hand runs, side sessions) by one rule (lib/hh_ps/selection.py):
 // running first, then the RECENT_FINISHED_SHOWN newest finished or failed, then
 // `+N xong · M lỗi`. The bad status follows the description so ok rows (most of
 // them) leave no gap before the description. hh-ps already hides fully ended trees.
 import type { Row, Tone } from '../types'
 
-type Usage = { read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null }
+type Usage = { read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null; week_pct?: number | null; week_pct_estimated?: boolean }
 type Sub = { description?: string; agent_type?: string; status?: string; context_tokens?: number | null; duration_seconds?: number | null; ended_at?: string | null; usage?: Usage | null }
 type Run = {
   label?: string; backend?: string; status?: string; state?: string
   tokens?: { input?: number; cached_input?: number; output?: number } | null
   usage?: Usage | null
   started_at?: string | null; ended_at?: string | null; duration_seconds?: number | null
+}
+type Limit = {
+  plan?: string; window?: string
+  this_machine_pct?: number | null; other_pct?: number | null; total_pct?: number | null
+  resets_at?: string | null; source?: string; estimated?: boolean
 }
 type Session = {
   session_id: string; name?: string | null; status?: string; context_tokens?: number | null
@@ -33,10 +38,11 @@ export type HhPs = {
   sessions?: Session[]
   hidden_ended_sessions?: number
   orphan_runs?: Run[]
+  limits?: Limit[]
   totals?: { live_sessions?: number; running_subagents?: number; running_hand_runs?: number }
 }
 
-export const LEGEND = '▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · token: đọc|cache đọc|cache ghi|ra · $ ước tính theo giá niêm yết'
+export const LEGEND = '▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · $ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng'
 // Finished or failed children listed per session; hh-ps constants.py keeps the same.
 const RECENT_FINISHED_SHOWN = 3
 // Display-cell caps shared with hh-ps (constants.py): keep child rows within
@@ -129,34 +135,55 @@ type Col = { text: string; right?: boolean; glue?: boolean }
 const COLUMN_GAP = '  '
 // The pane draws each indent level as two spaces (register.tsx).
 const INDENT_CELLS = 2
-const TOKEN_SEPARATOR = '|'
 const USD_MIN_VISIBLE = 0.01
+// Limit share prints one decimal; a non-zero share that rounds to 0.0 reads `<0.1%`.
+const PERCENT_DECIMALS = 1
+const PERCENT_MIN_VISIBLE = 0.1
+// Three spaces separate the plan/window label from the machine split.
+const LIMIT_GAP = '   '
+const UNKNOWN_PERCENT = '?'
 
 const plain = (text: string, tone: Tone, indent: number): Draft => ({ lead: text, cols: [], tone, indent, group: null })
 
-const tokenCell = (n: number | null | undefined) => (n != null ? short(n) : '-')
-const usdText = (usd: number | null | undefined) => {
+export const usdText = (usd: number | null | undefined) => {
   if (usd == null) return '-'
   if (usd <= 0) return '$0'
   return usd < USD_MIN_VISIBLE ? '<$0.01' : `$${usd.toFixed(2)}`
 }
 
-// `read|cache_read|cache_write|out`, right-aligned; pipes skip COLUMN_GAP.
-function usageCols(usage: Usage | null | undefined): Col[] {
-  const values = [usage?.read, usage?.cache_read, usage?.cache_write, usage?.out]
-  const cols: Col[] = []
-  values.forEach((value, index) => {
-    if (index) cols.push({ text: TOKEN_SEPARATOR, glue: true })
-    cols.push({ text: tokenCell(value), right: true, glue: index > 0 })
-  })
-  cols.push({ text: usdText(usage?.usd), right: true })
-  return cols
+export const percentText = (pct: number | null | undefined, estimated = false) => {
+  if (pct == null || !Number.isFinite(pct)) return ''
+  const mark = estimated ? '~' : ''
+  if (pct > 0 && pct < PERCENT_MIN_VISIBLE / 2) return `${mark}<${PERCENT_MIN_VISIBLE}%`
+  return `${mark}${Math.max(0, pct).toFixed(PERCENT_DECIMALS)}%`
 }
 
-function childRow(mark: string, tone: Tone, k: string | undefined, what: string, bad: string, size: string,
+const limitPercent = (pct: number | null | undefined, estimated = false) => (
+  pct == null || !Number.isFinite(pct) ? UNKNOWN_PERCENT : percentText(pct, estimated))
+
+/** `Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
+export const limitLine = (l: Limit, now: number) => {
+  const reset = endedText(l.resets_at, now)
+  const mark = l.estimated === true
+  const parts = [`máy này ${limitPercent(l.this_machine_pct, mark)}`,
+    `máy khác ${limitPercent(l.other_pct, mark)}`, `tổng ${limitPercent(l.total_pct, mark)}`]
+  if (reset) parts.push(`reset ${reset}`)
+  return `${l.plan ?? '?'} ${l.window ?? '?'}${LIMIT_GAP}${parts.join(' · ')}`
+}
+
+const WEEK_WINDOW = 'tuần'
+
+// USD then the weekly share, both right-aligned; same cells as hh-ps compact.py.
+function usageCols(usage: Usage | null | undefined): Col[] {
+  const share = percentText(usage?.week_pct, usage?.week_pct_estimated === true)
+  return [{ text: usdText(usage?.usd), right: true },
+    { text: share ? `${share} ${WEEK_WINDOW}` : '-', right: true }]
+}
+
+function childRow(mark: string, tone: Tone, k: string | undefined, what: string, bad: string,
   dur: string, end: string, usage: Usage | null | undefined, indent: number): Draft {
   const cols = [{ text: dur, right: true }, { text: end }, ...usageCols(usage),
-    { text: size }, { text: cut(what, DESCRIPTION_MAX) }, { text: bad }]
+    { text: cut(what, DESCRIPTION_MAX) }, { text: bad }]
   return { lead: `${mark} ${kind(k)}`, cols, tone, indent, group: 'tree' }
 }
 
@@ -168,16 +195,15 @@ function runRow(r: Run, now: number, indent: number): Draft {
   const text = lost ? 'mất' : bad ? STATUS_ALIASES[r.status ?? ''] ?? r.status ?? '' : ''
   const mark = live ? MARK.running : bad ? MARK.bad : MARK.ok
   const tone: Tone = live ? 'running' : bad ? 'bad' : 'dim'
-  return childRow(mark, tone, r.backend, r.label ?? '?', text, `out ${short(r.tokens?.output ?? 0)}`,
+  return childRow(mark, tone, r.backend, r.label ?? '?', text,
     age(dur), live || lost ? '' : endedText(r.ended_at, now), r.usage, indent)
 }
 
 function subRow(s: Sub, now: number, indent: number): Draft {
   const live = s.status === 'running' || s.status === 'silent'
   const silent = s.status === 'silent'
-  const size = s.context_tokens != null ? `ctx ${short(s.context_tokens)}` : ''
   return childRow(live ? MARK.running : MARK.ok, silent ? 'bad' : live ? 'running' : 'dim', s.agent_type,
-    s.description ?? '', silent ? 'im lặng' : '', size, age(s.duration_seconds),
+    s.description ?? '', silent ? 'im lặng' : '', age(s.duration_seconds),
     live ? '' : endedText(s.ended_at, now), s.usage, indent)
 }
 
@@ -186,7 +212,6 @@ function isLive(s: Session): boolean {
 }
 
 const sessionName = (s: Session) => cut(s.side_name ? `phụ:${s.side_name}` : s.name || s.session_id.slice(0, 8), NAME_MAX)
-const ctx = (n: number | null | undefined) => (n != null ? `ctx ${short(n)}` : '')
 
 function sessionLook(s: Session, now: number, isHere: boolean) {
   const live = isLive(s)
@@ -203,7 +228,6 @@ function headRow(s: Session, now: number, isHere: boolean, indent: number): Draf
     { text: live ? age(quiet) : endedText(s.ended_at, now), right: true },
     { text: !live ? '' : stale ? STUCK_TEXT : s.status ?? '?' },
     ...usageCols(s.usage),
-    { text: ctx(s.context_tokens) },
   ]
   return { lead: `${mark} ${sessionName(s)}`, cols, tone, indent, group: 'tree' }
 }
@@ -218,7 +242,6 @@ function sideRow(s: Session, now: number, isHere: boolean, indent: number): Draf
     { text: dur != null ? age(dur) : '', right: true },
     { text: live ? (stale ? STUCK_TEXT : '') : endedText(s.ended_at, now) },
     ...usageCols(s.usage),
-    { text: ctx(s.context_tokens) },
     { text: cut(s.ai_title ?? '', DESCRIPTION_MAX) },
   ]
   return { lead: `${mark} ${sessionName(s)}`, cols, tone, indent, group: 'tree' }
@@ -302,7 +325,10 @@ export function buildRows(data: HhPs, hereId: string): { rows: Row[]; header: st
   const rank = (s: Session) => (s.session_id === hereId ? 0 : isLive(s) ? (s.status === 'busy' ? 1 : 2) : 3)
   roots.sort((a, b) => rank(a) - rank(b))
 
-  const drafts: Draft[] = []
+  const limits = (data.limits ?? []).filter(l => l.window === WEEK_WINDOW)
+  const drafts: Draft[] = limits.length
+    ? [plain('Hạn mức', 'plain', 0), ...limits.map(l => plain(limitLine(l, now), 'dim', 0))]
+    : []
   const seen = new Set<string>()
   for (const s of roots) drafts.push(...sessionTree(s, now, hereId, 0, kids, seen, false))
   const orphans = (data.orphan_runs ?? []).filter(runIsLive)

@@ -1,32 +1,88 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 
-import type { TreeHandRun, TreeSession, TreeSubagent } from "../shared/tree";
+import type {
+  TreeHandRun,
+  TreeLimit,
+  TreeSession,
+  TreeSubagent,
+  TreeUsage,
+} from "../shared/tree";
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 60 * SECONDS_PER_MINUTE;
 const SECONDS_PER_DAY = 24 * SECONDS_PER_HOUR;
 const MILLISECONDS_PER_SECOND = 1000;
-const TOKEN_KILO = 1000;
-const TOKEN_MEGA = 1_000_000;
+// Same cost formats as hh-tree-pane (hooks/tree.ts) and hh-ps (timeutil.py).
+const USD_DECIMALS = 2;
+const USD_MIN_VISIBLE = 0.01;
+const PERCENT_DECIMALS = 1;
+const PERCENT_MIN_VISIBLE = 0.1;
+// Three spaces separate the plan/window label from the split, as in hh-ps.
+const LIMIT_GAP = "   ";
+const UNKNOWN_PERCENT = "?";
+const WEEK_WINDOW = "tuần";
 
 export const DESCRIPTION_MAX_LEN = 60;
 
-function trimNumber(value: number): string {
-  return Number(value.toFixed(1)).toString();
-}
-
-export function tokenText(value: number | null): string {
-  if (value === null) {
+/** `$0.42`, `<$0.01` under one cent, `$0` for nothing used, "" without an estimate. */
+export function usdText(usd: number | null | undefined): string {
+  if (usd === null || usd === undefined || !Number.isFinite(usd)) {
     return "";
   }
-  const count = Math.max(0, Math.floor(value));
-  if (count < TOKEN_KILO) {
-    return String(count);
+  if (usd <= 0) {
+    return "$0";
   }
-  if (count < TOKEN_MEGA) {
-    return `${trimNumber(count / TOKEN_KILO)}k`;
+  return usd < USD_MIN_VISIBLE ? "<$0.01" : `$${usd.toFixed(USD_DECIMALS)}`;
+}
+
+/** Share of the weekly plan limit, one decimal (`12.3%`); "" when unknown. */
+export function percentText(pct: number | null | undefined, estimated = false): string {
+  if (pct === null || pct === undefined || !Number.isFinite(pct)) {
+    return "";
   }
-  return `${trimNumber(count / TOKEN_MEGA)}M`;
+  const mark = estimated ? "~" : "";
+  if (pct > 0 && pct < PERCENT_MIN_VISIBLE / 2) {
+    return `${mark}<${PERCENT_MIN_VISIBLE}%`;
+  }
+  return `${mark}${Math.max(0, pct).toFixed(PERCENT_DECIMALS)}%`;
+}
+
+/** `$0.78 · 1.6% tuần`, only the parts the row has; "" when it has neither. */
+export function costText(usage: TreeUsage): string {
+  const share = percentText(usage?.week_pct, usage?.week_pct_estimated === true);
+  return [usdText(usage?.usd), share ? `${share} ${WEEK_WINDOW}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** Limit-cell text: `?` when hh-ps did not know the share. */
+export function limitPercentText(
+  pct: number | null | undefined,
+  estimated = false,
+): string {
+  return pct === null || pct === undefined || !Number.isFinite(pct)
+    ? UNKNOWN_PERCENT
+    : percentText(pct, estimated);
+}
+
+/** True for the only plan window hh-ps and both panels display. */
+export function isWeekLimit(limit: TreeLimit): boolean {
+  return limit.window === WEEK_WINDOW;
+}
+
+/** `Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
+export function limitLine(limit: TreeLimit, now: number): string {
+  const reset = resetText(limit.resets_at, now);
+  const mark = limit.estimated === true;
+  const split = [
+    `máy này ${limitPercentText(limit.this_machine_pct, mark)}`,
+    `máy khác ${limitPercentText(limit.other_pct, mark)}`,
+    `tổng ${limitPercentText(limit.total_pct, mark)}`,
+  ];
+  if (reset) {
+    split.push(`reset ${reset}`);
+  }
+  return `${limit.plan} ${limit.window}${LIMIT_GAP}${split.join(" · ")}`;
 }
 
 export function durationText(seconds: number | null): string {
@@ -86,6 +142,19 @@ export function sessionRuntimeText(session: TreeSession, now: number): string {
   return sinceActivity === null ? "" : durationText(Math.max(0, sinceStart - sinceActivity));
 }
 
+/** Reset time: `HH:MM` today, `dd/mm HH:MM` on another local day; "" when unknown. */
+export function resetText(iso: string | null, now: number): string {
+  const moment = parseMoment(iso);
+  if (moment === null) {
+    return "";
+  }
+  const date = new Date(moment);
+  const pad = (part: number) => String(part).padStart(2, "0");
+  const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const sameDay = date.toDateString() === new Date(now).toDateString();
+  return sameDay ? clock : `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${clock}`;
+}
+
 export function clockText(iso: string): string {
   const moment = parseMoment(iso);
   if (moment === null) {
@@ -94,31 +163,6 @@ export function clockText(iso: string): string {
   const date = new Date(moment);
   const pad = (part: number) => String(part).padStart(2, "0");
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
-export function ratioPercent(ratio: number | null): string {
-  if (ratio === null || !Number.isFinite(ratio)) {
-    return "";
-  }
-  return `${trimNumber(ratio * 100)}%`;
-}
-
-export function sessionTokenText(session: TreeSession): string {
-  const context = tokenText(session.context_tokens);
-  const cap = tokenText(session.token_cap);
-  if (context && cap) {
-    const ratio =
-      session.token_ratio !== null
-        ? ratioPercent(session.token_ratio)
-        : ratioPercent(
-            session.token_cap ? (session.context_tokens ?? 0) / session.token_cap : null,
-          );
-    return `ctx ${context}/${cap}${ratio ? ` (${ratio})` : ""}`;
-  }
-  if (cap) {
-    return `ctx ?/${cap}`;
-  }
-  return context ? `ctx ${context}` : "";
 }
 
 export function truncate(text: string, limit = DESCRIPTION_MAX_LEN): string {

@@ -95,8 +95,9 @@ class TextRuleTest(unittest.TestCase):
 
     def test_duration_cell_comes_before_description(self) -> None:
         row = next(line for line in _render([_mixed("s")]) if "done-1" in line)
-        self.assertLess(row.index("30s"), row.index("ctx 1k"))
-        self.assertLess(row.index("ctx 1k"), row.index("done-1"))
+        self.assertLess(row.index("30s"), row.index(" - "))  # USD unknown
+        self.assertLess(row.index(" - "), row.index("done-1"))
+        self.assertNotIn("ctx", row)
         self.assertTrue(row.endswith("done-1"))
         failed = next(line for line in _render([_mixed("s")]) if "fail-2.5" in line)
         self.assertGreater(failed.index("failed"), failed.index("fail-2.5"))
@@ -106,7 +107,7 @@ class TextRuleTest(unittest.TestCase):
     def test_ok_row_has_no_gap_before_description(self) -> None:
         lines = _render([_mixed("s")])
         ok = next(line for line in lines if "done-1" in line)
-        self.assertRegex(ok, r"ctx 1k  done-1$")  # status column sits after it
+        self.assertRegex(ok, r" -\s+done-1$")  # USD `-`, empty limit %  # status column sits after it
         failed = next(line for line in lines if "fail-2.5" in line)
         self.assertEqual(failed.index("fail-2.5"), ok.index("done-1"))
 
@@ -121,10 +122,11 @@ class TextRuleTest(unittest.TestCase):
         lines = _render([parent, *sides])
         rows = [line for line in lines if "phụ:RV" in line]
         self.assertEqual(len(rows), 2)
-        # The time cell is right-aligned: equal ends and equal `ctx` starts.
-        time_ends = {display_width(row[:row.index(" ctx")].rstrip()) for row in rows}
+        # The time cell is right-aligned; the USD cell `-` ends both rows.
+        usd = [row.rindex("-") for row in rows]
+        time_ends = {display_width(row[:at].rstrip()) for row, at in zip(rows, usd)}
         self.assertEqual(len(time_ends), 1, rows)
-        self.assertEqual(len({display_width(row[:row.index("ctx")]) for row in rows}), 1, rows)
+        self.assertEqual(len({display_width(row[:at]) for row, at in zip(rows, usd)}), 1, rows)
 
     def test_side_session_is_a_child_with_its_own_rule(self) -> None:
         parent = _session("cha")
@@ -135,9 +137,9 @@ class TextRuleTest(unittest.TestCase):
         old_side.parent_session, old_side.side_name = "cha", "cũ"
         lines = _render([parent, live_side, old_side])
         text = "\n".join(lines)
-        self.assertRegex(lines[3], r"^  ├ ● phụ:sống +1p +.*ctx 1k$")
+        self.assertRegex(lines[3], r"^  ├ ● phụ:sống +1p +-$")
         child = next(line for line in lines if "done-1" in line)
-        self.assertEqual(lines[3].index("ctx"), child.index("ctx"))  # shared columns
+        self.assertEqual(lines[3].rindex("-"), child.rindex(" -") + 1)  # shared columns
         self.assertIn("  │ └ +3 xong · 1 lỗi", text)
         # Recent: done-1 (1 min), ended side (1 min, sorted after), done-2; done-3, done-4 fold.
         self.assertIn("○ phụ:cũ", text)

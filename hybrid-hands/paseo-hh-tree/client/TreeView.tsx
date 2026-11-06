@@ -8,6 +8,7 @@ import { Text, View } from "react-native";
 import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
 import { OrphanBlock } from "./ChildRows";
 import { durationText, clockText } from "./format";
+import { LimitsBlock } from "./LimitsBlock";
 import { nestSessions } from "./nest";
 import { OrphanSideBlock, SessionBlock } from "./SessionBlock";
 
@@ -74,6 +75,12 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
       contentContainerStyle={{ padding: layout.compact ? 12 : 20 }}
     >
+      <LimitsBlock
+        limits={tree.limits ?? []}
+        theme={theme}
+        compact={layout.compact}
+        now={now}
+      />
       <Text style={{ color: theme.colors.foreground, fontSize: 15, fontWeight: "600" }}>
         Cây phiên hybrid-hands
       </Text>
