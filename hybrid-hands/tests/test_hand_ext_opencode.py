@@ -20,6 +20,9 @@ FIXTURES = ROOT / "tests" / "fixtures" / "hand_ext"
 FAKE_BIN = FIXTURES / "opencode_fake.sh"
 BIN_ENV = "HAND_EXT_OPENCODE_BIN"
 TIMEOUT_S = 60
+CAPACITY_STDERR = (
+    'opencode: RATE_LIMIT: 429: {"type":"server_error","message":"Upstream request failed: '
+    '[prefill_cap_refused] the cell is at capacity; retry shortly (after 30 s)"}')
 
 
 def _spec(run_dir: Path, model: str = oc.DEFAULT_MODEL, effort: str = "max",
@@ -117,8 +120,16 @@ class CompactionTest(unittest.TestCase):
         reserved = content["compaction"]["reserved"]
         self.assertEqual(reserved, oc.COMPACTION_RESERVED)
         model = content["provider"]["opencode-go"]["models"]["deepseek-v4.1-flash"]
-        self.assertIsNone(model["limit"].get("context"))
+        self.assertEqual(model["limit"]["context"], 1_048_576)
+        self.assertEqual(model["limit"]["output"], 256_000)
         self.assertEqual(model["limit"]["input"] - reserved, 272_000)
+
+    def test_compaction_content_has_the_full_opencode_limit(self):
+        content = json.loads(oc.compaction_content("opencode-go/deepseek-v4.1-flash", 272_000))
+        limit = content["provider"]["opencode-go"]["models"]["deepseek-v4.1-flash"]["limit"]
+        self.assertEqual(limit["context"], 1_048_576)
+        self.assertEqual(limit["output"], 256_000)
+        self.assertEqual(limit["input"] - oc.COMPACTION_RESERVED, 272_000)
 
     def test_custom_compact_at_changes_input_limit(self):
         content = json.loads(self._env({"compact_at": 200_000})[oc.CONFIG_CONTENT_ENV])
@@ -173,6 +184,30 @@ class ParseAndFinalizeTest(unittest.TestCase):
         state = RunState(usage=Usage())
         status = self.backend.finalize(self.spec, state, 1, "GoUsageLimitError weekly")
         self.assertEqual(status, Status.QUOTA)
+
+    def test_capacity_retry_is_failed_not_quota(self):
+        state = RunState(usage=Usage())
+        status = self.backend.finalize(self.spec, state, 1, CAPACITY_STDERR)
+        self.assertEqual(status, Status.FAILED)
+        self.assertTrue(any("quá tải tạm thời" in error for error in state.errors),
+                        state.errors)
+
+    def test_capacity_recovered_by_retry_stays_ok(self):
+        state = RunState(usage=Usage())
+        self.assertEqual(self.backend.finalize(self.spec, state, 0, CAPACITY_STDERR),
+                         Status.OK)
+        self.assertEqual(state.errors, [])
+
+    def test_real_quota_wins_over_capacity_text(self):
+        state = RunState(usage=Usage())
+        status = self.backend.finalize(self.spec, state, 1,
+                                       CAPACITY_STDERR + "\nGoUsageLimitError: weekly")
+        self.assertEqual(status, Status.QUOTA)
+
+        state = RunState(usage=Usage())
+        state.extra["error_types"] = ["provider.go-limit"]
+        self.assertEqual(self.backend.finalize(self.spec, state, 1, CAPACITY_STDERR),
+                         Status.QUOTA)
 
     def test_not_logged_in(self):
         state = _feed("opencode_not_logged_in.jsonl")

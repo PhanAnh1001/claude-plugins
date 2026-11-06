@@ -24,8 +24,9 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .base import Backend, Check, RunSpec, RunState, Status, bin_for
-from ..constants import DEFAULT_COMPACT_AT
+from .base import (Backend, CAPACITY_NOTE, Check, RunSpec, RunState, Status, bin_for,
+                   is_capacity_error)
+from ..constants import DEFAULT_COMPACT_AT, DEFAULT_CONTEXT_WINDOW
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CONFIG = PLUGIN_ROOT / "templates" / "opencode-hand.jsonc"
@@ -42,6 +43,9 @@ SHORT_MESSAGE = ("Follow the attached brief (prompt.md) exactly. "
 CONFIG_ENV = "OPENCODE_CONFIG"
 CONFIG_CONTENT_ENV = "OPENCODE_CONFIG_CONTENT"
 COMPACTION_RESERVED = 20_000
+# opencode 1.19.5 rejects the inline config unless limit has context, input and output;
+# output matches maxTokens in templates/dsh-hand.yml.
+COMPACTION_OUTPUT_TOKENS = 256_000
 COMPACTION_DISABLE_ENV = "OPENCODE_DISABLE_AUTOCOMPACT"
 AUTH_PROVIDER_NAME = "OpenCode Go"
 EXPECTED_RELEASE = "2026-10-17"  # DeepSeek V4.1 Flash 1017
@@ -55,9 +59,10 @@ QUOTA_ERROR_TYPES = frozenset({
     "provider.go-limit", "provider.quota", "provider.free-limit",
     "provider.budget-limit", "provider.model-budget-limit"})
 AUTH_ERROR_TYPES = frozenset({"provider.auth"})
-QUOTA_PATTERN = re.compile(
-    r"GoUsageLimitError|usage limit reached|QuotaExceeded|spend limit|"
-    r"insufficient (credit|balance)|\b429\b", re.IGNORECASE)
+QUOTA_TEXT = (r"GoUsageLimitError|usage limit reached|QuotaExceeded|spend limit|"
+              r"insufficient (credit|balance)")
+QUOTA_PATTERN = re.compile(QUOTA_TEXT + r"|\b429\b", re.IGNORECASE)
+REAL_QUOTA_PATTERN = re.compile(QUOTA_TEXT, re.IGNORECASE)
 AUTH_PATTERN = re.compile(
     r"\b401\b|unauthori[sz]ed|not logged in|no credentials|invalid api key|"
     r"opencode auth login", re.IGNORECASE)
@@ -90,8 +95,12 @@ def compact_at_option(options: dict) -> int:
     return value
 
 
-def compaction_content(model: str, compact_at: int) -> str:
-    """Inline config: limit.input - compaction.reserved == compact_at for this run."""
+def compaction_content(model: str, compact_at: int,
+                       context_window: int = DEFAULT_CONTEXT_WINDOW) -> str:
+    """Inline config: limit.input - compaction.reserved == compact_at for this run.
+
+    opencode 1.19.5 validates limit.context, limit.input and limit.output together.
+    """
     provider, _, model_id = model.partition("/")
     if not provider or not model_id:
         raise ValueError(f"model phải có dạng provider/model, nhận {model!r}")
@@ -101,7 +110,8 @@ def compaction_content(model: str, compact_at: int) -> str:
     return json.dumps({
         "compaction": {"auto": True, "reserved": COMPACTION_RESERVED},
         "provider": {provider: {"models": {model_id: {
-            "limit": {"input": compact_at + COMPACTION_RESERVED}}}}},
+            "limit": {"context": context_window, "input": compact_at + COMPACTION_RESERVED,
+                      "output": COMPACTION_OUTPUT_TOKENS}}}}},
     }, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -232,6 +242,15 @@ class OpencodeBackend(Backend):
                  stderr_text: str) -> Status:
         types = set(state.extra.get("error_types", []))
         text = "\n".join(state.errors) + "\n" + (stderr_text or "")
+        real_quota = (bool(types & QUOTA_ERROR_TYPES)
+                      or bool(REAL_QUOTA_PATTERN.search(text)))
+        failed = exit_code != 0 or bool(state.errors)
+        if is_capacity_error(text) and not real_quota:
+            if not failed:
+                return Status.OK  # recovered through retries; the refusal was only logged
+            if CAPACITY_NOTE not in state.errors:
+                state.errors.append(CAPACITY_NOTE)
+            return Status.FAILED
         if types & QUOTA_ERROR_TYPES or QUOTA_PATTERN.search(text):
             return Status.QUOTA
         if types & AUTH_ERROR_TYPES or AUTH_PATTERN.search(text):

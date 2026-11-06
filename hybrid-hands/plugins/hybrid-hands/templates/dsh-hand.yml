@@ -27,8 +27,13 @@
           supportsReasoningEffort: true
           requiresReasoningContentOnAssistantMessages: true
         retryPolicy:
+          # Go refuses the prefill when a cell is full: 429 [prefill_cap_refused] with
+          # Retry-After 30 s. "normal" aborts when Retry-After > maxDelayMs, and counters
+          # reset on every step/start, so wait up to ~5 min per step instead of 0.5 s + 1 s.
           mode: normal
-          maxRetries: 2
+          maxRetries: 8
+          initialDelayMs: 5000
+          maxDelayMs: 60000
         models:
           - id: !!js process.env.HAND_EXT_DSH_MODEL
             contextWindow: 1048576

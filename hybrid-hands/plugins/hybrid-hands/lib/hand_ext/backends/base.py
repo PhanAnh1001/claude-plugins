@@ -9,6 +9,7 @@ Conventions:
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -17,6 +18,17 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 BIN_ENV_TEMPLATE = "HAND_EXT_{name}_BIN"
+# OpenCode Go temporarily refuses prefills under load: 429 with Retry-After 30 s. This is
+# capacity pressure, not the plan limit, so it must not enter quota_state.
+CAPACITY_PATTERN = re.compile(
+    r"prefill_cap_refused|at capacity|retry shortly", re.IGNORECASE)
+CAPACITY_NOTE = ("Go quá tải tạm thời (prefill_cap_refused), không phải hết hạn mức; "
+                 "backend đã tự thử lại theo retryPolicy; chạy lại sau ít phút")
+
+
+def is_capacity_error(text: str) -> bool:
+    """True when the output carries OpenCode Go's transient capacity refusal."""
+    return bool(CAPACITY_PATTERN.search(text or ""))
 
 
 class Status(str, Enum):
