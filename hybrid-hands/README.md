@@ -115,7 +115,7 @@ Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_s
 
 ## 5. Backend của hand ngoài
 
-Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2. Backend `opencode` đã gỡ ở 0.19.0: `order` cũ còn tên này thì `run --backend auto` bỏ qua kèm dòng `bỏ qua opencode: backend 'opencode' không hỗ trợ (đã gỡ, dùng dsh)`, còn `--backend opencode` thoát 2.
+Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`, `hand-ext measure --runs <dir> [--runs <dir>...] [--backend B] [--since D]`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2. Backend `opencode` đã gỡ ở 0.19.0: `order` cũ còn tên này thì `run --backend auto` bỏ qua kèm dòng `bỏ qua opencode: backend 'opencode' không hỗ trợ (đã gỡ, dùng dsh)`, còn `--backend opencode` thoát 2.
 
 | Backend | Gói | Người dùng tự đăng nhập | Theo dõi hạn mức | Rủi ro tính tiền |
 |---|---|---|---|---|
@@ -161,6 +161,12 @@ Vì hook của Claude Code không chạy trong dsh/codex/gemini, hàng rào ch�
 5. Dọn worktree (`git worktree remove --force` + `git worktree prune`) kể cả khi timeout/lỗi; patch vẫn được lưu. `--keep-worktree` giữ worktree để kiểm tra; `--no-apply` chỉ lưu patch, không áp.
 
 Cờ `--isolation none` tắt cách ly cho một lượt (chỉ dùng khi biết repo không có secret/dữ liệu khách hàng). Cwd không phải git repo và isolation là mặc định: chạy trực tiếp `none` kèm cảnh báo trong report. `--isolation worktree` tường minh mà không tạo được worktree sạch (không phải git repo, HEAD chưa có commit, đường dẫn đã tồn tại, lỗi git) thì thoát 2. Worktree được tạo từ `HEAD` nhưng có thay đổi chưa commit, nên hand thấy đúng trạng thái làm việc; hand không thấy file bị ignore hay file untracked nghi bí mật.
+
+### 5.4 Dữ liệu mỗi lượt và lệnh đo
+
+Từ 0.22.0, mỗi thư mục `<runs_dir>/<run_id>/` có thêm `brief.md` (brief nhận vào, kể cả khi đọc từ stdin), `prompt.md` (prompt đầy đủ gửi backend), `meta.json` (`base_commit`, `dirty`, `dirty_files`, `plugin_version`, `backend`, `model`, `label`) và `changes.base.patch` khi repo nguồn có thay đổi chưa commit; `events.jsonl` có thêm `ts` ISO 8601 để tính thời gian từng lệnh. Lượt cũ thiếu meta hoặc `ts` vẫn đếm được dòng; cột thời gian lệnh test để `-`, `plugin_version` là `unknown`.
+
+`hand-ext measure --runs <dir> [--runs <dir>...] [--backend dsh] [--since YYYY-MM-DD]` đọc các thư mục lượt (nhận cả `runs_dir` lẫn một thư mục lượt), đếm dòng thêm test/code/docs từ `changes.patch`: Test nếu nằm trong `tests/`, `test/`, `__tests__/`, `spec/` hoặc tên dạng `test_*`, `*_test.*`, `*.spec.*`, `*.test.*`, `*.bats`; Docs nếu là `.md`, `.rst`, `.txt` hoặc nằm trong `docs/`; còn lại là Code (ưu tiên Test trước Docs). Lệnh test nhận `pytest`, `unittest`, `bats`, `npm test`, `npx vitest`, `go test`, `cargo test`; thời gian một lệnh là `ts` của `tool_result` trừ `ts` của `tool_call` cùng id. Kết quả in bảng theo lượt (tên, version, backend, dòng test/code/docs, % test/(test+code), số lệnh test, tổng giây lệnh test, giây lượt) rồi gộp theo `plugin_version` (tổng dòng, % test, trung bình/trung vị dòng test). `--backend` lọc theo `meta.json`, thiếu meta thì suy ra từ hậu tố tên lượt; `--since` lọc theo ngày bắt đầu của lượt.
 
 ## 6. Theo dõi phiên và hand: `hh-ps`
 

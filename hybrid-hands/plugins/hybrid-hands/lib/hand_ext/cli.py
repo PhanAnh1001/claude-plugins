@@ -1,4 +1,4 @@
-"""hand-ext command line: setup, doctor, run, status, usage, report."""
+"""hand-ext command line: setup, doctor, run, status, usage, report, measure."""
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from . import go_live, go_usage, ledger, quota_state, render
+from . import go_live, go_usage, ledger, measure, quota_state, render
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
@@ -53,11 +53,17 @@ def _parser() -> argparse.ArgumentParser:
     rep = sub.add_parser("report", help="tổng lượt và token")
     for flag in ("--since", "--backend", "--label", "--cwd"):
         rep.add_argument(flag)
+    mea = sub.add_parser("measure", help="đo dòng test/code/docs và thời gian chạy test")
+    mea.add_argument("--runs", action="append", required=True, metavar="DIR",
+                     help="thư mục runs_dir chứa các thư mục lượt; lặp lại được")
+    mea.add_argument("--backend", help="chỉ lấy lượt của backend này")
+    mea.add_argument("--since", help="chỉ lấy lượt bắt đầu từ ngày YYYY-MM-DD")
     return p
 
 
 def _cfg(args: argparse.Namespace) -> ExtConfig:
-    return load_config(Path(args.cwd) if args.cwd else None)
+    cwd = getattr(args, "cwd", None)
+    return load_config(Path(cwd) if cwd else None)
 
 
 def _names(cfg: ExtConfig, choice: str) -> List[str]:
@@ -136,8 +142,16 @@ def cmd_report(cfg: ExtConfig, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_measure(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    runs = measure.collect_runs([Path(item) for item in args.runs],
+                                backend=args.backend, since=args.since)
+    print(measure.format_report(runs))
+    return EXIT_OK
+
+
 COMMANDS = {"setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
-            "status": cmd_status, "usage": cmd_usage, "report": cmd_report}
+            "status": cmd_status, "usage": cmd_usage, "report": cmd_report,
+            "measure": cmd_measure}
 
 
 def main(argv: Optional[List[str]] = None) -> int:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import os
 import re
 import sys
@@ -13,7 +14,7 @@ from typing import List, Optional, Tuple
 from . import go_live, go_usage, isolation, ledger, quota_state, render
 from .backends import BackendUnavailable, get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
-from .config import ExtConfig
+from .config import PLUGIN_DIR, ExtConfig
 from .constants import (
     AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_USAGE, FALLBACK_STATUSES,
     GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
@@ -25,6 +26,10 @@ from .runner import RunOutcome, run_backend
 
 LABEL_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 DEFAULT_LABEL = "hand"
+BRIEF_FILE = "brief.md"
+PROMPT_FILE = "prompt.md"
+META_FILE = "meta.json"
+PLUGIN_MANIFEST_RELPATH = ".claude-plugin/plugin.json"
 
 
 def safe_label(args: argparse.Namespace) -> str:
@@ -112,11 +117,41 @@ def _entry(run_id: str, label: str, backend: str, spec: RunSpec, started: str,
     }
 
 
+def _write_run_file(path: Path, text: str) -> None:
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as exc:
+        print(f"cảnh báo: không ghi được {path}: {exc}", file=sys.stderr)
+
+
+def _plugin_version() -> Optional[str]:
+    try:
+        data = json.loads((PLUGIN_DIR / PLUGIN_MANIFEST_RELPATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    version = data.get("version") if isinstance(data, dict) else None
+    return version if isinstance(version, str) else None
+
+
+def _write_meta(run_dir: Path, ctx: isolation.IsolationContext, spec: RunSpec,
+                backend: str, label: str) -> None:
+    meta = {
+        "base_commit": ctx.base_commit, "dirty": ctx.dirty,
+        "dirty_files": ctx.dirty_files, "plugin_version": _plugin_version(),
+        "backend": backend, "model": spec.model, "label": label,
+    }
+    _write_run_file(run_dir / META_FILE,
+                    json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
+
+
 def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
-             label: str, cwd: Path, choice: isolation.IsolationChoice) -> int:
+             label: str, cwd: Path, choice: isolation.IsolationChoice,
+             *, brief: Optional[str] = None) -> int:
     run_id = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}-{backend.name}"
     run_dir = cfg.runs_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    _write_run_file(run_dir / BRIEF_FILE, prompt if brief is None else brief)
+    _write_run_file(run_dir / PROMPT_FILE, prompt)
     try:
         ctx = isolation.prepare(cfg, cwd, run_id, run_dir, choice)
     except isolation.IsolationError as exc:
@@ -124,6 +159,7 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
         print(f"hand-ext: {exc}", file=sys.stderr)
         return EXIT_USAGE
     spec = _spec(cfg, args, backend, prompt, ctx.run_cwd, run_id)
+    _write_meta(run_dir, ctx, spec, backend.name, label)
     started = _now()
     registry = RunRegistry(
         cfg.machine_state_dir / HAND_RUNS_SUBDIR, run_id, label, backend.name,
@@ -199,7 +235,8 @@ def _record_go(cfg: ExtConfig, entry: dict,
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
     browser = bool(getattr(args, "browser", False))
     validate_browser(args.backend, browser)
-    prompt = build_prompt(read_brief(args.brief), browser=browser)
+    brief = read_brief(args.brief)
+    prompt = build_prompt(brief, browser=browser)
     cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd()
     label = safe_label(args)
     try:
@@ -211,7 +248,7 @@ def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
         print(f"hand-ext: {choice.warning}", file=sys.stderr)
     backends = candidates(cfg, args.backend, browser=browser)
     for index, backend in enumerate(backends):
-        code = _attempt(cfg, args, backend, prompt, label, cwd, choice)
+        code = _attempt(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
         if code >= 0:
             return code
         if args.backend != AUTO_BACKEND:

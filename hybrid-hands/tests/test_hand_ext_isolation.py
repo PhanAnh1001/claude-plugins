@@ -175,6 +175,13 @@ class WorktreeRoundTripTest(IsolationCase):
         self.assertFalse((self.repo / "gone.txt").exists())
         self.assertIn("new.txt", self._latest(self.repo, "changes.patch").read_text(
             encoding="utf-8"))
+        meta = json.loads(self._latest(self.repo, "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual(meta["base_commit"], self._git("rev-parse", "HEAD").stdout.strip())
+        self.assertTrue(meta["dirty"])
+        self.assertEqual(meta["dirty_files"], ["tracked.txt", "untracked.txt"])
+        base_patch = self._latest(self.repo, "changes.base.patch").read_text(encoding="utf-8")
+        self.assertIn("tracked.txt", base_patch)
+        self.assertIn("untracked.txt", base_patch)
 
     def test_untracked_secrets_and_outside_symlink_are_skipped(self) -> None:
         (self.repo / ".gitignore").write_text("ignored/\n", encoding="utf-8")
