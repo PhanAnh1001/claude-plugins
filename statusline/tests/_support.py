@@ -15,11 +15,15 @@ SCRIPTS_DIR = PLUGIN_ROOT / "scripts"
 SUBPROCESS_TIMEOUT_SECONDS = 30
 # Env vars that would leak the developer's real Claude config into a test run.
 LEAKY_ENV_VARS = ("CLAUDE_HOME", "STATUSLINE_JSON_BACKEND", "STATUSLINE_LAST_SKILL_MAX_BYTES",
-                  "HYBRID_HANDS_STATE_DIR", "STATUSLINE_GO_LIVE", "XDG_DATA_HOME")
+                  "HYBRID_HANDS_STATE_DIR", "STATUSLINE_GO_LIVE", "XDG_DATA_HOME",
+                  "STATUSLINE_WEEK_SPLIT", "STATUSLINE_WEEK_SPLIT_SPAWN")
+# Tests never start the detached week_split.py scan unless they override this.
+DEFAULT_TEST_ENV = {"STATUSLINE_WEEK_SPLIT_SPAWN": "0"}
 
 
 def clean_env(**overrides: str) -> dict[str, str]:
     env = {key: value for key, value in os.environ.items() if key not in LEAKY_ENV_VARS}
+    env.update(DEFAULT_TEST_ENV)
     env.update(overrides)
     return env
 

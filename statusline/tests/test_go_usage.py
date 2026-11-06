@@ -104,15 +104,12 @@ class GoUsageTest(unittest.TestCase):
 
     def write_auth(self, key: str = TEST_KEY) -> None:
         self.auth_file.parent.mkdir(parents=True, exist_ok=True)
-        self.auth_file.write_text(
-            json.dumps({"opencode-go": {"type": "api", "key": key}}), encoding="utf-8")
+        self.auth_file.write_text(json.dumps({"opencode-go": {"type": "api", "key": key}}))
 
     def write_cache(self, windows: dict | None, state: str = "ok",
                     fetched_at: int | None = None, last_ok_at: int | None = None) -> None:
-        document = {
-            "fetched_at": int(time.time()) if fetched_at is None else int(fetched_at),
-            "state": state,
-        }
+        document = {"fetched_at": int(time.time()) if fetched_at is None else int(fetched_at),
+                    "state": state}
         if windows is not None:
             document["windows"] = windows
         if last_ok_at is not None:
@@ -154,22 +151,19 @@ class GoUsageTest(unittest.TestCase):
         })
 
     def run_statusline(self, extra_env: dict | None = None):
-        env = dict(self.env)
-        env.update(extra_env or {})
+        env = {**self.env, **(extra_env or {})}
         return run_bash(STATUSLINE, [], env, stdin=self.payload(), cwd=self.workdir)
 
     def run_fetch(self, extra_env: dict | None = None):
-        env = dict(self.env)
-        env.update(extra_env or {})
-        return run_bash(FETCH, [], env)
+        return run_bash(FETCH, [], {**self.env, **(extra_env or {})})
 
     def go_line(self, result) -> str:
-        # Go has its own line 4, right under Claude's 5h/7d line, which keeps only Claude.
+        # Go is the last row of the limit table, under the Claude/machine rows.
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = result.stdout.split("\n")
         self.assertGreaterEqual(len(lines), 4, result.stdout)
         claude = ANSI_ESCAPE.sub("", lines[2])
-        self.assertRegex(claude, r"^5h:[^|]+ \| 7d:[^|]+$")
+        self.assertRegex(claude, r"^Claude\s+5h:[^|]+ \| 7d:[^|]+$")
         return lines[3]
 
     def wait_for(self, predicate, timeout: float = 12.0) -> bool:
@@ -199,22 +193,24 @@ class GoUsageTest(unittest.TestCase):
         self.write_go_summary(12, 31)
         line = self.go_line(self.run_statusline())
         plain = ANSI_ESCAPE.sub("", line)
-        expected = (
-            f"Go 5h:0%(reset {fmt_epoch(now + 3600)})"
-            f" | wk:1%(reset {fmt_epoch(now + 7200)})"
-            f" | mo:0%(reset {fmt_epoch(now + 86400)})"
-        )
-        self.assertEqual(plain, expected)
+        # The fresh hand-ext estimates (12/31/12) are clamped to the API integer + 0.4.
+        expected = (r"^Go\s+5h:~0\.4% \(reset "
+                    + re.escape(fmt_epoch(now + 3600))
+                    + r"\) \| wk:~1\.4% \(reset "
+                    + re.escape(fmt_epoch(now + 7200))
+                    + r"\) \| mo:~0\.4% \(reset "
+                    + re.escape(fmt_epoch(now + 86400)) + r"\)$")
+        self.assertRegex(plain, expected)
         self.assertNotIn("DS", plain)
-        self.assertIn(f"{DIM}Go{RESET} ", line)
-        self.assertIn(f"{GREEN}0%{RESET}", line)
-        self.assertIn(f"{GREEN}1%{RESET}", line)
+        self.assertIn(f"{DIM}Go{RESET}", line)
+        self.assertIn(f"{GREEN}0.4%{RESET}", line)
+        self.assertIn(f"{GREEN}1.4%{RESET}", line)
 
     def test_cache_older_than_fifteen_minutes_marks_every_window_stale(self) -> None:
         windows = self.future_windows(rolling=12, weekly=31, monthly=5)
         self.write_cache(windows, fetched_at=int(time.time()) - STALE_SECONDS - 60)
         plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
-        self.assertIn("Go 5h:~12%", plain)
+        self.assertIn("5h:~12%", plain)
         self.assertIn("| wk:~31%", plain)
         self.assertIn("| mo:~5%", plain)
 
@@ -227,8 +223,9 @@ class GoUsageTest(unittest.TestCase):
         }
         self.write_cache(windows)
         plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
-        self.assertIn("Go 5h:~0% | wk:", plain)
-        self.assertNotIn("5h:~0%(reset", plain)
+        self.assertIn("5h:~0%", plain)
+        self.assertIn("| wk:", plain)
+        self.assertNotIn("5h:~0% (reset", plain)
 
     def test_rate_limited_window_is_red_even_at_a_low_percent(self) -> None:
         now = int(time.time())
@@ -247,14 +244,16 @@ class GoUsageTest(unittest.TestCase):
         self.write_go_summary(12, 31)
         line = self.go_line(self.run_statusline())
         plain = ANSI_ESCAPE.sub("", line)
-        self.assertIn("DS 5h ~12% · tuần ~31%", plain)
+        self.assertIn("DS 5h ~12.0%", plain)
+        self.assertIn("tuần ~31.0%", plain)
         self.assertIn(f"{DIM}(khoá Go bị từ chối){RESET}", line)
 
     def test_error_cache_keeps_ds_without_note(self) -> None:
         self.write_cache(None, state="error")
         self.write_go_summary(12, 31)
         plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
-        self.assertIn("DS 5h ~12% · tuần ~31%", plain)
+        self.assertIn("DS 5h ~12.0%", plain)
+        self.assertIn("tuần ~31.0%", plain)
         self.assertNotIn("bị từ chối", plain)
 
     def test_error_cache_with_recent_last_ok_renders_go_stale(self) -> None:
@@ -264,8 +263,8 @@ class GoUsageTest(unittest.TestCase):
                          last_ok_at=now - 120)
         self.write_go_summary(99, 99)
         plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
-        self.assertIn("Go 5h:~12%", plain)
-        self.assertIn("| wk:~31%", plain)
+        self.assertIn("5h:~12.4%", plain)
+        self.assertIn("| wk:~31.4%", plain)
         self.assertNotIn("DS", plain)
 
     def test_error_cache_older_than_six_hours_falls_back_to_ds(self) -> None:
@@ -275,7 +274,8 @@ class GoUsageTest(unittest.TestCase):
                          last_ok_at=now - ERROR_KEEP_SECONDS - 60)
         self.write_go_summary(12, 31)
         plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
-        self.assertIn("DS 5h ~12% · tuần ~31%", plain)
+        self.assertIn("DS 5h ~12.0%", plain)
+        self.assertIn("tuần ~31.0%", plain)
         self.assertNotIn("Go 5h:", plain)
 
     # --- background fetch from statusline ---
@@ -422,7 +422,7 @@ class GoUsageTest(unittest.TestCase):
         self.assertGreater(document["fetched_at"], old_fetched_at)
         self.write_go_summary(99, 99)
         plain = ANSI_ESCAPE.sub("", self.go_line(self.run_statusline()))
-        self.assertIn("Go 5h:~12%", plain)
+        self.assertIn("5h:~12.4%", plain)
         self.assertNotIn("DS", plain)
 
     def test_broken_json_after_ok_keeps_windows(self) -> None:
@@ -449,7 +449,8 @@ class GoUsageTest(unittest.TestCase):
         self.write_go_summary(12, 31)
         line = self.go_line(self.run_statusline())
         plain = ANSI_ESCAPE.sub("", line)
-        self.assertIn("DS 5h ~12% · tuần ~31%", plain)
+        self.assertIn("DS 5h ~12.0%", plain)
+        self.assertIn("tuần ~31.0%", plain)
         self.assertIn("(khoá Go bị từ chối)", plain)
         self.assertNotIn("Go 5h:", plain)
 

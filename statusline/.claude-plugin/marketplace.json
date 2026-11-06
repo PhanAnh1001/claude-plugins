@@ -8,7 +8,7 @@
     {
       "name": "statusline",
       "source": "./plugins/statusline",
-      "description": "Thanh trạng thái Claude Code 3 dòng: user@host thư mục (nhánh git); model (effort), tokens, ctx %; rate limit 5h/7d kèm giờ reset, thêm mức OpenCode Go thật (5h/tuần/tháng) lấy từ API usage của OpenCode và dự phòng bằng số ước tính DS của hand-ext; sau đó là các dòng 🔧 skill nạp gần nhất của main và từng subagent gần đây (tên skill cùng màu inline code của Claude Code, chú thích mờ trong ngoặc: main, hoặc loại agent và mô tả cắt còn 30 ký tự kèm ...). Skill statusline:setup cài shim vào thư mục cấu hình Claude và trỏ statusLine tới đó."
+      "description": "Thanh trạng thái Claude Code: user@host thư mục (nhánh git); model (effort), tokens, ctx %; rate limit 5h (chỉ số live, không có thì 5h:-) và 7d kèm giờ reset, 7d in tới 0,1% với dấu ~ khi có ước tính (số nguyên cộng USD máy này từ lúc số đổi, giữ trong khoảng của số nguyên); dòng tách % 7 ngày thành máy này (theo từng thứ) và máy khác kèm mức $/1%; mức OpenCode Go thật (5h/tuần/tháng) từ API usage của OpenCode, in tới 0,1% với ~ theo ước tính của hand-ext ép quanh số API, dự phòng bằng số DS của hand-ext; mỗi nhóm phiên chính (gồm subagent và phiên phụ claude) một dòng với % Claude và % Go, nhóm hiện tại đứng đầu có ▶; sau đó là các dòng 🔧 skill nạp gần nhất của main và từng subagent gần đây. Skill statusline:setup cài shim vào thư mục cấu hình Claude và trỏ statusLine tới đó."
     }
   ]
 }

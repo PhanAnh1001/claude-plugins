@@ -3,9 +3,14 @@
 #   1. user@host  current-dir (basename, ~ for $HOME)  (git-branch in green)
 #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
-#   3. Claude.ai rate-limit usage (5-hour / 7-day) + reset times, then live OpenCode Go usage
-#      (5h / week / month) when its cache has usable numbers, else the estimated DS segment from
-#      hand-ext
+#   3. an aligned limit table: row "Claude" (5h / 7d + reset times; 5h only from the live payload,
+#      "5h:-" without it; 7d estimated to 0.1, "~4.3%", from week_split.py's summary when valid;
+#      this machine's USD per 1% inside the 7d parentheses)
+#   3b. rows "· máy này" and "· máy khác": 7-day usage split by machine (per weekday for this
+#      one), from "week-split.sh --color"; none until its summary exists for this window
+#   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
+#      the estimated DS cells from hand-ext
+#   3d. one line per main-session group (session-lines.sh): Claude and Go % of the group
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
 #      inline-code colour, note in parentheses dimmed like "(high)" on line 2); none when no skill.
@@ -22,33 +27,6 @@ CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 # Last known rate-limit percentages/reset times, so line 3 shows real numbers on CLI startup
 # (before the first API response, when rate_limits is absent). Cached values are marked "~".
 CACHE_FILE="$CLAUDE_HOME/.statusline-cache.json"
-# Machine-wide OpenCode Go usage summary written by hand-ext (never called from here).
-GO_STATE_DIR="${HYBRID_HANDS_STATE_DIR:-$HOME/.hybrid-hands}"
-GO_SUMMARY_FILE="$GO_STATE_DIR/go_usage_summary.json"
-GO_STALE_SECONDS=$((5 * 3600))
-# Live OpenCode Go usage fetched from the Zen API by go-usage-fetch.sh (same source as Paseo).
-# The status line only reads this cache; the fetch runs detached in the background.
-GO_LIVE_CACHE_FILE="$CLAUDE_HOME/.statusline-go-usage.json"
-GO_LIVE_LOCK_DIR="$CLAUDE_HOME/.statusline-go-usage.lock"
-GO_LIVE_AUTH_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json"
-GO_LIVE_REFRESH_SECONDS=300
-GO_LIVE_STALE_SECONDS=900
-# A transient error may keep showing the last ok numbers for this long before falling back to DS.
-GO_LIVE_ERROR_KEEP_SECONDS=21600
-GO_LIVE_LOCK_STALE_SECONDS=60
-GO_LIVE_FETCHED_AT=""
-GO_LIVE_STATE=""
-GO_LIVE_LAST_OK_AT=""
-GO_LIVE_ROLLING_PCT=""
-GO_LIVE_ROLLING_STATUS=""
-GO_LIVE_ROLLING_RESET=""
-GO_LIVE_WEEKLY_PCT=""
-GO_LIVE_WEEKLY_STATUS=""
-GO_LIVE_WEEKLY_RESET=""
-GO_LIVE_MONTHLY_PCT=""
-GO_LIVE_MONTHLY_STATUS=""
-GO_LIVE_MONTHLY_RESET=""
-GO_LIVE_STALE=0
 
 case "${BASH_SOURCE[0]}" in
   */*) SCRIPTS_DIR="${BASH_SOURCE[0]%/*}" ;;
@@ -56,13 +34,25 @@ case "${BASH_SOURCE[0]}" in
 esac
 LAST_SKILL_SCRIPT="$SCRIPTS_DIR/last-skill.sh"
 GO_FETCH_SCRIPT="$SCRIPTS_DIR/go-usage-fetch.sh"
+WEEK_SPLIT_SCRIPT="$SCRIPTS_DIR/week-split.sh"
+SESSION_LINES_SCRIPT="$SCRIPTS_DIR/session-lines.sh"
+# Summary of week_split.py: the 7-day estimate is used only when it is recent and matches the
+# integer % and the reset shown.
+WEEK_SPLIT_SUMMARY="$CLAUDE_HOME/.statusline-week-split.json"
+WEEK_SPLIT_SUMMARY_VERSION=2
+ESTIMATE_FRESH_SECONDS=1800
+ESTIMATE_SAME_WINDOW_SECONDS=3600
+# Shown when the live payload has no 5-hour data (cached 5h values are never shown).
+FIVE_ABSENT="-"
+# shellcheck source=go-segments.sh
+. "$SCRIPTS_DIR/go-segments.sh"
 
-RESET="\033[0m"
-GREEN="\033[32m"
-YELLOW="\033[33m"
-RED="\033[31m"
-MAGENTA="\033[35m"
-DIM="\033[2m"
+RESET=$'\033[0m'
+GREEN=$'\033[32m'
+YELLOW=$'\033[33m'
+RED=$'\033[31m'
+MAGENTA=$'\033[35m'
+DIM=$'\033[2m'
 SEP=" ${DIM}|${RESET} "
 PLACEHOLDER="--"
 STALE_MARK="~"
@@ -70,6 +60,8 @@ STALE_MARK="~"
 PCT_RED_THRESHOLD=80
 PCT_YELLOW_THRESHOLD=50
 RESET_TIME_FORMAT="+%d/%m %H:%M"
+# shellcheck source=table.sh
+. "$SCRIPTS_DIR/table.sh"
 
 input=$(cat)
 
@@ -97,6 +89,8 @@ five=$(json_field '.rate_limits.five_hour.used_percentage')
 five_reset=$(json_field '.rate_limits.five_hour.resets_at')
 week=$(json_field '.rate_limits.seven_day.used_percentage')
 week_reset=$(json_field '.rate_limits.seven_day.resets_at')
+session_id=$(json_field '.session_id')
+session_name=$(json_field '.session_name')
 
 col_for_pct() {
   # Colour escape for a usage percentage (awk compares decimals; bash cannot).
@@ -198,242 +192,120 @@ build_line2() {
 
 # --- Line 3: Claude rate limits ---
 rate_limit_segment() {
-  # Args: label live_pct live_reset cached_pct cached_reset [color] [mark].
+  # Args: label live_pct live_reset cached_pct cached_reset [color] [mark] [estimate] [extra].
   # Live values win; cached ones get "~". Callers may force a colour (rate-limited Go windows)
   # and a stale mark (Go windows with an expired reset) without changing the Claude behaviour.
-  local label=$1 pct=$2 reset=$3 mark="" color="${6:-}"
+  # An estimate is printed with one decimal and "~"; the colour still follows the integer %.
+  # "extra" goes inside the parentheses after the reset ("reset X · extra") or alone there.
+  local label=$1 pct=$2 reset=$3 mark="" color="${6:-}" shown="${8:-}" extra="${9:-}" text
   if [ -z "$pct" ]; then
     pct=$4
     reset=$5
     mark="$STALE_MARK"
   fi
   [ -n "${7:-}" ] && mark="${7:-}"
+  [ -n "$shown" ] && mark="$STALE_MARK"
   if [ -z "$pct" ]; then
     printf '%s' "${DIM}${label}:${PLACEHOLDER}${RESET}"
     return 0
   fi
   local seg reset_fmt
   [ -z "$color" ] && color=$(col_for_pct "$pct")
-  seg="${DIM}${label}:${mark}${RESET}${color}$(printf '%.0f' "$pct")%${RESET}"
-  if [ -n "$reset" ]; then
-    reset_fmt=$(fmt_reset "$reset")
-    [ -n "$reset_fmt" ] && seg="${seg}${DIM}(reset ${reset_fmt})${RESET}"
+  if [ -n "$shown" ]; then text=$(printf '%.1f' "$shown"); else text=$(printf '%.0f' "$pct"); fi
+  seg="${DIM}${label}:${mark}${RESET}${color}${text}%${RESET}"
+  reset_fmt=""
+  [ -n "$reset" ] && reset_fmt=$(fmt_reset "$reset")
+  if [ -n "$reset_fmt" ] && [ -n "$extra" ]; then
+    seg="${seg}${DIM} (reset ${reset_fmt} · ${extra})${RESET}"
+  elif [ -n "$reset_fmt" ]; then
+    seg="${seg}${DIM} (reset ${reset_fmt})${RESET}"
+  elif [ -n "$extra" ]; then
+    seg="${seg}${DIM} (${extra})${RESET}"
   fi
   printf '%s' "$seg"
 }
 
 save_cache() {
   # Persist the newest values so the next render (even the first one after CLI startup) has a
-  # fallback. jq yields nothing when any field is empty, and then the cache is left as it is.
+  # fallback. Empty fields are dropped (5h data may be absent), so the 7d values still persist.
   local new_cache
   new_cache=$(jq -n \
     --arg five "${five:-$cached_five}" \
     --arg five_reset "${five_reset:-$cached_five_reset}" \
     --arg week "${week:-$cached_week}" \
     --arg week_reset "${week_reset:-$cached_week_reset}" \
-    '{five: ($five | select(. != "")), five_reset: ($five_reset | select(. != "")),
-      week: ($week | select(. != "")), week_reset: ($week_reset | select(. != ""))}' 2>/dev/null)
-  [ -n "$new_cache" ] && echo "$new_cache" > "$CACHE_FILE" 2>/dev/null
+    '{five: $five, five_reset: $five_reset, week: $week, week_reset: $week_reset}
+      | with_entries(select(.value != ""))' 2>/dev/null)
+  [ -n "$new_cache" ] && [ "$new_cache" != "{}" ] && echo "$new_cache" > "$CACHE_FILE" 2>/dev/null
 }
 
-# --- Go usage (line 4, under the Claude limits; cached summary file only) ---
-load_go_summary() {
-  # One jq read of go_usage_summary.json; sets go_updated/go_five/... or leaves them empty.
-  [ -f "$GO_SUMMARY_FILE" ] || return 0
+load_week_estimate() {
+  # One jq read of the week-split summary: version, computed_at and the 7-day estimate.
+  [ -f "$WEEK_SPLIT_SUMMARY" ] || return 0
   local row
-  row=$(jq -r '
-    (.models // {}) as $models
-    | ([$models | to_entries[]
-        | select((.key | type) == "string" and (.key | test("deepseek"; "i")))]
-       | .[0].value // {}) as $m
-    | (if ($m | type) == "object" then $m else {} end) as $w
-    | [ ((.updated_at // 0) | numbers // 0),
-        (($w["5h"].percent | numbers) // ""),
-        ($w["5h"].estimated == true),
-        (($w["7d"].percent | numbers) // ""),
-        ($w["7d"].estimated == true) ]
-    | @tsv
-  ' "$GO_SUMMARY_FILE" 2>/dev/null) || return 0
-  [ -n "$row" ] || return 0
-  IFS=$'\t' read -r go_updated go_five go_five_est go_week go_week_est <<< "$row"
+  row=$(jq -r '[((.version | numbers) // ""), ((.computed_at | numbers) // ""),
+      ((.claude_estimates.week.pct | numbers) // ""), ((.claude_estimates.week.base | numbers) // ""),
+      ((.claude_estimates.week.reset | numbers) // "")] | map(tostring) | join("\u001f")
+    ' "$WEEK_SPLIT_SUMMARY" 2>/dev/null) || return 0
+  IFS=$'\x1f' read -r ws_version ws_computed est_week est_week_base est_week_reset <<< "$row"
 }
 
-go_pct_segment() {
-  # Args: label percent mark. Same colour thresholds as the Claude part; "--" when absent.
-  local label=$1 pct=$2 mark=$3
-  if [ -z "$pct" ]; then
-    printf '%s %s%s%s' "${DIM}${label}${RESET}" "$DIM" "$PLACEHOLDER" "$RESET"
-    return 0
-  fi
-  printf '%s %s%s%s%s%.0f%%%s' "${DIM}${label}${RESET}" "$DIM" "$mark" "$RESET" \
-    "$(col_for_pct "$pct")" "$pct" "$RESET"
-}
-
-go_usage_segment() {
-  # "DS 5h ~12% · tuần ~31%"; "~" when any value is estimated or the summary is >5h old.
-  [ -n "$go_five" ] || [ -n "$go_week" ] || return 0
-  local now stale="" mark5="" mark7=""
+week_estimate() {
+  # Args: shown_pct shown_reset. Prints the estimate when it describes exactly what is shown.
+  local shown=$1 reset=$2 now
+  [ "${ws_version:-}" = "$WEEK_SPLIT_SUMMARY_VERSION" ] && [ -n "${est_week:-}" ] || return 0
+  [[ "$ws_computed" =~ ^[0-9]+$ ]] && [ -n "$shown" ] && [ -n "$reset" ] || return 0
   now=$(date +%s)
-  if ! [[ "$go_updated" =~ ^[0-9]+$ ]] || [ "$go_updated" -le 0 ] \
-      || [ $((now - go_updated)) -ge "$GO_STALE_SECONDS" ]; then
-    stale="$STALE_MARK"
-  fi
-  [ "$go_five_est" = "true" ] && mark5="$STALE_MARK"
-  [ "$go_week_est" = "true" ] && mark7="$STALE_MARK"
-  [ -n "$stale" ] && { mark5="$STALE_MARK"; mark7="$STALE_MARK"; }
-  printf '%s %s %s %s' "${DIM}DS${RESET}" \
-    "$(go_pct_segment 5h "$go_five" "$mark5")" "${DIM}·${RESET}" \
-    "$(go_pct_segment tuần "$go_week" "$mark7")"
+  [ $((now - ws_computed)) -le "$ESTIMATE_FRESH_SECONDS" ] || return 0
+  awk -v s="$shown" -v r="$reset" -v e="$est_week" -v b="$est_week_base" -v er="$est_week_reset" \
+    -v gap="$ESTIMATE_SAME_WINDOW_SECONDS" 'BEGIN {
+      d = r - er; if (d < 0) d = -d;
+      if (int(b) == int(s) && d <= gap) print e;
+    }'
 }
 
-# --- Go live usage (cache written by go-usage-fetch.sh) ---
-load_go_live_cache() {
-  # One jq read of the live cache; sets GO_LIVE_* or leaves them empty. A corrupt/missing cache
-  # is silent so the estimated DS segment below still works.
-  [ -f "$GO_LIVE_CACHE_FILE" ] || return 0
-  local row now
-  row=$(jq -r '
-    [ (.fetched_at // ""), (.state // ""), (.last_ok_at // ""),
-      (.windows.rolling.percent // ""), (.windows.rolling.status // ""),
-      (.windows.rolling.resets_at // ""),
-      (.windows.weekly.percent // ""), (.windows.weekly.status // ""),
-      (.windows.weekly.resets_at // ""),
-      (.windows.monthly.percent // ""), (.windows.monthly.status // ""),
-      (.windows.monthly.resets_at // "") ]
-    | map(tostring) | join("\u001f")
-  ' "$GO_LIVE_CACHE_FILE" 2>/dev/null) || return 0
-  [ -n "$row" ] || return 0
-  IFS=$'\x1f' read -r GO_LIVE_FETCHED_AT GO_LIVE_STATE GO_LIVE_LAST_OK_AT \
-    GO_LIVE_ROLLING_PCT GO_LIVE_ROLLING_STATUS GO_LIVE_ROLLING_RESET \
-    GO_LIVE_WEEKLY_PCT GO_LIVE_WEEKLY_STATUS GO_LIVE_WEEKLY_RESET \
-    GO_LIVE_MONTHLY_PCT GO_LIVE_MONTHLY_STATUS GO_LIVE_MONTHLY_RESET <<< "$row"
-  local age_from=$GO_LIVE_LAST_OK_AT
-  [[ "$age_from" =~ ^[0-9]+$ ]] || age_from=$GO_LIVE_FETCHED_AT
-  now=$(date +%s)
-  [ "$GO_LIVE_STATE" = "error" ] && GO_LIVE_STALE=1
-  if [[ "$age_from" =~ ^[0-9]+$ ]] \
-      && [ $((now - age_from)) -ge "$GO_LIVE_STALE_SECONDS" ]; then
-    GO_LIVE_STALE=1
-  fi
-}
-
-go_live_windows_complete() {
-  [ -n "$GO_LIVE_ROLLING_PCT" ] && [ -n "$GO_LIVE_ROLLING_STATUS" ] \
-    && [ -n "$GO_LIVE_WEEKLY_PCT" ] && [ -n "$GO_LIVE_WEEKLY_STATUS" ] \
-    && [ -n "$GO_LIVE_MONTHLY_PCT" ] && [ -n "$GO_LIVE_MONTHLY_STATUS" ]
-}
-
-go_live_ok() {
-  # An "ok" cache renders; an "error" cache keeps rendering only while its last ok fetch is
-  # recent, so a long outage eventually falls back to the estimated DS numbers.
-  go_live_windows_complete || return 1
-  case "$GO_LIVE_STATE" in
-    ok)
-      [[ "$GO_LIVE_FETCHED_AT" =~ ^[0-9]+$ ]] || return 1
-      return 0
-      ;;
-    error)
-      [[ "$GO_LIVE_LAST_OK_AT" =~ ^[0-9]+$ ]] || return 1
-      [ $(( $(date +%s) - GO_LIVE_LAST_OK_AT )) -lt "$GO_LIVE_ERROR_KEEP_SECONDS" ]
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-go_live_window_segment() {
-  # Args: label percent status resets_at. An expired reset means the window already reset:
-  # print "~0%" and drop the time until the next fetch.
-  local label=$1 pct=$2 status=$3 reset=$4 mark="" color now
-  now=$(date +%s)
-  if [ -n "$reset" ] && [[ "$reset" =~ ^[0-9]+$ ]] && [ "$reset" -le "$now" ]; then
-    pct=0
-    reset=""
-    mark="$STALE_MARK"
-  elif [ "$GO_LIVE_STALE" = "1" ]; then
-    mark="$STALE_MARK"
-  fi
-  color=$(col_for_pct "$pct")
-  [ "$status" = "rate-limited" ] && color="$RED"
-  rate_limit_segment "$label" "$pct" "$reset" "" "" "$color" "$mark"
-}
-
-go_live_segments() {
-  # Append the Go windows to build_line_go's segments array; the first one carries the dim "Go" tag.
-  segments+=("${DIM}Go${RESET} $(go_live_window_segment 5h \
-    "$GO_LIVE_ROLLING_PCT" "$GO_LIVE_ROLLING_STATUS" "$GO_LIVE_ROLLING_RESET")")
-  segments+=("$(go_live_window_segment wk \
-    "$GO_LIVE_WEEKLY_PCT" "$GO_LIVE_WEEKLY_STATUS" "$GO_LIVE_WEEKLY_RESET")")
-  segments+=("$(go_live_window_segment mo \
-    "$GO_LIVE_MONTHLY_PCT" "$GO_LIVE_MONTHLY_STATUS" "$GO_LIVE_MONTHLY_RESET")")
-}
-
-build_line3() {
-  # Claude's own 5h/7d limits only; OpenCode Go has its own line right below (build_line_go).
-  local segments=()
-  segments+=("$(rate_limit_segment 5h "$five" "$five_reset" "$cached_five" "$cached_five_reset")")
-  segments+=("$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset")")
-  join_segments "${segments[@]}"
-}
-
-build_line_go() {
-  # OpenCode Go under Claude's line: live 5h/wk/mo with reset times, else the DS estimate
-  # (no reset time) from go_usage_summary.json, else nothing (no line).
-  local segments=()
-  if go_live_ok; then
-    go_live_segments
+build_claude_row() {
+  # Args: usd per 1% text (inside the 7d parentheses). Prints the 5h cell, 0x1f, the 7d cell.
+  local usd=$1 est five_cell week_cell
+  if [ -n "$five" ]; then
+    five_cell=$(rate_limit_segment 5h "$five" "$five_reset" "" "")
   else
-    local go_seg
-    go_seg=$(go_usage_segment)
-    if [ -n "$go_seg" ]; then
-      [ "$GO_LIVE_STATE" = "rejected" ] \
-        && go_seg="${go_seg} ${DIM}(khoá Go bị từ chối)${RESET}"
-      segments+=("$go_seg")
-    fi
+    five_cell="${DIM}5h:${FIVE_ABSENT}${RESET}"
   fi
-  join_segments "${segments[@]}"
+  est=$(week_estimate "${week:-$cached_week}" "${week_reset:-$cached_week_reset}")
+  week_cell=$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset" \
+    "" "" "$est" "$usd")
+  printf '%s%s%s' "$five_cell" "$TABLE_US" "$week_cell"
 }
 
-go_auth_has_key() {
-  # Only the presence of a non-empty opencode-go key; the value is never printed.
-  [ -f "$GO_LIVE_AUTH_FILE" ] || return 1
-  jq -e '.["opencode-go"].key | strings | length > 0' "$GO_LIVE_AUTH_FILE" >/dev/null 2>&1
+build_limit_table() {
+  # Args: claude_cells local_cell other_cell go_cells. Builds the aligned rows and prints them;
+  # labels never start with a space because Claude Code trims leading whitespace of each line.
+  local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 rows=""
+  rows="Claude${TABLE_US}${claude_cells}"
+  [ -n "$local_cell" ] && rows="${rows}"$'\n'"${DIM}· máy này${RESET}${TABLE_US}${TABLE_US}${local_cell}"
+  [ -n "$other_cell" ] && rows="${rows}"$'\n'"${DIM}· máy khác${RESET}${TABLE_US}${TABLE_US}${other_cell}"
+  [ -n "$go_cells" ] && rows="${rows}"$'\n'"${DIM}Go${RESET}${TABLE_US}${go_cells}"
+  printf '%s\n' "$rows" | table_print
 }
 
-go_live_lock_is_fresh() {
-  # A lock younger than 60 s means a fetch is already running; leave it alone.
-  local mtime now
-  [ -d "$GO_LIVE_LOCK_DIR" ] || return 1
-  mtime=$(stat -c '%Y' "$GO_LIVE_LOCK_DIR" 2>/dev/null \
-    || stat -f '%m' "$GO_LIVE_LOCK_DIR" 2>/dev/null) || return 1
-  now=$(date +%s)
-  [ $((now - mtime)) -lt "$GO_LIVE_LOCK_STALE_SECONDS" ]
-}
-
-maybe_start_go_live_fetch() {
-  # Never wait for the network: spawn the fetch detached and keep rendering the current cache.
-  [ "${STATUSLINE_GO_LIVE:-1}" != "0" ] || return 0
-  local now fetched
-  now=$(date +%s)
-  fetched=$GO_LIVE_FETCHED_AT
-  if [[ "$fetched" =~ ^[0-9]+$ ]] \
-      && [ $((now - fetched)) -lt "$GO_LIVE_REFRESH_SECONDS" ]; then
-    return 0
-  fi
-  [ -f "$GO_FETCH_SCRIPT" ] || return 0
-  go_auth_has_key || return 0
-  go_live_lock_is_fresh && return 0
-  nohup bash "$GO_FETCH_SCRIPT" </dev/null >/dev/null 2>&1 &
-  disown 2>/dev/null || true
-}
 
 line1=$(build_line1)
 line2=$(build_line2)
 load_go_summary
 load_go_live_cache
-line3=$(build_line3)
-line_go=$(build_line_go)
+load_week_estimate
+week_split_row=""
+[ -f "$WEEK_SPLIT_SCRIPT" ] && week_split_row=$(bash "$WEEK_SPLIT_SCRIPT" --color \
+  "$week" "$week_reset" "$cached_week_reset" 2>/dev/null)
+local_cell=""; other_cell=""; usd_text=""
+IFS=$TABLE_US read -r local_cell other_cell usd_text <<< "$week_split_row"
+claude_row=$(build_claude_row "$usd_text")
+go_row=$(build_go_row)
+limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row")
+line_sessions=""
+[ -f "$SESSION_LINES_SCRIPT" ] && line_sessions=$(bash "$SESSION_LINES_SCRIPT" --color \
+  "$session_id" 2>/dev/null)
 maybe_start_go_live_fetch
 # --- Skill block (after the rate-limit lines) ---
 build_skill_block() {
@@ -447,9 +319,10 @@ skill_block=$(build_skill_block)
 
 out="$line1"
 [ -n "$line2" ] && out="${out}\n${line2}"
-[ -n "$line3" ] && out="${out}\n${line3}"
-[ -n "$line_go" ] && out="${out}\n${line_go}"
 printf "%b" "$out"
+[ -n "$limit_table" ] && printf '\n%s' "$limit_table"
+# printf %s, not %b: session names and aliases are data.
+[ -n "$line_sessions" ] && printf '\n%s' "$line_sessions"
 # printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
 [ -n "$skill_block" ] && printf '\n%s' "$skill_block"
 exit 0
