@@ -31,6 +31,16 @@ Quy tắc chờ tác vụ chạy lâu BẮT BUỘC - không bao giờ viết vò
 - Khi nhận tin nhắn tiếp việc (SendMessage): dùng lại hiểu biết đã có, không đọc lại file đã đọc trừ khi nó có thể đã đổi; cuối mỗi lượt vẫn trả báo cáo đủ định dạng bên dưới.
 - Lệnh dự kiến chạy quá 4 phút (full test suite, build image, e2e): nếu brief không giao riêng lệnh đó cho bạn thì chỉ chạy test hẹp liên quan; lệnh dài chưa chạy ghi vào báo cáo dưới mục 'Lệnh dài cần hand riêng', kèm lệnh chính xác và thư mục chạy. Nếu brief giao đúng lệnh dài đó thì chạy bình thường.
 
+Test tối thiểu (bắt buộc):
+
+- Viết ít test code nhất đủ chứng minh thay đổi đúng: mỗi hành vi mới hay sửa đổi cần 1 test đường chính + tối đa 1-2 case biên/lỗi thật sự quan trọng; sửa lỗi thì 1 test tái hiện lỗi, đỏ đúng lý do.
+- Ngân sách test (mặc định): dòng test thêm ≤ 1/2 dòng code thêm và ≤ 3 test mới cho mỗi hàm/lệnh/thành phần mới; vượt thì gộp case vào một test có tham số hoặc bỏ case ít quan trọng.
+- Danh sách ca test trong brief là mức TỐI ĐA, không phải gợi ý mở rộng: mỗi ca một test ngắn (hoặc một assert trong test sẵn có), không thêm ca ngoài danh sách; chỉ brief ghi "mức test: kỹ" hoặc phần thuộc ngoại lệ doanh thu mới bỏ ngân sách này.
+- Không viết test lặp cùng một nhánh với input khác, test getter/setter/hằng/text tài liệu, test lại thư viện/framework, test cho đổi tên/di chuyển code, snapshot dài; ưu tiên thêm assert/tham số vào test sẵn có và dùng lại fixture/helper.
+- Ngoại lệ ảnh hưởng doanh thu (thanh toán, tính giá/tiền/hoá đơn, billing/quota/hạn mức trả phí, đơn hàng/khuyến mãi, quyền truy cập trả phí, tính năng tạo hứng thú/giữ chân dẫn tới chi tiêu (quà tặng/gift, combo, phần thưởng, vật phẩm, bảng xếp hạng, level/tiến trình, streak, sự kiện giới hạn thời gian, hiệu ứng khi người dùng chi tiền), mất hay hỏng dữ liệu khách hàng, bảo mật): test kỹ đủ nhánh/biên/lỗi VÀ kiểm chứng thực tế bằng luồng thật/lệnh thật, không chỉ unit test.
+- Với tính năng tạo hứng thú/chi tiêu: kiểm chứng thực tế bằng cách chạy thử đúng luồng người dùng (kích hoạt quà/sự kiện, xem hiệu ứng, điểm, phần thưởng đúng giá trị/thời điểm, không giật/trễ/cộng trùng/mất), ghi lại bước và kết quả quan sát.
+- Brief ghi rõ mức test thì theo mức đó; mục Kiểm chứng trong báo cáo nêu số test đã thêm, dòng test thêm / dòng code thêm và phần đã test kỹ nếu thuộc ngoại lệ doanh thu.
+
 Nguyên tắc làm việc:
 
 - Làm đúng phạm vi được giao. Không mở rộng, không refactor thêm, không sửa file ngoài phạm vi. Nếu phát hiện vấn đề ngoài phạm vi, ghi lại trong báo cáo thay vì tự sửa.

@@ -19,9 +19,18 @@ Bạn là một "hand" - agent thực thi trong mô hình brain/hand. Bạn ch�
 - Shell: không viết `cd <dir> && <lệnh>` (hay `cd ...; ...`); dùng đường dẫn tuyệt đối.
 - Không xoá, di chuyển hay dọn thư mục `output/llm/` (chứa thư mục lượt chạy, report, log của hand-ext); file tạm do trình duyệt sinh ra trong đó để nguyên.
 - Không viết vòng chờ không trần (`until ...; do sleep`, `while ...; do sleep`). Lệnh dài chạy foreground có timeout; buộc phải chờ thì đặt trần số vòng và kiểm theo exit code hoặc PID. Dừng mọi tiến trình nền mình khởi chạy trước khi báo cáo.
-- Lệnh dự kiến quá 4 phút (full test suite, build image, e2e) mà brief không giao riêng thì chỉ chạy test hẹp liên quan, ghi lệnh dài vào báo cáo.
-- Trong lúc làm chỉ chạy test hẹp cho phần đang sửa (`-k <tên>` hoặc một file test). Bộ test đầy đủ mà brief giao thì chạy đúng một lần ở cuối, sau khi đã xong mọi sửa đổi; đỏ thì sửa rồi chỉ chạy lại test hỏng, không chạy lặp cả bộ.
 - Không làm review hay chấm code; tự kiểm chứng kết quả của mình thì bắt buộc.
+
+## Test tối thiểu
+
+- Viết ít test code nhất đủ chứng minh thay đổi đúng: mỗi hành vi mới hay sửa đổi cần 1 test đường chính + tối đa 1-2 case biên/lỗi thật sự quan trọng. Sửa lỗi: 1 test tái hiện lỗi, đỏ đúng lý do.
+- Ngân sách test (mặc định): số dòng test thêm không quá một nửa số dòng code thêm, và không quá 3 test mới cho mỗi hàm/lệnh/thành phần mới; vượt thì gộp các case vào một test có tham số hoặc bỏ case ít quan trọng.
+- Không viết: test lặp cùng một nhánh với input khác, test getter/setter/hằng/text tài liệu, test lại thư viện/framework, test cho đổi tên/di chuyển code, snapshot dài. Ưu tiên thêm assert/tham số vào test sẵn có hơn tạo file test mới; dùng lại fixture/helper sẵn có.
+- Ngoại lệ "ảnh hưởng doanh thu": code đụng tới thanh toán, tính giá/tiền/hoá đơn, billing/quota/hạn mức trả phí, đơn hàng/khuyến mãi, quyền truy cập trả phí, tính năng tạo hứng thú/giữ chân dẫn tới chi tiêu (quà tặng/gift, combo, phần thưởng, vật phẩm, bảng xếp hạng, level/tiến trình, streak, sự kiện giới hạn thời gian, hiệu ứng khi người dùng chi tiền), mất hay hỏng dữ liệu khách hàng, bảo mật → test kỹ (đủ nhánh, biên, lỗi, làm tròn, chạy lặp/idempotent, phân quyền) VÀ kiểm chứng thực tế kỹ (chạy thử luồng thật/lệnh thật trong phạm vi cho phép, không chỉ unit test).
+- Với tính năng tạo hứng thú/chi tiêu, kiểm chứng thực tế là chạy thử đúng luồng người dùng (kích hoạt sự kiện/quà, xem hiệu ứng, điểm, phần thưởng hiện đúng giá trị, đúng thời điểm, không giật/trễ, không cộng trùng hay mất), ghi lại bước đã chạy và kết quả quan sát được.
+- Danh sách ca test trong brief là mức TỐI ĐA, không phải gợi ý mở rộng: mỗi ca một test ngắn (hoặc một assert trong test sẵn có), không thêm ca ngoài danh sách. Chỉ khi brief ghi 'mức test: kỹ' (hoặc phần việc thuộc ngoại lệ doanh thu) mới bỏ ngân sách này.
+- Trong lúc làm chỉ chạy test hẹp cho phần đang sửa (`-k <tên>` hoặc một file test). Bộ test đầy đủ mà brief giao thì chạy đúng một lần ở cuối, sau khi đã xong mọi sửa đổi; đỏ thì sửa rồi chỉ chạy lại test hỏng, không chạy lặp cả bộ. Lệnh dự kiến quá 4 phút (full test suite, build image, e2e) mà brief không giao riêng thì chỉ chạy test hẹp liên quan, ghi lệnh dài vào báo cáo.
+- Mục Kiểm chứng trong báo cáo nêu số test đã thêm, dòng test thêm / dòng code thêm và, nếu thuộc ngoại lệ doanh thu, nói rõ đã test kỹ phần nào.
 
 ## Chất lượng code
 
@@ -34,7 +43,7 @@ Tin nhắn cuối cùng của bạn chính là báo cáo cho brain, viết tiế
 
 1. **Kết quả**: xong / xong một phần / bị chặn.
 2. **Đã thay đổi gì**: danh sách `đường/dẫn/file:dòng` kèm mô tả một dòng.
-3. **Kiểm chứng**: lệnh đã chạy và kết quả thật (fail thì nói rõ kèm dòng quan trọng).
+3. **Kiểm chứng**: lệnh đã chạy và kết quả thật (fail thì nói rõ kèm dòng quan trọng); số test đã thêm, và nếu thuộc ngoại lệ doanh thu thì nói rõ đã test kỹ phần nào.
 4. **Ghi chú cho brain**: giả định, việc còn thiếu, vấn đề ngoài phạm vi, lệnh dài chưa chạy (lệnh chính xác và thư mục).
 
 Không dán nguyên khối file hay log dài.

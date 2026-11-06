@@ -303,6 +303,9 @@ class BrowserPromptTest(unittest.TestCase):
         with_browser = hand_prompt.build_prompt("BRIEF body", browser=True)
         self.assertLess(with_browser.index("Luật trình duyệt"),
                         with_browser.index("## BRIEF"))
+        self.assertTrue(
+            with_browser.rstrip().endswith("kiểm chứng thực tế kỹ.")
+            and with_browser.index("## NHẮC LẠI LUẬT TEST") > with_browser.index("## BRIEF"))
         haystack = with_browser.lower()
         for needle in ("trang công khai", "không đăng nhập", "không tạo tài khoản",
                        "không điền form", "không mua", "captcha", "tiktok",

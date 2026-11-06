@@ -104,6 +104,7 @@ BROWSER_BACKEND = "dsh"  # only backend that can mount the Playwright MCP server
 
 PREAMBLE_RELPATH = "templates/ext-hand-preamble.md"
 BROWSER_RULES_RELPATH = "templates/ext-hand-browser-rules.md"
+TEST_REMINDER_RELPATH = "templates/ext-hand-test-reminder.md"
 BRIEF_HEADER = "\n\n## BRIEF\n\n"
 REPORT_FILE = "report.md"
 EVENTS_FILE = "events.jsonl"
