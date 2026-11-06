@@ -32,6 +32,8 @@ GO_LIVE_STALE_SECONDS = 900
 GO_LIVE_ERROR_KEEP_SECONDS = 21600
 SUMMARY_VERSION = 2
 RATE_CALIBRATED = "calib"
+# statusline labels whose USD per 1 % is trusted: calibrated, or pinned by the user.
+TRUSTED_RATE_LABELS = (RATE_CALIBRATED, "pin")
 PERCENT = 100.0
 GO_MODEL_MARKER = "deepseek"
 GO_WEEK_KEY = "7d"
@@ -303,7 +305,7 @@ def _week_split(state: Dict[str, Any], cache_reset: Optional[float], now: float
     if (_number(state.get("local")) is None or _number(state.get("other")) is None
             or _number(state.get("usd_per_pct")) is None):
         return None, True
-    stale = (state.get("rate_label") != RATE_CALIBRATED or computed is None
+    stale = (state.get("rate_label") not in TRUSTED_RATE_LABELS or computed is None
              or now - computed >= SUMMARY_STALE_SECONDS)
     return state, stale
 

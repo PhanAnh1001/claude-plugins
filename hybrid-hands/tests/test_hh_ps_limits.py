@@ -279,6 +279,8 @@ class ClaudeWeekTest(unittest.TestCase):
         self.assertAlmostEqual(row.other_pct, 3.8)
         self.assertFalse(row.estimated)
         self.assertEqual(row.source, "statusline_cache+week_split")
+        self.fx.claude_split(simple_week(rate=13.74, rate_label="pin"))
+        self.assertFalse(rows(self.fx.limits(), "Claude")["tuần"].estimated)
 
     def test_claude_formula_matches_week_split_summary(self) -> None:
         reset = NOW + 2 * DAY
