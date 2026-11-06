@@ -22,6 +22,9 @@
         "time_tracking": "timetracking",
         "start_date": "customfield_10000",
         "story_points": "customfield_10001"
+      },
+      "report": {
+        "title": "Example Project"
       }
     }
   }
