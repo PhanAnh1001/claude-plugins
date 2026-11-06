@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import functools
+import importlib.util
 import json
 import math
+import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -22,6 +26,7 @@ from typing import Any, Dict, List, Optional
 from hand_ext.constants import GO_USAGE_DEFAULT_PRICE
 from hand_ext.go_usage import estimate_cost
 
+from .live_rate import read_live_window
 from .models import Usage
 
 DAY_SECONDS = 86400
@@ -42,6 +47,22 @@ GO_SUMMARY_NAME = "go_usage_summary.json"
 GO_LIVE_CACHE_NAME = ".statusline-go-usage.json"
 CLAUDE_CACHE_NAME = ".statusline-cache.json"
 CLAUDE_WEEK_SPLIT_NAME = ".statusline-week-split.json"
+# Statusline's per-message USD ledger; only version 3 stores USD (v1 stores relative units).
+CLAUDE_LOCAL_USAGE_NAME = ".statusline-local-usage.json"
+LOCAL_LEDGER_VERSION = 3
+WEEK_SPLIT_SOURCE = "statusline_week_split"
+LIVE_WINDOW = "seven_day"
+LIVE_SOURCE = "rate_limit_event"
+WEEK_SPLIT_SUFFIX = "+week_split"
+EXTRAPOLATED_SUFFIX = "+extrapolated"
+# Test override: path to statusline's usage_ledger.py; missing means "no fresh source".
+STATUSLINE_LEDGER_ENV = "HH_PS_STATUSLINE_LEDGER"
+STATUSLINE_PLUGIN_KEY = "statusline@statusline-local"
+STATUSLINE_PLUGIN_PREFIX = "statusline@"
+STATUSLINE_LEDGER_FILE = "usage_ledger.py"
+INSTALLED_PLUGINS_RELPATH = Path("plugins") / "installed_plugins.json"
+REPO_STATUSLINE_LEDGER = (Path("statusline") / "plugins" / "statusline"
+                          / "scripts" / STATUSLINE_LEDGER_FILE)
 RUNS_SUBDIR = "runs"
 RUN_STATUS_RUNNING = "running"
 COST_EXACT = "exact"
@@ -331,44 +352,211 @@ def _estimated_total(state: Optional[Dict[str, Any]], cache_pct: float,
     return pct
 
 
+def _ledger_row_usd(row: Any, since: float, until: float) -> float:
+    """USD of one ledger row inside [since, until], else 0."""
+    if not isinstance(row, list) or len(row) < 2:
+        return 0.0
+    ts, usd = _number(row[0]), _number(row[1])
+    if ts is None or usd is None or not since <= ts <= until:
+        return 0.0
+    return usd
+
+
+def _ledger_usd_since(claude_home: Path, since: float, until: float) -> Optional[float]:
+    """This machine's USD after ``since`` from the statusline ledger; None when unusable."""
+    ledger = read_json(claude_home / CLAUDE_LOCAL_USAGE_NAME)
+    if ledger is None or ledger.get("version") != LOCAL_LEDGER_VERSION:
+        return None
+    messages = ledger.get("messages")
+    if not isinstance(messages, dict):
+        return None
+    return sum(_ledger_row_usd(row, since, until) for row in messages.values())
+
+
+def _installed_ledger(claude_home: Path) -> Optional[Path]:
+    """usage_ledger.py of the installed statusline plugin, as its shim finds it."""
+    document = read_json(claude_home / INSTALLED_PLUGINS_RELPATH)
+    plugins = (document or {}).get("plugins")
+    if not isinstance(plugins, dict):
+        return None
+    keys = [STATUSLINE_PLUGIN_KEY]
+    keys.extend(name for name in plugins if name.startswith(STATUSLINE_PLUGIN_PREFIX))
+    for key in keys:
+        entries = plugins.get(key)
+        if not isinstance(entries, list) or not entries:
+            continue
+        entry = entries[0]
+        install_path = entry.get("installPath") if isinstance(entry, dict) else None
+        if not isinstance(install_path, str) or not install_path:
+            continue
+        candidate = Path(install_path) / "scripts" / STATUSLINE_LEDGER_FILE
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _repo_ledger() -> Optional[Path]:
+    """usage_ledger.py in the statusline/ folder beside hybrid-hands, when run from the repo."""
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / REPO_STATUSLINE_LEDGER
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _locate_usage_ledger(claude_home: Path) -> Optional[Path]:
+    override = os.environ.get(STATUSLINE_LEDGER_ENV)
+    if override:
+        # An explicit path (the tests point it at the repo) never falls through to ~/.claude.
+        path = Path(os.path.expanduser(override))
+        return path if path.is_file() else None
+    return _installed_ledger(claude_home) or _repo_ledger()
+
+
+@functools.lru_cache(maxsize=4)
+def _ledger_module(path_text: str, mtime_ns: int) -> Any:
+    """Load statusline's usage_ledger.py by path, without touching sys.path."""
+    spec = importlib.util.spec_from_file_location("hh_ps_statusline_usage_ledger", path_text)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path_text}")
+    module = importlib.util.module_from_spec(spec)
+    # Python 3.9 dataclasses resolve their module through sys.modules; keep it registered.
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(spec.name, None)
+        raise
+    return module
+
+
+def _window_usd(module: Any, claude_home: Path, since: float, until: float) -> float:
+    """USD of this home's messages in [since, until], using statusline's own price table."""
+    messages = module.window_messages([claude_home], since, until)
+    return sum(sum(module.model_usd(message.model, message.tokens).values())
+               for message in messages.values())
+
+
+def _fresh_ledger_usd(claude_home: Path, since: float, until: float) -> Optional[float]:
+    """USD from transcripts through statusline's usage_ledger.py; None when it is unusable."""
+    try:
+        path = _locate_usage_ledger(claude_home)
+        if path is None:
+            return None
+        module = _ledger_module(str(path), path.stat().st_mtime_ns)
+        return _window_usd(module, claude_home, since, until)
+    except Exception:
+        # Fail open: a missing/broken statusline plugin must leave the panel on the old source.
+        return None
+
+
+def _usd_since(claude_home: Path, since: float, until: float) -> Optional[float]:
+    """This machine's USD after ``since``: fresh transcripts first, then the on-disk ledger."""
+    usd = _fresh_ledger_usd(claude_home, since, until)
+    if usd is None:
+        usd = _ledger_usd_since(claude_home, since, until)
+    return usd
+
+
+def _extrapolate_week(claude_home: Path, anchor_ts: float, anchor_pct: float,
+                      summary: Dict[str, Any], total: float,
+                      now: float) -> Optional[tuple[float, Optional[float]]]:
+    """(total, this machine) grown by USD after ``anchor_ts``, or None to keep the old number."""
+    rate = _number(summary.get("usd_per_pct"))
+    if not rate:
+        return None
+    usd = _usd_since(claude_home, anchor_ts, now)
+    if usd is None:
+        return None
+    # Anchor at anchor_pct: an existing estimate already includes post-anchor USD, so never add
+    # fresh USD on top of ``total`` (only keep it as a floor).
+    grown = min(max(anchor_pct + usd / rate, total, anchor_pct), PERCENT)
+    local = _number(summary.get("local"))
+    return grown, (local + usd / rate if local is not None else None)
+
+
+def _live_split(claude_home: Path, cache_ts: float, summary: Dict[str, Any],
+                total: float, now: float) -> tuple[Optional[float], Optional[float]]:
+    """This machine/other split for a live sample: grow ``local`` by post-cache USD."""
+    local = _number(summary.get("local"))
+    rate = _number(summary.get("usd_per_pct"))
+    if local is not None and rate and cache_ts > 0:
+        usd = _usd_since(claude_home, cache_ts, now)
+        if usd is not None:
+            local += usd / rate
+    other = _number(summary.get("other"))
+    if local is not None:
+        other = max(total - local, 0.0)
+    return local, other
+
+
 def read_claude_week(claude_home: Path, now: float) -> Optional[ClaudeWeek]:
-    """The Claude weekly account split; None when the statusline cache has no week value."""
+    """The Claude weekly account split; uses the live wrapper sample when it is the newest."""
     cache_path = claude_home / CLAUDE_CACHE_NAME
     cache = read_json(cache_path)
     cache_pct = _number((cache or {}).get("week"))
-    if cache_pct is None:
+    cache_ts = _path_mtime(cache_path)
+    live = read_live_window(claude_home, LIVE_WINDOW, now)
+    use_live = live is not None and (cache_ts == 0 or live.ts > cache_ts)
+    if cache_pct is None and not use_live:
         return None
     cache_reset = _number((cache or {}).get("week_reset"))
+    if use_live:
+        anchor_pct, anchor_ts, reset = live.pct, live.ts, live.resets_at
+    else:
+        anchor_pct, anchor_ts, reset = cache_pct, cache_ts, cache_reset
     summary, split_stale = _week_split(
-        read_json(claude_home / CLAUDE_WEEK_SPLIT_NAME) or {}, cache_reset, now)
-    total = cache_pct
-    total_estimated = _path_mtime(cache_path) == 0 or \
-        now - _path_mtime(cache_path) >= SUMMARY_STALE_SECONDS
-    if cache_reset is not None and cache_reset <= now:
+        read_json(claude_home / CLAUDE_WEEK_SPLIT_NAME) or {}, reset, now)
+    total = anchor_pct
+    total_estimated = anchor_ts == 0 or now - anchor_ts >= SUMMARY_STALE_SECONDS
+    extrapolated: Optional[tuple[float, Optional[float]]] = None
+    if reset is not None and reset <= now:
         # An expired window is already reset: never show yesterday's percentage as current.
-        total, cache_reset, total_estimated = 0.0, None, True
+        total, reset, total_estimated = 0.0, None, True
         summary, split_stale = None, True
     else:
-        estimate = _estimated_total(summary, cache_pct, cache_reset, now)
-        if estimate is not None:
-            total, total_estimated = estimate, True
+        if not use_live or total_estimated:
+            estimate = _estimated_total(summary, anchor_pct, reset, now)
+            if estimate is not None:
+                total, total_estimated = estimate, True
+        if total_estimated and summary is not None:
+            extrapolated = _extrapolate_week(claude_home, anchor_ts, anchor_pct,
+                                             summary, total, now)
+            if extrapolated is not None:
+                total = extrapolated[0]
     if summary is not None:
         local = _number(summary.get("local"))
         other = _number(summary.get("other"))
         rate = _number(summary.get("usd_per_pct"))
         summary_reset = _number(summary.get("reset"))
         window_start = (summary_reset if summary_reset is not None
-                        else cache_reset or now) - WEEK_SECONDS
+                        else reset or now) - WEEK_SECONDS
+        if use_live:
+            local, other = _live_split(claude_home, cache_ts, summary, total, now)
+            source = LIVE_SOURCE + WEEK_SPLIT_SUFFIX
+            split_estimated = True
+        else:
+            if extrapolated is not None:
+                local = extrapolated[1]
+            source = WEEK_SPLIT_SOURCE
+            split_estimated = split_stale
         return ClaudeWeek(
             window_start=window_start, total_pct=total,
             this_machine_pct=local, other_pct=other,
-            resets_at=cache_reset, usd_per_pct=rate,
-            total_estimated=total_estimated, split_estimated=split_stale,
-            source="statusline_week_split")
+            resets_at=reset, usd_per_pct=rate,
+            total_estimated=total_estimated, split_estimated=split_estimated,
+            source=source + (EXTRAPOLATED_SUFFIX if extrapolated else ""))
+    if use_live:
+        return ClaudeWeek(
+            window_start=(reset if reset is not None else now) - WEEK_SECONDS,
+            total_pct=total, this_machine_pct=None, other_pct=None,
+            resets_at=reset, usd_per_pct=None,
+            total_estimated=total_estimated, split_estimated=True,
+            source=LIVE_SOURCE + (EXTRAPOLATED_SUFFIX if extrapolated else ""))
     return ClaudeWeek(
-        window_start=(cache_reset if cache_reset is not None else now) - WEEK_SECONDS,
+        window_start=(reset if reset is not None else now) - WEEK_SECONDS,
         total_pct=total, this_machine_pct=None, other_pct=None,
-        resets_at=cache_reset, usd_per_pct=None,
+        resets_at=reset, usd_per_pct=None,
         total_estimated=total_estimated, split_estimated=True,
         source="statusline_cache")
 

@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""Tee claude stream-json stdout and record the latest rate-limit windows."""
+from __future__ import annotations
+
+import json
+import math
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+STATE_NAME = ".hh-claude-rate-limit.json"
+STATE_VERSION = 1
+CLAUDE_REAL_ENV = "HH_CLAUDE_REAL"
+CLAUDE_CONFIG_ENV = "CLAUDE_CONFIG_DIR"
+CLAUDE_CONFIG_DEFAULT = "~/.claude"
+STREAM_JSON_MARK = "stream-json"
+RATE_LIMIT_MARK = b"rate_limit_event"
+
+_child: Optional[subprocess.Popen] = None
+
+
+def _fail(message: str) -> int:
+    print(f"claude-tee: {message}", file=sys.stderr)
+    return 127
+
+
+def _is_wrapper(path: Path) -> bool:
+    try:
+        return path.resolve() == Path(__file__).resolve()
+    except OSError:
+        return False
+
+
+def _find_claude() -> Optional[str]:
+    configured = os.environ.get(CLAUDE_REAL_ENV)
+    if configured:
+        return os.path.expanduser(configured)
+    for folder in os.environ.get("PATH", "").split(os.pathsep):
+        candidate = Path(folder or ".") / "claude"
+        if not (candidate.is_file() and os.access(candidate, os.X_OK)):
+            continue
+        if _is_wrapper(candidate):
+            continue
+        return str(candidate)
+    return None
+
+
+def _number(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _ratio(value: Any) -> Optional[float]:
+    number = _number(value)
+    if number is None:
+        return None
+    return max(0.0, min(1.0, number))
+
+
+def _window(data: Dict[str, Any], now: float) -> Optional[Dict[str, Any]]:
+    utilization = _ratio(data.get("utilization"))
+    if utilization is None:
+        return None
+    window: Dict[str, Any] = {"utilization": utilization, "ts": now}
+    resets = _number(data.get("resetsAt", data.get("resets_at")))
+    if resets is not None:
+        window["resets_at"] = int(resets) if resets.is_integer() else resets
+    status = data.get("status")
+    if isinstance(status, str):
+        window["status"] = status
+    return window
+
+
+def _windows(info: Dict[str, Any], now: float) -> Dict[str, Dict[str, Any]]:
+    outer: Dict[str, Dict[str, Any]] = {}
+    outer_type = info.get("rateLimitType")
+    if isinstance(outer_type, str) and outer_type:
+        sample = _window(info, now)
+        if sample is not None:
+            outer[outer_type] = sample
+
+    found: Dict[str, Dict[str, Any]] = {}
+    unified = info.get("unifiedWindows")
+    if isinstance(unified, dict):
+        for name, raw in unified.items():
+            if not isinstance(name, str) or not isinstance(raw, dict):
+                continue
+            merged = {**outer.get(name, {}), **raw}
+            sample = _window(merged, now)
+            if sample is not None:
+                found[name] = sample
+    for name, sample in outer.items():
+        found.setdefault(name, sample)
+    return found
+
+
+def _state_path() -> Path:
+    home = os.environ.get(CLAUDE_CONFIG_ENV) or CLAUDE_CONFIG_DEFAULT
+    return Path(os.path.expanduser(home)) / STATE_NAME
+
+
+def _read_windows(path: Path) -> Dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict) or data.get("version") != STATE_VERSION:
+        return {}
+    windows = data.get("windows")
+    return dict(windows) if isinstance(windows, dict) else {}
+
+
+def _write_state(samples: Dict[str, Dict[str, Any]], now: float) -> None:
+    if not samples:
+        return
+    path = _state_path()
+    temp_name: Optional[str] = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        windows = _read_windows(path)
+        windows.update(samples)
+        payload = {
+            "version": STATE_VERSION,
+            "updated_at": now,
+            "windows": windows,
+        }
+        descriptor, temp_name = tempfile.mkstemp(
+            dir=str(path.parent), prefix=path.name + ".", suffix=".tmp")
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, separators=(",", ":"), sort_keys=True)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, path)
+        temp_name = None
+    except (OSError, ValueError, TypeError):
+        pass
+    finally:
+        if temp_name is not None:
+            try:
+                os.unlink(temp_name)
+            except OSError:
+                pass
+
+
+def _scan(line: bytes) -> None:
+    try:
+        event = json.loads(line)
+        if not isinstance(event, dict) or event.get("type") != "rate_limit_event":
+            return
+        info = event.get("rate_limit_info")
+        if not isinstance(info, dict):
+            return
+        now = time.time()
+        _write_state(_windows(info, now), now)
+    except (ValueError, TypeError, OSError):
+        pass
+
+
+def _emit(line: bytes) -> None:
+    try:
+        sys.stdout.buffer.write(line)
+        sys.stdout.buffer.flush()
+    except (BrokenPipeError, ValueError):
+        pass
+
+
+def _run(real: str, args: list[str]) -> int:
+    global _child
+    try:
+        _child = subprocess.Popen(
+            [real, *args], stdin=None, stderr=None, stdout=subprocess.PIPE)
+    except OSError as error:
+        return _fail(f"không chạy được {real}: {error}")
+
+    def forward(signum: int, _frame: Any) -> None:
+        child = _child
+        if child is not None and child.poll() is None:
+            try:
+                child.send_signal(signum)
+            except OSError:
+                pass
+
+    for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, forward)
+
+    stream = _child.stdout
+    if stream is not None:
+        while True:
+            line = stream.readline()
+            if not line:
+                break
+            _emit(line)
+            if RATE_LIMIT_MARK in line:
+                _scan(line)
+    code = _child.wait()
+    return 128 - code if code < 0 else code
+
+
+def main() -> int:
+    real = _find_claude()
+    if real is None:
+        return _fail("không tìm thấy claude thật")
+    args = sys.argv[1:]
+    if not any(STREAM_JSON_MARK in arg for arg in args):
+        try:
+            os.execv(real, [real, *args])
+        except OSError as error:
+            return _fail(f"không chạy được {real}: {error}")
+    return _run(real, args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

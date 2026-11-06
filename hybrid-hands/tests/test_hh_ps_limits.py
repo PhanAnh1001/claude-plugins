@@ -32,13 +32,15 @@ from hh_ps.pricing import hand_usage  # noqa: E402
 from hh_ps.render import render_json  # noqa: E402
 from hh_ps.timeutil import iso_at, percent_text  # noqa: E402
 from hh_ps.tree import build_snapshot  # noqa: E402
-from hh_ps.week import claude_pct, read_claude_week, read_go_week  # noqa: E402
+from hh_ps.week import (STATUSLINE_LEDGER_ENV, claude_pct, read_claude_week,
+                        read_go_week)  # noqa: E402
 
 NOW = 1_800_000_000.0
 HOUR = 3600.0
 DAY = 86400.0
 MODEL = "deepseek-v4.1-flash"
 RESET = NOW + DAY
+STATUSLINE_LEDGER = STATUSLINE / "usage_ledger.py"
 
 
 def iso(epoch: float) -> str:
@@ -116,16 +118,29 @@ class LimitFixture:
         })
 
     def claude_cache(self, week: str = "10.0", week_reset: float = NOW + 2 * DAY,
-                     five: str = "12.3", five_reset: float = NOW + HOUR) -> None:
+                     five: str = "12.3", five_reset: float = NOW + HOUR,
+                     mtime: float = NOW) -> None:
         path = self.claude / ".statusline-cache.json"
         write_json(path, {
             "five": five, "five_reset": str(int(five_reset)),
             "week": week, "week_reset": str(int(week_reset)),
         })
-        os.utime(path, (NOW, NOW))
+        os.utime(path, (mtime, mtime))
 
     def claude_split(self, summary: Dict[str, Any]) -> None:
         write_json(self.claude / ".statusline-week-split.json", summary)
+
+    def local_ledger(self, entries: List[tuple]) -> None:
+        write_json(self.claude / ".statusline-local-usage.json", {
+            "version": 3, "messages": {f"m{i}": [ts, usd, "sid"] for i, (ts, usd) in enumerate(entries)}})
+
+    def live_rate(self, pct: float, ts: float = NOW - 60,
+                  reset: float = NOW + 2 * DAY, window: str = "seven_day") -> None:
+        write_json(self.claude / ".hh-claude-rate-limit.json", {
+            "version": 1, "updated_at": ts,
+            "windows": {window: {"utilization": pct / 100.0, "ts": ts,
+                                 "resets_at": reset, "status": "allowed"}},
+        })
 
     def registry(self, run_id: str, ended: float, tokens: Dict[str, int],
                  parent: Optional[str] = None) -> None:
@@ -144,18 +159,21 @@ class LimitFixture:
         })
 
     def transcript(self, session_id: str, cwd: Path,
-                   records: List[Dict[str, Any]]) -> None:
+                   records: List[Dict[str, Any]], mtime: float = NOW) -> None:
         slug = str(cwd).replace("/", "-").replace(".", "-")
         path = self.claude / "projects" / slug / f"{session_id}.jsonl"
         write_text(path, "\n".join(json.dumps(record) for record in records) + "\n")
+        os.utime(path, (mtime, mtime))
 
     @contextmanager
-    def env(self) -> Iterator[None]:
+    def env(self, ledger_path: Optional[Path] = STATUSLINE_LEDGER) -> Iterator[None]:
+        missing = self.base / "no-statusline" / "usage_ledger.py"
         saved = dict(os.environ)
         os.environ.update({
             "CLAUDE_HOME": str(self.claude),
             "CLAUDE_CONFIG_DIR": str(self.claude),
             "HYBRID_HANDS_STATE_DIR": str(self.state),
+            STATUSLINE_LEDGER_ENV: str(ledger_path or missing),
         })
         try:
             yield
@@ -163,8 +181,8 @@ class LimitFixture:
             os.environ.clear()
             os.environ.update(saved)
 
-    def limits(self):
-        with self.env():
+    def limits(self, ledger_path: Optional[Path] = STATUSLINE_LEDGER):
+        with self.env(ledger_path):
             return collect_limits(self.project, NOW, env=os.environ)
 
 
@@ -281,6 +299,67 @@ class ClaudeWeekTest(unittest.TestCase):
         self.assertEqual(row.source, "statusline_cache+week_split")
         self.fx.claude_split(simple_week(rate=13.74, rate_label="pin"))
         self.assertFalse(rows(self.fx.limits(), "Claude")["tuần"].estimated)
+
+    def test_e_stale_cache_extrapolates_but_expired_reset_does_not(self) -> None:
+        self.fx.claude_cache(week="10.0", mtime=NOW - HOUR)
+        self.fx.claude_split(simple_week(rate=13.74, rate_label="pin"))
+        # Older than the cache: the live wrapper sample must not replace the cache path.
+        self.fx.live_rate(15.0, ts=NOW - 2 * HOUR)
+        # The on-disk ledger is frozen before the cache; fresh USD must come from the transcript.
+        self.fx.local_ledger([(NOW - 2 * HOUR, 27.48)])
+        self.fx.transcript("fresh", self.fx.project, [{
+            "type": "assistant", "timestamp": iso(NOW - HOUR / 2),
+            "cwd": str(self.fx.project), "requestId": "req",
+            "message": {"id": "msg", "model": "claude-sonnet-5-5",
+                        "usage": {"input_tokens": 6_870_000, "output_tokens": 0}},
+        }], mtime=NOW - HOUR / 2)
+        with self.fx.env():
+            week = read_claude_week(self.fx.claude, NOW)
+            limits = self.fx.limits()
+        row = rows(limits, "Claude")["tuần"]
+        self.assertFalse(week.source.startswith("rate_limit_event"))
+        self.assertEqual((round(week.total_pct, 2), round(week.this_machine_pct, 2),
+                          round(week.other_pct, 2)), (11.0, 7.2, 3.8))
+        self.assertEqual((week.estimated, "extrapolated" in week.source), (True, True))
+        self.assertEqual(round(row.total_pct, 2), 11.0)
+        self.assertEqual(row.source, "statusline_cache+week_split+extrapolated")
+        self.fx.claude_cache(week="6.2", week_reset=NOW - HOUR, mtime=NOW - HOUR)
+        self.fx.claude_split(simple_week(total=6.2, reset=NOW - HOUR))
+        with self.fx.env():
+            expired = read_claude_week(self.fx.claude, NOW)
+        self.assertEqual((expired.total_pct, expired.this_machine_pct), (0.0, None))
+        self.assertNotIn("extrapolated", expired.source)
+
+    def test_live_sample_newer_than_cache_is_the_total_and_skips_extrapolation(self) -> None:
+        self.fx.claude_cache(week="10.0", mtime=NOW - HOUR)
+        self.fx.claude_split(simple_week(rate=12.0))
+        self.fx.local_ledger([(NOW - HOUR / 2, 12.0)])
+        self.fx.live_rate(15.0, ts=NOW - 60)
+        with self.fx.env(ledger_path=None):
+            week = read_claude_week(self.fx.claude, NOW)
+        row = rows(self.fx.limits(ledger_path=None), "Claude")["tuần"]
+        self.assertEqual(week.total_pct, 15.0)
+        self.assertFalse(week.total_estimated)
+        self.assertTrue(week.split_estimated)
+        self.assertAlmostEqual(week.this_machine_pct, 7.2)
+        self.assertAlmostEqual(week.other_pct, 7.8)
+        self.assertTrue(row.source.startswith("rate_limit_event"))
+        self.assertNotIn("+extrapolated", row.source)
+        # No statusline cache at all: the live sample alone still yields a week row.
+        (self.fx.claude / ".statusline-cache.json").unlink()
+        with self.fx.env(ledger_path=None):
+            live_only = read_claude_week(self.fx.claude, NOW)
+        self.assertEqual((live_only.total_pct, live_only.this_machine_pct), (15.0, 6.2))
+        self.assertTrue(live_only.source.startswith("rate_limit_event"))
+
+    def test_e_falls_back_to_the_on_disk_ledger(self) -> None:
+        self.fx.claude_cache(week="10.0", mtime=NOW - HOUR)
+        self.fx.claude_split(simple_week(rate=13.74, rate_label="pin"))
+        self.fx.local_ledger([(NOW - HOUR / 2, 13.74)])
+        with self.fx.env(ledger_path=None):
+            row = rows(self.fx.limits(ledger_path=None), "Claude")["tuần"]
+        self.assertEqual(round(row.total_pct, 2), 11.0)
+        self.assertTrue(row.source.endswith("+extrapolated"))
 
     def test_claude_formula_matches_week_split_summary(self) -> None:
         reset = NOW + 2 * DAY

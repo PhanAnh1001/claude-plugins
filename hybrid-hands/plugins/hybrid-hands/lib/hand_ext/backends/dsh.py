@@ -63,7 +63,7 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: provider-prefixed Go model id
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.22.0"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.23.0"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
 # Per-run overlay: dsh applies --patch in argv order, so this wins over hand.patch.yml.
 COMPACTION_PATCH_FILE = "compaction.patch.yml"

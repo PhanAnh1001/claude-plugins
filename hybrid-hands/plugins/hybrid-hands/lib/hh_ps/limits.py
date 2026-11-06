@@ -16,7 +16,8 @@ from hand_ext.config import ExtConfig, load_config
 
 from .constants import STATE_DIR_DEFAULT, STATE_DIR_ENV
 from .models import Limit
-from .week import ClaudeWeek, GoWeek, read_claude_week, read_go_week
+from .week import (ClaudeWeek, GoWeek, LIVE_SOURCE, WEEK_SPLIT_SOURCE, read_claude_week,
+                   read_go_week)
 
 PLAN_GO = "Go"
 PLAN_CLAUDE = "Claude"
@@ -24,6 +25,7 @@ WEEK_WINDOW = "tuần"
 SOURCE_GO_LIVE = "go_live+ledger"
 SOURCE_GO_LEDGER = "ledger"
 SOURCE_CLAUDE_SPLIT = "statusline_cache+week_split"
+SOURCE_CLAUDE_LIVE = "rate_limit_event"
 SOURCE_CLAUDE = "statusline_cache"
 
 
@@ -52,12 +54,21 @@ def _go_limit(week: GoWeek) -> Limit:
                  estimated=week.total_estimated)
 
 
+def _claude_source(week: ClaudeWeek) -> str:
+    """The week's own source, with internal names mapped to hh-ps' JSON names."""
+    source = week.source or SOURCE_CLAUDE
+    if source.startswith(WEEK_SPLIT_SOURCE):
+        source = SOURCE_CLAUDE_SPLIT + source[len(WEEK_SPLIT_SOURCE):]
+    elif source.startswith(LIVE_SOURCE):
+        source = SOURCE_CLAUDE_LIVE + source[len(LIVE_SOURCE):]
+    return source
+
+
 def _claude_limit(week: ClaudeWeek) -> Limit:
-    source = SOURCE_CLAUDE_SPLIT if week.this_machine_pct is not None else SOURCE_CLAUDE
     return Limit(plan=PLAN_CLAUDE, window=WEEK_WINDOW,
                  this_machine_pct=week.this_machine_pct, other_pct=week.other_pct,
                  total_pct=week.total_pct, resets_at=week.resets_at,
-                 source=source, estimated=week.estimated)
+                 source=_claude_source(week), estimated=week.estimated)
 
 
 def collect_limits(root: Path, now: float, env: Optional[Mapping[str, str]] = None,

@@ -8,6 +8,7 @@
 - **Quyết định:** sửa theo 2 bước.
   1. **Sửa ngay (giai đoạn 1):** khi cache cũ, panel ngoại suy % tuần = % trong cache + USD máy này phát sinh sau thời điểm cache / USD-per-1%. Số này đánh dấu ước tính (`~`). Đã có số ghim 13,74 USD/1% (statusline 0.19.0), nên ngoại suy dùng được ngay. Không cần nguồn mới.
   2. **Nguồn sống (giai đoạn 2):** tìm nguồn % thật không phụ thuộc statusline render. Ưu tiên sự kiện rate limit trong luồng stream-json mà Paseo daemon nhận được. Chỉ dùng endpoint usage OAuth khi người dùng duyệt (xem 2.3).
+     - Kết quả kiểm 06/11/2026 (mục 2.5): Paseo và transcript không lưu sự kiện rate limit, nhưng claude có phát `rate_limit_event` kèm `seven_day.utilization`. Hướng đã chọn: đặt wrapper giữa Paseo và claude, ghi mẫu mới nhất ra một file trạng thái.
 - **Số chính:**
   - USD/1% tuần đang ghim: 13,74 (`~/.claude/statusline-usd-per-pct.txt`, đo 04/11: Δ3%, 41,23 USD).
   - Ngưỡng cache cũ của panel: 30 phút (`hh_ps/week.py:344`).
@@ -54,3 +55,21 @@
 
 - Chọn ứng viên đầu tiên có % thật cho `seven_day`, cập nhật ít nhất mỗi lượt gọi model, và không cần secret.
 - Không ứng viên nào đạt thì dừng ở giai đoạn 1 và ghi kết luận vào spec này.
+
+### 2.5 Kết luận kiểm ứng viên (06/11/2026)
+
+- **Kết luận:** A và B không đạt tiêu chí 2.4 nếu chỉ đọc thụ động từ đĩa. Người dùng đã duyệt hướng wrapper (cuối mục này), và đã kiểm thấy sự kiện `rate_limit_event` có thật.
+- **Ứng viên A (stream-json qua Paseo): không đạt.**
+  - Paseo lưu dữ liệu ở `~/.paseo/` (`daemon.log`, `agents/`, `projects/`, `runtime/`). Không có bản ghi `rate_limit`, `seven_day` hay `utilization` nào.
+  - Bộ chuyển luồng Claude của Paseo (`@getpaseo/server/.../providers/claude/agent.js`) chỉ xử lý các type `system`, `user`, `assistant`, `stream_event`, `result`, `tool_progress`. Nếu claude có phát `rate_limit_event` thì Paseo bỏ qua.
+  - Việc claude có phát `rate_limit_event` ở chế độ stream-json chưa kiểm chứng được, vì không có mẫu nào được lưu lại.
+- **Ứng viên B (transcript): không đạt.** 6 transcript mới nhất không có type, key hay chuỗi nào về rate limit, utilization, `seven_day` hay `five_hour`.
+- **Phát hiện thêm:** Paseo có plugin dựng sẵn `claude-usage-source` (`@getpaseo/server/.../builtin-plugins/claude-usage-source/server/usage.ts`).
+  - Plugin đọc token OAuth từ Keychain hoặc `.credentials.json`, rồi gọi endpoint usage OAuth.
+  - Plugin lấy `five_hour`, `seven_day`, `seven_day_opus` kèm `utilization`, và chỉ cache trong bộ nhớ 5 phút, không ghi đĩa.
+  - Về bản chất đây là ứng viên C, do Paseo thực hiện.
+- **Hướng đã chọn (người dùng duyệt 06/11/2026): wrapper giữa Paseo và claude** để bắt `rate_limit_event` trên stdout.
+  - Chạy thử `claude -p --model haiku --output-format stream-json --verbose` lúc 06/11/2026: sự kiện có thật, phát sau message `assistant`, trước `result`.
+  - Mẫu (đã bỏ id): `{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1794549600,"rateLimitType":"seven_day","unifiedWindows":{"seven_day":{"utilization":0.15,"resetsAt":1794549600,"status":"allowed"}}}}`. `utilization` là tỉ lệ 0–1, 0.15 khớp `/usage` 15%.
+  - Lượt thử chỉ có `seven_day` trong `unifiedWindows`; `five_hour` có thể chỉ xuất hiện khi gần ngưỡng (chưa kiểm).
+  - Hướng bỏ: hỏi số từ plugin `claude-usage-source` của Paseo (phụ thuộc token OAuth và gọi mạng).
