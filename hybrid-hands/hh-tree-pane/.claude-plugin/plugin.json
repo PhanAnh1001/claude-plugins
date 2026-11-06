@@ -1,0 +1,8 @@
+{
+  "name": "hh-tree-pane",
+  "version": "0.2.0",
+  "description": "Pane cạnh chat trong terminal hiển thị cây hh-ps (phiên brain → subagent → hand ngoài), tự làm mới 5 giây",
+  "author": { "name": "Phan Anh" },
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}

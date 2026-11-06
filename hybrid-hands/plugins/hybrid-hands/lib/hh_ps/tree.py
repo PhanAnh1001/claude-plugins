@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -13,22 +12,9 @@ from .constants import (
     SIDE_RUN_LABEL_SANITIZED_PREFIX,
 )
 from .models import HandRun, Session, Snapshot
-from .registry_source import (
-    SessionMeta, load_hand_runs, load_ps_config, load_session_meta, side_state_caps,
-    state_root,
-)
+from .registry_source import SessionMeta, load_hand_runs, load_ps_config, state_root
+from .repos import RepoState, SideMap, project_root
 from .timeutil import to_epoch
-
-SideMap = Dict[str, Dict[str, Any]]
-
-
-def project_root(cwd: Path) -> Path:
-    try:
-        done = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
-                              capture_output=True, text=True, check=True)
-        return Path(done.stdout.strip())
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
-        return cwd.resolve()
 
 
 def _cap_for(session, meta: Dict[str, SessionMeta],
@@ -158,6 +144,10 @@ def _enrich(session: Session, meta: Dict[str, SessionMeta], side: SideMap) -> No
         session.token_ratio = round(session.context_tokens / session.token_cap, 4)
 
 
+def _session_dirs(sessions: List[Session]) -> List[str]:
+    return [session.cwd for session in sessions if session.cwd]
+
+
 def _run_sort_key(run: HandRun):
     return (not run.running, -(run.started_at or 0.0), run.run_id)
 
@@ -194,12 +184,16 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     moment = time.time() if now is None else float(now)
     cutoff = moment - since_seconds
     root = project_root(cwd)
-    config = load_ps_config(root)
     main_session_id = main_session_id or os.environ.get(PARENT_SESSION_ENV) or None
-    meta = load_session_meta(config)
-    side = side_state_caps(config)
+    repos = RepoState()
+    repos.add_root(root, load_ps_config(root))
     sessions = _claude_sessions(root, cutoff, all_projects, main_session_id,
-                                moment, side)
+                                moment, repos.side)
+    if repos.add_cwds(_session_dirs(sessions)):
+        # Side state from another repo may pull in ended sessions; load once more.
+        sessions = _claude_sessions(root, cutoff, all_projects, main_session_id,
+                                    moment, repos.side)
+    meta, side = repos.meta, repos.side
     _add_external_sessions(sessions, side, cutoff)
     for session in sessions:
         _enrich(session, meta, side)

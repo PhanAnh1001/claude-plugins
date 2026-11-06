@@ -79,24 +79,25 @@ class HhPsSideTest(unittest.TestCase):
 
         main = index("WP-23b")
         main_run = index("main-run")
-        dsh = index("phiên phụ dsh-side [dsh]")
+        dsh = index("phụ:dsh-side")
         self.assertGreater(dsh, main_run)
-        self.assertTrue(lines[dsh].startswith("│  "), lines[dsh])
-        wt = index("phiên phụ wt-side [claude]")
+        self.assertTrue(lines[dsh].startswith("│ "), lines[dsh])
+        wt = index("phụ:wt-side")
         self.assertGreater(wt, main_run)
-        self.assertTrue(lines[wt].startswith("│  "), lines[wt])
-        nested = index("phiên phụ nested-side [claude]")
+        self.assertTrue(lines[wt].startswith("│ "), lines[wt])
+        nested = index("phụ:nested-side")
         self.assertGreater(nested, wt)
-        self.assertTrue(lines[nested].startswith("│  │  "), lines[nested])
+        self.assertTrue(lines[nested].startswith("│ │ "), lines[nested])
         unknown = index("phiên phụ chưa rõ phiên cha")
         self.assertGreater(unknown, nested)
-        orphan = index("phiên phụ mo-coi [claude]")
+        orphan = index("phụ:mo-coi")
         self.assertGreater(orphan, unknown)
         self.assertLess(orphan, index("Tổng:"))
         self.assertGreater(index("Tổng:"), unknown)
 
     def test_legacy_state_without_parent_session_is_tolerated(self) -> None:
-        sessions = {item["session_id"]: item for item in self.json_cli()["sessions"]}
+        sessions = {item["session_id"]: item
+                    for item in self.json_cli("--ended")["sessions"]}
         legacy = sessions[NONAME_SESSION]
         self.assertIsNone(legacy["parent_session"])
         self.assertEqual(legacy["side_name"], "legacy-side")
@@ -106,7 +107,7 @@ class HhPsSideTest(unittest.TestCase):
     def test_watch_one_iteration_draws_nested_tree(self) -> None:
         code, out = self.run_cli("--watch", "2", "--count", "1")
         self.assertEqual(code, 0, out)
-        self.assertIn("phiên phụ dsh-side [dsh]", out)
+        self.assertIn("phụ:dsh-side", out)
         self.assertIn("phiên phụ chưa rõ phiên cha", out)
 
 

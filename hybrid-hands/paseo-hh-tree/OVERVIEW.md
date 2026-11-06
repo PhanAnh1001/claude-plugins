@@ -15,7 +15,7 @@ Sau khi cài, mở Cài đặt của plugin Cây phiên để đặt đường d
 
 ## Dữ liệu đọc trên máy
 
-Plugin chỉ đọc dữ liệu trên máy và chỉ gửi kết quả qua kênh RPC của Paseo tới app đang mở; không gửi ra mạng ngoài kênh Paseo. Nó chạy `hh-ps --json --since 6h` (thêm `--cwd`, `--main-session` và `--all` khi cần), không đọc nội dung tin nhắn, prompt, token hay socket.
+Plugin chỉ đọc dữ liệu trên máy và chỉ gửi kết quả qua kênh RPC của Paseo tới app đang mở; không gửi ra mạng ngoài kênh Paseo. Nó chạy `hh-ps --json --since 6h` (thêm `--cwd`, `--main-session` và `--all` khi cần; từ hybrid-hands 0.17.0 `hh-ps` mặc định ẩn cây phiên đã kết thúc hết), không đọc nội dung tin nhắn, prompt, token hay socket.
 
 Để nối một agent Paseo với phiên Claude, plugin đọc bản ghi agent trong thư mục `agents` của Paseo home, chỉ lấy hai trường `cwd` và `runtimeInfo.sessionId` (dự phòng `persistence.sessionId`). Không trường nào khác của bản ghi được đọc, ghi log hay trả về. Nếu không tìm thấy bản ghi, cây vẫn hiện nhưng không lọc theo project và không đánh dấu phiên chính.
 

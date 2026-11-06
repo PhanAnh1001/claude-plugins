@@ -145,11 +145,12 @@ def side_state_caps(cfg: PsConfig) -> Dict[str, dict]:
 
 
 def _tokens(raw: Any) -> Dict[str, int]:
-    data = raw if isinstance(raw, dict) else {}
+    if not isinstance(raw, dict):
+        return {}
     tokens: Dict[str, int] = {}
     for key in ("input", "cached_input", "output"):
         try:
-            tokens[key] = max(0, int(data.get(key) or 0))
+            tokens[key] = max(0, int(raw.get(key) or 0))
         except (TypeError, ValueError):
             tokens[key] = 0
     return tokens

@@ -64,8 +64,22 @@ def iso_at(epoch: Optional[float]) -> Optional[str]:
     return dt.datetime.fromtimestamp(epoch).astimezone().isoformat(timespec="seconds")
 
 
+END_SAME_DAY_FORMAT = "%H:%M"
+END_OTHER_DAY_FORMAT = "%d/%m %H:%M"
+
+
+def ended_text(epoch: Optional[float], now: float) -> Optional[str]:
+    """`HH:MM` (same local day as `now`) or `dd/mm HH:MM`; the legend explains it."""
+    if epoch is None:
+        return None
+    moment = dt.datetime.fromtimestamp(epoch)
+    same_day = moment.date() == dt.datetime.fromtimestamp(now).date()
+    fmt = END_SAME_DAY_FORMAT if same_day else END_OTHER_DAY_FORMAT
+    return moment.strftime(fmt)
+
+
 def duration_text(seconds: Optional[float]) -> Optional[str]:
-    """Compact Vietnamese duration: 2g3p, 45p, 30s."""
+    """Compact Vietnamese duration: 2ng, 2g3p, 45p, 30s."""
     if seconds is None:
         return None
     total = max(0, int(seconds))
@@ -73,7 +87,7 @@ def duration_text(seconds: Optional[float]) -> Optional[str]:
     hours, rest = divmod(rest, SECONDS_PER_HOUR)
     minutes, secs = divmod(rest, SECONDS_PER_MINUTE)
     if days:
-        return f"{days}ng{hours}g" if hours else f"{days}ng"
+        return f"{days}ng"  # hours dropped past a day to keep the column narrow
     if hours:
         return f"{hours}g{minutes}p" if minutes else f"{hours}g"
     if minutes:
@@ -86,21 +100,44 @@ def age_text(seconds: Optional[float]) -> Optional[str]:
     return f"{text} trước" if text else None
 
 
+THOUSAND = 1000
+MILLION = 1_000_000
+# Below this many thousands a `k` value keeps one decimal (6.4k); above it, none (46k).
+K_DECIMAL_BELOW = 10
+
+
 def token_text(count: Optional[int]) -> Optional[str]:
+    """Compact count: 950, 6.4k, 46k, 1.2M."""
     if count is None:
         return None
     value = max(0, int(count))
-    if value < 1000:
+    if value < THOUSAND:
         return str(value)
-    if value < 1_000_000:
-        return _scaled(value, 1000, "k")
-    return _scaled(value, 1_000_000, "M")
+    thousands = value / THOUSAND
+    if thousands < K_DECIMAL_BELOW:
+        return _one_decimal(thousands) + "k"
+    if round(thousands) < THOUSAND:
+        return f"{round(thousands)}k"
+    return _one_decimal(value / MILLION) + "M"
 
 
-def _scaled(value: int, unit: int, suffix: str) -> str:
-    number = value / unit
-    text = f"{number:.1f}".rstrip("0").rstrip(".")
-    return text + suffix
+def _one_decimal(number: float) -> str:
+    return f"{number:.1f}".rstrip("0").rstrip(".")
+
+
+USD_DECIMALS = 2
+USD_MIN_VISIBLE = 0.01
+
+
+def usd_text(amount: Optional[float]) -> Optional[str]:
+    """`$0.42`, `<$0.01` under one cent, `$0` for nothing used, None without estimate."""
+    if amount is None:
+        return None
+    if amount <= 0:
+        return "$0"
+    if amount < USD_MIN_VISIBLE:
+        return "<$0.01"
+    return f"${amount:.{USD_DECIMALS}f}"
 
 
 def ratio_text(current: Optional[int], cap: Optional[int]) -> Optional[str]:

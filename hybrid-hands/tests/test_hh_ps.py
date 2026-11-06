@@ -41,31 +41,33 @@ class HhPsTest(unittest.TestCase):
         return json.loads(out)
 
     def test_live_sessions_ended_and_since_filter(self) -> None:
-        code, out = self.run_cli()
+        code, out = self.run_cli("--ended")
         self.assertEqual(code, 0, out)
         self.assertIn("WP-23b", out)
         self.assertNotIn("live-main", out)  # customTitle beats the session-file name
-        self.assertIn("[chính]", out)
+        self.assertIn("▶ WP-23b", out)  # ▶ marks this (main) session
         self.assertIn("ended-name", out)
-        self.assertIn("đã kết thúc", out)
+        self.assertIn("○ ended-name", out)
+        self.assertIn("○ đã dừng", out)  # legend line
         self.assertIn("sess-non", out)  # first 8 characters of the id
         self.assertNotIn("old-name", out)
         self.assertNotIn(OLD_SESSION, out)
         self.assertNotIn("sess-other", out)
 
     def test_all_includes_other_project(self) -> None:
-        code, out = self.run_cli("--all")
+        code, out = self.run_cli("--all", "--ended")
         self.assertEqual(code, 0, out)
         self.assertIn("sess-oth", out)
 
     def test_subagent_states(self) -> None:
         code, out = self.run_cli()
         self.assertEqual(code, 0, out)
-        self.assertIn("đang chạy", out)
-        self.assertIn("xong", out)
+        self.assertIn("▶ hand", out)
+        self.assertIn("✓ hand", out)
         self.assertIn("im lặng", out)
+        self.assertNotIn("  xong", out)  # ok children print no status word
         self.assertNotIn("việc cũ đã xong", out)  # finished outside --since
-        self.assertIn("việc đang chạy " + "x" * 24 + "…", out)
+        self.assertIn("việc đang chạy …", out)
 
     def test_hand_runs_parent_grouping_orphans_and_lost(self) -> None:
         data = self.json_cli()
@@ -79,14 +81,22 @@ class HhPsTest(unittest.TestCase):
                          ["orphan-run"])
         self.assertNotIn("old-run", json.dumps(data))
         _, out = self.run_cli()
-        self.assertIn("mất (tiến trình đã chết)", out)
+        self.assertIn("mất", out)
+        self.assertNotIn("tiến trình đã chết", out)
+        self.assertNotIn("cached", out)
         self.assertIn("hand ngoài không rõ phiên gọi", out)
 
     def test_token_caps_and_ratios_from_meta_and_side_state(self) -> None:
         code, out = self.run_cli()
         self.assertEqual(code, 0, out)
-        self.assertIn("6k/200k (3%)", out)
-        self.assertIn("12k/50k (24%)", out)
+        # Text shows context only; caps and ratios stay in --json.
+        self.assertIn("ctx 6k", out)
+        self.assertIn("ctx 12k", out)
+        self.assertNotIn("/200k", out)
+        data = self.json_cli()
+        caps = {item["session_id"]: item["token_cap"] for item in data["sessions"]}
+        self.assertEqual(caps[MAIN_SESSION], 200000)
+        self.assertEqual(caps[SIDE_SESSION], 50000)
 
     def test_json_schema(self) -> None:
         data = self.json_cli()
@@ -108,12 +118,15 @@ class HhPsTest(unittest.TestCase):
         self.assertEqual(session["subagents"][0]["status"], "running")
         self.assertEqual(set(session["subagents"][0]),
                          {"agent_id", "agent_type", "description", "status",
-                          "context_tokens", "duration_seconds"})
+                          "context_tokens", "usage", "duration_seconds", "ended_at"})
         run = session["hand_runs"][0]
         self.assertEqual(set(run), {"run_id", "label", "backend", "model", "status",
-                                    "state", "tokens", "started_at", "ended_at",
+                                    "state", "tokens", "usage", "started_at", "ended_at",
                                     "duration_seconds", "parent_session", "pid",
                                     "child_pid"})
+        self.assertEqual(set(session["usage"]),
+                         {"read", "cache_read", "cache_write", "out", "usd"})
+        self.assertIn("ai_title", session)
         self.assertEqual(set(run["tokens"]), {"input", "cached_input", "output"})
         self.assertEqual(len(data["orphan_runs"]), 1)
 

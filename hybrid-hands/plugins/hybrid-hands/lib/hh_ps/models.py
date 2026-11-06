@@ -12,6 +12,15 @@ from .constants import (
 )
 
 
+@dataclass(frozen=True)
+class Usage:
+    read: int = 0
+    cache_read: int = 0
+    cache_write: Optional[int] = None
+    out: int = 0
+    usd: Optional[float] = None
+
+
 @dataclass
 class Subagent:
     agent_id: str
@@ -22,6 +31,7 @@ class Subagent:
     context_tokens: Optional[int]
     duration_seconds: Optional[float]
     last_activity: Optional[float]
+    usage: Optional[Usage] = None
 
     @property
     def state(self) -> str:
@@ -32,6 +42,11 @@ class Subagent:
     @property
     def running(self) -> bool:
         return self.state == SUBAGENT_RUNNING
+
+    @property
+    def ended_at(self) -> Optional[float]:
+        # The last transcript record is the best end mark a finished subagent has.
+        return self.last_activity if self.finished else None
 
 
 @dataclass
@@ -62,6 +77,11 @@ class HandRun:
         return RUN_STATE_FINISHED
 
     @property
+    def end_moment(self) -> Optional[float]:
+        # A lost run without `ended` in the registry has no known end mark.
+        return None if self.running else self.ended_at
+
+    @property
     def duration_seconds(self) -> Optional[float]:
         if self.started_at is None:
             return None
@@ -88,12 +108,18 @@ class Session:
     side_name: Optional[str] = None
     provider: str = PROVIDER_CLAUDE
     pulled_in: bool = False
+    ai_title: str = ""
+    usage: Optional[Usage] = None
     subagents: List[Subagent] = field(default_factory=list)
     hand_runs: List[HandRun] = field(default_factory=list)
 
     @property
     def alive(self) -> bool:
         return self.live
+
+    @property
+    def ended_at(self) -> Optional[float]:
+        return None if self.live else self.last_activity
 
 
 @dataclass
@@ -105,6 +131,7 @@ class Snapshot:
     all_projects: bool
     main_session_id: Optional[str]
     generated_at: float
+    hidden_ended_sessions: int = 0
 
     @property
     def live_sessions(self) -> int:
