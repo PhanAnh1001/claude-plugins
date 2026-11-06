@@ -149,6 +149,8 @@ def _ended_session(session_id: str, info: TranscriptInfo, old: dict, project_roo
         last_activity=info.last_activity or info.mtime,
         is_main=session_id == main_session_id,
         live=False,
+        ai_title=info.ai_title,
+        usage=info.usage,
     )
 
 
@@ -159,6 +161,9 @@ def _merge(session: Session, info: TranscriptInfo, path: Path) -> None:
         session.cwd = info.cwd
     if info.context_tokens is not None:
         session.context_tokens = info.context_tokens
+    if info.usage is not None:
+        session.usage = info.usage
+    session.ai_title = info.ai_title
     if session.started_at is None:
         session.started_at = info.started_at
     if info.last_activity is not None:

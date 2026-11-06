@@ -1,14 +1,27 @@
 """JSON output for `hh-ps`; text rendering lives in `text_render` for size."""
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, Optional
 
 from .constants import SCHEMA_VERSION, SUBAGENT_SILENT
-from .models import HandRun, Session, Snapshot, Subagent
+from .models import HandRun, Session, Snapshot, Subagent, Usage
+from .pricing import hand_usage
 from .text_render import color_enabled, render_text
 from .timeutil import iso_at
 
 __all__ = ["color_enabled", "render_json", "render_text"]
+
+
+def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
+    if usage is None:
+        return None
+    return {
+        "read": usage.read,
+        "cache_read": usage.cache_read,
+        "cache_write": usage.cache_write,
+        "out": usage.out,
+        "usd": usage.usd,
+    }
 
 
 def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
@@ -22,8 +35,9 @@ def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
         "status": run.status,
         "state": run.state,
         "tokens": dict(run.tokens),
+        "usage": _usage_json(hand_usage(run.tokens, run.backend)),
         "started_at": iso_at(run.started_at),
-        "ended_at": iso_at(run.ended_at),
+        "ended_at": iso_at(run.end_moment),
         "duration_seconds": duration,
         "parent_session": run.parent_session,
         "pid": run.pid,
@@ -40,7 +54,9 @@ def _subagent_json(agent: Subagent) -> Dict[str, object]:
         "description": agent.description,
         "status": status,
         "context_tokens": agent.context_tokens,
+        "usage": _usage_json(agent.usage),
         "duration_seconds": agent.duration_seconds,
+        "ended_at": iso_at(agent.ended_at),
     }
 
 
@@ -55,6 +71,7 @@ def _session_json(session: Session, now: float) -> Dict[str, object]:
         "last_activity": iso_at(session.last_activity),
         "is_main": session.is_main,
         "live": session.live,
+        "ended_at": iso_at(session.ended_at),
         "project_slug": session.project_slug,
         "transcript_path": str(session.transcript_path) if session.transcript_path else None,
         "token_cap": session.token_cap,
@@ -62,6 +79,8 @@ def _session_json(session: Session, now: float) -> Dict[str, object]:
         "parent_session": session.parent_session,
         "side_name": session.side_name,
         "provider": session.provider,
+        "ai_title": session.ai_title,
+        "usage": _usage_json(session.usage),
         "subagents": [_subagent_json(agent) for agent in session.subagents],
         "hand_runs": [_hand_run_json(run, now) for run in session.hand_runs],
     }
@@ -75,6 +94,7 @@ def render_json(snapshot: Snapshot) -> Dict[str, object]:
         "cwd": snapshot.cwd,
         "all_projects": snapshot.all_projects,
         "main_session_id": snapshot.main_session_id,
+        "hidden_ended_sessions": snapshot.hidden_ended_sessions,
         "sessions": [_session_json(session, snapshot.generated_at)
                      for session in snapshot.sessions],
         "orphan_runs": [_hand_run_json(run, snapshot.generated_at)

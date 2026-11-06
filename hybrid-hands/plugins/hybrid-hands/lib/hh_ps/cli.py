@@ -9,10 +9,11 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from .constants import MIN_WATCH_SECONDS
+from .constants import ENDED_FLAG, FULL_FLAG, MIN_WATCH_SECONDS, RECENT_FINISHED_SHOWN
 from .render import color_enabled, render_json, render_text
 from .timeutil import parse_since
 from .tree import build_snapshot
+from .visibility import hide_ended_trees
 
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -52,6 +53,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--since", default="6h",
                         help="khoảng thời gian cho phiên/subagent/lượt đã xong (m/h/d)")
     parser.add_argument("--all", action="store_true", help="mọi project")
+    parser.add_argument(ENDED_FLAG, action="store_true",
+                        help="hiện cả cây phiên đã kết thúc (mặc định ẩn)")
+    parser.add_argument(FULL_FLAG, action="store_true",
+                        help=f"liệt kê đủ mọi việc con (mặc định: việc đang chạy, "
+                             f"{RECENT_FINISHED_SHOWN} việc xong gần nhất và dòng tóm tắt)")
     parser.add_argument("--json", action="store_true", help="in JSON")
     parser.add_argument("--watch", type=_watch_seconds,
                         help=f"vẽ lại mỗi N giây (tối thiểu {MIN_WATCH_SECONDS})")
@@ -63,11 +69,11 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(snapshot, as_json: bool, color: bool) -> None:
+def _emit(snapshot, as_json: bool, color: bool, full: bool) -> None:
     if as_json:
         print(json.dumps(render_json(snapshot), ensure_ascii=False, indent=2))
     else:
-        print(render_text(snapshot, color=color))
+        print(render_text(snapshot, color=color, full=full))
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -85,10 +91,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         while True:
             snapshot = build_snapshot(cwd, since, args.all,
                                       main_session_id=args.main_session)
+            if not args.ended:
+                snapshot = hide_ended_trees(snapshot)
             color = color_enabled(sys.stdout)
             if args.watch is not None and drawn and sys.stdout.isatty():
                 print("\033[2J\033[H", end="")
-            _emit(snapshot, args.json, color)
+            _emit(snapshot, args.json, color, args.full)
             drawn += 1
             if args.watch is None or (args.count is not None and drawn >= args.count):
                 return 0
