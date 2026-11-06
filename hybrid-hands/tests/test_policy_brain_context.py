@@ -36,10 +36,18 @@ class BrainContextPolicyTest(unittest.TestCase):
         # D: không hỏi trạng thái trong lúc chờ
         self.assertIn("không hỏi trạng thái", text)
         self.assertIn("docs/2026-11-06-brain-token-cost.md", text)
+        # luật test tối thiểu: mặc định tối thiểu, ngoại lệ ảnh hưởng doanh thu
+        self.assertIn("LUẬT TEST TỐI THIỂU", text)
+        self.assertIn("doanh thu", text)
+        preamble = (PLUGIN / "templates" / "ext-hand-preamble.md").read_text(encoding="utf-8")
+        self.assertIn("## Test tối thiểu", preamble)
+        self.assertIn("Ngân sách test", preamble)
+        self.assertIn("tạo hứng thú", preamble)
 
     def test_inject_policy_has_short_form_and_stays_short(self) -> None:
         text = subprocess.run(["bash", str(INJECT)], capture_output=True, text=True, check=True).stdout
-        for marker in ("phiên brain mới", "không tự tra cứu", "không hỏi trạng thái"):
+        for marker in ("phiên brain mới", "không tự tra cứu", "không hỏi trạng thái",
+                       "Test tối thiểu", "doanh thu"):
             self.assertIn(marker, text)
         # bắn mỗi prompt nên phải ngắn
         self.assertLess(len(text), 1800)

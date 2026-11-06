@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 from .config import PLUGIN_DIR
-from .constants import BRIEF_HEADER, BROWSER_RULES_RELPATH, PREAMBLE_RELPATH
+from .constants import (BRIEF_HEADER, BROWSER_RULES_RELPATH, PREAMBLE_RELPATH,
+                        TEST_REMINDER_RELPATH)
 
 STDIN_MARK = "-"
 
@@ -19,4 +20,5 @@ def build_prompt(brief: str, browser: bool = False) -> str:
     if browser:
         rules = (PLUGIN_DIR / BROWSER_RULES_RELPATH).read_text(encoding="utf-8").rstrip()
         body += "\n\n" + rules
-    return body + BRIEF_HEADER + brief.strip() + "\n"
+    reminder = (PLUGIN_DIR / TEST_REMINDER_RELPATH).read_text(encoding="utf-8").strip()
+    return body + BRIEF_HEADER + brief.strip() + "\n\n" + reminder + "\n"
