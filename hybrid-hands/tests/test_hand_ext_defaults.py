@@ -1,4 +1,4 @@
-"""Default hand backends: DeepSeek only (dsh first, then opencode)."""
+"""Default hand backends: DeepSeek only (dsh only)."""
 from __future__ import annotations
 
 import sys
@@ -12,7 +12,7 @@ from hand_ext.constants import DEFAULTS  # noqa: E402
 
 class DefaultsTest(unittest.TestCase):
     def test_order_only_deepseek(self) -> None:
-        self.assertEqual(DEFAULTS["order"], ["dsh", "opencode"])
+        self.assertEqual(DEFAULTS["order"], ["dsh"])
         for name in ("codex", "claude", "gemini"):
             self.assertIn(name, DEFAULTS["backends"])
             self.assertNotIn(name, DEFAULTS["order"])

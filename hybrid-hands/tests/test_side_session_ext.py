@@ -1,4 +1,4 @@
-"""side-session v2: Chrome, parent session, day budget, external dsh/opencode hands."""
+"""side-session v2: Chrome, parent session, day budget, external dsh hands."""
 from __future__ import annotations
 
 import io

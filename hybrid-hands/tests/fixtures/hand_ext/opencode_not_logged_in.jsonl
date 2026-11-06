@@ -1,1 +1,0 @@
-{"type":"error","timestamp":1762243201000,"sessionID":"ses_fx","error":{"type":"provider.auth","message":"Missing credentials for provider opencode-go","status":401}}

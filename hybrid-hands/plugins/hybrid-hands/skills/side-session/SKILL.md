@@ -1,6 +1,6 @@
 ---
 name: side-session
-description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, đọc tóm tắt bàn giao, dự phòng provider codex hoặc hand ngoài dsh/opencode trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
+description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, đọc tóm tắt bàn giao, dự phòng provider codex hoặc hand ngoài dsh trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
 ---
 
 # Phiên phụ (side-session)
@@ -8,7 +8,7 @@ description: Mở và quản lý phiên phụ (phiên Claude Code hoặc Codex c
 ## Tóm tắt
 
 - **Dùng khi:** gói việc dài nhiều bước (ước trên 1 giờ) cần ngữ cảnh brain riêng, ví dụ cả một tính năng hay một chương; việc ngắn thì giao hand.
-- **Giới hạn:** tối đa `max_parallel` phiên (mặc định 2) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`); phiên phụ ngoài (`dsh`/`opencode`) chỉ chạy trong worktree.
+- **Giới hạn:** tối đa `max_parallel` phiên (mặc định 2) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`); phiên phụ ngoài (`dsh`) chỉ chạy trong worktree.
 - **Chuỗi bước:** viết prompt giao việc → `side-session start` (thử `--dry-run` trước) → theo dõi `ls`/`watch` → đọc `handoff` → brain review → `stop`. Xem toàn cảnh phiên chính, phiên phụ, subagent và hand ngoài bằng `hh-ps` (`--watch 5`, `--json`).
 
 Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt đối `${CLAUDE_PLUGIN_ROOT}/bin/side-session`.
@@ -23,7 +23,7 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 ## 2. Lệnh
 
-- Mở: `side-session start --name <tên> --prompt-file <file> [--worktree [--base <nhánh>]] [--provider claude|codex|dsh|opencode] [--chrome|--no-chrome] [--budget-exempt|--force-budget] [--max-tokens N] [--hours H] [--brain <tên brain>] [--dry-run]` (`--prompt "<text>"` cho prompt ngắn).
+- Mở: `side-session start --name <tên> --prompt-file <file> [--worktree [--base <nhánh>]] [--provider claude|codex|dsh] [--chrome|--no-chrome] [--budget-exempt|--force-budget] [--max-tokens N] [--hours H] [--brain <tên brain>] [--dry-run]` (`--prompt "<text>"` cho prompt ngắn).
 - Mở lại phiên Claude đã dừng: `side-session start --name <tên> --resume [--prompt-file <file>] [--max-tokens N] [--chrome|--no-chrome] [--budget-exempt|--force-budget]`; giữ `uuid`, `dir`, `handoff`, `worktree`, `parent_session` của state cũ, đặt `started` mới và `tokens_used` về 0. Prompt mặc định nhắc đọc lại việc đang dở (không ghép lại khối bàn giao); có `--prompt-file` thì ghép trailer như start. Không dùng với `--prompt`, `--worktree`, `--base` hay provider khác `claude`; state thiếu, provider khác `claude` hoặc screen `side-<tên>` còn sống thì thoát 2.
 - Danh sách: `side-session ls`. Theo dõi: `side-session watch --name <tên> [--once]` (chạy nền bằng `run_in_background`, không tự viết vòng chờ).
 - Gắn vào phiên đang chạy: `side-session attach [<tên>]` mở screen của phiên phụ bằng `screen -x <pid.tên>` (không cần config, chạy được từ thư mục bất kỳ); bỏ tên thì in menu đánh số, Enter làm mới, chọn số để gắn, `q` để thoát; detach bằng Ctrl-a d rồi menu hiện lại.
@@ -32,7 +32,7 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 ## 3. Dự phòng và đồng bộ
 
-- **Provider:** mặc định `claude`; khi hết hạn mức gói Claude hoặc phiên claude lỗi, dùng `--provider codex` (chạy trên đăng nhập gói của Codex, không dùng API key) hoặc hand ngoài `dsh`/`opencode` (xem mục 4, không API key).
+- **Provider:** mặc định `claude`; khi hết hạn mức gói Claude hoặc phiên claude lỗi, dùng `--provider codex` (chạy trên đăng nhập gói của Codex, không dùng API key) hoặc hand ngoài `dsh` (xem mục 4, không API key).
 - **Đồng bộ:** phiên phụ hiện trong ListAgents; gửi SendMessage trước khi ghi file chung, dùng tài nguyên trả phí hay Chrome, và sau mỗi commit. Hai phiên không ghi cùng một file.
 
 ## 4. Chrome và hand ngoài

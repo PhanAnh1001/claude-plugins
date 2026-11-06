@@ -1,4 +1,4 @@
-"""Backend interface for hand-ext: one subscription CLI (codex, claude, opencode, gemini).
+"""Backend interface for hand-ext: one subscription CLI (dsh, codex, claude, gemini).
 
 Conventions:
 - Each backend reads its binary from env `HAND_EXT_<NAME>_BIN` (e.g. HAND_EXT_CODEX_BIN),
