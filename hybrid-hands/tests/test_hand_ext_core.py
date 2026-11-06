@@ -132,6 +132,11 @@ class CoreTest(unittest.TestCase):
     def test_status_and_report(self) -> None:
         self.sb.scenario("ok")
         self.run_auto("--label", "lab1")
+        run_dir = next((self.sb.dir / "output" / "llm" / "hand-ext").iterdir())
+        self.assertEqual((run_dir / "brief.md").read_text(encoding="utf-8"),
+                         self.sb.brief.read_text(encoding="utf-8"))
+        prompt = (run_dir / "prompt.md").read_text(encoding="utf-8")
+        self.assertIn(self.sb.brief.read_text(encoding="utf-8").strip(), prompt)
         code, out, _ = self.sb.cli("status")
         self.assertEqual(code, 0)
         self.assertIn("| codex | đạt |", out)

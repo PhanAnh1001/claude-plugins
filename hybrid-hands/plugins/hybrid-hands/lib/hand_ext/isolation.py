@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 GIT = "git"
 DEFAULT_REPO_NAME = "repo"
 DETAIL_MAX_LEN = 300
+CHANGES_BASE_PATCH_FILE = "changes.base.patch"
 GIT_ENV_DROP = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")
 NOT_GIT_WARNING = (
     "cwd không phải git repo: isolation=worktree mặc định chuyển sang none, hand chạy "
@@ -59,6 +60,9 @@ class IsolationContext:
     baseline_tree: str = ""
     warning: str = ""
     skipped_secrets: List[str] = field(default_factory=list)
+    base_commit: Optional[str] = None
+    dirty: bool = False
+    dirty_files: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -137,18 +141,43 @@ def prepare(cfg: "ExtConfig", cwd: Path, run_id: str, run_dir: Path,
     skipped: List[str] = []
     try:
         worktree.parent.mkdir(parents=True, exist_ok=True)
+        base_commit = _head_commit(root)
         _git(["worktree", "add", "--detach", str(worktree), "HEAD"], root)
         _apply_tracked_changes(root, worktree)
         skipped = _copy_untracked(root, worktree, run_dir,
                                   _generated_paths(cfg, root, run_dir))
         baseline = _snapshot_tree(worktree, run_dir, "baseline")
+        dirty_files = sorted(_changed_files(worktree, base_commit, baseline))
+        if dirty_files:
+            _write_base_patch(worktree, base_commit, baseline, run_dir)
     except BaseException:
         _remove_worktree(root, worktree, cfg.worktree_root)
         raise
     run_cwd = _run_cwd(root, worktree, resolved_cwd)
     return IsolationContext(ISOLATION_WORKTREE, root, run_cwd, worktree=worktree,
                             worktree_root=cfg.worktree_root, baseline_tree=baseline,
-                            skipped_secrets=skipped)
+                            skipped_secrets=skipped, base_commit=base_commit,
+                            dirty=bool(dirty_files), dirty_files=dirty_files)
+
+
+def _head_commit(root: Path) -> str:
+    commit = _git(["rev-parse", "HEAD"], root).stdout.decode("utf-8", "replace").strip()
+    if not commit:
+        raise IsolationError("git rev-parse HEAD không trả về commit")
+    return commit
+
+
+def _write_base_patch(worktree: Path, base_commit: str, baseline: str,
+                      run_dir: Path) -> None:
+    """Save the uncommitted diff the worktree started from, before the hand runs."""
+    diff = _git(["diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv",
+                 "--src-prefix=a/", "--dst-prefix=b/", base_commit, baseline, "--"],
+                worktree).stdout
+    path = run_dir / CHANGES_BASE_PATCH_FILE
+    try:
+        path.write_bytes(diff)
+    except OSError as exc:
+        raise IsolationError(f"không ghi được {path.name}: {exc}") from exc
 
 
 def _apply_tracked_changes(root: Path, worktree: Path) -> None:

@@ -1,6 +1,8 @@
 """Run one backend CLI: scrubbed env, events/stderr logs, poll loop, token and time caps."""
 from __future__ import annotations
 
+import datetime as dt
+import json
 import os
 import queue
 import signal
@@ -38,9 +40,21 @@ def child_env(backend: Backend, extra: Dict[str, str]) -> Dict[str, str]:
     return env
 
 
+def _stamp(line: str) -> str:
+    """Add `ts` to an event object; leave non-JSON and non-object lines untouched."""
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        return line
+    if not isinstance(event, dict):
+        return line
+    event["ts"] = dt.datetime.now().astimezone().isoformat(timespec="milliseconds")
+    return json.dumps(event, ensure_ascii=False) + ("\n" if line.endswith("\n") else "")
+
+
 def _pump(stream: IO[str], sink: IO[str], lines: "queue.Queue[Optional[str]]") -> None:
     for line in stream:
-        sink.write(line)
+        sink.write(_stamp(line))
         sink.flush()
         lines.put(line)
     lines.put(_EOF)

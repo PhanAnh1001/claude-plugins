@@ -1,6 +1,7 @@
 """hand-ext runner: a hand deleting its run dir mid-run must not lose the outcome."""
 from __future__ import annotations
 
+import datetime as dt
 import io
 import json
 import shutil
@@ -96,6 +97,17 @@ class RunDirDeletedTest(unittest.TestCase):
         self.assertNotIn(RUN_DIR_WARNING, err)
         report = self.run_dir / "report.md"
         self.assertEqual(report.read_text(encoding="utf-8"), FINAL_TEXT)
+
+    def test_events_get_ts_without_changing_fields(self) -> None:
+        self._run(delete=False)
+        lines = (self.run_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(lines), 2)
+        expected = [{"input": EXPECTED_INPUT, "cached_input": EXPECTED_CACHED_INPUT,
+                     "output": EXPECTED_OUTPUT}, {"final": FINAL_TEXT}]
+        for line, original in zip(lines, expected):
+            event = json.loads(line)
+            self.assertIsNotNone(dt.datetime.fromisoformat(event.pop("ts")).tzinfo)
+            self.assertEqual(event, original)
 
 
 if __name__ == "__main__":
