@@ -25,6 +25,7 @@ NAME_SOURCE_USER="user"
 RECORD_SEP=$'\x1e'
 SUMMARY_VERSION=2
 RATE_CALIBRATED="calib"
+RATE_PINNED="pin"  # user-pinned USD per 1 %: trusted like a calibrated rate
 # Summary older than this gets the "~" mark (same rule as the week-split line).
 SUMMARY_STALE_SECONDS=1800
 MAX_GROUPS=5
@@ -155,7 +156,7 @@ while IFS=$'\x1f' read -r f1 f2 f3 f4 f5; do
     header=0
     [ "$f1" = "$SUMMARY_VERSION" ] || exit 0
     mark=""
-    if [ "$f3" != "$RATE_CALIBRATED" ] || ! [[ "$f2" =~ ^[0-9]+$ ]] \
+    if { [ "$f3" != "$RATE_CALIBRATED" ] && [ "$f3" != "$RATE_PINNED" ]; } || ! [[ "$f2" =~ ^[0-9]+$ ]] \
         || [ $((now - f2)) -ge "$SUMMARY_STALE_SECONDS" ]; then
       mark="$STALE_MARK"
     fi

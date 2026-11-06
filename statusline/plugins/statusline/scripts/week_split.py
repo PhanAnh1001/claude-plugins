@@ -46,6 +46,8 @@ MIN_DELTA_PCT = 2
 PRIOR_USD_PER_PCT = 12.0
 RATE_CALIB = "calib"
 RATE_PRIOR = "prior"
+# A USD-per-1% value pinned by the user: wins over calibration and the prior.
+RATE_PIN = "pin"
 # Daily windows (machine time) when only this machine runs; "-" = starts the day before.
 DEFAULT_SOLO_WINDOWS = ("12:00-13:30", "-21:00-07:00")
 DAILY_KEYWORD = "daily"
@@ -65,6 +67,8 @@ SAMPLES_NAME = ".statusline-week-samples.tsv"
 SUMMARY_NAME = ".statusline-week-split.json"
 LOCK_NAME = ".statusline-week-split.lock"
 SOLO_WINDOWS_NAME = "statusline-solo-windows.txt"
+# One positive number (USD per 1 % of the week); "#" lines are comments. Delete to unpin.
+USD_PER_PCT_PIN_NAME = "statusline-usd-per-pct.txt"
 
 
 @dataclass(frozen=True)
@@ -233,7 +237,28 @@ def window_delta(samples: list[Sample], window: Window) -> Optional[tuple[Sample
     return first, last
 
 
-def calibrate(samples: list[Sample], index: UsdIndex, windows: list[Window]) -> Rate:
+def load_pin(path: Path) -> Optional[float]:
+    """The pinned USD per 1 %, or None when the file is missing or holds no positive number."""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        text = line.strip()
+        if not text or text.startswith("#"):
+            continue
+        try:
+            value = float(text)
+        except ValueError:
+            return None
+        return value if value > 0 else None
+    return None
+
+
+def calibrate(samples: list[Sample], index: UsdIndex, windows: list[Window],
+              pin: Optional[float] = None) -> Rate:
+    if pin is not None:
+        return Rate(pin, RATE_PIN, 0)
     total_usd = 0.0
     total_delta = 0.0
     n = 0
@@ -358,11 +383,12 @@ def weekday_order(start: float, now: float) -> list[int]:
 
 def build_summary(samples: list[Sample], ledger: dict, now: float,
                   windows: Optional[list[Window]] = None,
-                  go_week: Optional[GoWeek] = None) -> Optional[dict]:
+                  go_week: Optional[GoWeek] = None,
+                  pin: Optional[float] = None) -> Optional[dict]:
     if not samples:
         return None
     index = UsdIndex(ledger["messages"])
-    rate = calibrate(samples, index, windows if windows is not None else [])
+    rate = calibrate(samples, index, windows if windows is not None else [], pin)
     latest = samples[-1]
     start = latest.reset - WEEK_SECONDS
     local_usd = index.total(start)
@@ -415,7 +441,8 @@ def run(home: Path, now: float, go_state: Optional[Path] = None) -> None:
         samples = load_samples(home / SAMPLES_NAME, now)
         windows = solo_windows(home / SOLO_WINDOWS_NAME, now)
         go_week = load_go_week(home, go_state or state_dir())
-        summary = build_summary(samples, ledger, now, windows, go_week)
+        summary = build_summary(samples, ledger, now, windows, go_week,
+                                load_pin(home / USD_PER_PCT_PIN_NAME))
         if summary is not None:
             write_atomic(home / SUMMARY_NAME, json.dumps(summary, ensure_ascii=False))
     finally:

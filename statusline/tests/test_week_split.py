@@ -130,5 +130,20 @@ class LedgerTest(unittest.TestCase):
         self.assertEqual(list(self.ledger()["unpriced"]), ["gpt-x"])
 
 
+class WindowReportTest(unittest.TestCase):
+    def test_window_dedupes_and_drops_after_until(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home, now = Path(tmp), time.time()
+            sub = home / "projects" / "-repo" / "s1" / "subagents"
+            sub.mkdir(parents=True)
+            (home / "projects" / "-repo" / "s1.jsonl").write_text("\n".join([
+                record("a", now - 50), record("a", now - 50),  # one message, two lines
+                record("old", now - 500), record("late", now + 50)]) + "\n")
+            (sub / "agent-x.jsonl").write_text(record("b", now - 10) + "\n")
+            found = ul.window_messages([home], now - 100, now)
+            self.assertEqual(sorted(k.split("|")[0] for k in found), ["a", "b"])
+            self.assertIn("subagent_usd\t20.00", ul.window_report(found))
+
+
 if __name__ == "__main__":
     unittest.main()

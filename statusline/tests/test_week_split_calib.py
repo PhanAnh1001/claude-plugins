@@ -67,6 +67,17 @@ class CalibrationTest(unittest.TestCase):
                    ws.Sample(self.window.start + 1200, 13, RESET)]
         self.assertEqual(self.rate(samples, 30.0), ws.Rate(10.0, ws.RATE_CALIB, 1))
 
+    def test_pin_file_wins_over_calibration(self) -> None:
+        samples = [ws.Sample(self.window.start + 60, 10, RESET),
+                   ws.Sample(self.window.start + 1200, 13, RESET)]
+        index = ws.UsdIndex(ledger_of([(self.window.start + 600, 30.0, "s")])["messages"])
+        with tempfile.TemporaryDirectory() as tmp:
+            pin_file = Path(tmp) / ws.USD_PER_PCT_PIN_NAME
+            pin_file.write_text("# ghim\n13.74\n")
+            pin = ws.load_pin(pin_file)
+        self.assertEqual(ws.calibrate(samples, index, [self.window], pin),
+                         ws.Rate(13.74, ws.RATE_PIN, 0))
+
     def test_small_delta_falls_back_to_prior(self) -> None:
         samples = [ws.Sample(self.window.start + 60, 10, RESET),
                    ws.Sample(self.window.start + 1200, 11, RESET)]

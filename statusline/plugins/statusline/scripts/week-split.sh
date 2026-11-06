@@ -25,6 +25,7 @@ SUMMARY_STALE_SECONDS=1800
 SAME_WINDOW_SECONDS=3600
 SUMMARY_VERSION=2
 RATE_CALIBRATED="calib"
+RATE_PINNED="pin"  # user-pinned USD per 1 %: trusted like a calibrated rate
 PCT_RED_THRESHOLD=80
 PCT_YELLOW_THRESHOLD=50
 STALE_MARK="~"
@@ -141,7 +142,7 @@ distance=$((current_reset - summary_reset))
 [ "${distance#-}" -le "$SAME_WINDOW_SECONDS" ] || exit 0
 
 mark=""
-if [ "$rate_label" != "$RATE_CALIBRATED" ] || ! is_int "$computed_at" \
+if { [ "$rate_label" != "$RATE_CALIBRATED" ] && [ "$rate_label" != "$RATE_PINNED" ]; } || ! is_int "$computed_at" \
     || [ $((now - computed_at)) -ge "$SUMMARY_STALE_SECONDS" ]; then
   mark="$STALE_MARK"
 fi

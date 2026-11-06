@@ -108,6 +108,8 @@
 
 Ví dụ trong bảng hạn mức: `· máy này  | 7d:1.5% (T6 1.5%)` và `· máy khác  | 7d:1.5%`;
 USD/1% nằm trong ngoặc ô 7d của dòng Claude, ví dụ `7d:~4.3% (reset 15/10 10:46 · $13.74/1%)`.
+Ghim USD/1%: ghi một số dương vào `$CLAUDE_HOME/statusline-usd-per-pct.txt` (dòng `#` là chú thích);
+số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá file để quay lại tự hiệu chỉnh.
 
 - **Tóm tắt:**
   - Payload statusLine chỉ có % 7 ngày của cả tài khoản. Plugin quy chi phí API của máy này ra
@@ -119,6 +121,8 @@ USD/1% nằm trong ngoặc ô 7d của dòng Claude, ví dụ `7d:~4.3% (reset 1
   - `week_split.py` chạy nền (khi tóm tắt thiếu hoặc cũ hơn 2 phút, có lock 5 phút) và gọi
     `usage_ledger.py` quét tăng dần `$CLAUDE_HOME/projects/**/*.jsonl`, kể cả transcript subagent.
   - Khử trùng theo cặp (`message.id`, `requestId`), giữ bản ghi **cuối**; bỏ model `<synthetic>`.
+  - Đo một khung giờ bất kỳ (token và USD theo model/loại token, main/subagent, top phiên):
+    `python3 scripts/usage_ledger.py --since 2026-11-06T20:00:00+07:00 [--until ISO] [--home DIR]`.
   - USD = input × giá input + output × giá output + ghi cache 1 giờ × 2 × giá input + ghi cache
     5 phút × 1,25 × giá input + đọc cache × 0,1 × giá input. Bản ghi không tách loại cache thì toàn
     bộ cache ghi tính 1,25×.

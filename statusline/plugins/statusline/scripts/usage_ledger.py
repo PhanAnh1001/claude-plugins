@@ -257,3 +257,108 @@ def update_ledger(home: Path, now: float) -> dict:
     prune(ledger, cutoff)
     write_atomic(path, json.dumps(ledger))
     return ledger
+
+
+# --- One-off window report: `usage_ledger.py --since ISO [--until ISO] [--home DIR ...]` ---
+TOKEN_KINDS = ("input", "output", "cache_write_5m", "cache_write_1h", "cache_read")
+# Input-price multiplier per token kind; output is priced separately.
+INPUT_FACTORS = {"input": 1.0, "cache_write_5m": CACHE_WRITE_5M_FACTOR,
+                 "cache_write_1h": CACHE_WRITE_1H_FACTOR, "cache_read": CACHE_READ_FACTOR}
+TOP_SESSIONS = 5
+MAIN, SUBAGENT = "main", "subagent"
+
+
+@dataclass(frozen=True)
+class WindowMessage:
+    model: str
+    tokens: dict
+    kind: str
+    session: str
+
+
+def token_counts(usage: dict) -> dict:
+    detail = usage.get("cache_creation")
+    if isinstance(detail, dict) and ("ephemeral_1h_input_tokens" in detail
+                                     or "ephemeral_5m_input_tokens" in detail):
+        write_5m, write_1h = (_num(detail, "ephemeral_5m_input_tokens"),
+                              _num(detail, "ephemeral_1h_input_tokens"))
+    else:
+        write_5m, write_1h = _num(usage, "cache_creation_input_tokens"), 0.0
+    return {"input": _num(usage, "input_tokens"), "output": _num(usage, "output_tokens"),
+            "cache_write_5m": write_5m, "cache_write_1h": write_1h,
+            "cache_read": _num(usage, "cache_read_input_tokens")}
+
+
+def window_messages(homes: Iterable[Path], since: float, until: float) -> dict:
+    """Last record per (message.id, requestId) with since <= timestamp <= until."""
+    found: dict = {}
+    for home in homes:
+        for path in transcript_paths(home / "projects"):
+            if path.stat().st_mtime < since:
+                continue
+            kind = SUBAGENT if path.parent.name == SUBAGENTS_DIR else MAIN
+            session = f"{home.name}/{path.relative_to(home / 'projects').parts[0]}/{session_id_for(path)[:8]}"
+            for line in path.read_bytes().split(b"\n"):
+                rec = usage_record(line, session)
+                if rec is None or not since <= rec.ts <= until:
+                    continue
+                usage = json.loads(line)["message"]["usage"]
+                found[rec.key] = WindowMessage(rec.model, token_counts(usage), kind, session)
+    return found
+
+
+def model_usd(model: str, tokens: dict) -> dict:
+    price = price_for(model)
+    if price is None:
+        return {}
+    usd = {k: tokens[k] * f * price.input / PER_TOKENS for k, f in INPUT_FACTORS.items()}
+    usd["output"] = tokens["output"] * price.output / PER_TOKENS
+    return usd
+
+
+def window_report(messages: dict) -> str:
+    by_model: dict = {}
+    by_kind: dict = {}
+    by_session: dict = {}
+    unpriced = set()
+    for msg in messages.values():
+        tokens = by_model.setdefault(msg.model, dict.fromkeys(TOKEN_KINDS, 0.0))
+        for k in TOKEN_KINDS:
+            tokens[k] += msg.tokens[k]
+        usd = sum(model_usd(msg.model, msg.tokens).values())
+        if price_for(msg.model) is None:
+            unpriced.add(msg.model)
+        by_kind[msg.kind] = by_kind.get(msg.kind, 0.0) + usd
+        by_session[msg.session] = by_session.get(msg.session, 0.0) + usd
+    lines = [f"messages={len(messages)} unpriced={sorted(unpriced)}",
+             "model\t" + "\t".join(f"{k}_tok\t{k}_usd" for k in TOKEN_KINDS) + "\ttotal_usd"]
+    for model, tokens in sorted(by_model.items()):
+        usd = model_usd(model, tokens)
+        cells = "\t".join(f"{int(tokens[k])}\t{usd.get(k, 0):.2f}" for k in TOKEN_KINDS)
+        lines.append(f"{model}\t{cells}\t{sum(usd.values()):.2f}")
+    lines.append("total_usd\t" + f"{sum(by_kind.values()):.2f}")
+    lines += [f"{kind}_usd\t{usd:.2f}" for kind, usd in sorted(by_kind.items())]
+    top = sorted(by_session.items(), key=lambda item: -item[1])[:TOP_SESSIONS]
+    lines += [f"top\t{session}\t{usd:.2f}" for session, usd in top]
+    return "\n".join(lines)
+
+
+def main(argv: Optional[list] = None) -> int:
+    import argparse
+    parser = argparse.ArgumentParser(description="Claude token usage and API USD in a time window")
+    parser.add_argument("--since", required=True, help="ISO time with offset, e.g. 2026-11-06T20:00:00+07:00")
+    parser.add_argument("--until", help="ISO time with offset (default: now)")
+    parser.add_argument("--home", action="append", type=Path,
+                        help="Claude config dir, repeatable (default: $CLAUDE_CONFIG_DIR or ~/.claude)")
+    args = parser.parse_args(argv)
+    since = datetime.fromisoformat(args.since).timestamp()
+    until = datetime.fromisoformat(args.until).timestamp() if args.until else datetime.now().timestamp()
+    homes = args.home or [Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")]
+    print(f"window\t{datetime.fromtimestamp(since).astimezone().isoformat()}"
+          f"\t{datetime.fromtimestamp(until).astimezone().isoformat()}")
+    print(window_report(window_messages(homes, since, until)))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
