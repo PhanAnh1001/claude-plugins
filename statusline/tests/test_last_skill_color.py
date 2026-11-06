@@ -25,8 +25,8 @@ TIMESTAMP = "2020-01-01T10:05:00.000Z"
 ESCAPE = "\x1b"
 # Claude Code's inline-code colour (theme "permission", dark theme) as a truecolor escape.
 EXPECTED_SKILL_COLOR = "\x1b[38;2;177;185;249m"
-# Shell assignments such as DIM="\033[2m" in statusline.sh.
-SHELL_COLOR = re.compile(r'^(DIM|RESET)="([^"]*)"$', re.MULTILINE)
+# Shell assignments such as DIM=$'\033[2m' in statusline.sh.
+SHELL_COLOR = re.compile(r"^(DIM|RESET)=\$'([^']*)'$", re.MULTILINE)
 
 
 def shell_colors() -> dict:
