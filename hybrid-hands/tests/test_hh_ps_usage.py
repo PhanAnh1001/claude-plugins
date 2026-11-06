@@ -1,4 +1,4 @@
-"""`hh-ps` usage: dedupe/price transcripts, Go hand estimates and token columns."""
+"""`hh-ps` usage: dedupe/price transcripts, Go hand estimates, USD and limit-% columns."""
 from __future__ import annotations
 
 import json
@@ -19,7 +19,7 @@ from hh_ps.pricing import (  # noqa: E402
 from hh_ps.render import render_json  # noqa: E402
 from hh_ps.text_render import render_text  # noqa: E402
 from hh_ps.textwidth import display_width  # noqa: E402
-from hh_ps.timeutil import token_text, usd_text  # noqa: E402
+from hh_ps.timeutil import percent_text, token_text, usd_text  # noqa: E402
 from hh_ps.transcript_source import parse_transcript  # noqa: E402
 
 NOW = 1_800_000_000.0
@@ -139,6 +139,13 @@ class ClaudePriceTest(unittest.TestCase):
         self.assertIsNone(usd_text(None))
         self.assertEqual(usd_text(0.0), "$0")
 
+    def test_percent_text_has_one_decimal(self) -> None:
+        self.assertEqual(percent_text(12.34), "12.3%")
+        self.assertEqual(percent_text(12.0), "12.0%")
+        self.assertEqual(percent_text(0.0), "0.0%")
+        self.assertEqual(percent_text(0.01), "<0.1%")
+        self.assertIsNone(percent_text(None))
+
 
 class HandUsageTest(unittest.TestCase):
     def test_go_backend_subtracts_cached_input_and_prices(self) -> None:
@@ -148,11 +155,18 @@ class HandUsageTest(unittest.TestCase):
                          (600_000, 400_000, None, 500_000))
         self.assertAlmostEqual(usage.usd, 0.7824, places=4)
 
+    def test_go_backend_week_percent_uses_the_weekly_limit(self) -> None:
+        usage = hand_usage({"input": 1_000_000, "cached_input": 400_000,
+                            "output": 500_000}, "dsh", 50.0)
+        self.assertAlmostEqual(usage.week_pct, 0.7824 / 50.0 * 100, places=4)
+        self.assertIsNone(hand_usage({"input": 1, "output": 1}, "dsh").week_pct)
+
     def test_other_backend_has_tokens_but_no_usd(self) -> None:
         usage = hand_usage({"input": 1000, "cached_input": 200, "output": 10}, "codex")
         self.assertEqual(usage.read, 800)
         self.assertEqual(usage.cache_read, 200)
         self.assertIsNone(usage.usd)
+        self.assertIsNone(usage.week_pct)
 
     def test_missing_tokens_give_no_usage(self) -> None:
         self.assertIsNone(hand_usage({}, "dsh"))
@@ -182,7 +196,7 @@ def _main_session() -> Session:
     main.hand_runs.append(HandRun(
         "r1", "lượt hand", "dsh", "deepseek", "ok", "main",
         {"input": 1_000_000, "cached_input": 400_000, "output": 500_000},
-        NOW - 3000, NOW - 120, 1, None, False))
+        NOW - 3000, NOW - 120, 1, None, False, week_limit_usd=50.0))
     return main
 
 
@@ -197,15 +211,14 @@ def _side_session() -> Session:
 
 
 class TextUsageTest(unittest.TestCase):
-    def test_token_pipes_and_ctx_align_on_two_levels(self) -> None:
+    def test_usd_and_limit_columns_align_on_two_levels(self) -> None:
         lines = render_text(_tree_snapshot([_main_session(), _side_session()])).splitlines()
-        rows = [line for line in lines[2:] if "|" in line]
-        pipes = [tuple(i for i, ch in enumerate(line) if ch == "|") for line in rows]
-        self.assertEqual(len(set(pipes)), 1, "\n".join(rows))
-        ctx_rows = [line for line in rows if "ctx " in line]
-        self.assertGreaterEqual(len(ctx_rows), 3)
-        self.assertEqual(len({line.index("ctx ") for line in ctx_rows}), 1,
-                         "\n".join(rows))
+        rows = [line for line in lines[2:] if "$" in line]
+        self.assertEqual(len(rows), 4, "\n".join(rows))
+        # USD is right-aligned: every row's USD text ends at the same cell.
+        ends = {display_width(line[:line.index("$")]) + len(re.search(r"\$[\d.]+", line).group(0))
+                for line in rows if "<$" not in line}
+        self.assertEqual(len(ends), 1, "\n".join(rows))
 
     def test_side_ai_title_uses_the_hand_description_column(self) -> None:
         lines = render_text(_tree_snapshot([_main_session(), _side_session()])).splitlines()
@@ -214,22 +227,21 @@ class TextUsageTest(unittest.TestCase):
         self.assertEqual(display_width(side[:side.index("Tiêu đề tự động")]),
                          display_width(hand[:hand.index("lượt hand")]))
 
-    def test_rows_show_tokens_and_usd_after_the_end_time(self) -> None:
+    def test_rows_show_usd_and_limit_percent_but_no_tokens(self) -> None:
         text = render_text(_tree_snapshot([_main_session(), _side_session()]))
-        compact = re.sub(r"[ \t]+", "", text)
-        self.assertIn("1k|2k|300|40", compact)
         self.assertIn("$0.42", text)
         self.assertIn("<$0.01", text)
-        self.assertIn("600k|400k|-|500k", compact)
+        self.assertRegex(text, r"\$0\.78\s+1\.6% tuần")  # $0.7824 of the $50 week
+        for gone in ("|", "ctx ", "out ", "1k", "500k"):
+            self.assertNotIn(gone, text)
 
-    def test_codex_side_without_numbers_prints_dashes(self) -> None:
+    def test_codex_side_without_numbers_prints_one_dash(self) -> None:
         side = _session("codex", "phụ:codex")
         side.parent_session, side.side_name, side.provider = "main", "codex", "codex"
         main = _session("main", "cha")
         lines = render_text(_tree_snapshot([main, side])).splitlines()
         row = next(line for line in lines if "phụ:codex" in line)
-        self.assertIn("-|-|-|-", row)
-        self.assertRegex(row, r"-\|-\|-\|-\s+-\s*$")
+        self.assertRegex(row, r"1p\s+-$")
 
 
 class JsonUsageTest(unittest.TestCase):
@@ -244,16 +256,20 @@ class JsonUsageTest(unittest.TestCase):
         session = data["sessions"][0]
         self.assertEqual(session["usage"], {"read": 1000, "cache_read": 2000,
                                             "cache_write": 300, "out": 40,
-                                            "usd": 0.42})
+                                            "usd": 0.42, "week_pct": None,
+                                            "week_pct_estimated": False})
         self.assertEqual(session["ai_title"], "")
         agent_usage = session["subagents"][0]["usage"]
         self.assertEqual(agent_usage["out"], 7)
         hand_usage_json = session["hand_runs"][0]["usage"]
         self.assertIsNone(hand_usage_json["cache_write"])
         self.assertIsNotNone(hand_usage_json["usd"])
+        self.assertAlmostEqual(hand_usage_json["week_pct"], 0.7824 / 50.0 * 100,
+                               places=4)
         orphan_usage = data["orphan_runs"][0]["usage"]
         self.assertEqual(orphan_usage["read"], 80)
         self.assertIsNone(orphan_usage["usd"])
+        self.assertIsNone(orphan_usage["week_pct"])
 
     def test_side_ai_title_is_in_json(self) -> None:
         data = render_json(_tree_snapshot([_main_session(), _side_session()]))

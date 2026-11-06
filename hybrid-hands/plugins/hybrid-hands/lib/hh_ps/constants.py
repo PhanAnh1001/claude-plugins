@@ -62,8 +62,6 @@ RUN_STATE_LOST = "lost"
 RUN_LOST_TEXT = "mất"
 ORPHAN_HEADING = "hand ngoài không rõ phiên gọi"
 
-# The token block `đọc|cđọc|cghi|ra` uses a plain pipe between compact numbers.
-TOKEN_SEPARATOR = "|"
 # Row marks shared with hh-tree-pane (hooks/tree.ts keeps the same glyphs).
 HERE_MARK = "▶"
 LIVE_DOT = "●"
@@ -72,7 +70,7 @@ CHILD_RUNNING_MARK = "▶"
 CHILD_OK_MARK = "✓"
 CHILD_BAD_MARK = "✗"
 LEGEND = ("▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · "
-          "token: đọc|cache đọc|cache ghi|ra · $ ước tính theo giá niêm yết")
+          "$ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng")
 # Two-cell tree art keeps nested rows narrow enough for a pane beside the chat.
 BRANCH = "├ "
 LAST_BRANCH = "└ "
@@ -90,7 +88,7 @@ COLORS = {
 }
 NO_COLOR_ENV = "NO_COLOR"
 # Display-cell caps that keep child rows within 100 cells and session rows
-# within 92 after the token/USD block, so the tree still fits a narrow pane
+# within 92 after the USD/% cells, so the tree still fits a narrow pane
 # beside the chat. Session, side and child rows share one lead column (session
 # name + tree art), so the description cap stays short.
 DESCRIPTION_MAX_LEN = 16

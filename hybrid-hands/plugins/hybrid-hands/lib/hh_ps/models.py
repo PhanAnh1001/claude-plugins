@@ -19,6 +19,24 @@ class Usage:
     cache_write: Optional[int] = None
     out: int = 0
     usd: Optional[float] = None
+    # Share of the weekly plan limit this row used, in percent; None when unknown.
+    week_pct: Optional[float] = None
+    # True when the statusline would mark this percentage with "~".
+    week_pct_estimated: bool = False
+
+
+@dataclass(frozen=True)
+class Limit:
+    """One plan window: account total, this machine and the rest of the account."""
+    plan: str
+    window: str
+    this_machine_pct: Optional[float]
+    other_pct: Optional[float]
+    total_pct: Optional[float]
+    resets_at: Optional[float]
+    source: str
+    # True when the statusline would mark this row's percentages with "~".
+    estimated: bool = False
 
 
 @dataclass
@@ -63,6 +81,10 @@ class HandRun:
     pid: Optional[int]
     child_pid: Optional[int]
     lost: bool
+    # Weekly Go limit at snapshot time, used for this run's week_pct.
+    week_limit_usd: Optional[float] = None
+    # True when the run cost or the Go weekly source is an estimate.
+    week_pct_estimated: bool = False
 
     @property
     def running(self) -> bool:
@@ -132,6 +154,7 @@ class Snapshot:
     main_session_id: Optional[str]
     generated_at: float
     hidden_ended_sessions: int = 0
+    limits: List[Limit] = field(default_factory=list)
 
     @property
     def live_sessions(self) -> int:

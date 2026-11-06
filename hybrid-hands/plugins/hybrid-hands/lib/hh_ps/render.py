@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Dict, Optional
 
 from .constants import SCHEMA_VERSION, SUBAGENT_SILENT
-from .models import HandRun, Session, Snapshot, Subagent, Usage
+from .models import HandRun, Limit, Session, Snapshot, Subagent, Usage
 from .pricing import hand_usage
 from .text_render import color_enabled, render_text
 from .timeutil import iso_at
@@ -21,6 +21,21 @@ def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
         "cache_write": usage.cache_write,
         "out": usage.out,
         "usd": usage.usd,
+        "week_pct": usage.week_pct,
+        "week_pct_estimated": usage.week_pct_estimated,
+    }
+
+
+def _limit_json(limit: Limit) -> Dict[str, object]:
+    return {
+        "plan": limit.plan,
+        "window": limit.window,
+        "this_machine_pct": limit.this_machine_pct,
+        "other_pct": limit.other_pct,
+        "total_pct": limit.total_pct,
+        "resets_at": iso_at(limit.resets_at),
+        "source": limit.source,
+        "estimated": limit.estimated,
     }
 
 
@@ -35,7 +50,8 @@ def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
         "status": run.status,
         "state": run.state,
         "tokens": dict(run.tokens),
-        "usage": _usage_json(hand_usage(run.tokens, run.backend)),
+        "usage": _usage_json(hand_usage(run.tokens, run.backend,
+                                        run.week_limit_usd, run.week_pct_estimated)),
         "started_at": iso_at(run.started_at),
         "ended_at": iso_at(run.end_moment),
         "duration_seconds": duration,
@@ -95,6 +111,7 @@ def render_json(snapshot: Snapshot) -> Dict[str, object]:
         "all_projects": snapshot.all_projects,
         "main_session_id": snapshot.main_session_id,
         "hidden_ended_sessions": snapshot.hidden_ended_sessions,
+        "limits": [_limit_json(limit) for limit in snapshot.limits],
         "sessions": [_session_json(session, snapshot.generated_at)
                      for session in snapshot.sessions],
         "orphan_runs": [_hand_run_json(run, snapshot.generated_at)

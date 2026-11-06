@@ -140,6 +140,23 @@ def usd_text(amount: Optional[float]) -> Optional[str]:
     return f"${amount:.{USD_DECIMALS}f}"
 
 
+PERCENT_DECIMALS = 1
+PERCENT_MIN_VISIBLE = 0.1
+
+
+def percent_text(percent: Optional[float], estimated: bool = False) -> Optional[str]:
+    """`12.3%` (one decimal), `<0.1%` for a tiny non-zero share, None when unknown.
+
+    ``estimated`` prefixes the statusline's "~" mark.
+    """
+    if percent is None:
+        return None
+    mark = "~" if estimated else ""
+    if 0 < percent < PERCENT_MIN_VISIBLE / 2:
+        return f"{mark}<{PERCENT_MIN_VISIBLE}%"
+    return f"{mark}{max(0.0, percent):.{PERCENT_DECIMALS}f}%"
+
+
 def ratio_text(current: Optional[int], cap: Optional[int]) -> Optional[str]:
     if current is None or not cap or cap <= 0:
         return None

@@ -16,6 +16,7 @@ from .models import Usage
 PER_TOKENS = 1_000_000
 SYNTHETIC_MODEL = "<synthetic>"
 GO_HAND_PRICE = go_price_for(None)
+PERCENT = 100.0
 
 
 @dataclass(frozen=True)
@@ -80,16 +81,24 @@ def _token_count(value: Any) -> int:
         return 0
 
 
-def hand_usage(tokens: Dict[str, Any], backend: str) -> Optional[Usage]:
-    """Usage of an external hand run: its registry totals plus the Go estimate."""
+def hand_usage(tokens: Dict[str, Any], backend: str,
+               week_limit_usd: Optional[float] = None,
+               estimated: bool = False) -> Optional[Usage]:
+    """Usage of an external hand run: its registry totals plus the Go estimate.
+
+    ``week_pct`` is the statusline's Go session formula: ``usd / week.limit_usd * 100``.
+    """
     if not tokens:
         return None
     total_input = _token_count(tokens.get("input"))
     cached = _token_count(tokens.get("cached_input"))
-    usd = None
+    usd = week_pct = None
     if backend in GO_USAGE_BACKENDS:
         usd = estimate_cost({"input": total_input, "cached_input": cached,
                              "output": _token_count(tokens.get("output"))},
                             GO_HAND_PRICE)
+    if usd is not None and week_limit_usd and week_limit_usd > 0:
+        week_pct = usd / week_limit_usd * PERCENT
     return Usage(read=max(0, total_input - cached), cache_read=cached,
-                 cache_write=None, out=_token_count(tokens.get("output")), usd=usd)
+                 cache_write=None, out=_token_count(tokens.get("output")), usd=usd,
+                 week_pct=week_pct, week_pct_estimated=estimated and week_pct is not None)

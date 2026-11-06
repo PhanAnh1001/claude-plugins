@@ -175,7 +175,8 @@ def _merge(session: Session, info: TranscriptInfo, path: Path) -> None:
 def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
                   all_projects: bool, main_session_id: Optional[str],
                   now: float,
-                  include_ids: Optional[Set[str]] = None) -> List[Session]:
+                  include_ids: Optional[Set[str]] = None,
+                  since: Optional[float] = None) -> List[Session]:
     records = _live_sessions(config_dir)
     live = {sid: data for sid, data in records.items() if data.get("_alive")}
     dead = {sid: data for sid, data in records.items() if not data.get("_alive")}
@@ -188,7 +189,7 @@ def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
             continue
         if session_id not in live and mtime < cutoff:
             continue
-        info = parse_transcript(path)
+        info = parse_transcript(path, since)
         session = sessions.get(session_id)
         if session is None:
             old = dead.get(session_id, {})
@@ -209,7 +210,7 @@ def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
     subagent_index = _subagent_dirs(config_dir)
     for session in sessions.values():
         session.subagents = load_subagents(subagent_index.get(session.session_id, []),
-                                           cutoff, now)
+                                           cutoff, now, since)
     return sorted(sessions.values(), key=_session_sort_key)
 
 
