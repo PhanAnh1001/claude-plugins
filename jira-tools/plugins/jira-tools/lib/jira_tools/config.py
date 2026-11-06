@@ -58,6 +58,8 @@ class Project:
     repos: tuple[str, ...] = ()
     create_defaults: Mapping[str, Any] = field(default_factory=dict)
     fields: Mapping[str, str] = field(default_factory=dict)
+    #: Cấu hình lệnh ``report`` (ví dụ ``title`` in ở đầu báo cáo tuần).
+    report: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -134,6 +136,7 @@ def _parse_project(key: str, raw: Mapping[str, Any], default_profile: str) -> Pr
         repos=tuple(str(repo) for repo in raw.get("repos") or ()),
         create_defaults=dict(raw.get("create_defaults") or {}),
         fields={str(k): str(v) for k, v in (raw.get("fields") or {}).items()},
+        report=dict(raw.get("report") or {}),
     )
 
 

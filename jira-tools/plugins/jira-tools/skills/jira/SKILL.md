@@ -28,6 +28,7 @@ Gọi bằng đường dẫn tuyệt đối mà SessionStart hook đã báo tron
 | `worklog KEY --time 1h30m [--started ISO] [--comment C] [--remaining 0m]` | log thời gian; có `--remaining` thì đặt remaining rồi đọc lại |
 | `get KEY` | tóm tắt issue, có mô tả |
 | `search --jql Q [--limit N]` | tìm issue |
+| `report [--kind done\|plan\|all] [--anchor D] [--json] [--input F]` | báo cáo tuần: việc đã làm / sẽ làm (chỉ đọc) |
 
 - `--json` in nguyên response; `--dry-run` (create/update/comment/transition/worklog) in method, URL,
   payload rồi thoát 0, không gọi mạng và không cần PAT.
@@ -53,6 +54,14 @@ jira-cli transition PROJ-123 --to Done
   thì thoát 1. Không có `--remaining`: `adjustEstimate=auto`, Jira tự trừ.
 - Không gửi worklog qua `update.worklog` của transition, vì transition không có screen sẽ bị Jira
   bỏ qua lặng lẽ.
+
+## Báo cáo tuần
+
+`report` thu việc đã làm (worklog, resolved, commit có key) và sẽ làm (chưa Done) của tài
+khoản hiện tại; `--json` in dữ liệu, `--input F` chỉ render JSON đã soạn, không gọi Jira. Cách
+soạn 4 báo cáo đúng format: skill `weekly-report` (gõ `/jira-tools:weekly-report`). Tên dự án in ở đầu
+báo cáo lấy từ `report.title` của dự án trong `config/jira.json`, thiếu thì lấy tên dự án trên
+Jira.
 
 ## Thứ tự ưu tiên
 

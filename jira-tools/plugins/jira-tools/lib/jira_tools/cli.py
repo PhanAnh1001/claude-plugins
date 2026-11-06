@@ -9,7 +9,7 @@ from collections.abc import Mapping
 from typing import Any, Final
 
 from jira_tools import config as jira_config
-from jira_tools import createmeta, worklog
+from jira_tools import createmeta, report, worklog
 from jira_tools.client import JiraClient, build_ssl_context, resolve_token
 from jira_tools.errors import (
     EXIT_API_ERROR,
@@ -373,6 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
     transition.set_defaults(handler=cmd_transition)
 
     worklog.add_worklog_parser(subparsers, parents=[common, write])
+    report.add_report_parser(subparsers, parents=[common])
 
     get = subparsers.add_parser("get", parents=[common], help="tóm tắt một issue")
     get.add_argument("key")

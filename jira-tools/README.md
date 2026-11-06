@@ -4,6 +4,10 @@ Marketplace Claude Code tự host (`jira-tools-local`) chứa plugin **jira-tool
 (REST v2, xác thực PAT Bearer) dùng chung cho nhiều dự án trên cùng một host. Chỉ dùng thư viện
 chuẩn Python, chạy bằng mọi `python3` ≥ 3.9.
 
+Từ bản 1.2.0 có lệnh `jira-cli report` (thu việc đã làm / sẽ làm trong tuần từ Jira và git;
+`--json` in dữ liệu, `--input FILE` chỉ render báo cáo đã soạn) và skill `weekly-report`
+(gõ `/jira-tools:weekly-report [done|plan|all] [YYYY-MM-DD]` hoặc chat "báo cáo tuần") tạo 4 báo cáo tuần: chi tiết và tóm tắt đã làm, chi tiết và tóm tắt sẽ làm.
+
 ## Bố cục
 
 ```
@@ -18,7 +22,8 @@ plugins/jira-tools/
   scripts/build-ca-bundle.sh   dựng lại CA bundle
   scripts/session-start.sh     SessionStart hook
   hooks/hooks.json
-  skills/jira/SKILL.md         hướng dẫn dùng cho Claude
+  skills/jira/SKILL.md         hướng dẫn dùng CLI cho Claude
+  skills/weekly-report/        skill soạn 4 báo cáo tuần từ `jira-cli report`
 tests/                         pytest
 ```
 
@@ -38,7 +43,7 @@ Với marketplace kiểu thư mục, `claude plugin list` báo plugin được �
 
 - `config/jira.json` (bị gitignore, vì chứa host, mã dự án, tên repo và id customfield của tổ
   chức): `profiles` (host), `default_profile`, `projects` (mỗi dự án có `profile`, `repos`,
-  `create_defaults`, `fields`). Tạo từ mẫu hư cấu rồi sửa giá trị:
+  `create_defaults`, `fields`, tuỳ chọn `report.title` là tên in ở đầu báo cáo tuần). Tạo từ mẫu hư cấu rồi sửa giá trị:
 
   ```sh
   cp plugins/jira-tools/config/jira.example.json plugins/jira-tools/config/jira.json
