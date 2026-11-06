@@ -47,7 +47,8 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .base import Backend, Check, RunSpec, RunState, Status, bin_for
+from .base import (Backend, CAPACITY_NOTE, Check, RunSpec, RunState, Status, bin_for,
+                   is_capacity_error)
 from ..constants import DEFAULT_COMPACT_AT, DEFAULT_CONTEXT_WINDOW
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
@@ -125,12 +126,14 @@ EV_ERROR = "error"
 PHASE_STEP_END = "step_end"
 PHASE_TURN_END = "turn_end"
 REASON_COMPLETED = "completed"
-# 429 on Go means the plan limit (same choice as the opencode backend).
+# 429 on Go means the plan limit (same choice as the opencode backend), except for the
+# transient capacity refusal below, which is checked first.
 QUOTA_CODES = frozenset({"QUOTA", "ACCOUNT_QUOTA", "RATE_LIMIT"})
+REAL_QUOTA_CODES = QUOTA_CODES - {"RATE_LIMIT"}
 AUTH_CODES = frozenset({"AUTH", "MISSING_CREDENTIAL", "INVALID_CREDENTIAL"})
-QUOTA_PATTERN = re.compile(
-    r"usage limit|quota|insufficient (credit|balance)|GoUsageLimitError|\b429\b",
-    re.IGNORECASE)
+QUOTA_TEXT = r"usage limit|quota|insufficient (credit|balance)|GoUsageLimitError"
+QUOTA_PATTERN = re.compile(QUOTA_TEXT + r"|\b429\b", re.IGNORECASE)
+REAL_QUOTA_PATTERN = re.compile(QUOTA_TEXT, re.IGNORECASE)
 AUTH_PATTERN = re.compile(
     r"\b401\b|\b403\b|unauthori[sz]ed|MISSING_CREDENTIAL|INVALID_CREDENTIAL|no API key",
     re.IGNORECASE)
@@ -455,6 +458,15 @@ class DshBackend(Backend):
                  stderr_text: str) -> Status:
         codes = set(state.extra.get("error_codes", []))
         text = "\n".join(state.errors) + "\n" + (stderr_text or "")
+        real_quota = bool(codes & REAL_QUOTA_CODES) or bool(REAL_QUOTA_PATTERN.search(text))
+        failed = (exit_code != 0 or bool(state.errors)
+                  or state.extra.get("turn_end") != REASON_COMPLETED)
+        if is_capacity_error(text) and not real_quota:
+            if not failed:
+                return Status.OK  # recovered through retries; the refusal was only logged
+            if CAPACITY_NOTE not in state.errors:
+                state.errors.append(CAPACITY_NOTE)
+            return Status.FAILED
         if codes & QUOTA_CODES or (exit_code != 0 and QUOTA_PATTERN.search(text)):
             return Status.QUOTA
         if codes & AUTH_CODES or (exit_code != 0 and AUTH_PATTERN.search(text)):

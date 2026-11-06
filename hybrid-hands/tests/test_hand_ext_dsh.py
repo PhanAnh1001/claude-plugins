@@ -28,6 +28,9 @@ FAKE_KEY = "test-go-key-not-real"
 REPO_SECRET = "REPO_SECRET_VALUE_SHOULD_NOT_LEAK"
 FOREIGN_KEYS = {"GEMINI_API_KEY": "g", "DEEPSEEK_API_KEY": "d", "OPENAI_API_KEY": "o",
                 "ANTHROPIC_API_KEY": "a", "OPENCODE_API_KEY": "c"}
+CAPACITY_STDERR = (
+    'dsh: RATE_LIMIT: 429: {"type":"server_error","message":"Upstream request failed: '
+    '[prefill_cap_refused] the cell is at capacity; retry shortly (after 30 s)"}')
 
 
 class _Home:
@@ -142,6 +145,14 @@ class BuildCommandTest(_TmpCase):
                        "cwd: !!js process.env.%s" % dsh.ENV_WORKSPACE, "policy: never",
                        "thinkingFormat: deepseek"):
             self.assertIn(needle, text)
+
+    def test_template_retry_policy_waits_out_capacity_errors(self):
+        text = dsh.TEMPLATE_PATCH.read_text(encoding="utf-8")
+        start = text.index("opencode-go:")
+        block = text[start:text.index("models:", start)]
+        for needle in ("mode: normal", "maxRetries: 8", "initialDelayMs: 5000",
+                       "maxDelayMs: 60000"):
+            self.assertIn(needle, block)
 
 
 class CompactionTest(_TmpCase):
@@ -380,6 +391,34 @@ class ParseAndFinalizeTest(unittest.TestCase):
         self.assertEqual(self.backend.finalize(self.spec, empty, 1, "boom"), Status.FAILED)
         self.assertEqual(self.backend.finalize(self.spec, RunState(usage=Usage()), 0, ""),
                          Status.FAILED)
+
+    def test_capacity_retry_is_failed_not_quota(self):
+        state = RunState(usage=Usage())
+        state.extra["error_codes"] = ["RATE_LIMIT"]
+        status = self.backend.finalize(self.spec, state, 1, CAPACITY_STDERR)
+        self.assertEqual(status, Status.FAILED)
+        self.assertTrue(any("quá tải tạm thời" in error for error in state.errors),
+                        state.errors)
+
+    def test_capacity_recovered_by_retry_stays_ok(self):
+        state = RunState(usage=Usage())
+        state.extra["turn_end"] = "completed"
+        self.assertEqual(self.backend.finalize(self.spec, state, 0, CAPACITY_STDERR),
+                         Status.OK)
+        self.assertEqual(state.errors, [])
+
+    def test_real_quota_wins_over_capacity_text(self):
+        cases = [
+            (["QUOTA"], CAPACITY_STDERR),
+            (["ACCOUNT_QUOTA"], CAPACITY_STDERR),
+            (["RATE_LIMIT"], CAPACITY_STDERR + "\nGoUsageLimitError: weekly"),
+        ]
+        for codes, stderr_text in cases:
+            with self.subTest(codes=codes, stderr_text=stderr_text):
+                state = RunState(usage=Usage())
+                state.extra["error_codes"] = codes
+                self.assertEqual(self.backend.finalize(self.spec, state, 1, stderr_text),
+                                 Status.QUOTA)
 
 
 class VersionTest(unittest.TestCase):
