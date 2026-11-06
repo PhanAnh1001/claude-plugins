@@ -61,9 +61,9 @@ DEFAULT_KEY_FILE = "~/.dsh-hand/go.key"
 DEFAULT_MODEL = "deepseek-v4.1-flash"
 DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
-GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: same model id as the opencode backend
+GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: provider-prefixed Go model id
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.16.0"  # Go asks third-party clients for their own UA
+USER_AGENT = "hybrid-hands-hand-ext/0.19.0"  # Go asks third-party clients for their own UA
 KEY_FILE_MODE = 0o600
 # Per-run overlay: dsh applies --patch in argv order, so this wins over hand.patch.yml.
 COMPACTION_PATCH_FILE = "compaction.patch.yml"
@@ -126,7 +126,7 @@ EV_ERROR = "error"
 PHASE_STEP_END = "step_end"
 PHASE_TURN_END = "turn_end"
 REASON_COMPLETED = "completed"
-# 429 on Go means the plan limit (same choice as the opencode backend), except for the
+# 429 on Go means the plan limit, except for the
 # transient capacity refusal below, which is checked first.
 QUOTA_CODES = frozenset({"QUOTA", "ACCOUNT_QUOTA", "RATE_LIMIT"})
 REAL_QUOTA_CODES = QUOTA_CODES - {"RATE_LIMIT"}

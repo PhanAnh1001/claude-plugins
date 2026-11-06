@@ -1,14 +1,14 @@
 """Machine-wide OpenCode Go usage ledger and rolling 5h/7d/30d summary.
 
 The Go plan counts usage in USD per model, not per repository: every hand run that goes
-through `dsh` or `opencode` appends one JSON line to `~/.hybrid-hands/go_usage.jsonl`
+through `dsh` appends one JSON line to `~/.hybrid-hands/go_usage.jsonl`
 (overridable through `ext_hand.go_usage.ledger` or `HYBRID_HANDS_STATE_DIR`). The summary
 beside it is recomputed under the ledger lock after each run and by `hand-ext usage`.
+Lines left by the removed `opencode` backend (before 0.19.0) still count.
 
 OpenCode reports the authoritative amount as `opencode.allowance` on API responses, but the
-installed CLIs keep neither that field nor a usable cost: dsh drops pi-ai's cost metadata and
-opencode's `step_finish.cost` is 0 for Go usage within the plan limits (console API docs,
-read 2026-11-04). So current runs are estimates from tokens and the configured token price;
+installed CLI keeps neither that field nor a usable cost: dsh drops pi-ai's cost metadata
+(console API docs, read 2026-11-04). So current runs are estimates from tokens and the configured token price;
 `exact` is used when a backend ever surfaces `go_allowance_usd`.
 """
 from __future__ import annotations

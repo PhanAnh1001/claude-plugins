@@ -29,7 +29,8 @@ GO_LIVE_MISSING = ("hạn mức Go (thật): chưa lấy được "
 # Share of the monthly limit that each sliding window may use (OpenCode Go docs).
 GO_USAGE_WINDOW_SHARES = (("5h", 5 * 3600, 0.2), ("7d", 7 * 86400, 0.5),
                           ("30d", 30 * 86400, 1.0))
-# Backends billed through the OpenCode Go plan (DeepSeek V4.1 Flash).
+# Backends billed through the OpenCode Go plan (DeepSeek V4.1 Flash). "opencode" was a
+# backend until 0.19.0; it stays here so its old ledger lines still count toward the plan.
 GO_USAGE_BACKENDS = ("dsh", "opencode")
 GO_PRICE_KEY = "go_price_per_mtok"
 # Peak prices from https://opencode.ai/docs/go (read 2026-11-04), USD per 1M tokens:
@@ -67,9 +68,9 @@ SECRET_SKIP_PREFIX = "- Bỏ qua file nghi bí mật: "
 SYMLINK_OUTSIDE_NOTE = "symlink tuyệt đối hoặc ra ngoài repo hoặc tới file bí mật"
 
 DEFAULTS = {
-    # Both default hands run DeepSeek V4.1 Flash on the OpenCode Go plan: dsh first, then
-    # opencode. codex/claude/gemini stay declared for explicit `--backend` use only.
-    "order": ["dsh", "opencode"],
+    # The only default hand is dsh (DeepSeek V4.1 Flash on the OpenCode Go plan).
+    # codex/claude/gemini stay declared for explicit `--backend` use only.
+    "order": ["dsh"],
     "timeout_min": 60,
     "max_tokens": None,
     "sandbox": "workspace-write",
@@ -85,17 +86,13 @@ DEFAULTS = {
         "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high"},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",
                    "effort": "medium", "max_turns": 80},
-        # DeepSeek Harness on the OpenCode Go key (templates/dsh-hand.yml); before opencode.
+        # DeepSeek Harness on the OpenCode Go key (templates/dsh-hand.yml).
         "dsh": {"home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key",
                 "model": "deepseek-v4.1-flash", "effort": "high",
                 "base_url": "https://opencode.ai/inference/go/openai/v1",
                 "compact_at": DEFAULT_COMPACT_AT,
                 "context_window": DEFAULT_CONTEXT_WINDOW,
                 "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
-        "opencode": {"config": "<PL>/templates/opencode-hand.jsonc",
-                     "model": "opencode-go/deepseek-v4.1-flash", "variant": "max",
-                     "compact_at": DEFAULT_COMPACT_AT,
-                     "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
         "gemini": {"home": "~/.gemini-hand", "model": "gemini-4-carbon"},
     },
 }

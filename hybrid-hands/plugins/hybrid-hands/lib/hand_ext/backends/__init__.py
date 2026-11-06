@@ -5,7 +5,9 @@ import importlib
 
 from .base import Backend
 
-KNOWN_BACKENDS = ("dsh", "opencode", "codex", "claude", "gemini")
+KNOWN_BACKENDS = ("dsh", "codex", "claude", "gemini")
+# Backends removed from the plugin; old configs may still name them in `order`.
+REMOVED_BACKENDS = ("opencode",)
 
 
 class BackendUnavailable(Exception):
@@ -15,6 +17,8 @@ class BackendUnavailable(Exception):
 def get_backend(name: str) -> Backend:
     if not name.isidentifier():
         raise BackendUnavailable(f"tên backend không hợp lệ: {name!r}")
+    if name in REMOVED_BACKENDS:
+        raise BackendUnavailable(f"backend {name!r} không hỗ trợ (đã gỡ, dùng dsh)")
     try:
         module = importlib.import_module(f"{__name__}.{name}")
     except ModuleNotFoundError as exc:
