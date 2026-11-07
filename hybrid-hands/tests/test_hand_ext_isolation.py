@@ -23,6 +23,7 @@ sys.path.insert(0, str(PLUGIN / "lib"))
 
 from hand_ext import cli  # noqa: E402
 from hand_ext.backends.base import Backend, Check, RunSpec, RunState, Status  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 FAKE_MODULE = "hand_ext.backends.isoft"
 FAKE_HAND = FIXTURES / "isolation_fake.py"
@@ -69,7 +70,7 @@ def _register() -> None:
     sys.modules[FAKE_MODULE] = module
 
 
-class IsolationCase(unittest.TestCase):
+class IsolationCase(HandExtTestCase):
     def setUp(self) -> None:
         _register()
         self.tmp = Path(tempfile.mkdtemp(prefix="hand-ext-isolation-"))
@@ -335,7 +336,7 @@ class IsolationFailureTest(IsolationCase):
         self.assertIn("HEAD", report)
 
 
-class PolicyTextTest(unittest.TestCase):
+class PolicyTextTest(HandExtTestCase):
     def test_data_rule_is_present_in_policy_surfaces(self) -> None:
         files = [
             PLUGIN / "scripts" / "session-start-policy.sh",

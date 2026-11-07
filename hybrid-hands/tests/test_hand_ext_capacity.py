@@ -16,12 +16,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"
 from codex_harness import Sandbox  # noqa: E402
 from hand_ext.backends import dsh  # noqa: E402
 from hand_ext.constants import CODEX_FALLBACK_EFFORT, CODEX_FALLBACK_MODEL  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 FAKE_DSH = Path(__file__).resolve().parent / "fixtures" / "hand_ext" / "dsh_fake.py"
 SOURCE_DIRTY = "user dirty\n"
 
 
-class AutoCapacityTest(unittest.TestCase):
+class AutoCapacityTest(HandExtTestCase):
     def setUp(self) -> None:
         self.sb = Sandbox(order=["dsh"])
         self.addCleanup(self.sb.close)

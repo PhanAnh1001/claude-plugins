@@ -3,7 +3,7 @@
 ## Tóm tắt
 
 - **Mục tiêu:** làm theo spec `2026-11-07-ba-tang-opus-sol-dsh-spec.md`. Có 5 nhóm: phiên Sol trên Codex, backend `claude-main`, policy mới, kiểm thực tế, và (thêm 07/11) dự phòng 429 bằng Sol low cùng hạn mức GPT trên Paseo và statusline.
-- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); còn 4.3, 4.12-4.14, 5.3, 5.4, 5.6.
+- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); 4.3 xong (15:00, baseline ở mục 4.3); 4.12-4.14 xong (15:05); còn 4.15, 4.16, 5.3, 5.4, 5.6.
   - Test đầy đủ: 388 test xanh (07/11, 13:50). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng 5/5 xanh); chưa xử lý.
   - 4.2 nhánh chặn đã thử: `.claude/hybrid-hands.json` tạm `max_day_pct` = 1 → "máy này đã dùng 2.4% Claude hôm nay (ngưỡng 1%)", thoát mã 7; đã xoá file tạm.
   - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
@@ -12,7 +12,7 @@
     1. **Đang chạy (từ 14:50):** phiên Sol `sol-412-414` (4.12-4.14) và `sol-53` (5.3), cả hai `--worktree` (`~/app/claude-plugins-wt/<tên>`, nhánh `side/<tên>`), prompt ở `/tmp/hh-briefs/<tên>.md`. Kiểm bằng `side-session ls`; xong khi có `docs/work-in-progress/handoffs/<tên>.done` ở repo chính (thư mục `docs/` gốc repo chưa track, không commit). Đọc `side-session handoff <tên>` và file `.md` cùng chỗ.
     2. Mỗi phiên xong: lấy patch bằng `git -C <worktree> add -A -N . && git -C <worktree> diff --binary HEAD -- <file, trừ output/>`, `git apply` vào nhánh này; chạy `python3 -m unittest discover -s hybrid-hands/tests -q` một lần; commit; `side-session stop <tên>`; `git worktree remove --force <worktree>` và `git branch -D side/<tên>`. 4.13 có thể cần Opus quyết theo bàn giao.
     3. Giao `sol-54` (5.4, `statusline/`, đọc sổ `~/.hybrid-hands/codex_usage.jsonl`), rồi 5.6 (kiểm thực tế USD và % trên `hh-ps` và statusline).
-    4. Ghi số đo ban đầu 4.3.
+    4. ~~Ghi số đo ban đầu 4.3~~ (xong 15:00). Giao 4.15 (`hand-ext report` bỏ sót worktree) cùng phiên Sol sau.
     5. Hỏi người dùng có merge vào main không.
 - **Cách làm:**
   - Nhóm 1 và 2 chạm vùng code khác nhau, nên giao 2 hand dsh song song (`hand-ext run --backend auto`), mức test tối thiểu.
@@ -59,7 +59,20 @@
 
 - [x] 4.1 Chạy spec mục 5.1 (phiên Sol làm một task L0 thật).
 - [x] 4.2 Chạy spec mục 5.2 (`claude-main`, cả nhánh bị chặn).
-- [ ] 4.3 Ghi số đo ban đầu cho spec mục 5.3 vào plan này, hẹn đo lại sau 1-2 tuần.
+- [x] 4.3 Ghi số đo ban đầu cho spec mục 5.3 vào plan này, hẹn đo lại sau 1-2 tuần (khoảng 14-21/11/2026).
+  - Baseline 07/11/2026 (0h đến 14:55, +07; mọi USD là ước tính từ token):
+
+    | Chỉ số | 07/11 | Nguồn |
+    |---|---|---|
+    | Opus 5.5, mọi repo | 493 tin; output 430k, cache write 1,79M, cache read 50,5M token; ~42,26 USD API | `statusline/plugins/statusline/scripts/usage_ledger.py --since 2026-11-07T00:00:00+07:00` |
+    | Opus trên mỗi task | không tách được: ledger chỉ tách theo phiên (2 phiên claude-plugins: ~7,85 và ~7,48 USD) | như trên |
+    | Sol, % tuần | 3,0% (sáng 2,0%), reset 09/11 13:19 +07; tài khoản không có cửa sổ 5h (`secondary` null) | `~/.hybrid-hands/codex_usage.jsonl`, `rate_limits` rollout `~/.codex-hand` |
+    | Sol, token theo phiên (input/cached/output) | sol-411 5,21M/5,12M/21k; sol-51-52 15,80M/15,66M/57k; sol-412-414 và sol-53 mỗi phiên khoảng 6,5M (đang chạy) | `total_token_usage` cuối của rollout |
+    | dsh | 23 lượt; input 98,1M (cached 95,7M), output 786k; ~2,23 USD Go. Lượt nặng nhất sol-51-52: 30,9M/174k, ~0,57 USD | `~/.hybrid-hands/go_usage.jsonl` |
+    | Lỗi Opus bắt được mà Sol bỏ sót | 2 (test giá null tường minh; dòng báo `start` codex) | mục 4.11 |
+
+  - Lúc đo lại: tính Opus theo task bằng cách ghép mã phiên với task; tính số dsh từ `go_usage.jsonl`, không dùng `hand-ext report` (lỗi 4.15).
+- [ ] 4.15 Lỗi: `hand-ext report --since ... --cwd <repo>` lọc theo cwd nên bỏ sót các lượt chạy trong worktree (`~/app/claude-plugins-wt/*`, `~/.hybrid-hands/worktrees/*`): ngày 07/11 report đếm 15 lượt, sổ có 23. Không truyền `--cwd` thì report in "Tổng lượt: 0". Sửa: các lượt có git common dir trùng repo thì tính cho repo đó. Thêm 1 test.
 - [x] 4.4 Lỗi phát hiện ở 4.1: Codex TUI dừng ở màn "Trust this folder?", nên phiên Sol chạy không người trực bị kẹt.
   - Sửa: trước khi mở phiên, `side-session start` ghi `[projects."<workdir>"] trust_level = "trusted"` vào `<codex_home>/config.toml`, chỉ khi workdir chưa có mục này. Workdir có thể là worktree mới.
   - Cột TOKENS báo 0 trong lúc kẹt là đúng: lúc đó chưa có rollout.
@@ -101,9 +114,16 @@
   - Thêm (14:15): dòng báo của `side-session start` provider codex vẫn in `cap 300000`; đổi thành trần context 272000 (giao phiên sau, không thuộc lượt `sol-411`).
 
 - Kết quả lượt `sol-411` + `sol-51-52` (07/11, 13:38-14:34): 4.1 đạt (không kẹt hỏi duyệt, `.done` đúng chỗ, dsh trong sandbox Sol chạy được shell nhờ 4.9); 4.2 đạt (`claude-main` thoát 0, trả 3 câu ≤80 ký tự). Brain áp diff hai worktree, điền giá mặc định Q5b, sửa 1 test cho giá null tường minh, sửa dòng báo `start` của codex thành "context 272000 (tự nén)"; 392 test xanh.
-- [ ] 4.12 Test chưa cô lập biến `CODEX_SANDBOX`: chạy bộ test bên trong phiên Sol thì `test_hand_ext_dsh.BuildCommandTest.test_argv_env_and_stdin` (`tests/test_hand_ext_dsh.py:108`) fail vì nhận `danger-full-access`. Sửa: các test hand-ext gỡ `CODEX_SANDBOX` khỏi env (setUp chung), chỉ test seatbelt đặt nó.
-- [ ] 4.13 Cảnh báo dsh trong sandbox Sol: `permission (@deepseek-ai/dsh-permission-presets): Error: permission: unknown preset "danger-full-access" (known: read-only, workspace-write)` (stderr của `output/llm/hand-ext/20261107-133926-sol-411-fix-dsh/`). Preset thêm ở `templates/dsh-hand.yml` không được plugin nhận; entry permission không kích hoạt, shell vẫn chạy. Cần điều tra mã nguồn `dsh-permission-presets` (bản 0.2.1-rc.5): preset có cố định không; permission không kích hoạt thì hành vi approval ra sao; chọn cách cấu hình đúng.
-- [ ] 4.14 Hand `codex` do Sol gọi (`hand-ext run --backend codex`, ví dụ nhánh dự phòng 429 → Sol low) không chạy được shell: `sandbox-exec: sandbox_apply: Operation not permitted`, exit 71, vì lồng sandbox như 4.9. CLI vẫn thoát 0 với report "bị chặn". Sửa giống 4.9: khi `CODEX_SANDBOX=seatbelt`, backend codex chạy `-s danger-full-access` thay `workspace-write` (seatbelt của Sol vẫn giới hạn quyền ghi), `read-only` thì từ chối; ghi mode thật vào meta. Thêm 1 test.
+- [x] 4.12 Test chưa cô lập biến `CODEX_SANDBOX`: chạy bộ test bên trong phiên Sol thì `test_hand_ext_dsh.BuildCommandTest.test_argv_env_and_stdin` (`tests/test_hand_ext_dsh.py:108`) fail vì nhận `danger-full-access`. Sửa: các test hand-ext gỡ `CODEX_SANDBOX` khỏi env (setUp chung), chỉ test seatbelt đặt nó.
+- [x] 4.13 Cảnh báo dsh trong sandbox Sol: `permission (@deepseek-ai/dsh-permission-presets): Error: permission: unknown preset "danger-full-access" (known: read-only, workspace-write)` (stderr của `output/llm/hand-ext/20261107-133926-sol-411-fix-dsh/`). Preset thêm ở `templates/dsh-hand.yml` không được plugin nhận; entry permission không kích hoạt, shell vẫn chạy. Cần điều tra mã nguồn `dsh-permission-presets` (bản 0.2.1-rc.5): preset có cố định không; permission không kích hoạt thì hành vi approval ra sao; chọn cách cấu hình đúng.
+- [x] 4.14 Hand `codex` do Sol gọi (`hand-ext run --backend codex`, ví dụ nhánh dự phòng 429 → Sol low) không chạy được shell: `sandbox-exec: sandbox_apply: Operation not permitted`, exit 71, vì lồng sandbox như 4.9. CLI vẫn thoát 0 với report "bị chặn". Sửa giống 4.9: khi `CODEX_SANDBOX=seatbelt`, backend codex chạy `-s danger-full-access` thay `workspace-write` (seatbelt của Sol vẫn giới hạn quyền ghi), `read-only` thì từ chối; ghi mode thật vào meta. Thêm 1 test.
+- Kết quả lượt `sol-412-414` (07/11, 14:40-14:55, Sol đã review; patch 17 file, +218/-83):
+  - 4.12: `tests/hand_ext_case.py` dùng chung, gỡ `CODEX_SANDBOX` cho 12 module test hand-ext.
+  - 4.13: preset không cố định. Lỗi do bản sao setup `~/.dsh-hand/hand.patch.yml` cũ thiếu `danger-full-access`. Sửa: mỗi lượt chụp template hiện tại vào `run_dir/hand.patch.yml` và nạp đầu argv `--patch`; không sửa shared patch, không vá gói dsh.
+  - 4.14: `backends/sandbox.py` mới; codex trong seatbelt chạy `danger-full-access`, `read-only` thì từ chối, mode thật ghi vào meta.
+  - Lỗi lộ thêm khi chạy thật: `templates/dsh-hand.yml` đặt `retryPolicy.initialDelayMs`/`maxDelayMs` sai cấp (phải nằm dưới `backoff`), dsh báo NO_ADAPTER. Shared patch cũ che lỗi này. Sol đã sửa.
+  - Test: 394/394 trong worktree (seatbelt); chạy thật codex low và dsh trong sandbox Sol, exit 0, không hỏi duyệt, không `sandbox_apply`.
+- [ ] 4.16 Lỗi nhỏ: `side-session stop` provider codex vẫn in `(146296/300000 tokens)`; đổi giống dòng báo `start` (context 272000, tự nén). Gộp vào gói 4.15.
 - Ghi nhận chi phí: lượt dsh của `sol-51-52` chạy 45 phút (13:39-14:24), 30,9M token input (30,3M cache), 174k output, rồi chết vì 429 quá tải. Nhánh 5.1 giúp lần sau chuyển sớm hơn, nhưng thời gian dsh tự thử lại theo `retryPolicy` trước khi trả 429 vẫn dài. Xem lại `maxRetries`/`maxDelayMs` ở 4.3.
 
 ## 5. Dự phòng 429 bằng Sol low, hiện hạn mức GPT trên Paseo và statusline

@@ -16,6 +16,7 @@ sys.path.insert(0, str(PLUGIN_LIB))
 
 from hand_ext.backends.base import Backend, RunSpec, RunState, Status, Usage  # noqa: E402
 from hand_ext.runner import run_backend  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 FAKE = Path(__file__).resolve().parent / "fixtures" / "hand_ext" / "rundir_fake.py"
 RUN_DIR_WARNING = "cảnh báo: thư mục lượt chạy bị xoá trong lúc chạy"
@@ -60,7 +61,7 @@ class RundirBackend(Backend):
         return Status.OK if exit_code == 0 else Status.FAILED
 
 
-class RunDirDeletedTest(unittest.TestCase):
+class RunDirDeletedTest(HandExtTestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="hand-ext-rundir-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)

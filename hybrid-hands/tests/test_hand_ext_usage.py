@@ -19,6 +19,7 @@ from hand_ext import cli, go_usage, render, run_cmd  # noqa: E402
 from hand_ext.backends.base import RunState, Status, Usage  # noqa: E402
 from hand_ext.config import load_config  # noqa: E402
 from hand_ext.runner import RunOutcome  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 MODEL = "deepseek-v4.1-flash"
 PRICE = {"input": 1.0, "cached_input": 0.1, "output": 2.0}
@@ -38,7 +39,7 @@ def record(ended: float, cost: float | None, source: str, model: str = MODEL) ->
             "cwd_basename": "repo"}
 
 
-class EstimateCostTest(unittest.TestCase):
+class EstimateCostTest(HandExtTestCase):
     def test_uncached_input_plus_cached_plus_output(self) -> None:
         cost = go_usage.estimate_cost(TOKENS, PRICE)
         self.assertAlmostEqual(cost, (600 * 1.0 + 400 * 0.1 + 100 * 2.0) / 1_000_000)
@@ -70,7 +71,7 @@ class EstimateCostTest(unittest.TestCase):
         self.assertEqual(source, "unknown")
 
 
-class SummarizeTest(unittest.TestCase):
+class SummarizeTest(HandExtTestCase):
     def records(self) -> list[dict]:
         return [
             record(NOW - 3600, 2.0, "exact"),
@@ -126,7 +127,7 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(line, "hạn mức: ~15% 5h, ~34% tuần (ước tính)")
 
 
-class UsageCommandTest(unittest.TestCase):
+class UsageCommandTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -187,7 +188,7 @@ class UsageCommandTest(unittest.TestCase):
         self.assertIn("5%", out)
 
 
-class RunSummaryTest(unittest.TestCase):
+class RunSummaryTest(HandExtTestCase):
     def test_go_line_replaces_used_percent_none(self) -> None:
         entry = {"backend": "dsh", "model": MODEL, "status": "ok",
                  "tokens": dict(TOKENS), "quota": {"used_percent": None, "resets_at": None}}
@@ -197,7 +198,7 @@ class RunSummaryTest(unittest.TestCase):
         self.assertNotIn("used_percent=None", text)
 
 
-class GoConfigTest(unittest.TestCase):
+class GoConfigTest(HandExtTestCase):
     def test_custom_ledger_and_monthly_limit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
@@ -220,7 +221,7 @@ class GoConfigTest(unittest.TestCase):
                 load_config(project)
 
 
-class RecordRunTest(unittest.TestCase):
+class RecordRunTest(HandExtTestCase):
     class Cfg:
         def __init__(self, base: Path) -> None:
             self.go_usage_ledger = base / "go_usage.jsonl"

@@ -5,7 +5,6 @@ import io
 import json
 import sys
 import tempfile
-import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -13,6 +12,7 @@ PLUGIN_LIB = Path(__file__).resolve().parents[1] / "plugins" / "hybrid-hands" / 
 sys.path.insert(0, str(PLUGIN_LIB))
 
 from hand_ext import cli, measure  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 PATCH = """\
 diff --git a/tests/test_sample.py b/tests/test_sample.py
@@ -39,7 +39,7 @@ diff --git a/README.md b/README.md
 """
 
 
-class MeasureTest(unittest.TestCase):
+class MeasureTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

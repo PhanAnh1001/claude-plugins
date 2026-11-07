@@ -14,6 +14,9 @@ from typing import Dict, List, Optional, Tuple
 
 from . import codex_config as cc
 from .base import Backend, Check, Quota, RunSpec, RunState, Status, Usage, bin_for
+from .sandbox import (META_FILE, OUTER_SANDBOX_ENV, OUTER_SANDBOX_SEATBELT,
+                      SANDBOX_DANGER_FULL_ACCESS, SANDBOX_READ_ONLY,
+                      SANDBOX_WORKSPACE_WRITE, in_codex_seatbelt, record_sandbox)
 
 NAME = "codex"
 SESSIONS_DIR = "sessions"
@@ -33,6 +36,29 @@ QUOTA_MARKERS = ("hit your usage limit", "rate_limit_reached", "usage_limit_reac
                  "credits_depleted")
 LOGIN_MARKERS = ("not logged in", "login required", "please log in", "codex login")
 DEFAULT_HOME = "~/.codex-hand"
+SEATBELT_REASON = "trong sandbox Codex (seatbelt): seatbelt ngoài vẫn giới hạn quyền ghi"
+SEATBELT_READ_ONLY_ERROR = (
+    "codex không giữ được read-only bên trong sandbox Codex (CODEX_SANDBOX=seatbelt): "
+    "dùng --sandbox workspace-write hoặc giao việc cho hand Claude")
+
+
+def sandbox_mode(spec: RunSpec) -> str:
+    """Effective `-s` mode: Codex cannot nest its seatbelt inside Codex's own seatbelt.
+
+    Inside seatbelt, workspace-write becomes danger-full-access (the outer seatbelt still
+    limits writes); read-only is refused because Codex has no way to guarantee it. Outside
+    seatbelt the requested mode is unchanged.
+    """
+    if not in_codex_seatbelt():
+        return spec.sandbox
+    if spec.sandbox == SANDBOX_READ_ONLY:
+        record_sandbox(spec, spec.sandbox, spec.sandbox, SEATBELT_READ_ONLY_ERROR,
+                       refused=True)
+        raise ValueError(SEATBELT_READ_ONLY_ERROR)
+    if spec.sandbox == SANDBOX_WORKSPACE_WRITE:
+        record_sandbox(spec, SANDBOX_DANGER_FULL_ACCESS, spec.sandbox, SEATBELT_REASON)
+        return SANDBOX_DANGER_FULL_ACCESS
+    return spec.sandbox
 
 
 def home_dir(options: dict) -> Path:
@@ -148,7 +174,7 @@ class CodexBackend(Backend):
         argv = [bin_for(NAME), "exec", "--json", "--skip-git-repo-check",
                 "-C", str(spec.cwd), "-m", spec.model,
                 "-c", f'model_reasoning_effort="{spec.effort}"',
-                "-s", spec.sandbox, "-o", str(spec.run_dir / REPORT_FILE), "-"]
+                "-s", sandbox_mode(spec), "-o", str(spec.run_dir / REPORT_FILE), "-"]
         return argv, {"CODEX_HOME": str(_home(spec.options))}, spec.prompt
 
     def parse_line(self, line: str, state: RunState) -> None:

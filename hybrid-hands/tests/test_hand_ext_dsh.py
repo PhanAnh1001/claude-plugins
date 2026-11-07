@@ -19,6 +19,7 @@ from hand_ext.backends.base import RunSpec, RunState, Status, Usage  # noqa: E40
 from hand_ext.backends import dsh  # noqa: E402
 from hand_ext.constants import DEFAULT_COMPACT_AT  # noqa: E402
 from hand_ext.runner import run_backend  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "hand_ext"
 FAKE_BIN = FIXTURES / "dsh_fake.py"
@@ -65,7 +66,7 @@ def _feed(name: str) -> RunState:
     return state
 
 
-class _TmpCase(unittest.TestCase):
+class _TmpCase(HandExtTestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -89,7 +90,7 @@ class BuildCommandTest(_TmpCase):
         launch = dsh.launch_dir(self.home.options)
         self.assertEqual(argv[:4], [sys.executable, "-c", dsh.CHDIR_EXEC, str(launch)])
         self.assertEqual(argv[4:], ["/fake/dsh", "--profile", "headless", "--patch",
-                                    str(dsh.patch_file(self.home.options)), "--patch",
+                                    str(spec.run_dir / dsh.PATCH_FILE), "--patch",
                                     str(spec.run_dir / dsh.COMPACTION_PATCH_FILE),
                                     "--json", "-"])
         self.assertEqual(stdin, spec.prompt)
@@ -107,6 +108,18 @@ class BuildCommandTest(_TmpCase):
         self.assertEqual(env[dsh.ENV_BASE_URL], dsh.DEFAULT_BASE_URL)
         self.assertEqual(env[dsh.ENV_PERMISSION], "workspace-write")
         self.assertEqual(env[dsh.ENV_TELEMETRY], dsh.TELEMETRY_OFF)
+
+    def test_run_copies_current_template_over_stale_shared_patch(self):
+        shared = dsh.patch_file(self.home.options)
+        shared.write_text("stale: true\n", encoding="utf-8")
+        spec = _spec(self.base, self.home.options, self.repo)
+        argv, _, _ = dsh.DshBackend().build_command(spec)
+        run_patch = spec.run_dir / dsh.PATCH_FILE
+        self.assertEqual(run_patch.read_text(encoding="utf-8"),
+                         dsh.TEMPLATE_PATCH.read_text(encoding="utf-8"))
+        patches = [argv[index + 1] for index, arg in enumerate(argv) if arg == "--patch"]
+        self.assertEqual(patches[0], str(run_patch))
+        self.assertEqual(shared.read_text(encoding="utf-8"), "stale: true\n")
 
     def test_effort_and_model_prefix(self):
         spec = _spec(self.base, self.home.options, self.repo, effort="medium",
@@ -181,8 +194,8 @@ class BuildCommandTest(_TmpCase):
         text = dsh.TEMPLATE_PATCH.read_text(encoding="utf-8")
         start = text.index("opencode-go:")
         block = text[start:text.index("models:", start)]
-        for needle in ("mode: normal", "maxRetries: 8", "initialDelayMs: 5000",
-                       "maxDelayMs: 60000"):
+        for needle in ("mode: normal", "maxRetries: 8",
+                       "backoff:\n            initialDelayMs: 5000\n            maxDelayMs: 60000"):
             self.assertIn(needle, block)
 
 
@@ -207,7 +220,7 @@ class CompactionTest(_TmpCase):
         self.assertEqual(DEFAULT_COMPACT_AT, 272_000)
         spec, patches = self._build()
         target = spec.run_dir / dsh.COMPACTION_PATCH_FILE
-        self.assertEqual(patches, [str(dsh.patch_file(self.home.options)), str(target)])
+        self.assertEqual(patches, [str(spec.run_dir / dsh.PATCH_FILE), str(target)])
         text = target.read_text(encoding="utf-8")
         self.assertIn("- id: compaction-basic", text)
         self.assertIn("name: '@deepseek-ai/dsh-compaction-basic'", text)
@@ -226,7 +239,7 @@ class CompactionTest(_TmpCase):
 
     def test_zero_compact_at_writes_no_patch(self):
         spec, patches = self._build(compact_at=0)
-        self.assertEqual(patches, [str(dsh.patch_file(self.home.options))])
+        self.assertEqual(patches, [str(spec.run_dir / dsh.PATCH_FILE)])
         self.assertFalse((spec.run_dir / dsh.COMPACTION_PATCH_FILE).exists())
 
     def test_invalid_compact_at_raises(self):
@@ -270,7 +283,7 @@ class BrowserPatchTest(_TmpCase):
     def test_overlay_patch_has_isolated_stdio_mcp(self):
         spec, (argv, env, _) = self._build(browser=True)
         patches = self._patches(argv)
-        self.assertEqual(patches[0], str(dsh.patch_file(self.options)))
+        self.assertEqual(patches[0], str(spec.run_dir / dsh.PATCH_FILE))
         self.assertEqual(len(patches), 3)
         self.assertEqual(Path(patches[1]).name, dsh.BROWSER_PATCH_FILE)
         self.assertEqual(Path(patches[2]), spec.run_dir / dsh.COMPACTION_PATCH_FILE)
@@ -307,7 +320,7 @@ class BrowserPatchTest(_TmpCase):
         shared = dsh.patch_file(self.options)
         before = shared.read_bytes()
         spec, (argv, _, _) = self._build(browser=False)
-        self.assertEqual(self._patches(argv), [str(shared),
+        self.assertEqual(self._patches(argv), [str(spec.run_dir / dsh.PATCH_FILE),
                                                str(spec.run_dir / dsh.COMPACTION_PATCH_FILE)])
         self.assertEqual(shared.read_bytes(), before)
         self.assertFalse((spec.run_dir / "browser.patch.json").exists())
@@ -326,7 +339,7 @@ class BrowserPatchTest(_TmpCase):
         self.assertIn("--browser", str(raised.exception))
 
 
-class BrowserPromptTest(unittest.TestCase):
+class BrowserPromptTest(HandExtTestCase):
     def test_rules_only_when_enabled(self):
         plain = hand_prompt.build_prompt("BRIEF body")
         self.assertNotIn("Luật trình duyệt", plain)
@@ -396,7 +409,7 @@ class RunIsolationTest(_TmpCase):
         self.assertNotIn(str(self.repo / ".env"), opened)
 
 
-class ParseAndFinalizeTest(unittest.TestCase):
+class ParseAndFinalizeTest(HandExtTestCase):
     def setUp(self):
         self.spec = RunSpec(prompt="", cwd=Path("/repo"), run_dir=Path("/tmp/x"), model="",
                             effort="", sandbox="", timeout_s=1, max_tokens=None, options={})
@@ -455,7 +468,7 @@ class ParseAndFinalizeTest(unittest.TestCase):
                                  Status.QUOTA)
 
 
-class VersionTest(unittest.TestCase):
+class VersionTest(HandExtTestCase):
     def test_user_agent_matches_plugin_version(self):
         manifest = ROOT / "plugins" / "hybrid-hands" / ".claude-plugin" / "plugin.json"
         version = json.loads(manifest.read_text(encoding="utf-8"))["version"]

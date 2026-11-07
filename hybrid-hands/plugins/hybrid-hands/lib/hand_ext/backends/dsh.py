@@ -25,7 +25,7 @@ Browser (`--browser`) facts read from the same install:
   3013 and 3043-3044). A patch list is therefore `[{insert: [{id, name, config}]}]`.
 - dsh/lib/bin.js lines 27-28, 60 and 105: `--patch` is repeatable and applied in argv order
   (profile-boot-C14i-8IN.js lines 231-245), so the browser MCP entry can live in a per-run
-  overlay while the shared `hand.patch.yml` stays untouched.
+  overlay while the setup-time shared `hand.patch.yml` stays untouched.
 - dsh-mcp-client/lib/index.js lines 781-801: stdio config schema (`transport`, `serverName`,
   `command`, `args`, `env`, `cwd`); lines 38-48 build the StdioClientTransport; lines 26-30
   pass `{...scrubbedParentEnv(), ...config.env}` as the child environment.
@@ -49,6 +49,9 @@ from typing import Dict, List, Optional, Tuple
 
 from .base import (Backend, CAPACITY_NOTE, Check, RunSpec, RunState, Status, bin_for,
                    is_capacity_error)
+from .sandbox import (META_FILE, OUTER_SANDBOX_ENV, OUTER_SANDBOX_SEATBELT,
+                      SANDBOX_DANGER_FULL_ACCESS, SANDBOX_READ_ONLY, SANDBOX_WORKSPACE_WRITE,
+                      in_codex_seatbelt, record_sandbox)
 from ..constants import (
     DEFAULT_COMPACT_AT, DEFAULT_CONTEXT_WINDOW, DSH_CAPACITY_WAIT_MIN_LINES,
     DSH_CAPACITY_WAIT_SECONDS,
@@ -57,7 +60,7 @@ from ..constants import (
 NAME = "dsh"
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_PATCH = PLUGIN_ROOT / "templates" / "dsh-hand.yml"
-PATCH_FILE = "hand.patch.yml"  # copy of the template inside DSH_HOME, used by runs
+PATCH_FILE = "hand.patch.yml"  # both the setup copy in DSH_HOME and each run's own copy
 LAUNCH_DIR = "launch"  # dir without `.env` dsh is started from, so it never reads the repo's
 ENV_FILE_NAME = ".env"
 DEFAULT_HOME = "~/.dsh-hand"
@@ -99,20 +102,12 @@ PLAYWRIGHT_BROWSERS_PATH = "PLAYWRIGHT_BROWSERS_PATH"
 KEY_ENV = "OPENCODE_GO_API_KEY"  # matches apiKeyEnv in templates/dsh-hand.yml
 ENV_HOME = "DSH_HOME"
 ENV_PERMISSION = "DSH_PERMISSION_MODE"
-# Codex marks its child processes with this env var; nesting a second sandbox-exec below
-# seatbelt fails with "sandbox_apply: Operation not permitted" (dsh-sandbox fail-closed).
-OUTER_SANDBOX_ENV = "CODEX_SANDBOX"
-OUTER_SANDBOX_SEATBELT = "seatbelt"
-SANDBOX_READ_ONLY = "read-only"
-SANDBOX_WORKSPACE_WRITE = "workspace-write"
-SANDBOX_DANGER_FULL_ACCESS = "danger-full-access"
 SEATBELT_REASON = "trong sandbox Codex (seatbelt): seatbelt ngoài vẫn giới hạn quyền ghi"
 SEATBELT_READ_ONLY_ERROR = (
     "dsh không giữ được read-only bên trong sandbox Codex (CODEX_SANDBOX=seatbelt): "
     "dùng --sandbox workspace-write hoặc giao việc cho hand Claude")
 OUTSIDE_SEATBELT_FULL_ACCESS_ERROR = (
     "dsh chỉ chạy danger-full-access khi đã ở trong sandbox Codex (CODEX_SANDBOX=seatbelt)")
-META_FILE = "meta.json"
 ENV_TELEMETRY = "DSH_TELEMETRY_MODE"
 TELEMETRY_OFF = "DISABLED"
 ENV_WORKSPACE = "HAND_EXT_DSH_WORKSPACE"
@@ -271,27 +266,6 @@ def model_id(raw: str) -> str:
     return model
 
 
-def in_codex_seatbelt() -> bool:
-    """True when dsh runs below Codex's seatbelt sandbox (nested sandbox-exec is refused)."""
-    return os.environ.get(OUTER_SANDBOX_ENV) == OUTER_SANDBOX_SEATBELT
-
-
-def _record_sandbox(spec: RunSpec, mode: str, requested: str, reason: str,
-                    refused: bool = False) -> None:
-    """Put the effective sandbox mode and why it changed into the run's meta.json."""
-    path = spec.run_dir / META_FILE
-    spec.run_dir.mkdir(parents=True, exist_ok=True)
-    meta = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-    if not isinstance(meta, dict):
-        raise ValueError(f"{path} phải chứa một JSON object")
-    meta["sandbox_mode"] = mode
-    meta["sandbox_requested"] = requested
-    meta["sandbox_reason"] = reason
-    if refused:
-        meta["sandbox_refused"] = True
-    path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-
 def permission_mode(spec: RunSpec) -> Tuple[str, Optional[str]]:
     """Effective DSH_PERMISSION_MODE plus a reason when seatbelt forces a change.
 
@@ -305,7 +279,7 @@ def permission_mode(spec: RunSpec) -> Tuple[str, Optional[str]]:
             raise ValueError(OUTSIDE_SEATBELT_FULL_ACCESS_ERROR)
         return spec.sandbox, None
     if spec.sandbox == SANDBOX_READ_ONLY:
-        _record_sandbox(spec, spec.sandbox, spec.sandbox, SEATBELT_READ_ONLY_ERROR,
+        record_sandbox(spec, spec.sandbox, spec.sandbox, SEATBELT_READ_ONLY_ERROR,
                         refused=True)
         raise ValueError(SEATBELT_READ_ONLY_ERROR)
     if spec.sandbox == SANDBOX_WORKSPACE_WRITE:
@@ -433,7 +407,7 @@ class DshBackend(Backend):
                                                                   DEFAULT_EFFORT)
         permission, reason = permission_mode(spec)
         if reason:
-            _record_sandbox(spec, permission, spec.sandbox, reason)
+            record_sandbox(spec, permission, spec.sandbox, reason)
         env = {
             KEY_ENV: read_key(key_file(options)),
             ENV_HOME: str(home_dir(options)),
@@ -455,12 +429,21 @@ class DshBackend(Backend):
 
     @staticmethod
     def _patches(options: dict, spec: RunSpec) -> List[Path]:
-        patches = [patch_file(options)]
+        # Start from the shipped template, not <home>/hand.patch.yml: that setup-time copy can
+        # be stale (e.g. missing the danger-full-access preset) and shared by other runs.
+        patches = [DshBackend._write_run_patch(spec)]
         if spec.browser:
             patches.append(DshBackend._write_browser_patch(options, spec))
         if compact_at_option(options):
             patches.append(DshBackend._write_compaction_patch(options, spec))
         return patches
+
+    @staticmethod
+    def _write_run_patch(spec: RunSpec) -> Path:
+        spec.run_dir.mkdir(parents=True, exist_ok=True)
+        path = spec.run_dir / PATCH_FILE
+        shutil.copyfile(TEMPLATE_PATCH, path)
+        return path
 
     @staticmethod
     def _write_compaction_patch(options: dict, spec: RunSpec) -> Path:

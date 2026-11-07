@@ -8,9 +8,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins" / "hybrid-hands" / "lib"))
 
 from hand_ext.constants import DEFAULTS  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 
-class DefaultsTest(unittest.TestCase):
+class DefaultsTest(HandExtTestCase):
     def test_order_only_deepseek(self) -> None:
         self.assertEqual(DEFAULTS["order"], ["dsh"])
         for name in ("codex", "claude", "gemini"):

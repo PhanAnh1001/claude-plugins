@@ -21,6 +21,7 @@ sys.path.insert(0, str(TESTS / "fixtures" / "hand_ext"))
 from codex_harness import Sandbox  # noqa: E402
 from hand_ext.backends.base import Usage  # noqa: E402
 from hand_ext.run_registry import RunRegistry  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 STATE_ENV = "HYBRID_HANDS_STATE_DIR"
 PARENT_ENV = "CLAUDE_CODE_SESSION_ID"
@@ -37,7 +38,7 @@ class Clock:
         return self.value
 
 
-class RegistryFileTest(unittest.TestCase):
+class RegistryFileTest(HandExtTestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="hand-ext-registry-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
@@ -154,7 +155,7 @@ class RegistryFileTest(unittest.TestCase):
         self.assertTrue(self.path("new").exists())
 
 
-class RegistryRunIntegrationTest(unittest.TestCase):
+class RegistryRunIntegrationTest(HandExtTestCase):
     def setUp(self) -> None:
         self.sb = Sandbox(order=["codex"])
         self.addCleanup(self.sb.close)

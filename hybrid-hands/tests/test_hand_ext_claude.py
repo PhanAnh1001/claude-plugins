@@ -22,6 +22,7 @@ from hand_ext.backends.claude import (  # noqa: E402
     ClaudeBackend, ClaudeMainBackend, parse_reset,
 )
 from hand_ext.runner import RunOutcome, child_env  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 
 def _spec(tmp: str, sandbox: str = "workspace-write", **opts) -> RunSpec:
@@ -39,7 +40,7 @@ def _run(name: str, exit_code: int = 0, stderr: str = ""):
     return status, state
 
 
-class ArgvTest(unittest.TestCase):
+class ArgvTest(HandExtTestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         patcher = mock.patch.dict(os.environ, {"HAND_EXT_CLAUDE_BIN": FAKE_BIN})
@@ -81,7 +82,7 @@ class ArgvTest(unittest.TestCase):
         self.assertEqual(env["CLAUDE_CONFIG_DIR"], self.tmp)
 
 
-class ClassifyTest(unittest.TestCase):
+class ClassifyTest(HandExtTestCase):
     def test_success_usage_from_model_usage(self):
         status, state = _run("claude_success.jsonl")
         self.assertEqual(status, Status.OK)
@@ -116,7 +117,7 @@ class ClassifyTest(unittest.TestCase):
         self.assertIsNone(parse_reset("soon", now))
 
 
-class DoctorTest(unittest.TestCase):
+class DoctorTest(HandExtTestCase):
     def _doctor(self, logged_in: bool):
         tmp = tempfile.mkdtemp()
         env = {"HAND_EXT_CLAUDE_BIN": FAKE_BIN, "FAKE_CLAUDE_LOGGED_IN": "1" if logged_in else "0"}
@@ -146,7 +147,7 @@ class DoctorTest(unittest.TestCase):
         self.assertIn("/login", "\n".join(lines))
 
 
-class MainBackendTest(unittest.TestCase):
+class MainBackendTest(HandExtTestCase):
     def test_main_plan_allowed_for_claude_main_only(self):
         tmp = tempfile.mkdtemp()
         (Path(tmp) / ".claude").mkdir()
@@ -178,7 +179,7 @@ class MainBackendTest(unittest.TestCase):
         self.assertEqual(hand_env["CLAUDE_CONFIG_DIR"], main_cfg)
 
 
-class DayBudgetTest(unittest.TestCase):
+class DayBudgetTest(HandExtTestCase):
     def setUp(self):
         self.home = Path(tempfile.mkdtemp(prefix="claude-home-"))
         (self.home / day_budget.USD_PER_PCT_PIN).write_text("1.0\n", encoding="utf-8")

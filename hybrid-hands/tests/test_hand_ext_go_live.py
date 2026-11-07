@@ -21,6 +21,7 @@ from hand_ext import cli, go_live, isolation, render, run_cmd  # noqa: E402
 from hand_ext.backends.base import RunState, Status, Usage  # noqa: E402
 from hand_ext.config import load_config  # noqa: E402
 from hand_ext.runner import RunOutcome  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 NOW = 1_700_000_000
 MODEL = "deepseek-v4.1-flash"
@@ -65,7 +66,7 @@ def _install_script(base: Path, name: str) -> Path:
     return script
 
 
-class CliHomeTest(unittest.TestCase):
+class CliHomeTest(HandExtTestCase):
     def test_claude_home_precedence(self) -> None:
         self.assertEqual(go_live.claude_home({"CLAUDE_HOME": "/a",
                                               "CLAUDE_CONFIG_DIR": "/b"}), Path("/a"))
@@ -81,7 +82,7 @@ class CliHomeTest(unittest.TestCase):
                          Path("/h") / ".statusline-go-usage.json")
 
 
-class FindFetchScriptTest(unittest.TestCase):
+class FindFetchScriptTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -131,7 +132,7 @@ class FindFetchScriptTest(unittest.TestCase):
         self.assertIsNone(go_live.find_fetch_script({}, self.home))
 
 
-class FetchTest(unittest.TestCase):
+class FetchTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -199,7 +200,7 @@ class FetchTest(unittest.TestCase):
         self.assertEqual(len(sleeps), 20)  # wait_s / 0.5, no unbounded loop
 
 
-class ReadLiveTest(unittest.TestCase):
+class ReadLiveTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -259,7 +260,7 @@ class ReadLiveTest(unittest.TestCase):
         self.assertIsNone(go_live.read_live(self.path, NOW))
 
 
-class LiveLineTest(unittest.TestCase):
+class LiveLineTest(HandExtTestCase):
     def setUp(self) -> None:
         self.original_tz = os.environ.get("TZ")
         os.environ["TZ"] = "UTC"
@@ -291,7 +292,7 @@ class LiveLineTest(unittest.TestCase):
             "~4% tháng (reset 05/12 22:13) (cache 12 phút trước)")
 
 
-class RefreshAndReadTest(unittest.TestCase):
+class RefreshAndReadTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -343,7 +344,7 @@ class RefreshAndReadTest(unittest.TestCase):
             run_fn=lambda *a, **k: subprocess.CompletedProcess([], 0), now_fn=boom))
 
 
-class LiveConfigTest(unittest.TestCase):
+class LiveConfigTest(HandExtTestCase):
     def project(self, base: Path, go_section: dict) -> Path:
         project = base / "project"
         (project / ".claude").mkdir(parents=True)
@@ -379,7 +380,7 @@ class _GoCfg:
         return {"go_price_per_mtok": PRICE} if name == "dsh" else {}
 
 
-class RunSummaryLiveTest(unittest.TestCase):
+class RunSummaryLiveTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -427,7 +428,7 @@ class _BucketBackend:
     name = "dsh"
 
 
-class AttemptSummaryLiveTest(unittest.TestCase):
+class AttemptSummaryLiveTest(HandExtTestCase):
     """`_attempt` prints the real line first and the ledger estimate as a secondary line."""
 
     def setUp(self) -> None:
@@ -488,7 +489,7 @@ class AttemptSummaryLiveTest(unittest.TestCase):
         self.assertNotIn("ước tính từ sổ:", out)
 
 
-class UsageCliLiveTest(unittest.TestCase):
+class UsageCliLiveTest(HandExtTestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)

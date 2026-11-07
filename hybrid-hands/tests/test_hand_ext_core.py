@@ -16,6 +16,7 @@ from codex_harness import Sandbox  # noqa: E402
 from hand_ext import ledger  # noqa: E402
 from hand_ext.backends import BackendUnavailable, get_backend  # noqa: E402
 from hand_ext.backends.base import Backend, Check, Status  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 FAKE_MODULE = "hand_ext.backends.stubb"
 
@@ -46,7 +47,7 @@ def _register_stub() -> None:
     sys.modules[FAKE_MODULE] = module
 
 
-class BrowserCliTest(unittest.TestCase):
+class BrowserCliTest(HandExtTestCase):
     def setUp(self) -> None:
         self.sb = Sandbox(order=["codex", "dsh"])
         self.addCleanup(self.sb.close)
@@ -74,7 +75,7 @@ class BrowserCliTest(unittest.TestCase):
         self.assertEqual(self.sb.ledger(), [])
 
 
-class CoreTest(unittest.TestCase):
+class CoreTest(HandExtTestCase):
     def setUp(self) -> None:
         _register_stub()
         self.sb = Sandbox(order=["codex", "stubb"])
@@ -145,7 +146,7 @@ class CoreTest(unittest.TestCase):
         self.assertIn("lab1", out)
 
 
-class LedgerTest(unittest.TestCase):
+class LedgerTest(HandExtTestCase):
     def test_two_processes_append_without_loss(self) -> None:
         sb = Sandbox(order=["codex"])
         try:

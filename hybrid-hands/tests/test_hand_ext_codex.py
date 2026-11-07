@@ -5,20 +5,24 @@ import json
 import os
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"))
 
 from codex_harness import SECRET, Sandbox  # noqa: E402
+from hand_ext.backends import codex  # noqa: E402
 from hand_ext.backends.codex import quota_from_rate_limits  # noqa: E402
 from hand_ext.backends.codex_config import merge_top_level  # noqa: E402
+from hand_ext.backends.base import RunSpec  # noqa: E402
+from hand_ext_case import HandExtTestCase  # noqa: E402
 
 OLD_CONFIG = ('model = "gpt-6.1-sol"\nservice_tier = "flex"\nmodel_reasoning_effort = "medium"\n'
               'sandbox_mode = "workspace-write"\n\n[mcp_servers.x]\ncommand = "y"\n')
 
 
-class CodexRunTest(unittest.TestCase):
+class CodexRunTest(HandExtTestCase):
     def setUp(self) -> None:
         self.sb = Sandbox(order=["codex"])
 
@@ -55,6 +59,36 @@ class CodexRunTest(unittest.TestCase):
         code, _, _ = self.sb.cli("run", "--brief", str(self.sb.brief), "--backend", "codex")
         self.assertEqual(code, 7)
         self.assertEqual(self.sb.ledger()[0]["status"], "not_logged_in")
+
+    def test_sandbox_mode_inside_and_outside_seatbelt(self) -> None:
+        spec = RunSpec(prompt="", cwd=self.sb.dir, run_dir=self.sb.dir / "run-seatbelt",
+                       model="gpt-6.1-sol", effort="high", sandbox="workspace-write",
+                       timeout_s=1, max_tokens=None,
+                       options={"home": str(self.sb.home)})
+        seatbelt = {codex.OUTER_SANDBOX_ENV: codex.OUTER_SANDBOX_SEATBELT}
+        with mock.patch.dict(os.environ, seatbelt):
+            argv, _, _ = codex.CodexBackend().build_command(spec)
+        self.assertEqual(argv[argv.index("-s") + 1], codex.SANDBOX_DANGER_FULL_ACCESS)
+        meta = json.loads((spec.run_dir / codex.META_FILE).read_text())
+        self.assertEqual(meta["sandbox_mode"], codex.SANDBOX_DANGER_FULL_ACCESS)
+        self.assertEqual(meta["sandbox_requested"], codex.SANDBOX_WORKSPACE_WRITE)
+        self.assertIn("seatbelt", meta["sandbox_reason"])
+
+        read_only = replace(spec, sandbox="read-only", run_dir=self.sb.dir / "run-readonly")
+        with mock.patch.dict(os.environ, seatbelt):
+            with self.assertRaises(ValueError) as raised:
+                codex.CodexBackend().build_command(read_only)
+        self.assertIn("read-only", str(raised.exception))
+        refused = json.loads((read_only.run_dir / codex.META_FILE).read_text())
+        self.assertEqual(refused["sandbox_mode"], codex.SANDBOX_READ_ONLY)
+        self.assertEqual(refused["sandbox_requested"], codex.SANDBOX_READ_ONLY)
+        self.assertTrue(refused["sandbox_refused"])
+
+        outside = replace(spec, run_dir=self.sb.dir / "run-outside")
+        with mock.patch.dict(os.environ, {codex.OUTER_SANDBOX_ENV: ""}):
+            argv, _, _ = codex.CodexBackend().build_command(outside)
+        self.assertEqual(argv[argv.index("-s") + 1], codex.SANDBOX_WORKSPACE_WRITE)
+        self.assertFalse((outside.run_dir / codex.META_FILE).exists())
 
     def test_usage_ledger_keeps_both_windows_and_estimates_once(self) -> None:
         home = self.sb.dir / "home"
@@ -97,7 +131,7 @@ class CodexRunTest(unittest.TestCase):
             self.assertNotIn(banned, text)
 
 
-class CodexSetupDoctorTest(unittest.TestCase):
+class CodexSetupDoctorTest(HandExtTestCase):
     def setUp(self) -> None:
         self.sb = Sandbox(order=["codex"])
 
