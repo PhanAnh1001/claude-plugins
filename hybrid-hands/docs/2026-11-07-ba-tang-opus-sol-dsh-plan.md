@@ -58,17 +58,21 @@
 - [ ] 4.1 Chạy spec mục 5.1 (phiên Sol làm một task L0 thật).
 - [ ] 4.2 Chạy spec mục 5.2 (`claude-main`, cả nhánh bị chặn).
 - [ ] 4.3 Ghi số đo ban đầu cho spec mục 5.3 vào plan này, hẹn đo lại sau 1-2 tuần.
-- [ ] 4.4 Lỗi phát hiện ở 4.1: Codex TUI dừng ở màn "Trust this folder?", nên phiên Sol chạy không người trực bị kẹt.
+- [x] 4.4 Lỗi phát hiện ở 4.1: Codex TUI dừng ở màn "Trust this folder?", nên phiên Sol chạy không người trực bị kẹt.
   - Sửa: trước khi mở phiên, `side-session start` ghi `[projects."<workdir>"] trust_level = "trusted"` vào `<codex_home>/config.toml`, chỉ khi workdir chưa có mục này. Workdir có thể là worktree mới.
   - Cột TOKENS báo 0 trong lúc kẹt là đúng: lúc đó chưa có rollout.
   - Thêm 1 test.
-- [ ] 4.5 Lỗi: `watch` đếm token Codex bằng `total_tokens`, gồm cả `cached_input_tokens` (`lib/side_session/tokens.py:6`).
+  - Đã sửa (lượt dsh `fix-44-45`): module mới `lib/side_session/codex_trust.py`, chạy làm prelude trong screen ngay trước `exec codex`.
+- [x] 4.5 Lỗi: `watch` đếm token Codex bằng `total_tokens`, gồm cả `cached_input_tokens` (`lib/side_session/tokens.py:6`).
   - Hậu quả: phiên Sol chạm cap 300k sau khoảng 2 phút làm việc (304k input, trong đó 260k cache; 4,8k output) và bị dừng (trạng thái `capped`).
   - Sửa: đếm `input_tokens - cached_input_tokens + output_tokens`, giống cách đếm của Claude (không tính cache read).
   - Thêm 1 test.
+  - Đã sửa cùng lượt `fix-44-45`; 382 test xanh.
 - [ ] 4.6 Lỗi: lượt `hand-ext run --backend claude-main` do Sol gọi trong sandbox lỗi ngay ở bước tạo worktree. Report chỉ có "Lỗi: Preparing worktree (detached HEAD 3a56c5c)", run dir `output/llm/hand-ext/20261107-113756-sol-l0-test-creative-claude-main/`.
   - Giả thuyết: sandbox `workspace-write` của Codex giữ `.git` ở chế độ chỉ đọc, nên `git worktree add` không ghi được `.git/worktrees`.
   - Điều tra: tái hiện bằng `codex exec -s workspace-write` với một lệnh `git worktree add` nhỏ. Kiểm xem thêm `<repo>/.git` vào `writable_roots` có đủ không.
-  - Nếu không đủ, đưa người dùng chọn: Sol gọi hand-ext với `--isolation none`, hay chuyển sandbox của Sol sang `danger-full-access`.
+  - Kết quả điều tra (brain, 07/11): tái hiện bằng `codex exec -s workspace-write`; chỉ có thư mục đích trong `writable_roots` thì lỗi `could not create leading directories of '.git/worktrees/w1': Operation not permitted`; thêm `<repo>/.git` thì `EXIT=0`. Cách sửa: `codex_writable_roots` thêm git common dir của workdir (`git rev-parse --path-format=absolute --git-common-dir`), giao dsh lượt `fix-46`.
+  - Worktree sót: lượt `sol-l0-test-fix` đã được dọn, không còn gì.
+  - (Không cần dùng) Nếu không đủ, đưa người dùng chọn: Sol gọi hand-ext với `--isolation none`, hay chuyển sandbox của Sol sang `danger-full-access`.
   - Lượt dsh `20261107-113905-sol-l0-test-fix-dsh` bị dừng giữa chừng khi phiên Sol bị cap. Kiểm và dọn worktree còn sót trong `~/.hybrid-hands/worktrees`.
 

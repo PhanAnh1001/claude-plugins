@@ -34,12 +34,12 @@ def is_alive(name: str) -> bool:
 
 
 def start_cmd(name: str, argv: list[str], cwd: str, env: dict[str, str] | None = None,
-              unset: tuple[str, ...] = ()) -> list[str]:
-    """screen -dmS NAME sh -c 'cd DIR && [unset VARS;] [ENV=..] exec ARGV'."""
+              unset: tuple[str, ...] = (), prelude: str = "") -> list[str]:
+    """screen -dmS NAME sh -c 'cd DIR && [unset VARS;] [PRELUDE] [ENV=..] exec ARGV'."""
     env_part = " ".join(f"{k}={shlex.quote(v)}" for k, v in (env or {}).items())
     unset_part = "".join(f"unset {shlex.quote(var)}; " for var in unset)
-    inner = (f"cd {shlex.quote(cwd)} && {unset_part}{env_part + ' ' if env_part else ''}"
-             f"exec {shlex.join(argv)}")
+    inner = (f"cd {shlex.quote(cwd)} && {unset_part}{prelude}"
+             f"{env_part + ' ' if env_part else ''}exec {shlex.join(argv)}")
     return ["screen", "-dmS", name, "sh", "-c", inner]
 
 

@@ -3,17 +3,21 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
+import subprocess
 import sys
 from pathlib import Path
 
 from hand_ext.config import load_config as load_hand_ext_config
 
+from . import codex_trust
 from . import constants as C
 from . import screen
 from .config import SideConfig
 
 SIDE_BIN = Path(__file__).resolve().parents[2] / "bin" / "side-session"
 HAND_EXT_BIN = Path(__file__).resolve().parents[2] / "bin" / "hand-ext"
+GIT_COMMON_DIR_TIMEOUT_S = 10
 
 
 def session_screen(name: str) -> str:
@@ -42,15 +46,36 @@ def done_path(handoff: str | Path) -> Path:
     return Path(handoff).with_suffix(C.DONE_SUFFIX)
 
 
-def codex_writable_roots(cfg: SideConfig) -> list[str]:
+def codex_writable_roots(cfg: SideConfig, workdir: str | None = None) -> list[str]:
     """Every dir Sol's Codex sandbox must write to run hand-ext and keep its state.
 
     The hand-ext config is the source of truth (runs dir, worktrees, ledger/quota dirs,
     machine state and backend homes). `~/.claude` is the claude-main hand's main plan dir.
+    `workdir`'s git common dir is added so `git worktree add` can write `.git/worktrees`;
+    a `--worktree` workdir does not exist yet when argv is built, so fall back to the
+    repo's (a linked worktree shares it).
     """
+    common = _git_common_dir(workdir) or _git_common_dir(str(cfg.repo))
     roots = [cfg.worktree_root, cfg.handoff_dir, *_hand_ext_roots(cfg),
-             Path(C.CLAUDE_MAIN_HOME)]
-    return list(dict.fromkeys(str(Path(root).expanduser()) for root in roots))
+             Path(C.CLAUDE_MAIN_HOME), common]
+    return list(dict.fromkeys(str(Path(root).expanduser()) for root in roots if root))
+
+
+def _git_common_dir(workdir: str | None) -> Path | None:
+    """Git common dir of `workdir` (the repo's `.git` when it is a linked worktree)."""
+    if not workdir:
+        return None
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(workdir), "rev-parse", "--path-format=absolute",
+             "--git-common-dir"],
+            capture_output=True, text=True, timeout=GIT_COMMON_DIR_TIMEOUT_S)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    common_dir = proc.stdout.strip()
+    if proc.returncode != 0 or not common_dir:
+        return None
+    return Path(common_dir)
 
 
 def _hand_ext_roots(cfg: SideConfig) -> list[Path]:
@@ -105,7 +130,7 @@ def codex_argv(cfg: SideConfig, workdir: str, prompt: str,
                model: str | None = None, effort: str | None = None) -> list[str]:
     """Codex TUI argv: model/effort, no approvals, workspace-write with network."""
     profile = ["-p", cfg.codex_profile] if cfg.codex_profile else []
-    roots = json.dumps(codex_writable_roots(cfg))
+    roots = json.dumps(codex_writable_roots(cfg, workdir))
     return ["codex", *profile, "-C", workdir,
             "-m", model or cfg.codex_model,
             "-a", C.CODEX_APPROVAL,
@@ -154,8 +179,11 @@ def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
                 effort: str | None = None) -> list[str]:
     argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
                               prompt_path, hours, resume, model, effort)
+    prelude = ""
+    if provider == C.PROVIDER_CODEX:
+        prelude = f"{shlex.join(codex_trust.prelude_argv(cfg.codex_home, workdir))} && "
     return screen.start_cmd(session_screen(name), argv, workdir, env,
-                            unset=(C.CHILD_SESSION_ENV,))
+                            unset=(C.CHILD_SESSION_ENV,), prelude=prelude)
 
 
 def watch_cmd(cfg: SideConfig, name: str) -> list[str]:

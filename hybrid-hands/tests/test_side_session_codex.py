@@ -1,9 +1,10 @@
-"""side_session codex specifics: optional -p, rollout filtered by session start."""
+"""side_session codex specifics: optional -p, rollout filtered by session start, trust, tokens."""
 from __future__ import annotations
 
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import time
@@ -18,7 +19,7 @@ sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
 
 from side_session import actions, constants as C, state, tokens  # noqa: E402
 from side_session.commands import (HAND_EXT_BIN, build_codex_prompt,  # noqa: E402
-                                   provider_argv)
+                                   codex_argv, provider_argv)
 from side_session.config import SideConfig  # noqa: E402
 
 OLD_AGE_S = 3600  # an earlier hand-gpt run finished an hour before the session
@@ -64,6 +65,24 @@ class CodexArgvTest(unittest.TestCase):
         self.assertIn(str(HAND_EXT_BIN), prompt)
         self.assertNotIn(C.HAND_EXT_PLACEHOLDER, prompt)
 
+    def test_worktree_workdir_adds_repo_git_common_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo, worktree = Path(d) / "repo", Path(d) / "wt"
+            repo.mkdir()
+            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c",
+                            "user.email=t@e", "commit", "--allow-empty", "-qm", "i"],
+                           check=True)
+            subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q",
+                            str(worktree)], check=True)
+            cfg = self._cfg("")
+            cfg.repo = repo
+            argv = codex_argv(cfg, str(worktree), "hi")
+            roots = json.loads(next(part for part in argv if part.startswith(
+                "sandbox_workspace_write.writable_roots=")).split("=", 1)[1])
+            self.assertIn(str((repo / ".git").resolve()),
+                          [str(Path(path).resolve()) for path in roots])
+
 
 class DoneContractTest(unittest.TestCase):
     def test_done_marker_sets_status_done_in_ls_and_watch(self):
@@ -89,6 +108,45 @@ class DoneContractTest(unittest.TestCase):
                     cfg, SimpleNamespace(name="n", interval=None, once=True)), 0)
             self.assertIn(C.STATUS_DONE, out.getvalue())
             self.assertEqual(state.load(cfg.state_dir, "n").status, C.STATUS_DONE)
+
+
+class CodexTrustTest(unittest.TestCase):
+    def test_start_trusts_codex_workdir_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            screen = tmp / "bin" / "screen"
+            screen.parent.mkdir()
+            screen.write_text('#!/bin/sh\n[ "$1" = "-dmS" ] && sh -c "$5"\nexit 0\n')
+            screen.chmod(0o755)
+            cfg = SideConfig(repo=tmp, handoff_dir=tmp / "h", worktree_root=tmp / "wt",
+                             max_parallel=1, default_max_tokens=1, watch_interval_s=0,
+                             state_dir=tmp / "state", codex_home=tmp / "codex")
+            args = SimpleNamespace(
+                name="n", resume=False, prompt="x", prompt_file=None, provider=C.PROVIDER_CODEX,
+                chrome=None, worktree=False, base=None, max_tokens=None, hours=None, model=None,
+                effort=None, dry_run=False, brain="", budget_exempt=False, force_budget=False)
+            with mock.patch.dict(os.environ, {"PATH": f"{screen.parent}{os.pathsep}{os.environ['PATH']}"}), \
+                    mock.patch.object(actions.K, "watch_cmd", return_value=["true"]), \
+                    mock.patch.object(actions.K, "provider_argv",
+                                      return_value=(["true"], {})), \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(actions.start(cfg, args), 0)
+                state.state_path(cfg.state_dir, "n").unlink()
+                self.assertEqual(actions.start(cfg, args), 0)
+            text = (cfg.codex_home / "config.toml").read_text()
+            self.assertEqual(text.count(f'[projects."{tmp}"]'), 1)
+            self.assertIn('trust_level = "trusted"', text)
+
+
+class CodexTokensTest(unittest.TestCase):
+    def test_codex_tokens_ignore_cached_input(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "rollout.jsonl"
+            path.write_text(json.dumps({"type": "event_msg", "payload": {
+                "type": "token_count", "info": {"total_token_usage": {
+                    "input_tokens": 304000, "cached_input_tokens": 260000,
+                    "output_tokens": 4800}}}}) + "\n")
+            self.assertEqual(tokens.codex_tokens(path), 48800)
 
 
 class RolloutSinceTest(unittest.TestCase):

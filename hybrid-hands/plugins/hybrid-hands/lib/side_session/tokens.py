@@ -4,7 +4,8 @@ Claude sessions can use the status-line token file configured as
 `side_session.token_file` (one non-negative integer); otherwise the transcript is summed
 over unique assistant message ids of input_tokens + cache_creation_input_tokens +
 output_tokens (cache_read_input_tokens NOT counted). Codex = last `token_count` event
-total in the rollout file.
+in the rollout file: input_tokens - cached_input_tokens + output_tokens (cache reads
+NOT counted).
 """
 from __future__ import annotations
 
@@ -87,6 +88,8 @@ def codex_tokens(path: Path | None) -> int:
             continue
         info = payload.get("info") or {}
         usage = info.get("total_token_usage") or {}
-        last = int(usage.get("total_tokens")
-                   or usage.get("input_tokens", 0) + usage.get("output_tokens", 0))
+        total_input = int(usage.get("input_tokens") or 0)
+        cached = int(usage.get("cached_input_tokens") or 0)
+        output = int(usage.get("output_tokens") or 0)
+        last = max(0, total_input - cached + output)
     return last
