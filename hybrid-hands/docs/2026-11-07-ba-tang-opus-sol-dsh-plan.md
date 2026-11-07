@@ -3,17 +3,15 @@
 ## Tóm tắt
 
 - **Mục tiêu:** làm theo spec `2026-11-07-ba-tang-opus-sol-dsh-spec.md`. Có 5 nhóm: phiên Sol trên Codex, backend `claude-main`, policy mới, kiểm thực tế, và (thêm 07/11) dự phòng 429 bằng Sol low cùng hạn mức GPT trên Paseo và statusline.
-- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); 4.3 xong (15:00, baseline ở mục 4.3); 4.12-4.14 xong (15:05); 5.3, 5.4 xong (15:40); đang chạy phiên `sol-415` (4.15, 4.16); còn 5.6.
-  - Test đầy đủ: 388 test xanh (07/11, 13:50). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng 5/5 xanh); chưa xử lý.
-  - 4.2 nhánh chặn đã thử: `.claude/hybrid-hands.json` tạm `max_day_pct` = 1 → "máy này đã dùng 2.4% Claude hôm nay (ngưỡng 1%)", thoát mã 7; đã xoá file tạm.
-  - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
-  - Lượt sửa: `fix-47-48` dsh chết vì Go 429 quá tải, chạy lại `fix-47-48b` bằng `--backend codex --effort medium` (3 phút); `fix-49-410b` dsh (10 phút). Brain tự sửa thêm: 2 kỳ vọng test cũ trong `tests/test_side_session.py`; dsh từ chối `danger-full-access` khi ở ngoài seatbelt (preset mới trong template chỉ dùng cho ca lồng sandbox).
+- **Trạng thái (07/11/2026, 15:50):** xong mọi task trừ 4.15, 4.16 (phiên Sol `sol-415` đang chạy) và 5.6. Nhánh `feat/ba-tang-opus-sol-dsh` đã merge fast-forward vào `main` và push (người dùng đồng ý 07/11 15:45). Hai plugin đọc thẳng từ thư mục repo (`hybrid-hands` 0.24.0, `statusline` 0.19.1), `claude plugin validate` đạt.
+  - Test đầy đủ: hybrid-hands 395/395 (15:35), statusline 187/187 (15:40). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng xanh); chưa xử lý.
+  - Lịch sử các lượt sửa và kiểm thực tế ghi ở từng task mục 4 và 5.
   - **Phiên brain sau làm tiếp:**
-    1. **Đang chạy (từ 14:50):** phiên Sol `sol-412-414` (4.12-4.14) và `sol-53` (5.3), cả hai `--worktree` (`~/app/claude-plugins-wt/<tên>`, nhánh `side/<tên>`), prompt ở `/tmp/hh-briefs/<tên>.md`. Kiểm bằng `side-session ls`; xong khi có `docs/work-in-progress/handoffs/<tên>.done` ở repo chính (thư mục `docs/` gốc repo chưa track, không commit). Đọc `side-session handoff <tên>` và file `.md` cùng chỗ.
-    2. Mỗi phiên xong: lấy patch bằng `git -C <worktree> add -A -N . && git -C <worktree> diff --binary HEAD -- <file, trừ output/>`, `git apply` vào nhánh này; chạy `python3 -m unittest discover -s hybrid-hands/tests -q` một lần; commit; `side-session stop <tên>`; `git worktree remove --force <worktree>` và `git branch -D side/<tên>`. 4.13 có thể cần Opus quyết theo bàn giao.
-    3. Giao `sol-54` (5.4, `statusline/`, đọc sổ `~/.hybrid-hands/codex_usage.jsonl`), rồi 5.6 (kiểm thực tế USD và % trên `hh-ps` và statusline).
-    4. ~~Ghi số đo ban đầu 4.3~~ (xong 15:00). Giao 4.15 (`hand-ext report` bỏ sót worktree) cùng phiên Sol sau.
-    5. Hỏi người dùng có merge vào main không.
+    1. **`sol-415` (4.15, 4.16):** mở lúc 15:40 bằng `--worktree` (`~/app/claude-plugins-wt/sol-415`, nhánh `side/sol-415`, gốc `c1ce540`), prompt `/tmp/hh-briefs/sol-415.md`. Xong khi có `docs/work-in-progress/handoffs/sol-415.done` ở repo chính (thư mục `docs/` gốc repo không track, không commit). Đọc `side-session handoff sol-415`.
+    2. Áp patch: `git -C <worktree> add -A -N . && git -C <worktree> diff --binary HEAD -- . ':!output' > /tmp/p.patch`, rồi `git apply --3way /tmp/p.patch` vào `feat/ba-tang-opus-sol-dsh`. Chạy `python3 -m unittest discover -s hybrid-hands/tests -q` một lần, commit, `side-session stop sol-415`, `git worktree remove --force <worktree>`, `git branch -D side/sol-415`. Fast-forward `main` rồi push (người dùng đã đồng ý cho đợt này).
+    3. **5.6:** người dùng đã duyệt `paseo daemon restart` (đã chạy lúc 15:50). Còn: một lượt hand codex low thật để sổ có `cost_usd`, rồi xem `hh-ps` và thanh trạng thái hiện đủ USD và %; Paseo không còn tài khoản `~/.codex`. Gộp: ẩn `GPT 5h ?` trên cây khi tài khoản không có cửa sổ 5h; typecheck TS `hh-tree-pane`, `paseo-hh-tree`; xem UI trên điện thoại (người dùng tự xem).
+    4. Phiên `sol-paseo` do phiên brain khác mở, không động vào.
+    5. Đo lại 4.3 trong khoảng 14-21/11/2026.
 - **Cách làm:**
   - Nhóm 1 và 2 chạm vùng code khác nhau, nên giao 2 hand dsh song song (`hand-ext run --backend auto`), mức test tối thiểu.
   - Nhóm 3 là văn bản policy, giao 1 hand dsh sau khi nhóm 1-2 xong để chép đúng tên cờ và khoá.
