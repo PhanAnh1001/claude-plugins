@@ -9,9 +9,9 @@
   - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
   - Lượt sửa: `fix-47-48` dsh chết vì Go 429 quá tải, chạy lại `fix-47-48b` bằng `--backend codex --effort medium` (3 phút); `fix-49-410b` dsh (10 phút). Brain tự sửa thêm: 2 kỳ vọng test cũ trong `tests/test_side_session.py`; dsh từ chối `danger-full-access` khi ở ngoài seatbelt (preset mới trong template chỉ dùng cho ca lồng sandbox).
   - **Phiên brain sau làm tiếp:**
-    1. Hỏi người dùng duyệt mục 5 (Q5a-Q5c).
-    2. Sửa 4.11 (dsh, `lib/side_session/tokens.py`), cùng lúc giao 5.1-5.2 (`lib/hand_ext`). Sau đó giao 5.3 (`lib/hh_ps`) và 5.4 (`statusline/`) song song. 5.5 do brain làm (config máy người dùng).
-    3. Chạy lại 4.1 + 4.2 + 5.6 bằng một phiên Sol mới (`side-session start --provider codex --worktree`); đạt thì tick.
+    1. **Đang chạy (14:15):** phiên Sol `sol-411` (4.11 + lượt kiểm `claude-main` cho 4.2) và `sol-51-52` (5.1 + 5.2), cả hai `--worktree`, prompt ở `/tmp/hh-briefs/<tên>.md`. Hand Claude tra giá `gpt-6.1-sol` (Q5b), hand Claude làm 5.5 (Paseo config).
+    2. Chờ `.done` của hai phiên Sol, đọc `side-session handoff`. Kiểm 4.1: không kẹt hỏi duyệt; `.done` đúng chỗ; dsh trong sandbox chạy được shell; cột TOKENS đúng từng phiên. Áp diff từ worktree, chạy bộ test đầy đủ một lần, commit, dọn worktree.
+    3. Đặt giá Q5b làm mặc định. Giao 5.3 (`lib/hh_ps`) và 5.4 (`statusline/`) cho 2 phiên Sol song song, rồi 5.6.
     4. Ghi số đo ban đầu 4.3.
     5. Hỏi người dùng có merge vào main không.
 - **Cách làm:**
@@ -101,13 +101,16 @@
 
 ## 5. Dự phòng 429 bằng Sol low, hiện hạn mức GPT trên Paseo và statusline
 
-Người dùng yêu cầu (07/11, 14:00). Lane L2: brain viết, người dùng duyệt mục này trước khi giao. Mức test tối thiểu.
+Người dùng yêu cầu (07/11, 14:00), duyệt 14:10. Lane L2: brain cắt thành gói L1 giao phiên Sol; đồng thời dùng làm lượt chạy lại 4.1. Mức test tối thiểu.
 
-- **Quyết định cần duyệt (đề xuất của brain):**
-  - Q5a: Khi dsh trả 429 quá tải (`CAPACITY_RE` ở `lib/hand_ext/backends/base.py:24`) và patch của lượt dsh **rỗng**, `--backend auto` tự chạy lại brief bằng backend `codex`, model `gpt-6.1-sol`, effort `low`. Patch dsh không rỗng thì không chuyển, trả `failed` và giữ patch, để tránh làm lại hoặc ghi đè phần đã sửa.
-  - Q5b: USD của GPT là **ước tính** từ token × đơn giá trong khoá `backends.codex.price_per_mtok` (input, cached, output), giống cách ước tính Go. Thiếu đơn giá thì hiện `?`, không tự tra giá. Người dùng điền đơn giá.
-  - Q5c: "Account GPT free cũ" là `~/.codex` (đăng nhập ChatGPT mặc định, model `gpt-5.6-terra`/`luna`); account mới là `~/.codex-hand`. Tạm tắt `~/.codex` nghĩa là Paseo, hh-ps và statusline không đọc hay hiện `~/.codex`; hand-ext và side-session không bao giờ dùng nó. Không đăng xuất và không xoá `~/.codex`.
-- [ ] 5.1 Dự phòng 429 (Q5a): `lib/hand_ext/run_cmd.py`, logic chọn backend của `auto`. Ghi vào report "dsh 429 quá tải → codex low". Cập nhật policy (`hooks/inject-policy.sh` dòng Dự phòng, giữ dưới 1800 ký tự), `skills/ext-hand/SKILL.md` (mục 429), README. 1 test.
+- **Quyết định (người dùng chốt 07/11, 14:10):**
+  - Q5a: dsh trả 429 quá tải (`CAPACITY_RE` ở `lib/hand_ext/backends/base.py:24`) với `--backend auto`:
+    - **dsh đã sửa nhiều** (patch ≥ `backends.dsh.capacity_wait_min_lines` dòng thêm + xoá, mặc định 30): đợi. Giữ worktree, chờ 3 phút rồi chạy dsh tiếp trên worktree đó (brief kèm ghi chú "đã có patch, làm tiếp"), tối đa 2 lần. Vẫn 429 thì trả `failed` và giữ patch.
+    - **dsh sửa ít** (dưới ngưỡng, kể cả rỗng): bỏ patch dsh, chạy lại brief bằng backend `codex`, model `gpt-6.1-sol`, effort `low`.
+    - Report ghi rõ nhánh đã đi.
+  - Q5b: USD GPT là **ước tính** từ token × đơn giá API của `gpt-6.1-sol` (input, cached input, output mỗi 1M token), ở khoá `backends.codex.price_per_mtok`. Brain tra giá công khai (kèm link và ngày) rồi đặt làm mặc định; thiếu giá thì hiện `?`.
+  - Q5c (đúng như đề xuất): account GPT free cũ là `~/.codex` (model `gpt-5.6-terra`/`luna`), account mới là `~/.codex-hand`. Tạm tắt `~/.codex` nghĩa là Paseo, hh-ps, statusline không đọc hay hiện nó, và hand-ext, side-session không dùng nó. Không đăng xuất, không xoá.
+- [ ] 5.1 Dự phòng 429 (Q5a): `lib/hand_ext/run_cmd.py`, logic chọn backend của `auto`. Cập nhật policy (`hooks/inject-policy.sh` dòng Dự phòng, giữ dưới 1800 ký tự), `skills/ext-hand/SKILL.md` (mục 429), README. 1 test.
 - [ ] 5.2 Ghi số liệu GPT cho mỗi lượt hand codex: hand-ext đã đọc `rate_limits` (`backends/codex.py:44` `quota_from_rate_limits`). Thêm ghi vào sổ (giống `~/.hybrid-hands/go_usage.jsonl`, ví dụ `codex_usage.jsonl`): `run_id`, `ended`, `model`, `effort`, token, `cost_usd` ước tính (Q5b), `used_percent` 5h và tuần kèm `resets_at`, `codex_home` dạng tên thư mục. Không ghi hội thoại. 1 test.
 - [ ] 5.3 Panel Paseo (`hh-ps`/`hh-tree`, `lib/hh_ps/`):
   - mỗi phiên hand codex và phiên Sol hiện USD ước tính và % hạn mức GPT;
