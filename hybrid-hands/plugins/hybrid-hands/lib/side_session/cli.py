@@ -7,6 +7,7 @@ from pathlib import Path
 from . import actions
 from . import attach
 from . import constants as C
+from . import state
 from .config import load_config
 
 
@@ -69,12 +70,32 @@ def _default_provider(args: argparse.Namespace) -> str:
     return C.PROVIDER_CODEX
 
 
+def _attach_transport_lookup():
+    """Optional state lookup for `attach NAME`; Paseo terminals may run outside a repo."""
+    try:
+        cfg = load_config(Path.cwd())
+    except (SystemExit, OSError, ValueError):
+        return None
+
+    def lookup(name: str):
+        path = state.state_path(cfg.state_dir, name)
+        if not path.is_file():
+            return None
+        try:
+            st = state.load(cfg.state_dir, name)
+        except (OSError, ValueError):
+            return None
+        return (st.transport, st.paseo_agent_id)
+
+    return lookup
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "start" and args.provider is None:
         args.provider = _default_provider(args)
     if args.cmd == "attach":
         # Paseo runs terminal profiles from an arbitrary cwd with no project config.
-        return attach.main(args.name)
+        return attach.main(args.name, transport_fn=_attach_transport_lookup())
     cfg = load_config(Path.cwd())
     return HANDLERS[args.cmd](cfg, args)

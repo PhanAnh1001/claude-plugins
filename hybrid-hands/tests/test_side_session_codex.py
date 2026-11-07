@@ -136,7 +136,8 @@ class CodexArgvTest(unittest.TestCase):
                              state_dir=Path(d)/"state")
             args = build_parser().parse_args(["start", "--name", "n", "--prompt", "hi",
                                               "--provider", C.PROVIDER_CODEX])
-            with mock.patch.object(actions.K, "session_cmd", return_value=["screen"]), \
+            with mock.patch.dict(os.environ, {"SIDE_SESSION_NO_PASEO": "1"}), \
+                    mock.patch.object(actions.K, "session_cmd", return_value=["screen"]), \
                     mock.patch.object(actions.screen, "screen_names", return_value=set()), \
                     mock.patch.object(actions.subprocess, "run") as run, redirect_stdout(io.StringIO()):
                 run.side_effect = lambda *a, **kw: (self.assertTrue(cfg.handoff_dir.is_dir())
@@ -192,7 +193,8 @@ class CodexTrustTest(unittest.TestCase):
                 name="n", resume=False, prompt="x", prompt_file=None, provider=C.PROVIDER_CODEX,
                 chrome=None, worktree=False, base=None, max_tokens=None, hours=None, model=None,
                 effort=None, dry_run=False, brain="", budget_exempt=False, force_budget=False)
-            with mock.patch.dict(os.environ, {"PATH": f"{screen.parent}{os.pathsep}{os.environ['PATH']}"}), \
+            with mock.patch.dict(os.environ, {"PATH": f"{screen.parent}{os.pathsep}{os.environ['PATH']}",
+                                               "SIDE_SESSION_NO_PASEO": "1"}), \
                     mock.patch.object(actions.K, "watch_cmd", return_value=["true"]), \
                     mock.patch.object(actions.K, "provider_argv",
                                       return_value=(["true"], {})), \

@@ -52,6 +52,7 @@ class SideSessionTest(unittest.TestCase):
         os.environ["FAKE_DIR"] = str(self.tmp)
         os.environ["SIDE_SESSION_CLAUDE_PROJECTS"] = str(self.projects)
         os.environ["HYBRID_HANDS_STATE_DIR"] = str(self.machine)
+        os.environ["SIDE_SESSION_NO_PASEO"] = "1"
         self._cwd = os.getcwd()
         os.chdir(self.repo)
 

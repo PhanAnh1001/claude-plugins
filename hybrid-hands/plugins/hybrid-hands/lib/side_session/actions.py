@@ -11,15 +11,28 @@ from pathlib import Path
 from . import budget
 from . import commands as K
 from . import constants as C
-from . import external, screen, state, tokens
+from . import external, paseo, screen, state, tokens
 from .config import SideConfig
 from .handoff import build_prompt, summary_block
 
 
 def _running(cfg: SideConfig) -> list[state.SessionState]:
-    alive = screen.screen_names()
-    return [s for s in state.load_all(cfg.state_dir)
-            if s.status in C.ACTIVE_STATUSES and s.screen in alive]
+    """Active sessions; a Paseo agent confirmed dead/terminal no longer holds a slot."""
+    sessions = state.load_all(cfg.state_dir)
+    needs_screen = any(s.transport != C.TRANSPORT_PASEO
+                       and s.status in C.ACTIVE_STATUSES for s in sessions)
+    alive = screen.screen_names() if needs_screen else set()
+    running = []
+    for st in sessions:
+        if st.status not in C.ACTIVE_STATUSES:
+            continue
+        if st.transport == C.TRANSPORT_PASEO:
+            # Unknown (disconnect) still counts; only a confirmed dead agent drops out.
+            if paseo.refresh(cfg, st) != "dead":
+                running.append(st)
+        elif st.screen in alive:
+            running.append(st)
+    return running
 
 
 def _validate_start(a, full_prompt: str) -> int:
@@ -112,6 +125,9 @@ def start(cfg: SideConfig, a) -> int:
             and state.load(cfg.state_dir, name).status in C.ACTIVE_STATUSES:
         print(f"side-session: {name} already running")
         return C.EXIT_USAGE
+    paseo_plan = paseo.plan(cfg, a)
+    if paseo_plan is not None and paseo_plan.get("error"):
+        return C.EXIT_USAGE
     sid = str(uuidlib.uuid4())
     workdir = str(cfg.worktree_root / name) if a.worktree else str(cfg.repo)
     max_tokens = K.max_tokens_for(cfg, a.max_tokens, a.hours)
@@ -123,18 +139,20 @@ def start(cfg: SideConfig, a) -> int:
     if not a.dry_run:
         cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
-    cmds = []
-    if a.worktree:
-        cmds.append(K.worktree_cmd(cfg, name, a.base or C.DEFAULT_BASE))
-    cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
-                              prompt_file, a.hours, model=a.model, effort=a.effort))
-    cmds.append(K.watch_cmd(cfg, name))
     st = state.SessionState(
         name=name, uuid=sid, provider=a.provider, dir=workdir, screen=K.session_screen(name),
         watch_screen=K.watch_screen(name), max_tokens=max_tokens, started=started,
         status=C.STATUS_RUNNING, handoff=str(handoff), worktree=bool(a.worktree),
         parent_session=os.environ.get(C.PARENT_SESSION_ENV, ""), chrome=chrome,
         budget_exempt=bool(a.budget_exempt))
+    if paseo_plan is not None:
+        return paseo.start_session(cfg, a, st, workdir, full_prompt, paseo_plan["target"])
+    cmds = []
+    if a.worktree:
+        cmds.append(K.worktree_cmd(cfg, name, a.base or C.DEFAULT_BASE))
+    cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
+                              prompt_file, a.hours, model=a.model, effort=a.effort))
+    cmds.append(K.watch_cmd(cfg, name))
     return _launch(cfg, a, st, cmds, prompt_file=prompt_file, prompt_text=full_prompt,
                    dry_run_kind="session",
                    done_message=f"started {name} (screen -r {K.session_screen(name)}), "
@@ -206,19 +224,32 @@ def resume(cfg: SideConfig, a) -> int:
                                 f"uuid {old.uuid}, cap {max_tokens}")
 
 
+def _find_rollout(cfg: SideConfig, st: state.SessionState) -> Path | None:
+    """Exact thread rollout, else cwd discovery for screen sessions only.
+
+    A Paseo session without its thread id has unknown tokens: never fall back to a
+    cwd match, because another hand can share the workdir in this CODEX_HOME.
+    """
+    if getattr(st, "codex_thread_id", ""):
+        return tokens.codex_rollout_for_thread(cfg.codex_home, st.codex_thread_id, st.dir)
+    if getattr(st, "transport", C.TRANSPORT_SCREEN) == C.TRANSPORT_PASEO:
+        return None
+    return tokens.codex_rollout(cfg.codex_home, st.dir, st.started)
+
+
 def _rollout_path(cfg: SideConfig, st: state.SessionState) -> Path | None:
     """Pinned rollout only; never re-search once a path is in the state."""
     pinned = getattr(st, "codex_rollout", "")
     if pinned:
         return Path(pinned)
-    return tokens.codex_rollout(cfg.codex_home, st.dir, st.started)
+    return _find_rollout(cfg, st)
 
 
 def _pin_rollout(cfg: SideConfig, st: state.SessionState) -> None:
     """Remember the first matching rollout so later counts use the same source."""
     if getattr(st, "codex_rollout", ""):
         return
-    found = tokens.codex_rollout(cfg.codex_home, st.dir, st.started)
+    found = _find_rollout(cfg, st)
     if found is None:
         return
     st.codex_rollout = str(found)
@@ -267,19 +298,26 @@ def _token_cell(cfg: SideConfig, st: state.SessionState, used: int) -> str:
 
 
 def ls(cfg: SideConfig, _a) -> int:
-    alive = screen.screen_names()
+    sessions = state.load_all(cfg.state_dir)
+    needs_screen = any(s.transport != C.TRANSPORT_PASEO
+                       and s.status in C.ACTIVE_STATUSES for s in sessions)
+    alive = screen.screen_names() if needs_screen else set()
     rows = [("NAME", "PROVIDER", "CHROME", "STATUS", "LIVE", "TOKENS/CAP", "AGE", "HANDOFF")]
-    for st in state.load_all(cfg.state_dir):
+    for st in sessions:
         if st.provider == C.PROVIDER_CODEX:
             _pin_rollout(cfg, st)
-        done = st.status == C.STATUS_RUNNING and K.done_path(st.handoff).is_file()
-        status = C.STATUS_DONE if done else st.status
-        used = (count_tokens(cfg, st) if status == C.STATUS_RUNNING
+        done = K.done_path(st.handoff).is_file()
+        live = "alive" if st.screen in alive else "dead"
+        if st.transport == C.TRANSPORT_PASEO:
+            live = paseo.refresh(cfg, st)
+        # A .done marker only advances a still-active state; it must not turn a
+        # stopped/daystop session back into done in the listing.
+        status = C.STATUS_DONE if done and st.status in C.ACTIVE_STATUSES else st.status
+        used = (count_tokens(cfg, st) if status in C.ACTIVE_STATUSES
                 else st.tokens_used)
         token_cell = _token_cell(cfg, st, used)
         rows.append((st.name, st.provider, "yes" if st.chrome else "no", status,
-                     "alive" if st.screen in alive else "dead", token_cell,
-                     _age(time.time() - st.started),
+                     live, token_cell, _age(time.time() - st.started),
                      "yes" if Path(st.handoff).is_file() else "no"))
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
     for r in rows:
@@ -292,10 +330,11 @@ def _quit(name: str) -> None:
 
 
 def stop_session(cfg: SideConfig, st: state.SessionState, status: str, *, stop_watch: bool) -> None:
-    _quit(st.screen)
+    if st.screen:
+        _quit(st.screen)
     st.status = status
     state.save(cfg.state_dir, st)
-    if stop_watch:
+    if stop_watch and st.watch_screen:
         _quit(st.watch_screen)
 
 
@@ -309,6 +348,12 @@ def _stopped_message(st: state.SessionState) -> str:
 def stop(cfg: SideConfig, a) -> int:
     st = state.load(cfg.state_dir, a.name)
     st.tokens_used = count_tokens(cfg, st)
+    if st.transport == C.TRANSPORT_PASEO:
+        failure = paseo.interrupt(st)
+        if failure:
+            print(f"side-session: không dừng được Paseo agent ({failure}); "
+                  "giữ nguyên state và watchdog")
+            return 1
     stop_session(cfg, st, C.STATUS_STOPPED, stop_watch=True)
     print(_stopped_message(st))
     if st.worktree:
@@ -333,7 +378,19 @@ def _budget_daystop(cfg: SideConfig, st: state.SessionState) -> bool:
     result = budget.check(cfg)
     if not budget.daystop(result, st.budget_exempt):
         return False
-    stop_session(cfg, st, C.STATUS_DAYSTOP, stop_watch=False)
+    if st.transport == C.TRANSPORT_PASEO:
+        failure = paseo.interrupt(st)
+        if failure:
+            # The agent still runs: keep it active and let the watcher retry, so
+            # max_parallel never releases a slot for a second writer.
+            print(f"{st.name}: warning: không interrupt được Paseo agent ({failure}); "
+                  "giữ active và thử lại vòng sau")
+            state.save(cfg.state_dir, st)
+            return False
+        st.status = C.STATUS_DAYSTOP
+        state.save(cfg.state_dir, st)
+    else:
+        stop_session(cfg, st, C.STATUS_DAYSTOP, stop_watch=False)
     print(f"{st.name}: daystop (budget_check_cmd mã {C.BUDGET_DAYSTOP_CODE})")
     return True
 
@@ -380,16 +437,81 @@ def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
     return True
 
 
+def _capture_paseo_thread(cfg: SideConfig, st: state.SessionState) -> None:
+    """Best-effort thread id for a done-first tick; a connection error is not fatal."""
+    if st.codex_thread_id or not st.paseo_agent_id:
+        return
+    try:
+        result = paseo.status(st.paseo_agent_id, st.paseo_target)
+    except paseo.PaseoError:
+        return
+    thread = str(result.get("threadId") or "")
+    if thread:
+        st.codex_thread_id = thread
+        state.save(cfg.state_dir, st)
+
+
+def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
+    """Keep watching through idle; connection failure is unknown, never `dead`."""
+    if not st.paseo_agent_id:
+        if st.status == C.STATUS_UNKNOWN:
+            # A lost create reply requires explicit reconciliation via done/stop.
+            return True
+        st.status = C.STATUS_DEAD
+        state.save(cfg.state_dir, st)
+        print(f"{st.name}: dead (Paseo state thiếu agent id)")
+        return False
+    try:
+        result = paseo.status(st.paseo_agent_id, st.paseo_target)
+    except paseo.PaseoError as exc:
+        if exc.code == C.PASEO_AGENT_NOT_FOUND:
+            st.status = C.STATUS_DEAD
+            state.save(cfg.state_dir, st)
+            print(f"{st.name}: dead (Paseo không còn agent)")
+            return False
+        print(f"{st.name}: Paseo unknown ({exc.code}); giữ trạng thái và max_parallel")
+        return True
+    thread = str(result.get("threadId") or "")
+    if thread and not st.codex_thread_id:
+        st.codex_thread_id = thread
+        # The first tick had no thread yet: pin now that the exact id is known.
+        _pin_rollout(cfg, st)
+    raw = str(result.get("status") or "")
+    if raw in C.PASEO_AGENT_ALIVE:
+        st.status = C.STATUS_RUNNING
+    elif raw == C.PASEO_AGENT_IDLE:
+        st.status = C.STATUS_IDLE
+    elif raw in C.PASEO_AGENT_DEAD:
+        st.status = C.STATUS_DEAD
+        state.save(cfg.state_dir, st)
+        print(f"{st.name}: dead (Paseo agent {raw})")
+        return False
+    else:
+        print(f"{st.name}: Paseo unknown (status {raw or '?'})")
+        return True
+    st.tokens_used = count_tokens(cfg, st)
+    state.save(cfg.state_dir, st)
+    if st.provider == C.PROVIDER_CODEX:
+        print(f"{st.name}: {_token_cell(cfg, st, st.tokens_used)} context tokens")
+    else:
+        print(f"{st.name}: {st.tokens_used}/{st.max_tokens} tokens")
+    return True
+
+
 def watch_tick(cfg: SideConfig, name: str) -> bool:
     """One watchdog step. Returns True while the watch loop should continue."""
     st = state.load(cfg.state_dir, name)
-    if st.status != C.STATUS_RUNNING:
+    if st.status not in C.ACTIVE_STATUSES:
         return False
+    done = K.done_path(st.handoff).is_file()
     if st.provider == C.PROVIDER_CODEX:
         # Pin before the done branch: a session that finishes on its first tick
-        # must still remember the rollout that produced its token count.
+        # must still remember the rollout that produced its token count. A Paseo
+        # thread learned only at done time is fetched best-effort first.
+        if done and st.transport == C.TRANSPORT_PASEO and not st.codex_thread_id:
+            _capture_paseo_thread(cfg, st)
         _pin_rollout(cfg, st)
-    if K.done_path(st.handoff).is_file():
+    if done:
         st.tokens_used = count_tokens(cfg, st)
         st.status = C.STATUS_DONE
         state.save(cfg.state_dir, st)
@@ -400,6 +522,8 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
         return _finish_external(cfg, st, run)
     if _budget_daystop(cfg, st):
         return False
+    if st.transport == C.TRANSPORT_PASEO:
+        return _paseo_tick(cfg, st)
     if st.provider in C.EXTERNAL_PROVIDERS:
         return _external_tick(cfg, st, run)
     st.tokens_used = count_tokens(cfg, st)

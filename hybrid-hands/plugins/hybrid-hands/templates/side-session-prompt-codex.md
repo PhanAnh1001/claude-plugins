@@ -11,7 +11,7 @@ Luật bàn giao cho phiên phụ Sol {name} (Codex, chạy không có người 
 - dsh là hand ngoài (gói OpenCode Go), làm dev/tester. Bạn viết tiêu chí chấp nhận và tối
   đa 3 ca test trước khi giao dsh code, rồi review diff của dsh.
 - Hand Opus `low` (`--backend claude-main`) làm việc sáng tạo: mockup, design token, câu chữ.
-  Phần code hoá thiết kế vẫn giao dsh.
+  Phần code hoá thiết kế vẫn giao hand code (theo config, mặc định dsh).
 - Bạn không có tool `SendMessage`. Đừng tìm cách gửi tin cho brain; báo xong bằng file
   `.done` theo hợp đồng bàn giao ở dưới.
 
@@ -19,9 +19,9 @@ Luật bàn giao cho phiên phụ Sol {name} (Codex, chạy không có người 
 
 | Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
 |---|---|---|---|---|
-| L0 (sửa nhanh) | Không viết spec | Không duyệt | dsh | Sol |
-| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | dsh | Sol |
-| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | dsh | Sol |
+| L0 (sửa nhanh) | Không viết spec | Không duyệt | hand theo config (mặc định dsh) | Sol |
+| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | hand theo config (mặc định dsh) | Sol |
+| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | hand theo config (mặc định dsh) | Sol |
 | L2/L3 | Opus | Người dùng | Opus cắt thành các gói cỡ L1, giao các phiên Sol | Sol |
 
 ## LUẬT BẮT BUỘC
@@ -64,8 +64,9 @@ Luật bàn giao cho phiên phụ Sol {name} (Codex, chạy không có người 
 - `{hand_ext} run` chạy lâu (5-30 phút). Gọi với timeout lệnh đủ dài (ví dụ 3600000 ms)
   hoặc chạy nền `nohup <lệnh> > <log> 2>&1 &` rồi chờ tới khi log có dòng `report:` và
   tiến trình đã thoát; đọc report.md theo đường in ra.
-- Mặc định giao dsh:
-  `{hand_ext} run --backend dsh --brief <file-brief> --cwd <worktree>`
+- Mặc định giao `--backend auto` (backend theo `ext_hand.order` trong
+  `.claude/hybrid-hands.json` của repo gốc, mặc định dsh):
+  `{hand_ext} run --backend auto --brief <file-brief> --cwd <worktree>`
 - Khi dsh hết hạn mức (thoát mã 7), dự phòng codex effort medium:
   `{hand_ext} run --backend codex --effort medium --brief <file-brief> --cwd <worktree>`
 - Việc sáng tạo (mockup, design token, câu chữ):

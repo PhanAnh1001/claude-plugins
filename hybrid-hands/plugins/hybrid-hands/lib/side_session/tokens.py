@@ -131,6 +131,36 @@ def codex_rollout(codex_home: Path, workdir: str, since: float = 0.0) -> Path | 
     return min(candidates, key=lambda item: item[:2])[2].resolve() if candidates else None
 
 
+def codex_rollout_for_thread(codex_home: Path, thread_id: str,
+                             workdir: str | None = None) -> Path | None:
+    """Rollout of one exact Codex thread id (Paseo persistence/runtime), never newest.
+
+    Codex names rollout files `rollout-<timestamp>-<thread-id>.jsonl`. Requiring that
+    exact suffix, plus session_meta.payload.id (and cwd when given), prevents a
+    substring match or another hand's rollout from being pinned.
+    """
+    if not thread_id:
+        return None
+    root = codex_home / C.CODEX_SESSIONS_SUBDIR
+    if not root.is_dir():
+        return None
+    suffix = f"-{thread_id}.jsonl"
+    matches = []
+    for path in root.rglob(C.CODEX_ROLLOUT_GLOB):
+        if not path.name.endswith(suffix):
+            continue
+        meta = _session_meta(path)
+        payload = meta.get("payload")
+        if meta.get("type") != CODEX_SESSION_META_TYPE or not isinstance(payload, dict):
+            continue
+        if str(payload.get("id") or "") != thread_id:
+            continue
+        if workdir is not None and not _same_dir(payload.get("cwd"), workdir):
+            continue
+        matches.append(path)
+    return sorted(matches)[0].resolve() if matches else None
+
+
 def _codex_usage(path: Path | None, usage_key: str) -> dict:
     """Read the requested usage from the last token_count, ignoring other events.
 

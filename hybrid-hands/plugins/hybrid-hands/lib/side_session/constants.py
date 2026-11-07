@@ -69,12 +69,16 @@ BRANCH_PREFIX = "side/"
 DEFAULT_BASE = "HEAD"
 
 STATUS_RUNNING = "running"
+STATUS_IDLE = "idle"
+# Create sent a request but the outcome is unknown: keep the slot and block the name.
+STATUS_UNKNOWN = "unknown"
+STATUS_ERROR = "error"
 STATUS_STOPPED = "stopped"
 STATUS_CAPPED = "capped"
 STATUS_DEAD = "dead"
 STATUS_DAYSTOP = "daystop"
 STATUS_DONE = "done"
-ACTIVE_STATUSES = (STATUS_RUNNING,)
+ACTIVE_STATUSES = (STATUS_RUNNING, STATUS_IDLE, STATUS_UNKNOWN)
 
 # Exit codes of `side-session start`/`watch`.
 EXIT_USAGE = 2
@@ -90,6 +94,46 @@ CHILD_SESSION_ENV = "CLAUDE_CODE_CHILD_SESSION"
 CHROME_FLAG = "--chrome"
 NO_CHROME_FLAG = "--no-chrome"
 PROMPT_RULES_MARKER = "LUẬT BẮT BUỘC"
+
+# Paseo transport (installed CLI 0.15.0; internal client/daemon-target modules).
+TRANSPORT_SCREEN = "screen"
+TRANSPORT_PASEO = "paseo"
+PASEO_BIN = "paseo"
+PASEO_NODE = "node"
+PASEO_BRIDGE_RELPATH = "paseo_bridge.mjs"
+PASEO_CONNECT_TIMEOUT_MS = 3000
+PASEO_READY_TIMEOUT_S = 10
+PASEO_START_TIMEOUT_S = 30
+PASEO_STATUS_TIMEOUT_S = 15
+PASEO_STOP_TIMEOUT_S = 15
+# Never let a side session resolve an ambient Paseo agent/workspace.
+PASEO_INHERITED_ENVS = ("PASEO_AGENT_ID", "PASEO_WORKSPACE_ID")
+# Explicit test/offline escape hatch; normal runs never set it.
+PASEO_DISABLE_ENV = "SIDE_SESSION_NO_PASEO"
+PASEO_PROVIDER = "codex-hand"
+PASEO_AGENT_RUNNING = "running"
+PASEO_AGENT_INITIALIZING = "initializing"
+PASEO_AGENT_IDLE = "idle"
+PASEO_AGENT_ERROR = "error"
+PASEO_AGENT_CLOSED = "closed"
+PASEO_AGENT_ALIVE = (PASEO_AGENT_RUNNING, PASEO_AGENT_INITIALIZING)
+PASEO_AGENT_DEAD = (PASEO_AGENT_ERROR, PASEO_AGENT_CLOSED)
+PASEO_AGENT_NOT_FOUND = "AGENT_NOT_FOUND"
+PASEO_TARGET_CHANGED = "TARGET_CHANGED"
+PASEO_PROFILE_UNSUPPORTED = "CODEX_PROFILE_UNSUPPORTED"
+# Only failures known to occur before agent creation may release the slot.
+# AGENT_CREATE_FAILED also covers lost replies after mutation, so stays unknown.
+PASEO_CREATE_REJECTED = frozenset({"WORKSPACE_CREATE_FAILED",
+                                   "TARGET_CHANGED", "PASEO_CLI_NOT_FOUND", "NODE_NOT_FOUND"})
+# Codex native compaction is a top-level config.toml key in the hand-only CODEX_HOME.
+CODEX_COMPACT_KEY = "model_auto_compact_token_limit"
+# Native `codex app-server` config writer: stdio JSON-RPC, no thread/turn/model listing.
+CODEX_APP_SERVER = "codex"
+CODEX_CONFIG_CLIENT_NAME = "side_session_config"
+CODEX_CONFIG_CLIENT_VERSION = "1"
+CODEX_CONFIG_RPC_TIMEOUT_S = 15
+CODEX_CONFIG_RPC_EXIT_S = 5
+CODEX_CONFIG_RPC_KILL_S = 2
 
 # External-hand contract: label side:<name>, prompt file and report in the hand-ext run dir.
 EXT_LABEL_PREFIX = "side:"

@@ -11,7 +11,7 @@ description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi v�
 - **Đã cài:** `npm install -g @getpaseo/cli@0.15.0`, `paseo --version` in `0.15.0` (kiểm trên máy 04/11/2026).
 - **Daemon:** `paseo start` chạy nền, nghe `127.0.0.1:6767`, cấu hình ở `~/.paseo/config.json`; relay (để điện thoại kết nối qua internet) **tắt mặc định**. Không thấy cơ chế tự khởi động khi đăng nhập máy.
 - **Hand Codex riêng:** khai provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME`) trong config, `paseo reload`, rồi `paseo run --provider codex-hand ...`; hoặc một lần bằng `paseo run --provider codex --env CODEX_HOME=...`.
-- **Giới hạn chính:** chỉ agent do Paseo tạo (hoặc `paseo import <session-id>`) mới hiện; phiên `claude` brain đang chạy trong terminal và phiên `screen` của side-session **không tự hiện** (đã kiểm: `paseo ls -a -g` rỗng khi có phiên claude đang mở).
+- **Giới hạn chính:** chỉ agent do Paseo tạo (hoặc `paseo import <session-id>`) mới hiện; phiên `claude` brain đang chạy trong terminal và phiên `screen` **fallback** của side-session **không tự hiện** (đã kiểm: `paseo ls -a -g` rỗng khi có phiên claude đang mở). Side-session Codex đi đường daemon thì agent do Paseo sở hữu nên hiện ngay, không cần screen.
 - **Chuyển phiên terminal ↔ Paseo:** dùng `cc-switch term|paseo|status` (README hybrid-hands mục 7); trong phiên TUI đang mở thì `cc-switch paseo --self` (brain chạy ở lượt cuối); reload/import trước khi gửi tin để transcript không rẽ nhánh.
 - **Người dùng phải tự làm:** bật relay, quét QR trên điện thoại, cài app; agent không ghép điện thoại hộ, không ghi `~/.paseo/config.json` khi chưa được duyệt.
 
@@ -91,11 +91,21 @@ Theo [orchestration](https://paseo.sh/docs/orchestration) (11/2026) và `--help`
 
 **Slash command:** `/to-paseo` chạy `cc-switch paseo --self`, `/to-term` chạy `cc-switch term --self`; mỗi lệnh là hành động cuối của lượt, không làm gì khác. Chưa kiểm hai slash command chạy được bên trong agent Paseo.
 
+### 5.2 Phiên Sol do `side-session` tạo trên Paseo
+
+- `side-session start --provider codex` (mặc định) tự thử daemon Paseo trước khi tạo worktree. Nếu daemon sẵn sàng, nó dùng client đi kèm CLI 0.15.0 (`dist/utils/client.js`, `dist/utils/daemon-target.js`) để tạo workspace directory đúng cwd rồi agent provider `codex-hand` với `CODEX_HOME` của hand, model/effort, sandbox `workspace-write`, mạng bật và `writable_roots`; không truyền `modeId`. Agent hiện trong app ngay khi tạo, nên điện thoại điều khiển được mà không cần screen.
+- Endpoint lấy từ `PASEO_HOME`/`PASEO_HOST` (mặc định home) và được ghim trong state; nếu đổi endpoint giữa chừng, `ls`/`watch` coi là unknown và `stop` không điều khiển nhầm agent. Không kế thừa `PASEO_AGENT_ID`/`PASEO_WORKSPACE_ID` của terminal đang chạy.
+- Daemon vắng hoặc CLI không tìm thấy: `side-session start` cảnh báo rồi quay lại screen cũ. `codex_profile` khác rỗng chỉ dùng screen khi daemon vắng; daemon sẵn sàng thì báo chưa hỗ trợ và thoát, không fallback. Daemon đã nhận tạo nhưng lỗi: thoát rõ, không mở screen thứ hai; timeout/protocol/không có agent id giữ trạng thái `unknown`, chặn dùng lại tên và giữ slot tới khi `stop`/reconcile. `side-session attach <tên>` với phiên Paseo chỉ hướng dẫn mở app hoặc `paseo attach <id>`; `stop` interrupt agent rồi dừng watchdog screen, giữ agent/worktree. `.done` vẫn kết thúc phiên; `ls` giữ `done`/`stopped`/`daystop`, không hồi sinh từ trạng thái daemon.
+- Native compact của Codex nằm ở key top-level `model_auto_compact_token_limit` trong `config.toml` của `CODEX_HOME` hand (schema `providerOptions` 0.15.0 không nhận key này). Đường screen truyền bằng `-c` trong argv; đường Paseo ghi bằng RPC native `config/value/write` của `codex app-server` tạm (chỉ cấu hình, không tạo thread/turn, không đọc auth), không tự parse/format TOML, không in config hay credential.
+
 ## 6. Giới hạn: phiên nào hiện
 
-- **Hiện:** agent tạo bằng `paseo run`, app, MCP; và phiên provider nhập vào bằng `paseo import <session-id> --provider claude|codex --cwd <dir>` (`paseo import --help`, 0.15.0).
-- **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên `screen` của side-session, hand chạy qua `hand-ext` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở (suy luận từ mô tả lệnh, chưa thử).
-- Muốn xem brain trên điện thoại thì brain phải chạy trong Paseo (tạo bằng `paseo run --provider claude`) hoặc import.
+- **Hiện:** agent tạo bằng `paseo run`, app, MCP; phiên provider nhập vào bằng `paseo import <session-id> --provider claude|codex --cwd <dir>` (`paseo import --help`, 0.15.0); và side-session Codex do bridge tạo (agent `codex-hand`).
+- **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên `screen` fallback của side-session, hand chạy qua `hand-ext` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở.
+- **Import Codex khi TUI còn chạy:** Codex từ chối với lỗi `thread ... already has an active writer` vì TUI đang giữ quyền ghi; import không phản chiếu hay điều khiển được TUI đó. Chỉ import sau khi TUI đã đóng và cwd/worktree vẫn tồn tại.
+- **Import lọc theo workspace cwd:** màn import chỉ thấy phiên có cwd trùng workspace directory đã đăng ký; worktree anh em hoặc thư mục khác không hiện. Vì vậy hand nhiều worktree không gom được bằng import.
+- **Giải pháp daemon-owned:** để agent hiện ngay và điều khiển được từ app, tạo agent do Paseo sở hữu (`paseo run`/app/MCP, hoặc `side-session start --provider codex` qua bridge) thay vì import một TUI đang mở.
+- Muốn xem brain trên điện thoại thì brain phải chạy trong Paseo (tạo bằng `paseo run --provider claude`) hoặc import khi TUI đã đóng.
 
 ## 7. Xem phiên phụ từ Paseo
 

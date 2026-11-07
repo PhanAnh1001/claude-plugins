@@ -6,6 +6,8 @@ import os
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from . import constants as C
+
 
 @dataclass
 class SessionState:
@@ -27,6 +29,14 @@ class SessionState:
     budget_exempt: bool = False
     # Rollout Codex đã ghim (đường tuyệt đối); "" = chưa tìm được, không đoán.
     codex_rollout: str = ""
+    # "screen" (mặc định, state cũ) hoặc "paseo" (agent do daemon Paseo sở hữu).
+    transport: str = C.TRANSPORT_SCREEN
+    paseo_agent_id: str = ""
+    paseo_workspace_id: str = ""
+    # Khoá endpoint đã lưu (home path hoặc hash host); "" = state cũ/không rõ.
+    paseo_target: str = ""
+    # Thread Codex lấy từ persistence/runtime của Paseo; "" = chưa có.
+    codex_thread_id: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

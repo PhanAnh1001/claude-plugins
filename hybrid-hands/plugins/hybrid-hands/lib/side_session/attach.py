@@ -17,6 +17,7 @@ IdsFn = Callable[[], dict[str, str]]
 ExecFn = Callable[[list[str]], int]
 InputFn = Callable[[str], str]
 PrintFn = Callable[[str], None]
+TransportFn = Callable[[str], "tuple[str, str] | None"]
 
 SCREEN_FALLBACKS = ("/usr/bin/screen", "/opt/homebrew/bin/screen", "/usr/local/bin/screen")
 SCREEN_NOT_FOUND = ("side-session: không tìm thấy lệnh screen (đã tìm trong PATH, "
@@ -30,6 +31,8 @@ NAMED_NOT_FOUND = "side-session: không có phiên phụ đang chạy tên {name
 INVALID_CHOICE = "Lựa chọn không hợp lệ: {answer}"
 QUIT_ANSWER = "q"
 EXIT_NOT_FOUND = 1
+PASEO_HINT = ("side-session: phiên {name} do Paseo giữ (agent {agent}); "
+              "mở app Paseo hoặc chạy: paseo attach {agent}")
 
 
 def session_targets(ids: dict[str, str]) -> list[tuple[str, str]]:
@@ -72,6 +75,20 @@ def _print_running(targets: list[tuple[str, str]], print_fn: PrintFn) -> None:
         print_fn(NO_SESSIONS)
         return
     print_fn(RUNNING_LABEL.format(names=", ".join(name for name, _ in targets)))
+
+
+def paseo_hint(name: str, agent_id: str) -> str:
+    return PASEO_HINT.format(name=name, agent=agent_id or "")
+
+
+def _paseo_agent(name: str, transport_fn: TransportFn | None) -> str | None:
+    if transport_fn is None:
+        return None
+    wanted = name[len(C.SCREEN_PREFIX):] if name.startswith(C.SCREEN_PREFIX) else name
+    info = transport_fn(wanted)
+    if info and info[0] == C.TRANSPORT_PASEO:
+        return info[1]
+    return None
 
 
 def _attach_named(name: str, ids_fn: IdsFn, exec_fn: ExecFn, print_fn: PrintFn,
@@ -120,18 +137,31 @@ def _menu_loop(ids_fn: IdsFn, exec_fn: ExecFn, input_fn: InputFn, print_fn: Prin
 
 
 def run_attach(name: str | None, *, ids_fn: IdsFn, exec_fn: ExecFn, input_fn: InputFn,
-               print_fn: PrintFn, screen_bin: str) -> int:
+               print_fn: PrintFn, screen_bin: str,
+               transport_fn: TransportFn | None = None) -> int:
     """Attach by name once, or show a menu until the user quits; returns an exit code."""
     if name is not None:
+        agent_id = _paseo_agent(name, transport_fn)
+        if agent_id is not None:
+            wanted = name[len(C.SCREEN_PREFIX):] if name.startswith(C.SCREEN_PREFIX) else name
+            print_fn(paseo_hint(wanted, agent_id))
+            return 0
         return _attach_named(name, ids_fn, exec_fn, print_fn, screen_bin)
     return _menu_loop(ids_fn, exec_fn, input_fn, print_fn, screen_bin)
 
 
-def main(name: str | None) -> int:
+def main(name: str | None, transport_fn: TransportFn | None = None) -> int:
+    if name is not None:
+        agent_id = _paseo_agent(name, transport_fn)
+        if agent_id is not None:
+            wanted = name[len(C.SCREEN_PREFIX):] if name.startswith(C.SCREEN_PREFIX) else name
+            print(paseo_hint(wanted, agent_id))
+            return 0
     screen_bin = find_screen()
     if screen_bin is None:
         print(SCREEN_NOT_FOUND)
         return C.EXIT_USAGE
     _ensure_screen_on_path(screen_bin)
     return run_attach(name, ids_fn=screen.screen_ids, exec_fn=subprocess.call,
-                      input_fn=input, print_fn=print, screen_bin=screen_bin)
+                      input_fn=input, print_fn=print, screen_bin=screen_bin,
+                      transport_fn=transport_fn)

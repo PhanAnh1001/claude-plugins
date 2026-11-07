@@ -52,9 +52,30 @@ def git_toplevel(cwd: Path) -> Path:
     return Path(out.stdout.strip())
 
 
+def main_repo_root(root: Path) -> Optional[Path]:
+    """Main working tree of a linked worktree: parent of the absolute git common dir."""
+    try:
+        out = subprocess.run(["git", "-C", str(root), "rev-parse", "--path-format=absolute",
+                              "--git-common-dir"], capture_output=True, text=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return Path(out.stdout.strip()).parent
+
+
+def _config_path(root: Path) -> Optional[Path]:
+    """Own config first; a worktree without one shares its main repo's config."""
+    for candidate_root in (root, main_repo_root(root)):
+        if candidate_root is None:
+            continue
+        path = candidate_root / PROJECT_CONFIG_RELPATH
+        if path.is_file():
+            return path
+    return None
+
+
 def _read_section(root: Path) -> Dict[str, Any]:
-    path = root / PROJECT_CONFIG_RELPATH
-    if not path.is_file():
+    path = _config_path(root)
+    if path is None:
         return {}
     section = json.loads(path.read_text(encoding="utf-8")).get(CONFIG_SECTION, {})
     if not isinstance(section, dict):
