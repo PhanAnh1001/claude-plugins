@@ -48,6 +48,12 @@ def with_sandbox(cfg: ExtConfig, name: str) -> dict:
     return options
 
 
+def day_guard(backend: Backend, cfg: ExtConfig) -> Optional[str]:
+    """Backend-specific daily guard (claude-main); None means the run may start."""
+    guard = getattr(backend, "day_block_reason", None)
+    return guard(with_sandbox(cfg, backend.name)) if callable(guard) else None
+
+
 def validate_browser(choice: str, browser: bool) -> None:
     if browser and choice not in (AUTO_BACKEND, BROWSER_BACKEND):
         raise ValueError(f"--browser chỉ hỗ trợ backend {BROWSER_BACKEND}, "
@@ -248,6 +254,12 @@ def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
         print(f"hand-ext: {choice.warning}", file=sys.stderr)
     backends = candidates(cfg, args.backend, browser=browser)
     for index, backend in enumerate(backends):
+        reason = day_guard(backend, cfg)
+        if reason:
+            print(f"hand-ext: {reason}", file=sys.stderr)
+            if args.backend != AUTO_BACKEND:
+                return EXIT_ALL_UNAVAILABLE
+            continue
         code = _attempt(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
         if code >= 0:
             return code

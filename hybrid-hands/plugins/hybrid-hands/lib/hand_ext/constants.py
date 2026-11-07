@@ -11,6 +11,15 @@ DEFAULT_COMPACT_AT = 272_000
 # dsh model window from templates/dsh-hand.yml; compaction is a ratio of this window.
 DEFAULT_CONTEXT_WINDOW = 1_048_576
 
+# Claude on the PRIMARY subscription (the brain's plan). Explicit backend only: it never
+# enters `order`, and it stops once this machine has used max_day_pct of the weekly limit today.
+CLAUDE_MAIN_BACKEND = "claude-main"
+CLAUDE_MAIN_CONFIG_DIR = "~/.claude"
+CLAUDE_MAIN_MODEL = "claude-opus-5-5"
+CLAUDE_MAIN_EFFORT = "low"
+CLAUDE_MAIN_MAX_TURNS = 80
+CLAUDE_MAIN_MAX_DAY_PCT = 5.0
+
 # Go usage ledger lives on the machine, not per repo: plan limits follow the account.
 GO_USAGE_SECTION = "go_usage"
 GO_USAGE_STATE_DIR_ENV = "HYBRID_HANDS_STATE_DIR"
@@ -86,6 +95,10 @@ DEFAULTS = {
         "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high"},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",
                    "effort": "medium", "max_turns": 80},
+        # The brain's own plan, low effort, only via explicit `--backend claude-main`.
+        "claude-main": {"config_dir": CLAUDE_MAIN_CONFIG_DIR, "model": CLAUDE_MAIN_MODEL,
+                        "effort": CLAUDE_MAIN_EFFORT, "max_turns": CLAUDE_MAIN_MAX_TURNS,
+                        "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT},
         # DeepSeek Harness on the OpenCode Go key (templates/dsh-hand.yml).
         "dsh": {"home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key",
                 "model": "deepseek-v4.1-flash", "effort": "high",

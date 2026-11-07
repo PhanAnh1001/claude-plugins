@@ -135,7 +135,8 @@ class SoftTokenCapTest(unittest.TestCase):
 
     # ---- default (hard cap) ---------------------------------------------
     def test_default_still_caps_at_cap(self) -> None:
-        self.run_cli("start", "--name", "hard", "--prompt", "x", "--max-tokens", "1000")
+        self.run_cli("start", "--name", "hard", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "1000")
         st = self.state("hard")
         tdir = self.projects / tokens.project_slug(st["dir"])
         tdir.mkdir(parents=True)
@@ -149,7 +150,8 @@ class SoftTokenCapTest(unittest.TestCase):
     # ---- soft cap --------------------------------------------------------
     def test_soft_cap_keeps_running_and_warns_once(self) -> None:
         self.configure(enforce_token_cap=False, token_file="tokens/{uuid}.tokens")
-        self.run_cli("start", "--name", "soft", "--prompt", "x", "--max-tokens", "100")
+        self.run_cli("start", "--name", "soft", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "100")
         st = self.state("soft")
         self.set_token_file(st, 150)
         code, out = self.run_cli("watch", "--name", "soft", "--once")
@@ -163,7 +165,8 @@ class SoftTokenCapTest(unittest.TestCase):
 
     def test_soft_cap_marks_dead_when_screen_dies(self) -> None:
         self.configure(enforce_token_cap=False, token_file="tokens/{uuid}.tokens")
-        self.run_cli("start", "--name", "dead", "--prompt", "x", "--max-tokens", "100")
+        self.run_cli("start", "--name", "dead", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "100")
         self.set_token_file(self.state("dead"), 150)
         self.kill_screen("dead")
         self.run_cli("watch", "--name", "dead", "--once")
@@ -171,7 +174,8 @@ class SoftTokenCapTest(unittest.TestCase):
 
     def test_soft_cap_keeps_80_percent_warning(self) -> None:
         self.configure(enforce_token_cap=False, token_file="tokens/{uuid}.tokens")
-        self.run_cli("start", "--name", "warn", "--prompt", "x", "--max-tokens", "100")
+        self.run_cli("start", "--name", "warn", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "100")
         self.set_token_file(self.state("warn"), 85)
         _, out = self.run_cli("watch", "--name", "warn", "--once")
         self.assertIn("warn: warning 85/100 (>= 80%)", out)
@@ -180,7 +184,7 @@ class SoftTokenCapTest(unittest.TestCase):
     def test_soft_cap_keeps_daystop(self) -> None:
         self.configure(enforce_token_cap=False)
         self.budget(0)
-        self.run_cli("start", "--name", "d", "--prompt", "x")
+        self.run_cli("start", "--name", "d", "--provider", "claude", "--prompt", "x")
         self.budget(20)
         code, out = self.run_cli("watch", "--name", "d", "--once")
         self.assertEqual(code, 0)
@@ -201,8 +205,10 @@ class SoftTokenCapTest(unittest.TestCase):
     # ---- ls --------------------------------------------------------------
     def test_ls_marks_over_cap_in_both_modes(self) -> None:
         self.configure(token_file="tokens/{uuid}.tokens")
-        self.run_cli("start", "--name", "over", "--prompt", "x", "--max-tokens", "100")
-        self.run_cli("start", "--name", "under", "--prompt", "x", "--max-tokens", "100")
+        self.run_cli("start", "--name", "over", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "100")
+        self.run_cli("start", "--name", "under", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "100")
         self.set_token_file(self.state("over"), 150)
         self.set_token_file(self.state("under"), 50)
         _, out = self.run_cli("ls")

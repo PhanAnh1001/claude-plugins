@@ -1,26 +1,36 @@
 """side_session codex specifics: optional -p, rollout filtered by session start."""
 from __future__ import annotations
 
+import io
+import json
 import os
 import sys
 import tempfile
 import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
 
-from side_session import constants as C, tokens  # noqa: E402
-from side_session.commands import provider_argv  # noqa: E402
+from side_session import actions, constants as C, state, tokens  # noqa: E402
+from side_session.commands import (HAND_EXT_BIN, build_codex_prompt,  # noqa: E402
+                                   provider_argv)
+from side_session.config import SideConfig  # noqa: E402
 
 OLD_AGE_S = 3600  # an earlier hand-gpt run finished an hour before the session
 
 
 class CodexArgvTest(unittest.TestCase):
     def _cfg(self, profile: str) -> SimpleNamespace:
-        return SimpleNamespace(codex_profile=profile, codex_home=Path("/h"), claude_args=[])
+        return SimpleNamespace(
+            codex_profile=profile, codex_home=Path("/h"), claude_args=[],
+            codex_model=C.CODEX_MODEL_DEFAULT, codex_effort=C.CODEX_EFFORT_DEFAULT,
+            repo=Path("/repo"), worktree_root=Path("/repo-wt"),
+            handoff_dir=Path("/repo/docs/handoffs"))
 
     def test_default_profile_is_empty(self):
         self.assertEqual(C.DEFAULTS["codex_profile"], "")
@@ -33,6 +43,52 @@ class CodexArgvTest(unittest.TestCase):
     def test_p_flag_when_profile_set(self):
         argv, _ = provider_argv(self._cfg("x"), C.PROVIDER_CODEX, "n", "u", "/w", "hi")
         self.assertEqual(argv[1:3], ["-p", "x"])
+
+    def test_model_effort_approval_and_sandbox_argv(self):
+        with mock.patch.dict(os.environ, {"HYBRID_HANDS_STATE_DIR": ""}):
+            argv, _ = provider_argv(self._cfg(""), C.PROVIDER_CODEX, "n", "u", "/w", "hi")
+        self.assertEqual(argv[argv.index("-m") + 1], "gpt-6.1-sol")
+        self.assertIn('model_reasoning_effort="high"', argv)
+        self.assertEqual(argv[argv.index("-a") + 1], "never")
+        self.assertEqual(argv[argv.index("-s") + 1], "workspace-write")
+        self.assertIn("sandbox_workspace_write.network_access=true", argv)
+        roots_arg = next(part for part in argv if part.startswith(
+            "sandbox_workspace_write.writable_roots="))
+        roots = json.loads(roots_arg.split("=", 1)[1])
+        self.assertEqual(len(roots), len(set(roots)))
+        for path in ("/repo-wt", "/repo/output/llm/hand-ext", "/repo/docs/handoffs",
+                     "/repo/output/llm", "~/.hybrid-hands", "~/.hybrid-hands/worktrees",
+                     "~/.dsh-hand", "~/.codex-hand", "~/.claude"):
+            self.assertIn(str(Path(path).expanduser()), roots)
+        prompt = build_codex_prompt("hi", "n", Path("/repo/docs/handoffs/n.md"))
+        self.assertIn(str(HAND_EXT_BIN), prompt)
+        self.assertNotIn(C.HAND_EXT_PLACEHOLDER, prompt)
+
+
+class DoneContractTest(unittest.TestCase):
+    def test_done_marker_sets_status_done_in_ls_and_watch(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            cfg = SideConfig(repo=tmp, handoff_dir=tmp / "handoffs",
+                             worktree_root=tmp / "wt", max_parallel=2,
+                             default_max_tokens=1000, watch_interval_s=0,
+                             state_dir=tmp / "state", codex_home=tmp / "codex")
+            handoff = cfg.handoff_dir / "n.md"
+            handoff.parent.mkdir()
+            handoff.write_text("## Tóm tắt\n- Kết quả: xong\n")
+            handoff.with_suffix(C.DONE_SUFFIX).write_text("")
+            state.save(cfg.state_dir, state.SessionState(
+                name="n", uuid="u", provider=C.PROVIDER_CODEX, dir=str(tmp),
+                screen="side-n", watch_screen="side-n-watch", max_tokens=1000,
+                started=time.time(), status=C.STATUS_RUNNING, handoff=str(handoff)))
+            out = io.StringIO()
+            with mock.patch.object(actions.screen, "screen_names", return_value=set()), \
+                    redirect_stdout(out):
+                self.assertEqual(actions.ls(cfg, None), 0)
+                self.assertEqual(actions.watch(
+                    cfg, SimpleNamespace(name="n", interval=None, once=True)), 0)
+            self.assertIn(C.STATUS_DONE, out.getvalue())
+            self.assertEqual(state.load(cfg.state_dir, "n").status, C.STATUS_DONE)
 
 
 class RolloutSinceTest(unittest.TestCase):

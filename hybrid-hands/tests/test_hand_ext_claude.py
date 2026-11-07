@@ -11,11 +11,17 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
+sys.path.insert(0, str(ROOT / "tests" / "fixtures" / "hand_ext"))
 FIX = ROOT / "tests" / "fixtures" / "hand_ext"
 FAKE_BIN = str(FIX / "claude_fake.sh")
 
+from codex_harness import Sandbox  # noqa: E402
+from hand_ext import day_budget  # noqa: E402
 from hand_ext.backends.base import RunSpec, RunState, Status, Usage  # noqa: E402
-from hand_ext.backends.claude import ClaudeBackend, parse_reset  # noqa: E402
+from hand_ext.backends.claude import (  # noqa: E402
+    ClaudeBackend, ClaudeMainBackend, parse_reset,
+)
+from hand_ext.runner import RunOutcome  # noqa: E402
 
 
 def _spec(tmp: str, sandbox: str = "workspace-write", **opts) -> RunSpec:
@@ -138,6 +144,53 @@ class DoctorTest(unittest.TestCase):
         lines = ClaudeBackend().setup({"config_dir": tmp})
         self.assertTrue(Path(tmp).is_dir())
         self.assertIn("/login", "\n".join(lines))
+
+
+class MainBackendTest(unittest.TestCase):
+    def test_main_plan_allowed_for_claude_main_only(self):
+        tmp = tempfile.mkdtemp()
+        (Path(tmp) / ".claude").mkdir()
+        env = {"HAND_EXT_CLAUDE_BIN": FAKE_BIN, "FAKE_CLAUDE_LOGGED_IN": "1", "HOME": tmp}
+        with mock.patch.dict(os.environ, env):
+            main = {c.name: c for c in ClaudeMainBackend().doctor({"config_dir": "~/.claude"})}
+            hand = {c.name: c for c in ClaudeBackend().doctor({"config_dir": "~/.claude"})}
+            spec = _spec(tmp, config_dir="~/.claude")
+            spec.model, spec.effort = "", ""
+            argv, env_add, _ = ClaudeMainBackend().build_command(spec)
+        self.assertTrue(main["config_dir"].ok)
+        self.assertTrue(main["login"].ok)
+        self.assertFalse(hand["config_dir"].ok)
+        self.assertEqual(env_add["CLAUDE_CONFIG_DIR"], str(Path(tmp) / ".claude"))
+        self.assertEqual(argv[argv.index("--model") + 1], "claude-opus-5-5")
+        self.assertEqual(argv[argv.index("--effort") + 1], "low")
+
+
+class DayBudgetTest(unittest.TestCase):
+    def setUp(self):
+        self.home = Path(tempfile.mkdtemp(prefix="claude-home-"))
+        (self.home / day_budget.USD_PER_PCT_PIN).write_text("1.0\n", encoding="utf-8")
+        self.sb = Sandbox(order=["claude-main"], extra={"backends": {
+            "claude-main": {"config_dir": str(self.home), "max_day_pct": 5}}})
+        self.addCleanup(self.sb.close)
+        self.outcome = RunOutcome(Status.OK, 0, RunState(usage=Usage()), 0.0)
+
+    def _run(self, usd):
+        with mock.patch.object(day_budget, "machine_usd", return_value=usd), \
+                mock.patch("hand_ext.run_cmd.run_backend",
+                           return_value=self.outcome) as run:
+            code, _, err = self.sb.cli("run", "--brief", str(self.sb.brief),
+                                       "--backend", "claude-main", "--isolation", "none")
+        return code, err, run
+
+    def test_day_cap_blocks_at_threshold_and_allows_below(self):
+        code, err, run = self._run(5.0)
+        self.assertEqual(code, 7, err)
+        self.assertIn("máy này đã dùng 5.0% Claude hôm nay (ngưỡng 5%)", err)
+        self.assertIn("ghi yêu cầu vào bàn giao để Opus quyết", err)
+        run.assert_not_called()
+        code, _, run = self._run(4.0)
+        self.assertEqual(code, 0)
+        run.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -97,8 +97,11 @@ def start(cfg: SideConfig, a) -> int:
     name = a.name
     prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
     handoff = cfg.handoff_dir / f"{name}.md"
-    full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "",
-                               external=a.provider in C.EXTERNAL_PROVIDERS)
+    if a.provider == C.PROVIDER_CODEX:
+        full_prompt = K.build_codex_prompt(prompt_text, name, handoff)
+    else:
+        full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "",
+                                   external=a.provider in C.EXTERNAL_PROVIDERS)
     refused = _validate_start(a, full_prompt)
     if refused:
         return refused
@@ -120,7 +123,7 @@ def start(cfg: SideConfig, a) -> int:
     if a.worktree:
         cmds.append(K.worktree_cmd(cfg, name, a.base or C.DEFAULT_BASE))
     cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
-                              prompt_file, a.hours))
+                              prompt_file, a.hours, model=a.model, effort=a.effort))
     cmds.append(K.watch_cmd(cfg, name))
     st = state.SessionState(
         name=name, uuid=sid, provider=a.provider, dir=workdir, screen=K.session_screen(name),
@@ -216,11 +219,14 @@ def ls(cfg: SideConfig, _a) -> int:
     alive = screen.screen_names()
     rows = [("NAME", "PROVIDER", "CHROME", "STATUS", "LIVE", "TOKENS/CAP", "AGE", "HANDOFF")]
     for st in state.load_all(cfg.state_dir):
-        used = count_tokens(cfg, st) if st.status == C.STATUS_RUNNING else st.tokens_used
+        done = st.status == C.STATUS_RUNNING and K.done_path(st.handoff).is_file()
+        status = C.STATUS_DONE if done else st.status
+        used = (count_tokens(cfg, st) if status == C.STATUS_RUNNING
+                else st.tokens_used)
         token_cell = f"{used}/{st.max_tokens}"
         if used >= st.max_tokens:
             token_cell += C.OVER_CAP_SUFFIX
-        rows.append((st.name, st.provider, "yes" if st.chrome else "no", st.status,
+        rows.append((st.name, st.provider, "yes" if st.chrome else "no", status,
                      "alive" if st.screen in alive else "dead", token_cell,
                      _age(time.time() - st.started),
                      "yes" if Path(st.handoff).is_file() else "no"))
@@ -309,6 +315,12 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
     """One watchdog step. Returns True while the watch loop should continue."""
     st = state.load(cfg.state_dir, name)
     if st.status != C.STATUS_RUNNING:
+        return False
+    if K.done_path(st.handoff).is_file():
+        st.tokens_used = count_tokens(cfg, st)
+        st.status = C.STATUS_DONE
+        state.save(cfg.state_dir, st)
+        print(f"{st.name}: done")
         return False
     run = external.run_for(st) if st.provider in C.EXTERNAL_PROVIDERS else None
     if run is not None and not run.running:

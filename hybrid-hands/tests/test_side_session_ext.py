@@ -67,7 +67,8 @@ class SideSessionExtTest(unittest.TestCase):
         return code, buf.getvalue()
 
     def start(self, *args: str, name: str = "s", prompt: str = "x") -> tuple[int, str]:
-        return self.run_cli("start", "--name", name, "--prompt", prompt, *args)
+        provider = [] if "--provider" in args else ["--provider", "claude"]
+        return self.run_cli("start", "--name", name, "--prompt", prompt, *provider, *args)
 
     def configure(self, **side) -> None:
         path = self.repo / ".claude" / "hybrid-hands.json"

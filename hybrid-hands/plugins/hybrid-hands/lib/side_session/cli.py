@@ -23,7 +23,12 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--prompt-file")
     s.add_argument("--worktree", action="store_true")
     s.add_argument("--base", default=None)
-    s.add_argument("--provider", choices=C.PROVIDERS, default=C.PROVIDER_CLAUDE)
+    s.add_argument("--provider", choices=C.PROVIDERS, default=None,
+                   help="codex (mặc định cho start), claude (mặc định cho --resume) hoặc dsh")
+    s.add_argument("--model", default=None,
+                   help="model cho provider codex, hoặc chuyển --model cho hand-ext")
+    s.add_argument("--effort", default=None,
+                   help="effort cho provider codex, hoặc chuyển --effort cho hand-ext")
     s.add_argument("--max-tokens", type=int)
     s.add_argument("--hours", type=float)
     s.add_argument("--brain", default="", help="brain session name for SendMessage")
@@ -57,8 +62,17 @@ HANDLERS = {"start": actions.start, "ls": actions.ls, "stop": actions.stop,
             "watch": actions.watch, "handoff": actions.handoff}
 
 
+def _default_provider(args: argparse.Namespace) -> str:
+    """`start` mặc định mở phiên Sol trên Codex; `--resume` vẫn là Claude."""
+    if args.resume:
+        return C.PROVIDER_CLAUDE
+    return C.PROVIDER_CODEX
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.cmd == "start" and args.provider is None:
+        args.provider = _default_provider(args)
     if args.cmd == "attach":
         # Paseo runs terminal profiles from an arbitrary cwd with no project config.
         return attach.main(args.name)

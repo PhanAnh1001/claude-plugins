@@ -108,8 +108,8 @@ class SideSessionTest(unittest.TestCase):
         self.assertEqual(load_config(self.repo).max_parallel, 1)
 
     def test_dry_run_prints_commands_and_creates_nothing(self) -> None:
-        code, out = self.run_cli("start", "--name", "demo", "--prompt", "x", "--worktree",
-                                 "--hours", "3", "--dry-run")
+        code, out = self.run_cli("start", "--name", "demo", "--provider", "claude",
+                                 "--prompt", "x", "--worktree", "--hours", "3", "--dry-run")
         self.assertEqual(code, 0)
         self.assertIn("worktree add", out)
         self.assertIn("-b side/demo HEAD", out)
@@ -121,8 +121,7 @@ class SideSessionTest(unittest.TestCase):
         self.assertFalse((self.repo / "output").exists())
 
     def test_codex_dry_run(self) -> None:
-        _, out = self.run_cli("start", "--name", "cx", "--prompt", "x",
-                              "--provider", "codex", "--dry-run")
+        _, out = self.run_cli("start", "--name", "cx", "--prompt", "x", "--dry-run")
         self.assertIn("CODEX_HOME=", out)
         self.assertIn("exec codex -C", out)
         self.assertNotIn(" -p ", out.split("exec codex", 1)[1].split("\n", 1)[0])
@@ -147,7 +146,8 @@ class SideSessionTest(unittest.TestCase):
         self.assertEqual(st["status"], "stopped")
 
     def test_watch_caps_session(self) -> None:
-        self.run_cli("start", "--name", "w", "--prompt", "x", "--max-tokens", "1000")
+        self.run_cli("start", "--name", "w", "--provider", "claude",
+                     "--prompt", "x", "--max-tokens", "1000")
         st = json.loads((self.repo / "output/llm/side-sessions/w.json").read_text())
         tdir = self.projects / tokens.project_slug(st["dir"])
         tdir.mkdir(parents=True)

@@ -21,6 +21,8 @@ class SideConfig:
     state_dir: Path = Path(".")
     codex_home: Path = Path(".")
     codex_profile: str = ""
+    codex_model: str = C.CODEX_MODEL_DEFAULT
+    codex_effort: str = C.CODEX_EFFORT_DEFAULT
     budget_check_cmd: list[str] = field(default_factory=list)
     status_line_cmd: str = ""
     token_file: str = ""
@@ -83,6 +85,8 @@ def load_config(cwd: Path) -> SideConfig:
         state_dir=_resolve(repo, merged["state_dir"]),
         codex_home=Path(merged["codex_home"]).expanduser(),
         codex_profile=str(merged["codex_profile"]),
+        codex_model=str(merged["codex_model"]),
+        codex_effort=str(merged["codex_effort"]),
         budget_check_cmd=_budget_cmd(repo, merged["budget_check_cmd"]),
         status_line_cmd=(str(_resolve(repo, merged["status_line_cmd"]))
                          if merged["status_line_cmd"] else ""),

@@ -2,18 +2,36 @@
 
 ## Tóm tắt
 
-- **Mục đích:** plugin Claude Code điều phối brain/hand lai, bật theo từng dự án thay cho `parallel-subagents`: brain chạy trên gói Claude chính; việc code/tài liệu tự chứa mặc định giao hand ngoài chạy trên gói subscription thứ hai (mặc định DeepSeek V4.1 Flash qua `dsh`) để giữ hạn mức gói chính.
+- **Mục đích:** plugin Claude Code điều phối brain/hand lai theo 3 tầng Opus / Sol / dsh, bật theo từng dự án thay cho `parallel-subagents`: Opus (brain) chạy trên gói Claude chính; Sol là phiên phụ Codex trên tài khoản ChatGPT riêng; việc code/tài liệu tự chứa mặc định giao hand ngoài `dsh` trên gói subscription thứ hai để giữ hạn mức gói chính.
 - **Thành phần:**
-  - hand ngoài: lệnh `hand-ext` (mặc định chỉ `dsh` — DeepSeek V4.1 Flash trên gói OpenCode Go — trong `order`; `codex`, `claude`, `gemini` chỉ khai báo để gọi tường minh; sổ token `output/llm/hand_usage.json` và sổ USD Go toàn máy `~/.hybrid-hands/go_usage.jsonl`, lệnh `hand-ext usage`), skill `ext-hand`;
+  - hand ngoài: lệnh `hand-ext` (mặc định chỉ `dsh` — DeepSeek V4.1 Flash trên gói OpenCode Go — trong `order`; `codex`, `claude`, `claude-main`, `gemini` chỉ khai báo để gọi tường minh; sổ token `output/llm/hand_usage.json` và sổ USD Go toàn máy `~/.hybrid-hands/go_usage.jsonl`, lệnh `hand-ext usage`), skill `ext-hand`;
   - hand Claude: agent `hybrid-hands:hand` (gói chính) cho việc cần tool riêng của Claude Code, lệnh trả phí của dự án, hoặc khi `hand-ext` thoát 7;
-  - phiên phụ: lệnh `side-session` (phiên có ngữ cảnh brain riêng cho gói việc dài), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; lệnh `cc-switch` chuyển một phiên Claude qua lại giữa terminal và Paseo mà không để transcript rẽ nhánh; skill `paseo` theo dõi từ điện thoại;
+  - phiên phụ: lệnh `side-session` (mặc định mở phiên Sol Codex `gpt-6.1-sol` effort high, có ngữ cảnh brain riêng cho gói việc dài; hợp đồng bàn giao `.done`), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; lệnh `cc-switch` chuyển một phiên Claude qua lại giữa terminal và Paseo mà không để transcript rẽ nhánh; skill `paseo` theo dõi từ điện thoại;
   - hook SessionStart (khuôn brief, luật chọn hand, luật hạn mức) và UserPromptSubmit (bản ngắn).
-- **Luật hạn mức:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; sau mỗi lượt báo backend, token, % hạn mức (Claude/Codex) hoặc % Go 5h/tuần kèm USD ước tính, thời điểm reset.
-- **Luật dữ liệu:** không giao hand ngoài việc phải đọc hoặc gửi secret (`.env`, token, mật khẩu, URL DB có mật khẩu) hay dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân); việc đó dùng hand Claude. Được giao code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được.
-- **Luật test tối thiểu:** brain ghi mức test trong KIỂM CHỨNG của brief; mặc định hand chỉ viết test tối thiểu đủ chứng minh thay đổi đúng (1 test đường chính + tối đa 1-2 case biên/lỗi quan trọng, ưu tiên thêm assert vào test sẵn có). Phần ảnh hưởng doanh thu (thanh toán, tính giá/hoá đơn, billing/quota, quyền trả phí, mất/hỏng dữ liệu khách hàng, bảo mật) thì ghi "kỹ": test đủ nhánh/biên/lỗi và kiểm chứng thực tế bằng luồng thật, không chỉ unit test.
+- **Luật hạn mức:** không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức; dsh hết hạn mức thì Sol dùng `hand-ext run --backend codex --effort medium`, Sol hết hạn mức thì task về Opus hoặc chờ reset, `hand-ext` thoát 7 thì dùng hand Claude; sau mỗi lượt báo backend, token, % hạn mức (Claude/Codex) hoặc % Go 5h/tuần kèm USD ước tính, thời điểm reset.
+- **Luật dữ liệu:** phiên phụ Sol được đọc secret và dữ liệu khách hàng như Opus; luật dưới áp cho hand ngoài (dsh, gemini, codex dùng làm hand): không giao hand ngoài việc phải đọc hoặc gửi secret (`.env`, token, mật khẩu, URL DB có mật khẩu) hay dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân); việc đó dùng hand Claude. Được giao code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được. Không hiện giá trị `.env` áp cho mọi tầng.
+- **Luật test tối thiểu:** brain ghi mức test trong KIỂM CHỨNG của brief; mặc định hand chỉ viết test tối thiểu đủ chứng minh thay đổi đúng (1 test đường chính + tối đa 1-2 case biên/lỗi quan trọng, ưu tiên thêm assert vào test sẵn có). Mức "kỹ" chỉ gồm ĐÚNG 2 nhóm: (1) tính năng tạo hứng thú, giữ chân khiến người dùng trả tiền; (2) bảo mật chống tấn công từ ngoài. Hai nhóm này test đủ nhánh/biên/lỗi và kiểm chứng thực tế bằng luồng thật; nhóm (1) đo bằng event analytics + feature flag/A-B, chỉ đọc số tổng hợp không có thông tin cá nhân, nhóm (2) chạy SAST, quét dependency, DAST staging.
 - **Cách ly worktree:** `hand-ext run` mặc định chạy hand trong git worktree sạch (chỉ file tracked + thay đổi chưa commit/untracked không bị ignore; `.env` bị ignore không có trong workspace), lưu `changes.patch` rồi áp về cwd gốc; xem mục 5.3.
 - **Bật theo dự án:** cài ở scope project trong thư mục dự án, tắt `parallel-subagents` ở scope project (xem mục 3).
 - **Việc cần làm lần đầu:** `hand-ext setup`, người dùng tự đăng nhập từng backend (mục 5), rồi `hand-ext doctor`.
+
+## Ba tầng Opus / Sol / dsh
+
+| Tầng | Vai trò |
+|---|---|
+| Opus (brain, gói Claude chính) | Thư ký, solution architect, BA, product manager; phân lane, viết spec/plan L2/L3, duyệt tóm tắt, đọc bàn giao, không đọc diff task đã giao Sol |
+| Sol (phiên phụ Codex `gpt-6.1-sol` effort high, tài khoản ChatGPT riêng, `CODEX_HOME` `~/.codex-hand`) | Lead tech, lead QA, quyền ngang Opus; viết spec L1, review code mọi hand mình giao, gọi `hand-ext` cho dsh |
+| dsh (gói OpenCode Go) | Dev, tester |
+| Hand Opus `low` (`hybrid-hands:hand`) | Việc sáng tạo: UI design, mockup, design token, câu chữ; phần code hoá giao dsh |
+
+| Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
+|---|---|---|---|---|
+| L0 (sửa nhanh) | Không viết spec | Không duyệt | dsh | Sol |
+| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | dsh | Sol |
+| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | dsh | Sol |
+| L2/L3 | Opus | Người dùng | Opus cắt thành các gói cỡ L1, giao các phiên Sol | Sol |
+
+Opus gom nhiều việc L0 vào một phiên Sol (mỗi task một phiên), mở bằng `side-session start --provider codex`, chờ `<handoff_dir>/<tên>.done` bằng Monitor rồi đọc `side-session handoff`. L2/L3 do Opus viết spec/plan, người dùng duyệt, Opus cắt thành gói cỡ L1 giao các phiên Sol (tối đa `max_parallel`). Việc sáng tạo giao `hybrid-hands:hand`; trong phiên Sol gọi `hand-ext run --backend claude-main` (thoát 7 khi máy đã dùng ≥5% hạn mức tuần Claude trong ngày hoặc không tính được, khi đó ghi yêu cầu vào bàn giao để Opus quyết).
 
 ## 1. Cây thư mục
 
@@ -27,12 +45,12 @@ hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
     ├── bin/hand-ext, bin/side-session, bin/hh-ps, bin/cc-switch  # vào PATH của tool Bash khi plugin bật
-    ├── lib/hand_ext/ (backends/: codex | claude | dsh; isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
+    ├── lib/hand_ext/ (backends/: codex | claude | claude-main | dsh; day_budget.py, isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
     ├── commands/to-paseo.md, commands/to-term.md  # slash command chuyển phiên hai chiều
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
-    └── templates/hand-brief.md, ext-hand-preamble.md, dsh-hand.yml, side-session-prompt.md
+    └── templates/hand-brief.md, ext-hand-preamble.md, dsh-hand.yml, side-session-prompt.md, side-session-prompt-codex.md
 ```
 
 ## 2. Cài đặt
@@ -83,13 +101,16 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
     "backends": {
       "codex": { "home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high" },
       "claude": { "config_dir": "~/.claude-hand", "model": "claude-opus-5-5", "effort": "medium", "max_turns": 80 },
+      "claude-main": { "config_dir": "~/.claude", "model": "claude-opus-5-5", "effort": "low", "max_day_pct": 5 },
       "dsh": { "home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key", "browser_dir": "~/.dsh-hand/browser", "model": "deepseek-v4.1-flash", "effort": "high", "base_url": "https://opencode.ai/inference/go/openai/v1", "go_price_per_mtok": { "input": 0.30, "cached_input": 0.006, "output": 1.20 } },
       "gemini": { "home": "~/.gemini-hand", "model": "gemini-4-carbon" }
     }
   },
   "side_session": {
     "max_parallel": 2,
-    "handoff_dir": "docs/work-in-progress/handoffs"
+    "handoff_dir": "docs/work-in-progress/handoffs",
+    "codex_model": "gpt-6.1-sol",
+    "codex_effort": "high"
   },
   "ps": {
     "session_meta_globs": ["docs/work-in-progress/*.meta"]
@@ -97,30 +118,33 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 }
 ```
 
-Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=` chỉ là miễn trần ngày, trần token vẫn hiện); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. `codex`, `claude` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|gemini` khi cần. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test).
+Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=` chỉ là miễn trần ngày, trần token vẫn hiện); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. `codex`, `claude`, `claude-main` và `gemini` chỉ khai báo trong `backends`, không nằm trong `order` mặc định; gọi tường minh bằng `--backend codex|claude|claude-main|gemini` khi cần. `claude-main` trỏ gói chính `~/.claude`, mặc định `claude-opus-5-5`/`low`, chỉ dùng cho việc sáng tạo và chặn khi máy đã dùng từ `max_day_pct` (mặc định 5%) hạn mức tuần Claude trong ngày. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test).
 
 `ext_hand.isolation` nhận `worktree` (mặc định khi cwd là git repo) hoặc `none`; cờ `--isolation` ghi đè cho một lượt. `ext_hand.worktree_root` là thư mục chứa worktree tạm, mặc định `~/.hybrid-hands/worktrees` (nếu không khai báo thì đi theo `HYBRID_HANDS_STATE_DIR`); đường dẫn tương đối tính từ git toplevel. Không nên đặt `worktree_root` trong repo trừ khi thư mục đó bị ignore. Cwd không phải git repo mà isolation là mặc định thì lượt chạy rơi về `none` kèm cảnh báo trong report; nếu `worktree` được yêu cầu tường minh (config hoặc cờ) mà không tạo được worktree sạch thì `run` thoát 2, không âm thầm chạy trong repo gốc.
 
-### 4.1 Phiên phụ: Chrome, phiên cha, trần ngày, hand ngoài
+### 4.1 Phiên phụ: Sol Codex, Chrome, phiên cha, trần ngày, hand ngoài
 
-`side-session start` nhận thêm:
+`side-session start` mặc định `--provider codex`: mở phiên Sol trên Codex với `-a never -s workspace-write`, có mạng và `writable_roots` gồm worktree, `handoff_dir`, `runs_dir`, sổ/quota, state và `~/.claude`; `--model`/`--effort` mặc định `side_session.codex_model`/`codex_effort` (`gpt-6.1-sol`/`high`). `--resume` vẫn mặc định `claude`. Phiên Sol ghi `<handoff_dir>/<tên>.md` rồi tạo `<handoff_dir>/<tên>.done`; `ls`/`watch` báo `done`, Opus chờ file `.done` bằng Monitor. Các cờ khác:
 - `--chrome` / `--no-chrome`: mặc định theo `claude_args` (mặc định `--no-chrome`). `--chrome` thay mọi `--no-chrome` trong argv claude bằng `--chrome` và ghi `chrome` vào state; chỉ dùng với provider `claude`, provider khác in lỗi và thoát 2.
-- `--provider dsh`: chạy hand ngoài trong screen bằng `hand-ext run --backend <p> --brief <state_dir>/<tên>.prompt.md --label side:<tên> --cwd <worktree> [--timeout-min <giờ×60>]`; không truyền `--max-tokens` vì hand-ext tính cả token đọc cache, trần do `watch` canh (không tính cached). Bắt buộc `--worktree` (thiếu thoát 2); prompt sau khi ghép template phải có mục `LUẬT BẮT BUỘC` (thiếu thoát 2). `watch`/`ls` đọc token của lượt `hand-ext` nhãn `side:<tên>` bắt đầu từ `state.started` (vào + ra, không tính cached); khi lượt kết thúc, chép `report.md` thành `<handoff_dir>/<tên>.md` nếu chưa có và đặt `stopped` (ok) hoặc `dead` (lỗi).
+- `--provider claude|dsh`: `claude` mở phiên Claude Code (ListAgents/SendMessage); `dsh` chạy hand ngoài trong screen bằng `hand-ext run --backend dsh --brief <state_dir>/<tên>.prompt.md --label side:<tên> --cwd <worktree> [--timeout-min <giờ×60>] [--model M] [--effort E]`; không truyền `--max-tokens` vì hand-ext tính cả token đọc cache, trần do `watch` canh (không tính cached). Bắt buộc `--worktree` (thiếu thoát 2); prompt sau khi ghép template phải có mục `LUẬT BẮT BUỘC` (thiếu thoát 2). `watch`/`ls` đọc token của lượt `hand-ext` nhãn `side:<tên>` bắt đầu từ `state.started` (vào + ra, không tính cached); khi lượt kết thúc, chép `report.md` thành `<handoff_dir>/<tên>.md` nếu chưa có và đặt `stopped` (ok) hoặc `dead` (lỗi).
 - `--budget-exempt` / `--force-budget`: bỏ qua trần ngày ở lần `start` này; `--budget-exempt` ghi `budget_exempt=True` và cũng miễn mã 20 khi `watch`, còn `--force-budget` chỉ bỏ qua một lần.
 - Mọi phiên ghi `parent_session` = `CLAUDE_CODE_SESSION_ID` của phiên gọi; môi trường phiên con bỏ `CLAUDE_CODE_CHILD_SESSION`.
 
 `side_session.budget_check_cmd` (mặc định `[]` = tắt) là argv của lệnh kiểm trần ngày, chạy không qua shell, timeout 30 s; phần tử đầu là đường dẫn tương đối thì tính từ repo (ví dụ `["scripts/day-budget.sh", "status"]`). `start`: mã khác 0 (kể cả lỗi không chạy được lệnh) in stdout của lệnh rồi từ chối, thoát 4, trừ khi có `--budget-exempt` hoặc `--force-budget`. `watch`: chạy lại mỗi vòng; mã 20 và state không `budget_exempt` thì dừng phiên với trạng thái `daystop`. `side-session ls` thêm cột `CHROME`.
 
+`side_session.codex_model`/`codex_effort` (mặc định `gpt-6.1-sol`/`high`) là model/effort cho provider `codex` (Sol) và được chuyển tiếp cho hand-ext khi có `--model`/`--effort`; `--model`/`--effort` của `start` đè cho một lượt.
+
 `side_session.status_line_cmd` (mặc định `""` = status line mặc định) là lệnh status line cho phiên phụ provider `claude`, đường dẫn tương đối tính từ repo; `start` truyền `--settings {"statusLine":{"type":"command","command":<đường dẫn tuyệt đối>}}`, ví dụ để phiên phụ ghi số liệu cho lệnh trần ngày.
 
 ## 5. Backend của hand ngoài
 
-Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`, `hand-ext measure --runs <dir> [--runs <dir>...] [--backend B] [--since D]`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2. Backend `opencode` đã gỡ ở 0.19.0: `order` cũ còn tên này thì `run --backend auto` bỏ qua kèm dòng `bỏ qua opencode: backend 'opencode' không hỗ trợ (đã gỡ, dùng dsh)`, còn `--backend opencode` thoát 2.
+Lệnh: `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`, `hand-ext measure --runs <dir> [--runs <dir>...] [--backend B] [--since D]`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2. Backend `opencode` đã gỡ ở 0.19.0: `order` cũ còn tên này thì `run --backend auto` bỏ qua kèm dòng `bỏ qua opencode: backend 'opencode' không hỗ trợ (đã gỡ, dùng dsh)`, còn `--backend opencode` thoát 2. `claude-main` không nằm trong `order`, chỉ gọi tường minh cho việc sáng tạo.
 
 | Backend | Gói | Người dùng tự đăng nhập | Theo dõi hạn mức | Rủi ro tính tiền |
 |---|---|---|---|---|
 | `codex` | ChatGPT | `CODEX_HOME=~/.codex-hand codex login --device-auth` | `used_percent`, `resets_at` từ sự kiện của `codex exec --json` | đăng nhập API key thì tính tiền; `doctor` chặn, hand gỡ biến `OPENAI_API_KEY` |
 | `claude` | Claude tài khoản thứ hai | `CLAUDE_CONFIG_DIR=~/.claude-hand claude` rồi `/login` | lỗi hết hạn mức trong stream, `hand-ext status` | dùng nhầm tài khoản chính thì ăn hạn mức brain; hook repo vẫn chạy |
+| `claude-main` | Gói Claude CHÍNH `~/.claude`; `claude-opus-5-5`, effort `low`; chỉ việc sáng tạo | đã đăng nhập sẵn, không đăng nhập thêm | % tuần Claude máy này đã dùng trong ngày so với `max_day_pct`; `hand-ext status` | dùng cho việc không sáng tạo sẽ ăn hạn mức brain; từ 5%/ngày hoặc không tính được thì thoát 7, ghi yêu cầu vào bàn giao để Opus quyết |
 | `dsh` | OpenCode Go qua DeepSeek Harness (`dsh --profile headless`, DeepSeek V4.1 Flash, reasoning `high` mặc định; `--effort max` cho việc thiết kế nhiều phần); tuỳ chọn `--browser` qua Playwright MCP cô lập | cài `npm install -g @deepseek-ai/dsh@latest`; người dùng tự chép API key Go từ OpenCode Console vào `~/.dsh-hand/go.key` (một dòng) rồi `chmod 600 ~/.dsh-hand/go.key`; cài trình duyệt theo mục 5.1 nếu dùng `--browser` | lỗi `QUOTA`/`RATE_LIMIT` trong sự kiện `turn_end`, `hand-ext status`; USD ước tính trong sổ Go toàn máy (mục 5.2) | Extra Usage bật hoặc Console còn credit thì tính tiền khi hết hạn mức: phải TẮT Extra Usage, để credit 0; metadata models.dev ghi 0910 nhưng OpenCode báo Go đã phục vụ 1017 dưới cùng id; dsh luôn đọc `<cwd>/.env` nên hand khởi chạy dsh từ `~/.dsh-hand/launch` và trỏ workspace sang repo bằng patch `templates/dsh-hand.yml`; không được tạo `~/.dsh-hand/.env`; dsh bản developer preview, `doctor` chỉ đạt với bản đã đọc mã nguồn (0.2.1-rc.5) |
 | `gemini` | dự kiến | chưa có | chưa có | Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI |
 

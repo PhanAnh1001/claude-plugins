@@ -22,6 +22,15 @@ OVER_CAP_WARNING = "{name}: over cap {used}/{cap} (không dừng: enforce_token_
 SUMMARY_MAX_LINES = 15
 SUMMARY_HEADING = "## Tóm tắt"
 
+# Codex provider defaults for the Sol side session.
+CODEX_MODEL_DEFAULT = "gpt-6.1-sol"
+CODEX_EFFORT_DEFAULT = "high"
+CODEX_APPROVAL = "never"
+CODEX_SANDBOX = "workspace-write"
+# Backend homes a hand-ext run writes to; claude-main is the brain's main plan dir.
+HAND_EXT_BACKEND_HOMES = {"dsh": "~/.dsh-hand", "codex": "~/.codex-hand"}
+CLAUDE_MAIN_HOME = "~/.claude"
+
 DEFAULTS: dict = {
     "handoff_dir": "docs/work-in-progress/handoffs",
     "worktree_root": "../{repo}-wt",
@@ -32,6 +41,9 @@ DEFAULTS: dict = {
     "state_dir": "output/llm/side-sessions",
     "codex_home": "~/.codex-hand",
     "codex_profile": "",  # empty: use top-level keys of the hand-only CODEX_HOME
+    # Sol's Codex model/effort; `start --model/--effort` overrides them.
+    "codex_model": CODEX_MODEL_DEFAULT,
+    "codex_effort": CODEX_EFFORT_DEFAULT,
     # argv of the day-budget guard, e.g. ["scripts/day-budget.sh", "status"]; [] = off.
     "budget_check_cmd": [],
     # status line command for claude side sessions (relative to repo), "" = Claude default.
@@ -59,6 +71,7 @@ STATUS_STOPPED = "stopped"
 STATUS_CAPPED = "capped"
 STATUS_DEAD = "dead"
 STATUS_DAYSTOP = "daystop"
+STATUS_DONE = "done"
 ACTIVE_STATUSES = (STATUS_RUNNING,)
 
 # Exit codes of `side-session start`/`watch`.
@@ -91,10 +104,16 @@ CODEX_SESSIONS_SUBDIR = "sessions"
 CODEX_ROLLOUT_GLOB = "rollout-*.jsonl"
 
 TEMPLATE_RELPATH = "templates/side-session-prompt.md"
+CODEX_TEMPLATE_RELPATH = "templates/side-session-prompt-codex.md"
 BRAIN_PLACEHOLDER = "{brain}"
 NAME_PLACEHOLDER = "{name}"
 HANDOFF_PLACEHOLDER = "{handoff}"
+DONE_PLACEHOLDER = "{done}"
+HAND_EXT_PLACEHOLDER = "{hand_ext}"
 BRAIN_LINE_MARKER = "[[brain]]"
+
+# A session writes <handoff>.md then creates <handoff>.done as its finish contract.
+DONE_SUFFIX = ".done"
 
 TOKEN_FILE_PLACEHOLDER = "{uuid}"
 RESUME_PROMPT = ("Phiên này được mở lại sau khi bị dừng. Đọc lại việc đang dở, "

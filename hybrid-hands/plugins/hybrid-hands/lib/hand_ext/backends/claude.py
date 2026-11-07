@@ -15,6 +15,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from .. import day_budget
+from ..constants import (
+    CLAUDE_MAIN_BACKEND, CLAUDE_MAIN_CONFIG_DIR, CLAUDE_MAIN_EFFORT,
+    CLAUDE_MAIN_MAX_DAY_PCT, CLAUDE_MAIN_MAX_TURNS, CLAUDE_MAIN_MODEL,
+)
 from .base import Backend, Check, Quota, RunSpec, RunState, Status, Usage, bin_for
 
 DEFAULT_OPTIONS = {
@@ -23,7 +28,7 @@ DEFAULT_OPTIONS = {
     "effort": "medium",
     "max_turns": 80,
 }
-MAIN_CONFIG_DIR = "~/.claude"  # the brain's plan; the hand must not share it
+MAIN_CONFIG_DIR = CLAUDE_MAIN_CONFIG_DIR  # the brain's plan; the hand must not share it
 CONFIG_DIR_ENV = "CLAUDE_CONFIG_DIR"
 SANDBOX_READ_ONLY = "read-only"
 PERMISSION_EDIT = "acceptEdits"
@@ -46,14 +51,6 @@ WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 TIME_RE = re.compile(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)", re.IGNORECASE)
 
 
-def _opt(options: dict, key: str):
-    return options.get(key, DEFAULT_OPTIONS[key])
-
-
-def _config_dir(options: dict) -> Path:
-    return Path(os.path.expanduser(str(_opt(options, "config_dir"))))
-
-
 def parse_reset(text: str, now: Optional[datetime] = None) -> Optional[str]:
     """'3:45pm' / 'Mon 12:00am' (local time) -> ISO-8601 UTC, else None."""
     match = TIME_RE.search(text)
@@ -72,20 +69,29 @@ def parse_reset(text: str, now: Optional[datetime] = None) -> Optional[str]:
 
 class ClaudeBackend(Backend):
     name = "claude"
+    CLI_NAME = "claude"  # both Claude backends run the same binary, different config dirs
+    DEFAULT_OPTIONS = DEFAULT_OPTIONS
+    ALLOW_MAIN_CONFIG_DIR = False
     BLOCKED_ENV = (
         "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
         "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
     )
 
+    def _opt(self, options: dict, key: str):
+        return options.get(key, self.DEFAULT_OPTIONS[key])
+
+    def _config_dir(self, options: dict) -> Path:
+        return Path(os.path.expanduser(str(self._opt(options, "config_dir"))))
+
     def _base_env(self, options: dict) -> Dict[str, str]:
         env = {k: v for k, v in os.environ.items() if k not in self.BLOCKED_ENV}
-        env[CONFIG_DIR_ENV] = str(_config_dir(options))
+        env[CONFIG_DIR_ENV] = str(self._config_dir(options))
         return env
 
     def setup(self, options: dict) -> List[str]:
-        cdir = _config_dir(options)
+        cdir = self._config_dir(options)
         cdir.mkdir(parents=True, exist_ok=True)
-        raw = _opt(options, "config_dir")
+        raw = self._opt(options, "config_dir")
         return [
             f"Config dir ready: {cdir}",
             "Log in with your SECOND Claude account (own terminal, not here):",
@@ -95,7 +101,7 @@ class ClaudeBackend(Backend):
         ]
 
     def doctor(self, options: dict) -> List[Check]:
-        exe = bin_for(self.name)
+        exe = bin_for(self.CLI_NAME)
         checks: List[Check] = []
         try:
             out = subprocess.run([exe, "--version"], capture_output=True, text=True,
@@ -103,11 +109,13 @@ class ClaudeBackend(Backend):
             checks.append(Check("installed", out.returncode == 0, out.stdout.strip()[:80]))
         except (OSError, subprocess.TimeoutExpired) as exc:
             return [Check("installed", False, f"{exe}: {type(exc).__name__}")]
-        cdir = _config_dir(options)
+        cdir = self._config_dir(options)
         shared = cdir.resolve() == Path(os.path.expanduser(MAIN_CONFIG_DIR)).resolve()
-        checks.append(Check("config_dir", cdir.is_dir() and not shared,
-                            f"{cdir} is the brain's main plan dir" if shared
-                            else (str(cdir) if cdir.is_dir() else f"{cdir} missing; run setup")))
+        if shared and not self.ALLOW_MAIN_CONFIG_DIR:
+            checks.append(Check("config_dir", False, f"{cdir} is the brain's main plan dir"))
+        else:
+            checks.append(Check("config_dir", cdir.is_dir(),
+                                str(cdir) if cdir.is_dir() else f"{cdir} missing; run setup"))
         checks.append(self._login_check(exe, options))
         leaked = [k for k in self.BLOCKED_ENV if os.environ.get(k)]
         checks.append(Check("api_env", True, "removed for runs: " + ", ".join(leaked)
@@ -129,10 +137,10 @@ class ClaudeBackend(Backend):
 
     def build_command(self, spec: RunSpec) -> Tuple[List[str], Dict[str, str], Optional[str]]:
         opts = spec.options
-        argv = [bin_for(self.name), "-p", "--output-format", "stream-json", "--verbose",
-                "--model", spec.model or _opt(opts, "model"),
-                "--effort", spec.effort or _opt(opts, "effort"),
-                "--max-turns", str(_opt(opts, "max_turns"))]
+        argv = [bin_for(self.CLI_NAME), "-p", "--output-format", "stream-json", "--verbose",
+                "--model", spec.model or self._opt(opts, "model"),
+                "--effort", spec.effort or self._opt(opts, "effort"),
+                "--max-turns", str(self._opt(opts, "max_turns"))]
         if spec.sandbox == SANDBOX_READ_ONLY:
             argv += ["--permission-mode", PERMISSION_PLAN, "--disallowedTools", WRITE_TOOLS]
         else:
@@ -142,7 +150,7 @@ class ClaudeBackend(Backend):
             path = Path(spec.run_dir) / SYSTEM_PROMPT_FILE
             path.write_text(str(system_text), encoding="utf-8")
             argv += ["--append-system-prompt-file", str(path)]
-        env_add = {CONFIG_DIR_ENV: str(_config_dir(opts))}
+        env_add = {CONFIG_DIR_ENV: str(self._config_dir(opts))}
         return argv, env_add, spec.prompt
 
     def parse_line(self, line: str, state: RunState) -> None:
@@ -195,3 +203,38 @@ class ClaudeBackend(Backend):
         if stderr_text.strip():
             state.errors.append(stderr_text.strip()[-500:])
         return Status.FAILED
+
+
+class ClaudeMainBackend(ClaudeBackend):
+    """Claude on the PRIMARY subscription (`~/.claude`): explicit, Opus, low effort.
+
+    It refuses to run once this machine has used `max_day_pct` of the weekly limit today,
+    measured over the whole machine (brain, hands and this backend).
+    """
+    name = CLAUDE_MAIN_BACKEND
+    DEFAULT_OPTIONS = {
+        "config_dir": CLAUDE_MAIN_CONFIG_DIR,
+        "model": CLAUDE_MAIN_MODEL,
+        "effort": CLAUDE_MAIN_EFFORT,
+        "max_turns": CLAUDE_MAIN_MAX_TURNS,
+        "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT,
+    }
+    ALLOW_MAIN_CONFIG_DIR = True
+
+    def setup(self, options: dict) -> List[str]:
+        cdir = self._config_dir(options)
+        cdir.mkdir(parents=True, exist_ok=True)
+        return [f"Config dir ready: {cdir}",
+                "Uses the PRIMARY Claude subscription (already logged in); no second login."]
+
+    def day_block_reason(self, options: dict) -> Optional[str]:
+        """None when the machine is under the day cap, else the reason the run must stop."""
+        try:
+            use = day_budget.assess(options)
+        except day_budget.BudgetUnavailable as exc:
+            return (f"không tính được mức dùng Claude hôm nay ({exc}); "
+                    "ghi yêu cầu vào bàn giao để Opus quyết")
+        if use.blocked:
+            return (f"máy này đã dùng {use.pct:.1f}% Claude hôm nay "
+                    f"(ngưỡng {use.max_pct:g}%); ghi yêu cầu vào bàn giao để Opus quyết")
+        return None

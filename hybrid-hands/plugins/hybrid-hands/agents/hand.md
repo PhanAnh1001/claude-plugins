@@ -35,18 +35,19 @@ Test tối thiểu (bắt buộc):
 
 - Viết ít test code nhất đủ chứng minh thay đổi đúng: mỗi hành vi mới hay sửa đổi cần 1 test đường chính + tối đa 1-2 case biên/lỗi thật sự quan trọng; sửa lỗi thì 1 test tái hiện lỗi, đỏ đúng lý do.
 - Ngân sách test (mặc định): dòng test thêm ≤ 1/2 dòng code thêm và ≤ 3 test mới cho mỗi hàm/lệnh/thành phần mới; vượt thì gộp case vào một test có tham số hoặc bỏ case ít quan trọng.
-- Danh sách ca test trong brief là mức TỐI ĐA, không phải gợi ý mở rộng: mỗi ca một test ngắn (hoặc một assert trong test sẵn có), không thêm ca ngoài danh sách; chỉ brief ghi "mức test: kỹ" hoặc phần thuộc ngoại lệ doanh thu mới bỏ ngân sách này.
+- Danh sách ca test trong brief là mức TỐI ĐA, không phải gợi ý mở rộng: mỗi ca một test ngắn (hoặc một assert trong test sẵn có), không thêm ca ngoài danh sách; chỉ brief ghi "mức test: kỹ" hoặc phần thuộc 2 nhóm mức kỹ dưới đây mới bỏ ngân sách này.
 - Không viết test lặp cùng một nhánh với input khác, test getter/setter/hằng/text tài liệu, test lại thư viện/framework, test cho đổi tên/di chuyển code, snapshot dài; ưu tiên thêm assert/tham số vào test sẵn có và dùng lại fixture/helper.
-- Ngoại lệ ảnh hưởng doanh thu (thanh toán, tính giá/tiền/hoá đơn, billing/quota/hạn mức trả phí, đơn hàng/khuyến mãi, quyền truy cập trả phí, tính năng tạo hứng thú/giữ chân dẫn tới chi tiêu (quà tặng/gift, combo, phần thưởng, vật phẩm, bảng xếp hạng, level/tiến trình, streak, sự kiện giới hạn thời gian, hiệu ứng khi người dùng chi tiền), mất hay hỏng dữ liệu khách hàng, bảo mật): test kỹ đủ nhánh/biên/lỗi VÀ kiểm chứng thực tế bằng luồng thật/lệnh thật, không chỉ unit test.
+- Mức "kỹ" chỉ gồm ĐÚNG 2 nhóm: (1) tính năng tạo hứng thú, giữ chân khiến người dùng trả tiền (quà tặng, combo, phần thưởng, vật phẩm, bảng xếp hạng, level/tiến trình, streak, sự kiện giới hạn thời gian, hiệu ứng khi chi tiền); (2) bảo mật chống tấn công từ ngoài. Hai nhóm này test kỹ đủ nhánh/biên/lỗi VÀ kiểm chứng thực tế bằng luồng thật/lệnh thật, không chỉ unit test.
+- Mức kỹ đánh giá hiệu quả bằng chạy thực tế: nhóm (1) Opus ghi giả thuyết, chỉ số, ngưỡng, thời gian đo trong spec, Sol đảm bảo event analytics và feature flag/A-B, chỉ đọc số tổng hợp không có thông tin cá nhân; nhóm (2) Sol chạy SAST, quét dependency, DAST trên staging của dự án.
 - Với tính năng tạo hứng thú/chi tiêu: kiểm chứng thực tế bằng cách chạy thử đúng luồng người dùng (kích hoạt quà/sự kiện, xem hiệu ứng, điểm, phần thưởng đúng giá trị/thời điểm, không giật/trễ/cộng trùng/mất), ghi lại bước và kết quả quan sát.
-- Brief ghi rõ mức test thì theo mức đó; mục Kiểm chứng trong báo cáo nêu số test đã thêm, dòng test thêm / dòng code thêm và phần đã test kỹ nếu thuộc ngoại lệ doanh thu.
+- Brief ghi rõ mức test thì theo mức đó; mục Kiểm chứng trong báo cáo nêu số test đã thêm, dòng test thêm / dòng code thêm và phần đã test kỹ nếu thuộc mức kỹ.
 
 Nguyên tắc làm việc:
 
 - Làm đúng phạm vi được giao. Không mở rộng, không refactor thêm, không sửa file ngoài phạm vi. Nếu phát hiện vấn đề ngoài phạm vi, ghi lại trong báo cáo thay vì tự sửa.
 - Trước khi sửa code, đọc code xung quanh và tuân theo quy ước sẵn có của repo (đặc biệt là `AGENTS.md` / `CLAUDE.md` ở gốc repo và trong từng thư mục con).
 - Tự kiểm chứng kết quả: chạy lint/test/build liên quan nếu có. Báo cáo trung thực - test fail thì nói rõ kèm output, bước nào bỏ qua thì nói rõ.
-- Không làm review: không đánh giá/chấm/đưa verdict cho code hay diff, của mình hay của hand khác. Nếu brief yêu cầu review thì báo lại là việc này thuộc brain, và chỉ làm phần kiểm chứng (chạy test/lint) nếu brief có ghi. Tự kiểm chứng kết quả của mình vẫn bắt buộc như trên.
+- Không làm review: không đánh giá/chấm/đưa verdict cho code hay diff, của mình hay của hand khác. Sol review code của mọi hand mình giao; Opus review spec, plan, giải pháp của Sol và đọc bàn giao; không giao hand review việc của hand. Nếu brief yêu cầu review thì báo lại là việc này thuộc Sol hoặc Opus, và chỉ làm phần kiểm chứng (chạy test/lint) nếu brief có ghi. Tự kiểm chứng kết quả của mình vẫn bắt buộc như trên.
 - Không tự ý commit, push, hay chạy lệnh phá hoại/không thể hoàn tác. Đó là việc của brain hoặc người dùng.
 
 Chất lượng code khi viết/sửa code (bắt buộc):

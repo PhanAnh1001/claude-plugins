@@ -104,7 +104,8 @@ class _Base(unittest.TestCase):
         shutil.copy(FIX / "claude_transcript.jsonl", tdir / f"{st['uuid']}.jsonl")
 
     def start_claude(self, name: str = "r", *args: str) -> tuple[int, str]:
-        return self.run_cli("start", "--name", name, "--prompt", "làm việc", *args)
+        return self.run_cli("start", "--name", name, "--provider", "claude",
+                            "--prompt", "làm việc", *args)
 
     def stop(self, name: str = "r") -> None:
         code, _ = self.run_cli("stop", name)
