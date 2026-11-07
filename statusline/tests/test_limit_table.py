@@ -1,6 +1,7 @@
-"""Tests for the aligned limit table of statusline.sh (Claude / này / khác / Go rows)."""
+"""Tests for the aligned limit table of statusline.sh (Claude / này / khác / Go / GPT rows)."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
 import tempfile
@@ -89,6 +90,77 @@ class LimitTableTest(unittest.TestCase):
         self.assertRegex(rows[0], r"7d:5% \(reset .+ · \$13\.74/1%\)")
         self.assertRegex(rows[1], r"7d:12\.2% \(T6 2\.1% · T7 5\.4%\)$")
         self.assertRegex(rows[2], r"7d:2\.8%$")
+
+    def test_gpt_row_uses_latest_quota_sample_and_today_cost(self) -> None:
+        self.state.mkdir()
+        ledger = self.state / "codex_usage.jsonl"
+        now = dt.datetime.now(dt.timezone.utc)
+        start = now.astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        span = now - start
+        local_offset = start.utcoffset() or dt.timedelta(0)
+        tz = dt.timezone(-local_offset if local_offset else dt.timedelta(hours=5))
+
+        def iso(moment: dt.datetime) -> str:
+            return moment.astimezone(tz).isoformat()
+
+        def at(ratio: float) -> dt.datetime:
+            return start + span * ratio
+
+        def rec(ended: dt.datetime, cost: object, windows: object, **extra: object) -> dict:
+            return {"schema": 1, "ended": iso(ended), "codex_home": ".codex-hand",
+                    "cost_usd": cost, "windows": windows, **extra}
+
+        def window(percent: object, reset: dt.datetime) -> dict:
+            return {"used_percent": percent, "resets_at": iso(reset)}
+
+        # Phase 1: latest by ended (not line order), today's cost only, bad lines skipped.
+        latest = rec(at(0.95), 1.0, {"5h": window(42.4, now + dt.timedelta(hours=2)),
+                                     "7d": window(67.6, now + dt.timedelta(days=3))})
+        lines = [
+            json.dumps(latest), "{broken", json.dumps(42),
+            json.dumps(rec(at(0.2), 0.25, {"5h": window(10, now + dt.timedelta(hours=1))})),
+            json.dumps(rec(at(0.7), 0.1, {"5h": {"used_percent": "nope"}})),
+            json.dumps(rec(at(0.5), 0.5,
+                           {"5h": None, "7d": window(20, now + dt.timedelta(days=1))})),
+            json.dumps(rec(start - dt.timedelta(hours=2), 99,
+                           {"5h": window(90, now + dt.timedelta(hours=1))})),
+            json.dumps(rec(now + dt.timedelta(hours=1), 50,
+                           {"5h": window(30, now + dt.timedelta(hours=1))})),
+            json.dumps(rec(now, 77, {"5h": window(30, now + dt.timedelta(hours=1))},
+                           codex_home=".codex")),
+            json.dumps({"schema": 2, "ended": iso(at(0.3)), "codex_home": ".codex-hand",
+                        "cost_usd": 5, "windows": {}}),
+            json.dumps({"schema": 1, "ended": "not-a-date", "codex_home": ".codex-hand",
+                        "cost_usd": 5, "windows": {}}),
+            json.dumps({"schema": 1, "codex_home": ".codex-hand", "cost_usd": 5, "windows": {}}),
+        ]
+        ledger.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        self.write_go_live()
+        rows = self.table_rows(self.render())
+        self.assertEqual(len(rows), 3, rows)
+        self.assertTrue(rows[1].startswith("Go"), rows)
+        self.assertTrue(rows[2].startswith("GPT"), rows)
+        self.assert_aligned(rows)
+        self.assertRegex(rows[2], r"^GPT\s+5h:42%\s+\| 7d:68%\s+\| hôm nay ~\$1\.85$")
+
+        # Phase 2: expired 5h reset drops that % only; the older sample must not fill it in.
+        expired = rec(at(0.95), 1.0, {"5h": window(42.4, now - dt.timedelta(minutes=1)),
+                                      "7d": window(67.6, now + dt.timedelta(days=3))})
+        older = rec(at(0.2), 0.25, {"5h": window(10, now + dt.timedelta(hours=1))})
+        ledger.write_text(json.dumps(expired) + "\n" + json.dumps(older) + "\n", encoding="utf-8")
+        rows = self.table_rows(self.render())
+        self.assertTrue(rows[-1].startswith("GPT"), rows)
+        self.assertRegex(rows[-1], r"^GPT\s+5h:--\s+\| 7d:68%\s+\| hôm nay ~\$1\.25$")
+
+        # Phase 3: only a sample older than 24h, then no ledger at all: no GPT row, exit 0.
+        old = rec(now - dt.timedelta(hours=25), 3.0,
+                  {"5h": window(42.4, now + dt.timedelta(hours=1))})
+        ledger.write_text(json.dumps(old) + "\n", encoding="utf-8")
+        rows = self.table_rows(self.render())
+        self.assertFalse(any(row.startswith("GPT") for row in rows), rows)
+        ledger.unlink()
+        rows = self.table_rows(self.render())
+        self.assertFalse(any(row.startswith("GPT") for row in rows), rows)
 
     def test_missing_go_keeps_the_other_rows_aligned(self) -> None:
         self.write_summary()

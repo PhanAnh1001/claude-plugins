@@ -10,7 +10,9 @@
 #      one), from "week-split.sh --color"; none until its summary exists for this window
 #   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
 #      the estimated DS cells from hand-ext
-#   3d. one line per main-session group (session-lines.sh): Claude and Go % of the group
+#   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from the hand-ext
+#      Codex ledger, when that sample ended within 24h
+#   3e. one line per main-session group (session-lines.sh): Claude and Go % of the group
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
 #      inline-code colour, note in parentheses dimmed like "(high)" on line 2); none when no skill.
@@ -36,6 +38,7 @@ LAST_SKILL_SCRIPT="$SCRIPTS_DIR/last-skill.sh"
 GO_FETCH_SCRIPT="$SCRIPTS_DIR/go-usage-fetch.sh"
 WEEK_SPLIT_SCRIPT="$SCRIPTS_DIR/week-split.sh"
 SESSION_LINES_SCRIPT="$SCRIPTS_DIR/session-lines.sh"
+GPT_USAGE_SCRIPT="$SCRIPTS_DIR/gpt_usage.py"
 # Summary of week_split.py: the 7-day estimate is used only when it is recent and matches the
 # integer % and the reset shown.
 WEEK_SPLIT_SUMMARY="$CLAUDE_HOME/.statusline-week-split.json"
@@ -225,6 +228,20 @@ rate_limit_segment() {
   printf '%s' "$seg"
 }
 
+build_gpt_cells() {
+  # Cells from gpt_usage.py (5h, 7d, today's USD), or nothing when it has no fresh sample.
+  # The parser only prints validated numbers; the row label is added by build_limit_table.
+  local row five_pct seven_pct usd
+  [ -f "$GPT_USAGE_SCRIPT" ] || return 0
+  row=$(python3 "$GPT_USAGE_SCRIPT" 2>/dev/null) || return 0
+  [ -n "$row" ] || return 0
+  IFS=$TABLE_US read -r five_pct seven_pct usd <<< "$row"
+  [ -n "$usd" ] || return 0
+  join_cells "$(rate_limit_segment 5h "$five_pct" "" "" "")" \
+    "$(rate_limit_segment 7d "$seven_pct" "" "" "")" \
+    "${DIM}hôm nay ${STALE_MARK}\$${usd}${RESET}"
+}
+
 save_cache() {
   # Persist the newest values so the next render (even the first one after CLI startup) has a
   # fallback. Empty fields are dropped (5h data may be absent), so the 7d values still persist.
@@ -279,13 +296,14 @@ build_claude_row() {
 }
 
 build_limit_table() {
-  # Args: claude_cells local_cell other_cell go_cells. Builds the aligned rows and prints them;
-  # labels never start with a space because Claude Code trims leading whitespace of each line.
-  local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 rows=""
+  # Args: claude_cells local_cell other_cell go_cells gpt_cells. Builds the aligned rows and
+  # prints them; labels never start with a space because Claude Code trims leading whitespace.
+  local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 gpt_cells=$5 rows=""
   rows="Claude${TABLE_US}${claude_cells}"
   [ -n "$local_cell" ] && rows="${rows}"$'\n'"${DIM}· máy này${RESET}${TABLE_US}${TABLE_US}${local_cell}"
   [ -n "$other_cell" ] && rows="${rows}"$'\n'"${DIM}· máy khác${RESET}${TABLE_US}${TABLE_US}${other_cell}"
   [ -n "$go_cells" ] && rows="${rows}"$'\n'"${DIM}Go${RESET}${TABLE_US}${go_cells}"
+  [ -n "$gpt_cells" ] && rows="${rows}"$'\n'"${DIM}GPT${RESET}${TABLE_US}${gpt_cells}"
   printf '%s\n' "$rows" | table_print
 }
 
@@ -302,7 +320,8 @@ local_cell=""; other_cell=""; usd_text=""
 IFS=$TABLE_US read -r local_cell other_cell usd_text <<< "$week_split_row"
 claude_row=$(build_claude_row "$usd_text")
 go_row=$(build_go_row)
-limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row")
+gpt_row=$(build_gpt_cells)
+limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row" "$gpt_row")
 line_sessions=""
 [ -f "$SESSION_LINES_SCRIPT" ] && line_sessions=$(bash "$SESSION_LINES_SCRIPT" --color \
   "$session_id" 2>/dev/null)

@@ -3,7 +3,7 @@
 ## Tóm tắt
 
 - **Mục tiêu:** làm theo spec `2026-11-07-ba-tang-opus-sol-dsh-spec.md`. Có 5 nhóm: phiên Sol trên Codex, backend `claude-main`, policy mới, kiểm thực tế, và (thêm 07/11) dự phòng 429 bằng Sol low cùng hạn mức GPT trên Paseo và statusline.
-- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); 4.3 xong (15:00, baseline ở mục 4.3); 4.12-4.14 xong (15:05); 5.3 xong (15:35); còn 4.15, 4.16, 5.4, 5.6.
+- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); 4.3 xong (15:00, baseline ở mục 4.3); 4.12-4.14 xong (15:05); 5.3, 5.4 xong (15:40); đang chạy phiên `sol-415` (4.15, 4.16); còn 5.6.
   - Test đầy đủ: 388 test xanh (07/11, 13:50). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng 5/5 xanh); chưa xử lý.
   - 4.2 nhánh chặn đã thử: `.claude/hybrid-hands.json` tạm `max_day_pct` = 1 → "máy này đã dùng 2.4% Claude hôm nay (ngưỡng 1%)", thoát mã 7; đã xoá file tạm.
   - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
@@ -149,7 +149,10 @@ Người dùng yêu cầu (07/11, 14:00), duyệt 14:10. Lane L2: brain cắt th
   - Đã làm (phiên `sol-53`, 07/11 14:40-15:30; 14 file, +760/-74): module mới `lib/hh_ps/codex.py` đọc sổ 5.2 và rollout đã ghim, USD ước tính `~$`; dòng `GPT tuần` cạnh dòng Claude tuần; `hh-ps --json` có trường tương ứng; pane `hh-tree-pane` và plugin `paseo-hh-tree` nhận schema mới; `skills/paseo/SKILL.md` mục 4 đã cập nhật. 395 test xanh ở repo chính.
   - Chạy thật (15:35): `GPT tuần tổng 4.0% · reset 09/11 13:19`; phiên Sol hiện `~$1.02  GPT 5h ? · tuần 4.0%`.
   - Còn lại (gộp vào 5.6): tài khoản không có cửa sổ 5h nên nên ẩn `5h ?` thay vì hiện `?`; chưa typecheck TS đủ dependency và chưa xem UI trên điện thoại.
-- [ ] 5.4 Statusline (plugin `statusline/`): thêm đoạn ngắn % tuần và 5h của tài khoản GPT `~/.codex-hand` cùng USD GPT hôm nay, từ sổ 5.2. Không có mẫu trong 24 giờ thì ẩn. 1 test.
+- [x] 5.4 Statusline (plugin `statusline/`): thêm đoạn ngắn % tuần và 5h của tài khoản GPT `~/.codex-hand` cùng USD GPT hôm nay, từ sổ 5.2. Không có mẫu trong 24 giờ thì ẩn. 1 test.
+  - Đã làm (phiên `sol-54`, 07/11 15:00-15:35; 7 file, +280/-15): `scripts/gpt_usage.py` mới chỉ đọc sổ, lọc `.codex-hand`; hàng GPT trong `statusline.sh` sau hàng Go; statusline 0.19.1. Chạy thật: `GPT 5h:-- | 7d:3% | hôm nay ~$?` (1 trong 2 lượt hôm nay thiếu `cost_usd` nên tổng là `?`).
+  - Test: ở repo chính 187/187 xanh. Trong sandbox Sol, 1 test hiệu năng đỏ cả trên bản gốc, do sandbox chậm.
+  - Còn lại (5.6): cập nhật plugin statusline đã cài lên 0.19.1 rồi xem thanh trạng thái thật.
 - [x] 5.5 Paseo app (`~/.paseo/config.json`, sửa khi người dùng đã duyệt mục 5):
   - thêm provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME=/Users/anhtp/.codex-hand`, model `gpt-6.1-sol`) theo `skills/paseo/SKILL.md` mục 4;
   - tạm tắt provider `codex` mặc định (`~/.codex`) nếu Paseo 0.15.0 có khoá tắt provider, không thì ghi đè `codex` bằng `env.CODEX_HOME` của `~/.codex-hand`;

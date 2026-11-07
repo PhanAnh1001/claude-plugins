@@ -36,11 +36,15 @@ description: Set up, check or remove the statusline plugin as Claude Code's stat
    echo '{"model":{"display_name":"test"},"cwd":"/"}' | bash "${CLAUDE_HOME:-$HOME/.claude}/statusline-command.sh"
    ```
 
-   The first shows `bash "$HOME/.claude/statusline-command.sh"`; the second prints three or four lines.
+   The first shows `bash "$HOME/.claude/statusline-command.sh"`; the second prints three or more lines.
    Line 4, under Claude's limits, shows the live OpenCode Go windows (`Go 5h:... | wk:... | mo:...`) once a fetch has
    filled `$CLAUDE_HOME/.statusline-go-usage.json`; until then it falls back to the estimated
    `DS 5h ~12% · tuần ~31%` segment from `~/.hybrid-hands/go_usage_summary.json` (written by
    `hand-ext`, never by this plugin). The first render only starts the fetch in the background.
+   When the hand-ext Codex ledger
+   `${HYBRID_HANDS_STATE_DIR:-$HOME/.hybrid-hands}/codex_usage.jsonl` has a schema-1 `.codex-hand`
+   sample ended within 24 hours, a `GPT` row follows `Go` with the newest 5h/7d percentages and
+   today's estimated USD (`hôm nay ~$...`); otherwise there is no GPT row.
    If it prints `statusline plugin not found`, the plugin is not in `installed_plugins.json`:
    install it with `claude plugin install statusline@statusline-local`.
 
@@ -69,5 +73,8 @@ Same order with `--uninstall`: `--uninstall --dry-run`, then `--uninstall`. It r
   (no fetch yet, rejected key, or an older outage) the optional `DS ...` tail reads
   `~/.hybrid-hands/go_usage_summary.json` (or `$HYBRID_HANDS_STATE_DIR`); the statusline never
   calls `hand-ext`. A missing or broken file is silent, so this needs no setup step.
+- The `GPT` row is read-only too: `scripts/gpt_usage.py` reads the Codex ledger above and never
+  writes it, calls the network or needs a setup step. Missing, broken or older-than-24h data hides
+  the row; an expired reset hides only that percentage.
 - Requirements: `jq` (rendering and live cache), `curl` (live Go fetch), `python3` >= 3.9 (skill
   segment; JSON fallback when `jq` is missing during setup).
