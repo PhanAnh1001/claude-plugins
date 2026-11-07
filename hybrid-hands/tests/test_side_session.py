@@ -127,6 +127,9 @@ class SideSessionTest(unittest.TestCase):
         self.assertNotIn(" -p ", out.split("exec codex", 1)[1].split("\n", 1)[0])
 
     def test_start_ls_stop_and_parallel_limit(self) -> None:
+        (self.repo / ".claude").mkdir()
+        (self.repo / ".claude" / "hybrid-hands.json").write_text(
+            json.dumps({"side_session": {"codex_home": str(self.tmp / "codex-home")}}))
         for name in ("a", "b"):
             code, _ = self.run_cli("start", "--name", name, "--prompt", "do it")
             self.assertEqual(code, 0)
@@ -137,7 +140,7 @@ class SideSessionTest(unittest.TestCase):
         self.assertEqual(st["status"], "running")
         _, out = self.run_cli("ls")
         self.assertIn("alive", out)
-        self.assertIn("0/272000", out)
+        self.assertRegex(out, r"(?m)^a\s+codex\s+no\s+running\s+alive\s+\?")
         code, out = self.run_cli("stop", "a")
         self.assertEqual(code, 0)
         self.assertIn("-S 1234.side-a -X quit", self.screen_log())

@@ -71,6 +71,12 @@ class ApplyResult:
     files: List[str] = field(default_factory=list)
     patch_path: Optional[Path] = None
     detail: str = ""
+    added_lines: int = 0
+    removed_lines: int = 0
+
+    @property
+    def changed_lines(self) -> int:
+        return self.added_lines + self.removed_lines
 
 
 def _error_text(proc: subprocess.CompletedProcess, argv: List[str]) -> str:
@@ -303,6 +309,7 @@ def finalize(ctx: IsolationContext, run_dir: Path, *, apply_changes: bool,
         return ApplyResult(APPLY_SKIPPED, detail="không dùng worktree")
     patch_path = run_dir / CHANGES_PATCH_FILE
     files: List[str] = []
+    added = removed = 0
     try:
         run_dir.mkdir(parents=True, exist_ok=True)
         final_tree = _snapshot_tree(ctx.worktree, run_dir, "final")
@@ -312,19 +319,47 @@ def finalize(ctx: IsolationContext, run_dir: Path, *, apply_changes: bool,
         if diff.returncode != 0:
             return ApplyResult(APPLY_ERROR, detail=_error_text(diff, ["diff"]))
         patch = diff.stdout
-        files = _changed_files(ctx.worktree, ctx.baseline_tree, final_tree)
         patch_path.write_bytes(patch)
+        added, removed, stats_error = _diff_stats(ctx.worktree, ctx.baseline_tree, final_tree)
+        if stats_error:
+            return ApplyResult(APPLY_ERROR, patch_path=patch_path, detail=stats_error,
+                               added_lines=added, removed_lines=removed)
+        files = _changed_files(ctx.worktree, ctx.baseline_tree, final_tree)
     except (IsolationError, OSError) as exc:
-        return ApplyResult(APPLY_ERROR, files=files, detail=str(exc))
+        return ApplyResult(APPLY_ERROR, files=files, detail=str(exc),
+                           added_lines=added, removed_lines=removed)
     if not patch.strip():
-        return ApplyResult(APPLY_EMPTY, files=files, patch_path=patch_path)
+        return ApplyResult(APPLY_EMPTY, files=files, patch_path=patch_path,
+                           added_lines=added, removed_lines=removed)
     if not apply_changes:
         return ApplyResult(APPLY_SKIPPED, files=files, patch_path=patch_path,
-                           detail=skip_reason)
+                           detail=skip_reason, added_lines=added, removed_lines=removed)
     try:
-        return _apply_patch(ctx.source_root, patch, patch_path, files)
+        result = _apply_patch(ctx.source_root, patch, patch_path, files)
+        result.added_lines = added
+        result.removed_lines = removed
+        return result
     except (IsolationError, OSError) as exc:
-        return ApplyResult(APPLY_ERROR, files=files, patch_path=patch_path, detail=str(exc))
+        return ApplyResult(APPLY_ERROR, files=files, patch_path=patch_path, detail=str(exc),
+                           added_lines=added, removed_lines=removed)
+
+
+def _diff_stats(worktree: Path, baseline: str, final: str) -> tuple[int, int, str]:
+    """Added/removed line totals for the hand's diff (new and staged files included)."""
+    proc = _git(["diff", "--numstat", "--no-ext-diff", "--no-textconv",
+                 baseline, final, "--"], worktree, ok=False)
+    if proc.returncode != 0:
+        return 0, 0, _error_text(proc, ["diff", "--numstat"])
+    added = removed = 0
+    for line in proc.stdout.decode("utf-8", "replace").splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) < 2:
+            continue
+        if parts[0].isdigit():
+            added += int(parts[0])
+        if parts[1].isdigit():
+            removed += int(parts[1])
+    return added, removed, ""
 
 
 def _changed_files(worktree: Path, baseline: str, final: str) -> List[str]:

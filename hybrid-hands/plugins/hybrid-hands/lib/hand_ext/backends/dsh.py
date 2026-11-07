@@ -49,8 +49,12 @@ from typing import Dict, List, Optional, Tuple
 
 from .base import (Backend, CAPACITY_NOTE, Check, RunSpec, RunState, Status, bin_for,
                    is_capacity_error)
-from ..constants import DEFAULT_COMPACT_AT, DEFAULT_CONTEXT_WINDOW
+from ..constants import (
+    DEFAULT_COMPACT_AT, DEFAULT_CONTEXT_WINDOW, DSH_CAPACITY_WAIT_MIN_LINES,
+    DSH_CAPACITY_WAIT_SECONDS,
+)
 
+NAME = "dsh"
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 TEMPLATE_PATCH = PLUGIN_ROOT / "templates" / "dsh-hand.yml"
 PATCH_FILE = "hand.patch.yml"  # copy of the template inside DSH_HOME, used by runs
@@ -192,6 +196,21 @@ def compaction_ratio(compact_at: int, context_window: int) -> float:
     return compact_at / context_window
 
 
+def capacity_min_lines(options: dict) -> int:
+    """Line threshold for keeping the dsh patch while waiting out capacity errors."""
+    value = _int_option(options, "capacity_wait_min_lines", DSH_CAPACITY_WAIT_MIN_LINES)
+    if value < 0:
+        raise ValueError(f"capacity_wait_min_lines phải >= 0, nhận {value}")
+    return value
+
+
+def capacity_wait_seconds(options: dict) -> int:
+    value = _int_option(options, "capacity_wait_seconds", DSH_CAPACITY_WAIT_SECONDS)
+    if value < 0:
+        raise ValueError(f"capacity_wait_seconds phải >= 0, nhận {value}")
+    return value
+
+
 def home_dir(options: dict) -> Path:
     return _path(options, "home", DEFAULT_HOME)
 
@@ -295,7 +314,7 @@ def permission_mode(spec: RunSpec) -> Tuple[str, Optional[str]]:
 
 
 class DshBackend(Backend):
-    name = "dsh"
+    name = NAME
     BLOCKED_ENV = ("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "OPENCODE_API_KEY", KEY_ENV,
                    "OPENAI_API_KEY", "OPENAI_BASE_URL", "ANTHROPIC_API_KEY",
                    "ANTHROPIC_BASE_URL", "GEMINI_API_KEY", "GOOGLE_API_KEY",

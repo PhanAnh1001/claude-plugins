@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 from contextlib import redirect_stdout
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -24,6 +25,25 @@ from side_session.cli import build_parser
 from side_session.config import SideConfig  # noqa: E402
 
 OLD_AGE_S = 3600  # an earlier hand-gpt run finished an hour before the session
+
+
+def normalise(path: str | Path) -> Path:
+    """Resolve both sides so /var and /private/var compare equal on macOS."""
+    return Path(path).resolve()
+
+
+def write_rollout(path: Path, cwd: Path, created: float, total: dict | None = None,
+                  last: dict | None = None) -> Path:
+    """A real-shaped rollout: session_meta first, token_count next."""
+    stamp = datetime.fromtimestamp(created, timezone.utc).isoformat()
+    records = [{"type": "session_meta",
+                "payload": {"id": "codex-session-id", "cwd": str(cwd), "timestamp": stamp}},
+               {"type": "event_msg", "payload": {"type": "token_count", "info": {
+                   "total_token_usage": total or {},
+                   "last_token_usage": last or total or {}}}}]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("".join(json.dumps(record) + "\n" for record in records))
+    return path
 
 
 class CodexArgvTest(unittest.TestCase):
@@ -89,12 +109,10 @@ class CodexArgvTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             cfg = SideConfig(Path(d), Path(d)/"h", Path(d)/"wt", 2, 300000, 0,
                              state_dir=Path(d)/"state", codex_home=Path(d))
-            rollout = Path(d)/"sessions"/"rollout-u.jsonl"
-            rollout.parent.mkdir()
-            rollout.write_text(json.dumps({"payload": {"type": "token_count", "info": {
-                "total_token_usage": {"input_tokens": 400000},
-                "last_token_usage": {"input_tokens": 10000, "cached_input_tokens": 9000,
-                                     "output_tokens": 100}}}}) + "\n")
+            rollout = write_rollout(
+                Path(d)/"sessions"/"rollout-2026-11-07T00-00-00-a1b2c3.jsonl", Path(d),
+                time.time(), {"input_tokens": 400000},
+                {"input_tokens": 10000, "cached_input_tokens": 9000, "output_tokens": 100})
             state.save(cfg.state_dir, state.SessionState(
                 "n", "u", C.PROVIDER_CODEX, d, "side-n", "side-n-watch", 300000, 0,
                 C.STATUS_RUNNING, str(cfg.handoff_dir/"n.md")))
@@ -132,16 +150,23 @@ class DoneContractTest(unittest.TestCase):
             handoff.parent.mkdir()
             handoff.write_text("## Tóm tắt\n- Kết quả: xong\n")
             handoff.with_suffix(C.DONE_SUFFIX).write_text("")
+            started = time.time() - 1
+            rollout = write_rollout(
+                cfg.codex_home/C.CODEX_SESSIONS_SUBDIR/"2026/11/07/rollout-done.jsonl",
+                tmp, started + 1, {"input_tokens": 10})
             state.save(cfg.state_dir, state.SessionState(
                 name="n", uuid="u", provider=C.PROVIDER_CODEX, dir=str(tmp),
                 screen="side-n", watch_screen="side-n-watch", max_tokens=1000,
-                started=time.time(), status=C.STATUS_RUNNING, handoff=str(handoff)))
+                started=started, status=C.STATUS_RUNNING, handoff=str(handoff)))
             out = io.StringIO()
             with mock.patch.object(actions.screen, "screen_names", return_value=set()), \
                     redirect_stdout(out):
-                self.assertEqual(actions.ls(cfg, None), 0)
+                # Watch first: ls also pins, so checking after ls would hide this.
                 self.assertEqual(actions.watch(
                     cfg, SimpleNamespace(name="n", interval=None, once=True)), 0)
+                self.assertEqual(normalise(state.load(cfg.state_dir, "n").codex_rollout),
+                                 normalise(rollout))
+                self.assertEqual(actions.ls(cfg, None), 0)
             self.assertIn(C.STATUS_DONE, out.getvalue())
             self.assertEqual(state.load(cfg.state_dir, "n").status, C.STATUS_DONE)
 
@@ -188,18 +213,77 @@ class CodexTokensTest(unittest.TestCase):
 class RolloutSinceTest(unittest.TestCase):
     def test_older_rollout_ignored(self):
         with tempfile.TemporaryDirectory() as d:
-            day = Path(d) / C.CODEX_SESSIONS_SUBDIR / "2026/11/04"
-            day.mkdir(parents=True)
-            old = day / "rollout-2026-11-04T00-00-00-old.jsonl"
-            old.write_text("{}\n")
-            past = time.time() - OLD_AGE_S
-            os.utime(old, (past, past))
+            tmp = Path(d)
+            work, other = tmp/"work", tmp/"other"
+            work.mkdir()
+            other.mkdir()
+            day = tmp / C.CODEX_SESSIONS_SUBDIR / "2026/11/04"
             started = time.time() - 1
-            self.assertIsNone(tokens.codex_rollout(Path(d), "nomatch", started))
-            new = day / "rollout-2026-11-04T01-00-00-new.jsonl"
-            new.write_text("{}\n")
-            self.assertEqual(tokens.codex_rollout(Path(d), "nomatch", started), new)
-            self.assertEqual(tokens.codex_rollout(Path(d), "old"), old)
+            write_rollout(day/"rollout-2026-11-04T00-00-00-old.jsonl", work,
+                          started - OLD_AGE_S, {"input_tokens": 9000})
+            self.assertIsNone(tokens.codex_rollout(tmp, str(work), started))
+            # Filename contains the uuid, but cwd does not match: never counted.
+            write_rollout(day/"rollout-2026-11-04T01-00-00-uuid-here.jsonl", other,
+                          started + 1, {"input_tokens": 10})
+            self.assertIsNone(tokens.codex_rollout(tmp, str(work), started))
+            # mtime is not creation time; the session_meta timestamp decides.
+            right = write_rollout(day/"rollout-2026-11-04T02-00-00-right.jsonl", work,
+                                  started + 2, {"input_tokens": 50})
+            past = started - OLD_AGE_S
+            os.utime(right, (past, past))
+            self.assertEqual(normalise(tokens.codex_rollout(tmp, str(work), started)),
+                             normalise(right))
+
+
+class RolloutPinTest(unittest.TestCase):
+    def test_pins_earliest_matching_rollout_and_keeps_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            work = {name: tmp/name for name in ("work-a", "work-b", "work-c", "work-d")}
+            for path in work.values():
+                path.mkdir()
+            cfg = SideConfig(tmp, tmp/"handoffs", tmp/"wt", 2, 1000, 0,
+                             state_dir=tmp/"state", codex_home=tmp/"codex")
+            day = cfg.codex_home / C.CODEX_SESSIONS_SUBDIR / "2026/11/07"
+            started = time.time() - 60
+            write_rollout(day/"rollout-old.jsonl", work["work-a"], started - OLD_AGE_S,
+                          {"input_tokens": 9000})
+            write_rollout(day/"rollout-hand.jsonl", work["work-c"], started + 40,
+                          {"input_tokens": 5000})
+            right_a = write_rollout(day/"rollout-aaaa.jsonl", work["work-a"], started + 2,
+                                    {"input_tokens": 50})
+            right_b = write_rollout(day/"rollout-bbbb.jsonl", work["work-b"], started + 3,
+                                    {"input_tokens": 60})
+            for name, workdir in (("n", "work-a"), ("m", "work-b"), ("u", "work-d")):
+                state.save(cfg.state_dir, state.SessionState(
+                    name, f"uuid-{name}", C.PROVIDER_CODEX, str(work[workdir]),
+                    f"side-{name}", f"side-{name}-watch", 1000, started,
+                    C.STATUS_RUNNING, str(cfg.handoff_dir/f"{name}.md")))
+            with mock.patch.object(actions.screen, "screen_names", return_value={"side-n"}), \
+                    mock.patch.object(actions.screen, "is_alive", return_value=True):
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    self.assertTrue(actions.watch_tick(cfg, "n"))
+                    pinned_a = state.load(cfg.state_dir, "n").codex_rollout
+                    self.assertEqual(normalise(pinned_a), normalise(right_a))
+                    self.assertEqual(state.load(cfg.state_dir, "n").tokens_used, 50)
+                    actions.ls(cfg, None)
+                self.assertEqual(normalise(state.load(cfg.state_dir, "m").codex_rollout),
+                                 normalise(right_b))
+                write_rollout(day/"rollout-later.jsonl", work["work-a"], started + 50,
+                              {"input_tokens": 700})
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    actions.ls(cfg, None)
+                self.assertEqual(state.load(cfg.state_dir, "n").codex_rollout, pinned_a)
+                self.assertIn("50/272000", out.getvalue())
+                right_a.unlink()
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    actions.ls(cfg, None)
+            self.assertEqual(state.load(cfg.state_dir, "n").codex_rollout, pinned_a)
+            self.assertRegex(out.getvalue(), r"(?m)^n\s+codex\s+no\s+running\s+alive\s+\?")
+            self.assertRegex(out.getvalue(), r"(?m)^u\s+codex\s+no\s+running\s+dead\s+\?")
 
 
 if __name__ == "__main__":

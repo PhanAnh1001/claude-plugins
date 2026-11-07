@@ -138,7 +138,10 @@ def start(cfg: SideConfig, a) -> int:
     return _launch(cfg, a, st, cmds, prompt_file=prompt_file, prompt_text=full_prompt,
                    dry_run_kind="session",
                    done_message=f"started {name} (screen -r {K.session_screen(name)}), "
-                                f"uuid {sid}, cap {max_tokens}")
+                                f"uuid {sid}, " + (
+                                    f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén)"
+                                    if st.provider == C.PROVIDER_CODEX
+                                    else f"cap {max_tokens}"))
 
 
 def _validate_resume(a) -> int | None:
@@ -203,6 +206,25 @@ def resume(cfg: SideConfig, a) -> int:
                                 f"uuid {old.uuid}, cap {max_tokens}")
 
 
+def _rollout_path(cfg: SideConfig, st: state.SessionState) -> Path | None:
+    """Pinned rollout only; never re-search once a path is in the state."""
+    pinned = getattr(st, "codex_rollout", "")
+    if pinned:
+        return Path(pinned)
+    return tokens.codex_rollout(cfg.codex_home, st.dir, st.started)
+
+
+def _pin_rollout(cfg: SideConfig, st: state.SessionState) -> None:
+    """Remember the first matching rollout so later counts use the same source."""
+    if getattr(st, "codex_rollout", ""):
+        return
+    found = tokens.codex_rollout(cfg.codex_home, st.dir, st.started)
+    if found is None:
+        return
+    st.codex_rollout = str(found)
+    state.save(cfg.state_dir, st)
+
+
 def count_tokens(cfg: SideConfig, st: state.SessionState) -> int:
     if st.provider == C.PROVIDER_CLAUDE and cfg.token_file:
         return tokens.token_file_tokens(cfg.token_file, st.uuid)
@@ -210,7 +232,7 @@ def count_tokens(cfg: SideConfig, st: state.SessionState) -> int:
         run = external.run_for(st)
         return external.tokens_used(run) if run is not None else 0
     if st.provider == C.PROVIDER_CODEX:
-        return tokens.codex_tokens(tokens.codex_rollout(cfg.codex_home, st.uuid, st.started))
+        return tokens.codex_tokens(_rollout_path(cfg, st))
     return tokens.claude_tokens(tokens.claude_transcript(st.dir, st.uuid))
 
 
@@ -219,20 +241,25 @@ def _age(seconds: float) -> str:
     return f"{minutes // 60}h{minutes % 60:02d}m"
 
 
-def _token_display(cfg: SideConfig, st: state.SessionState, used: int) -> tuple[int, int]:
+def _token_display(cfg: SideConfig, st: state.SessionState, used: int) -> tuple[int | None, int]:
     """Display Codex context separately from its cumulative accounting counter.
 
-    Read the latest rollout even for a stopped session, whose persisted
-    tokens_used remains cumulative usage for reports.
+    Read the pinned rollout even for a stopped session, whose persisted
+    tokens_used remains cumulative usage for reports. No pinned rollout or a
+    pinned file that disappeared means unknown, shown as `?`.
     """
     if st.provider == C.PROVIDER_CODEX:
-        rollout = tokens.codex_rollout(cfg.codex_home, st.uuid, st.started)
+        rollout = _rollout_path(cfg, st)
+        if rollout is None or not rollout.is_file():
+            return None, C.CODEX_AUTO_COMPACT_TOKEN_LIMIT
         return tokens.codex_context_tokens(rollout), C.CODEX_AUTO_COMPACT_TOKEN_LIMIT
     return used, st.max_tokens
 
 
 def _token_cell(cfg: SideConfig, st: state.SessionState, used: int) -> str:
     used, cap = _token_display(cfg, st, used)
+    if used is None:
+        return "?"
     cell = f"{used}/{cap}"
     if st.provider != C.PROVIDER_CODEX and used >= cap:
         cell += C.OVER_CAP_SUFFIX
@@ -243,6 +270,8 @@ def ls(cfg: SideConfig, _a) -> int:
     alive = screen.screen_names()
     rows = [("NAME", "PROVIDER", "CHROME", "STATUS", "LIVE", "TOKENS/CAP", "AGE", "HANDOFF")]
     for st in state.load_all(cfg.state_dir):
+        if st.provider == C.PROVIDER_CODEX:
+            _pin_rollout(cfg, st)
         done = st.status == C.STATUS_RUNNING and K.done_path(st.handoff).is_file()
         status = C.STATUS_DONE if done else st.status
         used = (count_tokens(cfg, st) if status == C.STATUS_RUNNING
@@ -349,6 +378,10 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
     st = state.load(cfg.state_dir, name)
     if st.status != C.STATUS_RUNNING:
         return False
+    if st.provider == C.PROVIDER_CODEX:
+        # Pin before the done branch: a session that finishes on its first tick
+        # must still remember the rollout that produced its token count.
+        _pin_rollout(cfg, st)
     if K.done_path(st.handoff).is_file():
         st.tokens_used = count_tokens(cfg, st)
         st.status = C.STATUS_DONE

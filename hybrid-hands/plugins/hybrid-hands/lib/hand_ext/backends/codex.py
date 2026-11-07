@@ -1,7 +1,7 @@
 """codex backend: `codex exec --json` on a ChatGPT subscription login (never an API key).
 
 Ported from hand_gpt/codex_runner.py and rollout.py; USD metering replaced by the
-rollout's token_count totals and rate_limits (primary = 5 h window, secondary = week).
+rollout's token_count totals and rate_limits (windows identified by window_minutes).
 """
 from __future__ import annotations
 
@@ -26,19 +26,50 @@ EVENT_TURN_FAILED = "turn.failed"
 EVENT_ERROR = "error"
 TOKEN_COUNT_TYPE = "token_count"
 WINDOWS = ("primary", "secondary")
+WINDOW_LABELS = {"primary": "5h", "secondary": "7d"}
+WINDOW_MINUTES = {300: "5h", 10080: "7d"}
+WINDOWS_EXTRA = "windows"  # RunState.extra: both windows, kept separately for the ledger
 QUOTA_MARKERS = ("hit your usage limit", "rate_limit_reached", "usage_limit_reached",
                  "credits_depleted")
 LOGIN_MARKERS = ("not logged in", "login required", "please log in", "codex login")
+DEFAULT_HOME = "~/.codex-hand"
+
+
+def home_dir(options: dict) -> Path:
+    """The hand's own CODEX_HOME; never the default ~/.codex account."""
+    return Path(os.path.expanduser(str((options or {}).get("home") or DEFAULT_HOME)))
 
 
 def _home(options: dict) -> Path:
-    return Path(os.path.expanduser(str(options.get("home", "~/.codex-hand"))))
+    return home_dir(options)
 
 
 def _iso_reset(value: object) -> Optional[str]:
     if isinstance(value, (int, float)):
         return dt.datetime.fromtimestamp(value, dt.timezone.utc).isoformat(timespec="seconds")
     return str(value) if value else None
+
+
+def windows_from_rate_limits(limits: dict) -> Dict[str, Optional[dict]]:
+    """Keep each duration separately; some plans have only a weekly primary window."""
+    limits = limits if isinstance(limits, dict) else {}
+    windows: Dict[str, Optional[dict]] = {"5h": None, "7d": None}
+    for name in WINDOWS:
+        window = limits.get(name)
+        if not isinstance(window, dict) or window.get("used_percent") is None:
+            continue
+        duration = window.get("window_minutes")
+        # Older rollouts omitted the duration; preserve their established slot mapping.
+        label = WINDOW_LABELS[name] if duration is None else WINDOW_MINUTES.get(duration)
+        if label is None:
+            continue
+        try:
+            used = float(window["used_percent"])
+        except (TypeError, ValueError):
+            continue
+        windows[label] = {"used_percent": used,
+                          "resets_at": _iso_reset(window.get("resets_at"))}
+    return windows
 
 
 def quota_from_rate_limits(limits: dict) -> Quota:
@@ -180,6 +211,7 @@ class CodexBackend(Backend):
         limits = payload.get("rate_limits")
         if isinstance(limits, dict):
             state.quota = quota_from_rate_limits(limits)
+            state.extra[WINDOWS_EXTRA] = windows_from_rate_limits(limits)
             if limits.get("plan_type"):
                 state.extra["plan_type"] = str(limits["plan_type"])
 

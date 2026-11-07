@@ -47,6 +47,19 @@ GO_PRICE_KEY = "go_price_per_mtok"
 # estimate an upper bound, and the OpenCode Console remains the authoritative meter.
 GO_USAGE_DEFAULT_PRICE = {"input": 0.30, "cached_input": 0.006, "output": 1.20}
 
+# Codex usage ledger (one JSON line per finished codex turn), beside the Go ledger.
+CODEX_PRICE_KEY = "price_per_mtok"
+# gpt-6.1-sol Standard, context <=272k, from https://developers.openai.com/api/docs/pricing
+# (read 2026-11-07): USD per 1M tokens. Codex compacts at 272k, so the short tier applies.
+CODEX_DEFAULT_PRICE = {"input": 2.00, "cached": 0.10, "output": 10.00}
+CODEX_USAGE_LEDGER_NAME = "codex_usage.jsonl"
+# Capacity (429 prefill_cap_refused) fallback for `--backend auto` on dsh.
+DSH_CAPACITY_WAIT_MIN_LINES = 30
+DSH_CAPACITY_WAIT_SECONDS = 180
+DSH_CAPACITY_MAX_CONTINUATIONS = 2
+CODEX_FALLBACK_MODEL = "gpt-6.1-sol"
+CODEX_FALLBACK_EFFORT = "low"
+
 # Live registry of run attempts (one JSON per run under <state>/runs, machine-wide).
 HAND_RUNS_SUBDIR = "runs"
 HAND_RUNS_UPDATE_SECONDS = 15.0
@@ -92,7 +105,8 @@ DEFAULTS = {
     "isolation": ISOLATION_WORKTREE,
     "worktree_root": "~/.hybrid-hands/worktrees",
     "backends": {
-        "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high"},
+        "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high",
+                  CODEX_PRICE_KEY: dict(CODEX_DEFAULT_PRICE)},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",
                    "effort": "medium", "max_turns": 80},
         # The brain's own plan, low effort, only via explicit `--backend claude-main`.
@@ -105,7 +119,9 @@ DEFAULTS = {
                 "base_url": "https://opencode.ai/inference/go/openai/v1",
                 "compact_at": DEFAULT_COMPACT_AT,
                 "context_window": DEFAULT_CONTEXT_WINDOW,
-                "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE)},
+                "go_price_per_mtok": dict(GO_USAGE_DEFAULT_PRICE),
+                "capacity_wait_min_lines": DSH_CAPACITY_WAIT_MIN_LINES,
+                "capacity_wait_seconds": DSH_CAPACITY_WAIT_SECONDS},
         "gemini": {"home": "~/.gemini-hand", "model": "gemini-4-carbon"},
     },
 }

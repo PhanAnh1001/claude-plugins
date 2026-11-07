@@ -3,15 +3,14 @@
 ## Tóm tắt
 
 - **Mục tiêu:** làm theo spec `2026-11-07-ba-tang-opus-sol-dsh-spec.md`. Có 5 nhóm: phiên Sol trên Codex, backend `claude-main`, policy mới, kiểm thực tế, và (thêm 07/11) dự phòng 429 bằng Sol low cùng hạn mức GPT trên Paseo và statusline.
-- **Trạng thái (07/11/2026, 14:00):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Mới thêm 4.11 và nhóm 5 (chờ người dùng duyệt).
+- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); còn 4.3, 4.12-4.14, 5.3, 5.4, 5.6.
   - Test đầy đủ: 388 test xanh (07/11, 13:50). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng 5/5 xanh); chưa xử lý.
   - 4.2 nhánh chặn đã thử: `.claude/hybrid-hands.json` tạm `max_day_pct` = 1 → "máy này đã dùng 2.4% Claude hôm nay (ngưỡng 1%)", thoát mã 7; đã xoá file tạm.
   - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
   - Lượt sửa: `fix-47-48` dsh chết vì Go 429 quá tải, chạy lại `fix-47-48b` bằng `--backend codex --effort medium` (3 phút); `fix-49-410b` dsh (10 phút). Brain tự sửa thêm: 2 kỳ vọng test cũ trong `tests/test_side_session.py`; dsh từ chối `danger-full-access` khi ở ngoài seatbelt (preset mới trong template chỉ dùng cho ca lồng sandbox).
   - **Phiên brain sau làm tiếp:**
-    1. **Đang chạy (14:15):** phiên Sol `sol-411` (4.11 + lượt kiểm `claude-main` cho 4.2) và `sol-51-52` (5.1 + 5.2), cả hai `--worktree`, prompt ở `/tmp/hh-briefs/<tên>.md`. Hand Claude tra giá `gpt-6.1-sol` (Q5b), hand Claude làm 5.5 (Paseo config).
-    2. Chờ `.done` của hai phiên Sol, đọc `side-session handoff`. Kiểm 4.1: không kẹt hỏi duyệt; `.done` đúng chỗ; dsh trong sandbox chạy được shell; cột TOKENS đúng từng phiên. Áp diff từ worktree, chạy bộ test đầy đủ một lần, commit, dọn worktree.
-    3. Đặt giá Q5b làm mặc định. Giao 5.3 (`lib/hh_ps`) và 5.4 (`statusline/`) cho 2 phiên Sol song song, rồi 5.6.
+    1. Giao 2 phiên Sol song song: `sol-412-414` (4.12-4.14, `lib/hand_ext` + template dsh) và `sol-53` (5.3, `lib/hh_ps` + `skills/paseo/SKILL.md`). Sau đó `sol-54` (5.4, `statusline/`), vì `max_parallel` = 2.
+    2. Áp diff, chạy bộ test đầy đủ một lần, commit, dọn worktree. Rồi 5.6.
     4. Ghi số đo ban đầu 4.3.
     5. Hỏi người dùng có merge vào main không.
 - **Cách làm:**
@@ -57,8 +56,8 @@
 
 ## 4. Kiểm thực tế
 
-- [ ] 4.1 Chạy spec mục 5.1 (phiên Sol làm một task L0 thật).
-- [ ] 4.2 Chạy spec mục 5.2 (`claude-main`, cả nhánh bị chặn).
+- [x] 4.1 Chạy spec mục 5.1 (phiên Sol làm một task L0 thật).
+- [x] 4.2 Chạy spec mục 5.2 (`claude-main`, cả nhánh bị chặn).
 - [ ] 4.3 Ghi số đo ban đầu cho spec mục 5.3 vào plan này, hẹn đo lại sau 1-2 tuần.
 - [x] 4.4 Lỗi phát hiện ở 4.1: Codex TUI dừng ở màn "Trust this folder?", nên phiên Sol chạy không người trực bị kẹt.
   - Sửa: trước khi mở phiên, `side-session start` ghi `[projects."<workdir>"] trust_level = "trusted"` vào `<codex_home>/config.toml`, chỉ khi workdir chưa có mục này. Workdir có thể là worktree mới.
@@ -95,9 +94,16 @@
   - Lượt lỗi đã tạo file lạ `~/.claude/.claude.json` (12:13); người dùng tự quyết có xoá không.
 - Kết quả còn lại của lượt `sol-l0-test2`: không lần nào hỏi duyệt; `hand-ext` tạo/dọn worktree trong sandbox được (4.6 đạt); diff L0 của dsh (2 dòng, `tests/test_cc_switch_self.py`, Sol review chấp nhận, 383 test xanh) còn chưa commit trong worktree `~/app/claude-plugins-wt/sol-l0-test2`.
 - Hạn chế còn lại của 4.9 (chưa sửa): `--sandbox read-only` truyền bằng cờ CLI với `--backend auto` trong seatbelt thì thoát 2 thay vì bỏ qua dsh, vì `candidates()` gọi `doctor()` không thấy `args.sandbox` (`lib/hand_ext/run_cmd.py`). Read-only lấy từ config thì `auto` bỏ qua dsh đúng.
-- [ ] 4.11 Lỗi (phát hiện 07/11, 13:55): `side-session ls` hiện cùng `49792/272000` cho cả `sol-l0-test` và `sol-l0-test2`.
+- [x] 4.11 Lỗi (phát hiện 07/11, 13:55): `side-session ls` hiện cùng `49792/272000` cho cả `sol-l0-test` và `sol-l0-test2`.
   - Nguyên nhân: `lib/side_session/tokens.py:69-78` `codex_rollout`: rollout Codex không mang uuid của side-session trong tên, nên rơi về rollout mới nhất có mtime ≥ `started`. `~/.codex-hand` dùng chung với backend `codex` của hand-ext, nên rollout của lượt hand (ví dụ `fix-47-48b`) bị tính cho mọi phiên Sol. Phiên đang chạy cũng có thể bị đếm nhầm.
   - Sửa: lúc `watch` gặp rollout đầu tiên tạo sau `started` mà sự kiện `session_meta` có `cwd` trùng workdir của phiên, ghi đường dẫn rollout vào state rồi luôn dùng đường đó. Phiên cũ không ghim được thì hiện `?`, không đoán. Thêm 1 test.
+  - Thêm (14:15): dòng báo của `side-session start` provider codex vẫn in `cap 300000`; đổi thành trần context 272000 (giao phiên sau, không thuộc lượt `sol-411`).
+
+- Kết quả lượt `sol-411` + `sol-51-52` (07/11, 13:38-14:34): 4.1 đạt (không kẹt hỏi duyệt, `.done` đúng chỗ, dsh trong sandbox Sol chạy được shell nhờ 4.9); 4.2 đạt (`claude-main` thoát 0, trả 3 câu ≤80 ký tự). Brain áp diff hai worktree, điền giá mặc định Q5b, sửa 1 test cho giá null tường minh, sửa dòng báo `start` của codex thành "context 272000 (tự nén)"; 392 test xanh.
+- [ ] 4.12 Test chưa cô lập biến `CODEX_SANDBOX`: chạy bộ test bên trong phiên Sol thì `test_hand_ext_dsh.BuildCommandTest.test_argv_env_and_stdin` (`tests/test_hand_ext_dsh.py:108`) fail vì nhận `danger-full-access`. Sửa: các test hand-ext gỡ `CODEX_SANDBOX` khỏi env (setUp chung), chỉ test seatbelt đặt nó.
+- [ ] 4.13 Cảnh báo dsh trong sandbox Sol: `permission (@deepseek-ai/dsh-permission-presets): Error: permission: unknown preset "danger-full-access" (known: read-only, workspace-write)` (stderr của `output/llm/hand-ext/20261107-133926-sol-411-fix-dsh/`). Preset thêm ở `templates/dsh-hand.yml` không được plugin nhận; entry permission không kích hoạt, shell vẫn chạy. Cần điều tra mã nguồn `dsh-permission-presets` (bản 0.2.1-rc.5): preset có cố định không; permission không kích hoạt thì hành vi approval ra sao; chọn cách cấu hình đúng.
+- [ ] 4.14 Hand `codex` do Sol gọi (`hand-ext run --backend codex`, ví dụ nhánh dự phòng 429 → Sol low) không chạy được shell: `sandbox-exec: sandbox_apply: Operation not permitted`, exit 71, vì lồng sandbox như 4.9. CLI vẫn thoát 0 với report "bị chặn". Sửa giống 4.9: khi `CODEX_SANDBOX=seatbelt`, backend codex chạy `-s danger-full-access` thay `workspace-write` (seatbelt của Sol vẫn giới hạn quyền ghi), `read-only` thì từ chối; ghi mode thật vào meta. Thêm 1 test.
+- Ghi nhận chi phí: lượt dsh của `sol-51-52` chạy 45 phút (13:39-14:24), 30,9M token input (30,3M cache), 174k output, rồi chết vì 429 quá tải. Nhánh 5.1 giúp lần sau chuyển sớm hơn, nhưng thời gian dsh tự thử lại theo `retryPolicy` trước khi trả 429 vẫn dài. Xem lại `maxRetries`/`maxDelayMs` ở 4.3.
 
 ## 5. Dự phòng 429 bằng Sol low, hiện hạn mức GPT trên Paseo và statusline
 
@@ -109,18 +115,24 @@ Người dùng yêu cầu (07/11, 14:00), duyệt 14:10. Lane L2: brain cắt th
     - **dsh sửa ít** (dưới ngưỡng, kể cả rỗng): bỏ patch dsh, chạy lại brief bằng backend `codex`, model `gpt-6.1-sol`, effort `low`.
     - Report ghi rõ nhánh đã đi.
   - Q5b: USD GPT là **ước tính** từ token × đơn giá API của `gpt-6.1-sol` (input, cached input, output mỗi 1M token), ở khoá `backends.codex.price_per_mtok`. Brain tra giá công khai (kèm link và ngày) rồi đặt làm mặc định; thiếu giá thì hiện `?`.
+    - Giá đã tra (07/11/2026, [OpenAI API pricing](https://developers.openai.com/api/docs/pricing), trang không ghi ngày cập nhật): `gpt-6.1-sol` mức Standard, context ≤272k: input $2,00, cached input $0,10, output $10,00 mỗi 1M token. Context >272k: $4,00 / $0,20 / $15,00. Batch/Flex rẻ hơn một nửa; Fast và Ultrafast đắt hơn.
+    - Mặc định `backends.codex.price_per_mtok` = `{input: 2.00, cached: 0.10, output: 10.00}`, vì Codex tự nén ở 272k nên các lượt gần như luôn ở mức context ngắn. Đặt mặc định sau khi gói `sol-51-52` xong (gói đó để `null`).
   - Q5c (đúng như đề xuất): account GPT free cũ là `~/.codex` (model `gpt-5.6-terra`/`luna`), account mới là `~/.codex-hand`. Tạm tắt `~/.codex` nghĩa là Paseo, hh-ps, statusline không đọc hay hiện nó, và hand-ext, side-session không dùng nó. Không đăng xuất, không xoá.
-- [ ] 5.1 Dự phòng 429 (Q5a): `lib/hand_ext/run_cmd.py`, logic chọn backend của `auto`. Cập nhật policy (`hooks/inject-policy.sh` dòng Dự phòng, giữ dưới 1800 ký tự), `skills/ext-hand/SKILL.md` (mục 429), README. 1 test.
-- [ ] 5.2 Ghi số liệu GPT cho mỗi lượt hand codex: hand-ext đã đọc `rate_limits` (`backends/codex.py:44` `quota_from_rate_limits`). Thêm ghi vào sổ (giống `~/.hybrid-hands/go_usage.jsonl`, ví dụ `codex_usage.jsonl`): `run_id`, `ended`, `model`, `effort`, token, `cost_usd` ước tính (Q5b), `used_percent` 5h và tuần kèm `resets_at`, `codex_home` dạng tên thư mục. Không ghi hội thoại. 1 test.
+- [x] 5.1 Dự phòng 429 (Q5a): `lib/hand_ext/run_cmd.py`, logic chọn backend của `auto`. Cập nhật policy (`hooks/inject-policy.sh` dòng Dự phòng, giữ dưới 1800 ký tự), `skills/ext-hand/SKILL.md` (mục 429), README. 1 test.
+- [x] 5.2 Ghi số liệu GPT cho mỗi lượt hand codex: hand-ext đã đọc `rate_limits` (`backends/codex.py:44` `quota_from_rate_limits`). Thêm ghi vào sổ (giống `~/.hybrid-hands/go_usage.jsonl`, ví dụ `codex_usage.jsonl`): `run_id`, `ended`, `model`, `effort`, token, `cost_usd` ước tính (Q5b), `used_percent` 5h và tuần kèm `resets_at`, `codex_home` dạng tên thư mục. Không ghi hội thoại. 1 test.
 - [ ] 5.3 Panel Paseo (`hh-ps`/`hh-tree`, `lib/hh_ps/`):
   - mỗi phiên hand codex và phiên Sol hiện USD ước tính và % hạn mức GPT;
   - thêm dòng hạn mức tài khoản GPT `~/.codex-hand` (5h, tuần, giờ reset), cạnh dòng Claude tuần, lấy mẫu mới nhất từ sổ 5.2 hoặc rollout `~/.codex-hand`;
   - không đọc `~/.codex` (Q5c).
   - Trước khi sửa, hand đọc `limits.py`, `week.py`, `tree.py`, `render.py` để theo cách dòng Claude tuần đang làm. 1 test.
 - [ ] 5.4 Statusline (plugin `statusline/`): thêm đoạn ngắn % tuần và 5h của tài khoản GPT `~/.codex-hand` cùng USD GPT hôm nay, từ sổ 5.2. Không có mẫu trong 24 giờ thì ẩn. 1 test.
-- [ ] 5.5 Paseo app (`~/.paseo/config.json`, sửa khi người dùng đã duyệt mục 5):
+- [x] 5.5 Paseo app (`~/.paseo/config.json`, sửa khi người dùng đã duyệt mục 5):
   - thêm provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME=/Users/anhtp/.codex-hand`, model `gpt-6.1-sol`) theo `skills/paseo/SKILL.md` mục 4;
   - tạm tắt provider `codex` mặc định (`~/.codex`) nếu Paseo 0.15.0 có khoá tắt provider, không thì ghi đè `codex` bằng `env.CODEX_HOME` của `~/.codex-hand`;
   - `paseo reload`, kiểm `paseo provider models codex-hand`;
   - sao lưu config trước khi sửa; hoàn tác bằng cách khôi phục bản sao lưu rồi `paseo reload`.
+  - Đã làm (hand Claude, 07/11 14:25): sao lưu `~/.paseo/config.json.bak-20261107`; thêm `agents.providers.codex = {enabled: false}` (khoá chính thức "Disabling a provider" trong docs custom-providers) và provider `codex-hand` (`extends: codex`, `env.CODEX_HOME=/Users/anhtp/.codex-hand`, model `gpt-6.1-sol`). `paseo reload` OK; `codex-hand` Ready, có `gpt-6.1-sol`; `codex` báo "Provider codex is disabled". Hoàn tác: `cp ~/.paseo/config.json.bak-20261107 ~/.paseo/config.json && paseo reload`.
+  - Paseo 0.15.0 không có lệnh xem hạn mức hay usage, nên hạn mức GPT trên panel phải do 5.3 tự hiện (đọc sổ 5.2).
+  - Paseo báo các khoá `plugins.hh-tree.*` đổi từ trước, cần `paseo daemon restart` mới áp dụng; chưa restart.
+  - Việc nhỏ còn lại: `skills/paseo/SKILL.md` mục 4 đổi id mẫu thành `gpt-6.1-sol` và nhắc `codex: {enabled: false}` (gộp vào gói 5.3).
 - [ ] 5.6 Kiểm thực tế cùng lượt chạy lại 4.1/4.2: một lượt hand codex low hiện đủ USD và % trên `hh-ps` và statusline; Paseo không còn hiện tài khoản `~/.codex`.

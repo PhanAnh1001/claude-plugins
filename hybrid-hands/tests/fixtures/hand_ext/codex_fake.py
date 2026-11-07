@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fake `codex` for hand-ext tests. FAKE_CODEX_SCENARIO: ok | quota | cap | hang | login."""
+"""Fake codex. FAKE_CODEX_SCENARIO: ok | weekly | quota | cap | hang | login."""
 import json
 import os
 import sys
@@ -15,13 +15,17 @@ RESETS_AT = 4102444800  # 2100-01-01 UTC, epoch seconds
 
 def token_line(n, used):
     total = {k: v * n for k, v in STEP.items()}
+    limits = {"primary": {"used_percent": used, "window_minutes": 300,
+                          "resets_at": RESETS_AT},
+              "secondary": {"used_percent": 10, "window_minutes": 10080,
+                            "resets_at": RESETS_AT + 1}, "plan_type": "plus"}
+    if SCENARIO == "weekly":
+        limits.update(primary={"used_percent": 3, "window_minutes": 10080,
+                               "resets_at": RESETS_AT + 1}, secondary=None,
+                      plan_type="prolite")
     return json.dumps({"type": "event_msg", "payload": {"type": "token_count",
         "info": {"total_token_usage": total},
-        "rate_limits": {"primary": {"used_percent": used, "window_minutes": 300,
-                                    "resets_at": RESETS_AT},
-                        "secondary": {"used_percent": 10, "window_minutes": 10080,
-                                      "resets_at": RESETS_AT + 1},
-                        "plan_type": "plus"}}}) + "\n"
+        "rate_limits": limits}}) + "\n"
 
 
 def main():

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"))
 
@@ -53,6 +55,46 @@ class CodexRunTest(unittest.TestCase):
         code, _, _ = self.sb.cli("run", "--brief", str(self.sb.brief), "--backend", "codex")
         self.assertEqual(code, 7)
         self.assertEqual(self.sb.ledger()[0]["status"], "not_logged_in")
+
+    def test_usage_ledger_keeps_both_windows_and_estimates_once(self) -> None:
+        home = self.sb.dir / "home"
+        home.mkdir()
+        config_path = self.sb.dir / ".claude" / "hybrid-hands.json"
+        config = json.loads(config_path.read_text())
+        backend = config["ext_hand"]["backends"]["codex"]
+        backend["price_per_mtok"] = {"input": 1.0, "cached": 0.1, "output": 2.0}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        with mock.patch.dict(os.environ, {"HOME": str(home)}):
+            os.environ.pop("HYBRID_HANDS_STATE_DIR", None)
+            ledger = home / ".hybrid-hands" / "codex_usage.jsonl"
+            for scenario in ("ok", "weekly"):
+                self.sb.scenario(scenario)
+                code, out, _ = self.sb.cli("run", "--brief", str(self.sb.brief),
+                                           "--backend", "codex")
+                self.assertEqual(code, 0, out)
+                backend["price_per_mtok"] = None  # explicit null -> unknown
+                config_path.write_text(json.dumps(config), encoding="utf-8")
+            lines = ledger.read_text().splitlines()
+        self.assertEqual(len(lines), 2)
+        first, second = (json.loads(line) for line in lines)
+        self.assertEqual(first["tokens"], {"input": 2000, "cached_input": 400, "output": 200})
+        self.assertAlmostEqual(first["cost_usd"], 0.00204)
+        self.assertEqual(first["cost_source"], "estimated")
+        self.assertEqual(first["windows"]["5h"], {
+            "used_percent": 42.0, "resets_at": "2100-01-01T00:00:00+00:00"})
+        self.assertEqual(first["windows"]["7d"], {
+            "used_percent": 10.0, "resets_at": "2100-01-01T00:00:01+00:00"})
+        self.assertEqual(first["codex_home"], self.sb.home.name)
+        self.assertEqual((first["model"], first["effort"]), ("gpt-6.1-sol", "high"))
+        self.assertNotEqual(first["run_id"], second["run_id"])
+        self.assertIsNone(second["cost_usd"])
+        self.assertEqual(second["cost_source"], "unknown")
+        self.assertIsNone(second["windows"]["5h"])
+        self.assertEqual(second["windows"]["7d"], {
+            "used_percent": 3.0, "resets_at": "2100-01-01T00:00:01+00:00"})
+        text = "\n".join(lines)
+        for banned in (str(self.sb.home), str(self.sb.dir), "prompt", "report"):
+            self.assertNotIn(banned, text)
 
 
 class CodexSetupDoctorTest(unittest.TestCase):

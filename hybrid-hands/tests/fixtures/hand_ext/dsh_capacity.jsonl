@@ -1,0 +1,2 @@
+{"type":"status","phase":"step_end","usage":{"inputTokens":100,"outputTokens":10}}
+{"type":"error","message":"Upstream request failed: [prefill_cap_refused] the cell is at capacity; retry shortly (after 30 s)"}

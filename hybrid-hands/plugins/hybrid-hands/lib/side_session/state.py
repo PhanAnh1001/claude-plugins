@@ -25,6 +25,8 @@ class SessionState:
     parent_session: str = ""
     chrome: bool = False
     budget_exempt: bool = False
+    # Rollout Codex đã ghim (đường tuyệt đối); "" = chưa tìm được, không đoán.
+    codex_rollout: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

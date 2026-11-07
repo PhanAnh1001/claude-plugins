@@ -12,9 +12,12 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import constants as C
+
+CODEX_SESSION_META_TYPE = "session_meta"
 
 
 def project_slug(directory: str) -> str:
@@ -66,16 +69,66 @@ def token_file_tokens(template: str, uuid: str) -> int:
     return int(raw)
 
 
-def codex_rollout(codex_home: Path, uuid: str, since: float = 0.0) -> Path | None:
-    """Newest rollout touched at/after `since` (session start), so rollouts of other
-    runs sharing this CODEX_HOME (e.g. hand-ext) that ended earlier are not counted."""
+def _session_meta(path: Path) -> dict:
+    """First JSON record of a rollout; session_meta is always its first line."""
+    try:
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                record = json.loads(line)
+                return record if isinstance(record, dict) else {}
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {}
+    return {}
+
+
+def _created_at(meta: dict) -> float | None:
+    """Creation time from the session_meta timestamp, never the rollout mtime."""
+    payload = meta.get("payload")
+    raw = meta.get("timestamp") or (payload.get("timestamp") if isinstance(payload, dict) else None)
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return float(raw)
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        created = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (created if created.tzinfo else created.replace(tzinfo=timezone.utc)).timestamp()
+
+
+def _same_dir(raw_cwd: object, workdir: str) -> bool:
+    """Compare normalised paths so /tmp and /private/tmp are the same directory."""
+    return (isinstance(raw_cwd, str) and bool(raw_cwd)
+            and os.path.realpath(os.path.expanduser(raw_cwd))
+            == os.path.realpath(os.path.expanduser(workdir)))
+
+
+def codex_rollout(codex_home: Path, workdir: str, since: float = 0.0) -> Path | None:
+    """Earliest rollout created at/after `since` whose session_meta cwd is `workdir`.
+
+    Creation time comes from the session_meta timestamp: a running session keeps
+    appending and updates the file mtime, so mtime is not its creation time. No
+    uuid or newest-file fallback, because rollouts of other hands sharing this
+    CODEX_HOME must never be counted for this session.
+    """
     root = codex_home / C.CODEX_SESSIONS_SUBDIR
     if not root.is_dir():
         return None
-    hits = sorted((p for p in root.rglob(C.CODEX_ROLLOUT_GLOB) if p.stat().st_mtime >= since),
-                  key=lambda p: p.stat().st_mtime)
-    tagged = [p for p in hits if uuid in p.name]
-    return (tagged or hits or [None])[-1]
+    candidates: list[tuple[float, str, Path]] = []
+    for path in root.rglob(C.CODEX_ROLLOUT_GLOB):
+        meta = _session_meta(path)
+        payload = meta.get("payload")
+        if meta.get("type") != CODEX_SESSION_META_TYPE or not isinstance(payload, dict):
+            continue
+        if not _same_dir(payload.get("cwd"), workdir):
+            continue
+        created = _created_at(meta)
+        if created is not None and created >= since:
+            candidates.append((created, str(path), path))
+    return min(candidates, key=lambda item: item[:2])[2].resolve() if candidates else None
 
 
 def _codex_usage(path: Path | None, usage_key: str) -> dict:

@@ -8,17 +8,21 @@ import os
 import re
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from . import go_live, go_usage, isolation, ledger, quota_state, render
-from .backends import BackendUnavailable, get_backend
+from . import capacity, codex_usage, go_live, go_usage, isolation, ledger, quota_state, render
+from .backends import BackendUnavailable, codex as codex_backend, dsh as dsh_backend
+from .backends import get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import PLUGIN_DIR, ExtConfig
 from .constants import (
-    AUTO_BACKEND, BROWSER_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_USAGE, FALLBACK_STATUSES,
+    AUTO_BACKEND, BROWSER_BACKEND, CODEX_FALLBACK_EFFORT, CODEX_FALLBACK_MODEL,
+    DSH_CAPACITY_MAX_CONTINUATIONS, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_USAGE,
+    FALLBACK_STATUSES,
     GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
-    LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
+    ISOLATION_WORKTREE, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
 from .prompt import STDIN_MARK, build_prompt, read_brief
 from .run_registry import RunRegistry
@@ -150,20 +154,50 @@ def _write_meta(run_dir: Path, ctx: isolation.IsolationContext, spec: RunSpec,
                     json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
 
 
-def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
-             label: str, cwd: Path, choice: isolation.IsolationChoice,
-             *, brief: Optional[str] = None) -> int:
-    run_id = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S')}-{label}-{backend.name}"
+@dataclass
+class _AttemptResult:
+    code: int
+    outcome: RunOutcome
+    spec: RunSpec
+    run_dir: Path
+    ctx: isolation.IsolationContext
+    apply_result: isolation.ApplyResult
+    entry: dict
+    kept: bool
+    cleanup_note: str = ""
+    capacity: bool = False
+    go_line: Optional[str] = None
+    go_extra: List[str] = field(default_factory=list)
+
+
+def _new_run_id(label: str, backend: str, attempt: int = 1) -> str:
+    base = f"{dt.datetime.now().strftime('%Y%m%d-%H%M%S-%f')}-{label}-{backend}"
+    return base if attempt <= 1 else f"{base}-r{attempt}"
+
+
+def _prepare_context(cfg: ExtConfig, cwd: Path, choice: isolation.IsolationChoice,
+                     run_id: str) -> Tuple[Optional[isolation.IsolationContext], int]:
+    run_dir = cfg.runs_dir / run_id
+    try:
+        return isolation.prepare(cfg, cwd, run_id, run_dir, choice), 0
+    except isolation.IsolationError as exc:
+        isolation.append_report(run_dir / REPORT_FILE, isolation.failure_block(str(exc)))
+        print(f"hand-ext: {exc}", file=sys.stderr)
+        return None, EXIT_USAGE
+
+
+def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
+                 label: str, cwd: Path, *, brief: Optional[str] = None,
+                 ctx: Optional[isolation.IsolationContext] = None,
+                 run_id: Optional[str] = None, capacity_guard: bool = False,
+                 preserve_failed: bool = False) -> _AttemptResult:
+    run_id = run_id or _new_run_id(label, backend.name)
     run_dir = cfg.runs_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     _write_run_file(run_dir / BRIEF_FILE, prompt if brief is None else brief)
     _write_run_file(run_dir / PROMPT_FILE, prompt)
-    try:
-        ctx = isolation.prepare(cfg, cwd, run_id, run_dir, choice)
-    except isolation.IsolationError as exc:
-        isolation.append_report(run_dir / REPORT_FILE, isolation.failure_block(str(exc)))
-        print(f"hand-ext: {exc}", file=sys.stderr)
-        return EXIT_USAGE
+    if ctx is None:
+        raise isolation.IsolationError("thiếu worktree đã chuẩn bị cho lượt chạy")
     spec = _spec(cfg, args, backend, prompt, ctx.run_cwd, run_id)
     _write_meta(run_dir, ctx, spec, backend.name, label)
     started = _now()
@@ -175,7 +209,9 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
     keep_worktree = bool(getattr(args, "keep_worktree", False))
     apply_result = isolation.ApplyResult()
     cleanup_note = ""
+    is_cap = False
     fatal = False
+    outcome: Optional[RunOutcome] = None
     try:
         try:
             outcome = run_backend(backend, spec, registry=registry)
@@ -190,28 +226,211 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
         else:
             registry.finish(outcome.status.value, outcome.exit_code, outcome.state.usage)
     finally:
-        apply_result = isolation.finalize(
-            ctx, run_dir, apply_changes=not no_apply and not fatal,
-            skip_reason="không áp sau lỗi" if fatal else "--no-apply")
-        if not keep_worktree:
+        is_cap = bool(capacity_guard and outcome is not None
+                      and capacity.is_capacity_failure(outcome))
+        preserve = is_cap or (preserve_failed and (
+            outcome is None or outcome.status is not Status.OK))
+        do_apply = not no_apply and not fatal and not preserve
+        skip_reason = ("không áp sau lỗi" if fatal else
+                       "giữ patch do quá tải, không áp về gốc" if is_cap else
+                       "lượt chạy tiếp thất bại; giữ patch, không áp về gốc" if preserve
+                       else "--no-apply")
+        apply_result = isolation.finalize(ctx, run_dir, apply_changes=do_apply,
+                                          skip_reason=skip_reason)
+        will_cleanup = not keep_worktree and not preserve
+        if will_cleanup:
             cleanup_note = isolation.cleanup(ctx, keep=False)
-        isolation.append_report(run_dir / REPORT_FILE, isolation.report_block(
-            ctx, apply_result, kept=keep_worktree, cleanup_note=cleanup_note))
-        isolation_line = isolation.summary_line(
-            ctx, apply_result, kept=keep_worktree, cleanup_note=cleanup_note)
+    assert outcome is not None
     entry = _entry(run_id, label, backend.name, spec, started, cwd, outcome)
     ledger.append_entry(cfg.ledger, entry)
     go_line, go_extra = _record_go(cfg, entry, outcome)
+    _record_codex(cfg, entry, spec, outcome)
     quota = outcome.state.quota
     exhausted = outcome.status is Status.QUOTA or bool(quota and quota.exhausted)
     if quota is not None or exhausted:
         quota_state.record(cfg.quota_state, backend.name, quota, exhausted)
-    report = spec.run_dir / REPORT_FILE
+    code = STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
+    return _AttemptResult(
+        code=code, outcome=outcome, spec=spec, run_dir=run_dir, ctx=ctx,
+        apply_result=apply_result, entry=entry,
+        kept=ctx.mode == ISOLATION_WORKTREE and not will_cleanup,
+        cleanup_note=cleanup_note, capacity=is_cap,
+        go_line=go_line, go_extra=go_extra)
+
+
+def _emit(result: _AttemptResult, extra_lines: Optional[List[str]] = None) -> None:
+    report = result.run_dir / REPORT_FILE
+    isolation.append_report(report, isolation.report_block(
+        result.ctx, result.apply_result, kept=result.kept,
+        cleanup_note=result.cleanup_note))
+    if extra_lines:
+        isolation.append_report(report, "\n".join(extra_lines))
+    isolation_line = isolation.summary_line(
+        result.ctx, result.apply_result, kept=result.kept,
+        cleanup_note=result.cleanup_note)
     text = report.read_text(encoding="utf-8") if report.is_file() else ""
-    print(render.run_summary(entry, outcome.seconds, str(report) if report.is_file() else None,
-                             text, outcome.errors, go_line=go_line,
-                             extra_lines=[*go_extra, isolation_line]))
-    return STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
+    print(render.run_summary(result.entry, result.outcome.seconds,
+                             str(report) if report.is_file() else None, text,
+                             result.outcome.errors, go_line=result.go_line,
+                             extra_lines=[*(extra_lines or []), *result.go_extra,
+                                          isolation_line]))
+
+
+def _record_codex(cfg: ExtConfig, entry: dict, spec: RunSpec, outcome: RunOutcome) -> None:
+    if entry.get("backend") != codex_backend.NAME:
+        return
+    windows = outcome.state.extra.get(codex_backend.WINDOWS_EXTRA)
+    try:
+        codex_usage.record_run(cfg, entry, spec, windows)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        print(f"cảnh báo: không ghi được sổ Codex: {exc}", file=sys.stderr)
+
+
+def _codex_fallback(cfg: ExtConfig, args: argparse.Namespace, label: str, cwd: Path,
+                    choice: isolation.IsolationChoice, *, brief: str) -> int:
+    """Run the original brief through codex low after discarding a small dsh patch."""
+    codex_args = argparse.Namespace(**vars(args))
+    codex_args.backend = codex_backend.NAME
+    codex_args.model = CODEX_FALLBACK_MODEL
+    codex_args.effort = CODEX_FALLBACK_EFFORT
+    codex_args.browser = False
+    try:
+        backend = get_backend(codex_backend.NAME)
+    except BackendUnavailable as exc:
+        print(f"hand-ext: {exc}", file=sys.stderr)
+        return EXIT_ALL_UNAVAILABLE
+    if not backend_ready(backend, cfg):
+        print(f"hand-ext: codex chưa sẵn sàng (hand-ext doctor --backend codex)", file=sys.stderr)
+        return EXIT_ALL_UNAVAILABLE
+    until = quota_state.exhausted_until(cfg.quota_state, codex_backend.NAME)
+    if until is not None:
+        print(f"hand-ext: codex đang hết hạn mức tới {quota_state.iso(until)}",
+              file=sys.stderr)
+        return EXIT_ALL_UNAVAILABLE
+    code = _attempt(cfg, codex_args, backend, build_prompt(brief, browser=False),
+                    label, cwd, choice, brief=brief)
+    return EXIT_ALL_UNAVAILABLE if code < 0 else code
+
+
+def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend,
+                      prompt: str, label: str, cwd: Path,
+                      choice: isolation.IsolationChoice, *, brief: str) -> int:
+    options = with_sandbox(cfg, backend.name)
+    try:
+        threshold = dsh_backend.capacity_min_lines(options)
+        wait_s = dsh_backend.capacity_wait_seconds(options)
+    except ValueError as exc:
+        print(f"hand-ext: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    first_id = _new_run_id(label, backend.name)
+    ctx, code = _prepare_context(cfg, cwd, choice, first_id)
+    if ctx is None:
+        return code
+    result = _run_attempt(cfg, args, backend, prompt, label, cwd, brief=brief,
+                          ctx=ctx, run_id=first_id, capacity_guard=True)
+    if not result.capacity:
+        _emit(result)
+        return result.code
+    patch_path = result.apply_result.patch_path
+    if ctx.mode != ISOLATION_WORKTREE:
+        _emit(result, capacity.report_lines(
+            "giữ nguyên dữ liệu (isolation=none)", 0, threshold, wait_s, 0,
+            "không đếm được patch dsh; giữ nguyên source, không chạy codex", patch_path))
+        return result.code
+    if result.apply_result.status == isolation.APPLY_ERROR:
+        _emit(result, capacity.report_lines(
+            "giữ patch dsh", 0, threshold, wait_s, 0,
+            f"lỗi đếm patch: {result.apply_result.detail}; giữ worktree và patch, "
+            "không chạy codex", patch_path))
+        return result.code
+    lines = result.apply_result.changed_lines
+    if lines < threshold:
+        if getattr(args, "browser", False):
+            _emit(result, capacity.report_lines(
+                "giữ patch dsh, không chạy codex", lines, threshold, wait_s, 0,
+                "codex không hỗ trợ --browser; giữ worktree và patch dsh",
+                patch_path))
+            print("hand-ext: dsh quá tải và patch nhỏ; codex không hỗ trợ --browser",
+                  file=sys.stderr)
+            return EXIT_FAIL
+        keep = bool(getattr(args, "keep_worktree", False))
+        note = isolation.cleanup(ctx, keep=keep)
+        result.kept = ctx.mode == ISOLATION_WORKTREE and keep
+        result.cleanup_note = note
+        result.apply_result.detail = "bỏ patch dsh (dưới ngưỡng), không áp về gốc"
+        code = _codex_fallback(cfg, args, label, cwd, choice, brief=brief)
+        outcome = "ok" if code == 0 else f"mã {code}"
+        _emit(result, capacity.report_lines(
+            "bỏ patch dsh, chạy lại brief gốc bằng codex", lines, threshold, wait_s, 0,
+            f"codex {CODEX_FALLBACK_MODEL} effort {CODEX_FALLBACK_EFFORT}: {outcome}",
+            patch_path))
+        return code
+    _emit(result, capacity.report_lines(
+        "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s, 0,
+        f"quá tải lần 1/{1 + DSH_CAPACITY_MAX_CONTINUATIONS}, còn "
+        f"{DSH_CAPACITY_MAX_CONTINUATIONS} lần chạy tiếp", patch_path))
+    continuation_prompt = capacity.continuation_prompt(prompt)
+    for continuation in range(1, DSH_CAPACITY_MAX_CONTINUATIONS + 1):
+        attempt_id = _new_run_id(label, backend.name, continuation + 1)
+        if wait_s > 0:
+            print(f"hand-ext: dsh quá tải, giữ patch {lines} dòng; chờ {wait_s}s rồi chạy tiếp "
+                  f"({continuation}/{DSH_CAPACITY_MAX_CONTINUATIONS})", file=sys.stderr)
+            time.sleep(wait_s)
+        else:
+            print(f"hand-ext: dsh quá tải, giữ patch {lines} dòng; chạy tiếp không chờ "
+                  f"({continuation}/{DSH_CAPACITY_MAX_CONTINUATIONS})", file=sys.stderr)
+        retry = _run_attempt(cfg, args, backend, continuation_prompt, label, cwd,
+                             brief=brief, ctx=ctx, run_id=attempt_id, capacity_guard=True,
+                             preserve_failed=True)
+        if not retry.capacity:
+            finished = lines if retry.apply_result.status == isolation.APPLY_ERROR \
+                else retry.apply_result.changed_lines
+            _emit(retry, capacity.report_lines(
+                "giữ patch dsh, chờ rồi chạy tiếp", finished, threshold, wait_s,
+                continuation,
+                f"dsh {retry.outcome.status.value} sau {continuation + 1} lần; "
+                "kết thúc nhánh giữ patch", retry.apply_result.patch_path))
+            return retry.code if retry.code >= 0 else EXIT_ALL_UNAVAILABLE
+        if retry.apply_result.status == isolation.APPLY_ERROR:
+            _emit(retry, capacity.report_lines(
+                "giữ patch dsh", lines, threshold, wait_s, continuation,
+                f"lỗi đếm patch: {retry.apply_result.detail}; giữ worktree và patch",
+                retry.apply_result.patch_path))
+            return retry.code
+        lines = retry.apply_result.changed_lines
+        note = ("; số dòng giảm dưới ngưỡng nhưng vẫn giữ nhánh patch, không chuyển codex"
+                if lines < threshold else "")
+        if continuation < DSH_CAPACITY_MAX_CONTINUATIONS:
+            _emit(retry, capacity.report_lines(
+                "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s,
+                continuation, "vẫn quá tải, còn lần chạy tiếp" + note,
+                retry.apply_result.patch_path))
+            continue
+        _emit(retry, capacity.report_lines(
+            "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s,
+            continuation,
+            f"vẫn quá tải sau {1 + DSH_CAPACITY_MAX_CONTINUATIONS} lần dsh; "
+            "giữ worktree và changes.patch, không áp về gốc" + note,
+            retry.apply_result.patch_path))
+        return retry.code
+    return result.code
+
+
+def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
+             label: str, cwd: Path, choice: isolation.IsolationChoice,
+             *, brief: Optional[str] = None) -> int:
+    if getattr(args, "backend", None) == AUTO_BACKEND and backend.name == dsh_backend.NAME:
+        if brief is None:
+            brief = prompt
+        return _attempt_auto_dsh(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
+    run_id = _new_run_id(label, backend.name)
+    ctx, code = _prepare_context(cfg, cwd, choice, run_id)
+    if ctx is None:
+        return code
+    result = _run_attempt(cfg, args, backend, prompt, label, cwd, brief=brief,
+                          ctx=ctx, run_id=run_id, capacity_guard=False)
+    _emit(result)
+    return result.code
 
 
 def _record_go(cfg: ExtConfig, entry: dict,
