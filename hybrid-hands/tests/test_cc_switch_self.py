@@ -257,6 +257,8 @@ class CcSwitchSelfTest(unittest.TestCase):
              "sys.stdout.write('ready\\n'); sys.stdout.flush(); "
              "time.sleep(300)"],
             stdout=subprocess.PIPE, text=True)
+        # Cleanups run LIFO: kill, reap, then close the pipe even on failure.
+        self.addCleanup(stubborn.stdout.close)
         self.addCleanup(stubborn.wait, 5)
         self.addCleanup(stubborn.kill)
         self.assertEqual(stubborn.stdout.readline().strip(), "ready")

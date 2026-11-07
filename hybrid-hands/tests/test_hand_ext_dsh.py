@@ -138,12 +138,43 @@ class BuildCommandTest(_TmpCase):
             self.assertIn(key, dsh.DshBackend.BLOCKED_ENV)
         self.assertIn(dsh.KEY_ENV, dsh.DshBackend.BLOCKED_ENV)
 
+    def test_seatbelt_workspace_write_uses_danger_full_access(self):
+        spec = _spec(self.base, self.home.options, self.repo)
+        with mock.patch.dict(os.environ,
+                             {dsh.OUTER_SANDBOX_ENV: dsh.OUTER_SANDBOX_SEATBELT}):
+            _, env, _ = dsh.DshBackend().build_command(spec)
+        self.assertEqual(env[dsh.ENV_PERMISSION], dsh.SANDBOX_DANGER_FULL_ACCESS)
+        meta = json.loads((spec.run_dir / dsh.META_FILE).read_text(encoding="utf-8"))
+        self.assertEqual(meta["sandbox_mode"], dsh.SANDBOX_DANGER_FULL_ACCESS)
+        self.assertIn("sandbox Codex", meta["sandbox_reason"])
+        with mock.patch.dict(os.environ, {dsh.OUTER_SANDBOX_ENV: ""}):
+            _, outside, _ = dsh.DshBackend().build_command(spec)
+        self.assertEqual(outside[dsh.ENV_PERMISSION], dsh.SANDBOX_WORKSPACE_WRITE)
+        full = _spec(self.base, self.home.options, self.repo,
+                     sandbox=dsh.SANDBOX_DANGER_FULL_ACCESS)
+        with mock.patch.dict(os.environ, {dsh.OUTER_SANDBOX_ENV: ""}):
+            with self.assertRaises(ValueError):
+                dsh.DshBackend().build_command(full)
+
+    def test_seatbelt_read_only_refuses_to_run(self):
+        spec = _spec(self.base, self.home.options, self.repo, sandbox="read-only")
+        with mock.patch.dict(os.environ,
+                             {BIN_ENV: str(FAKE_BIN),
+                              dsh.OUTER_SANDBOX_ENV: dsh.OUTER_SANDBOX_SEATBELT}):
+            with self.assertRaises(ValueError) as raised:
+                dsh.DshBackend().build_command(spec)
+            checks = {c.name: c for c in dsh.DshBackend().doctor(
+                dict(self.home.options, sandbox="read-only"))}
+        self.assertIn("read-only", str(raised.exception))
+        self.assertFalse(checks["sandbox"].ok)
+
     def test_template_routes_go(self):
         text = dsh.TEMPLATE_PATCH.read_text(encoding="utf-8")
         for needle in ("apiKeyEnv: %s" % dsh.KEY_ENV, "api: openai-completions",
                        "x-opencode-session: !!js process.env.%s" % dsh.ENV_SESSION,
                        "cwd: !!js process.env.%s" % dsh.ENV_WORKSPACE, "policy: never",
-                       "thinkingFormat: deepseek"):
+                       "thinkingFormat: deepseek", "danger-full-access:",
+                       "sandbox: danger-full-access"):
             self.assertIn(needle, text)
 
     def test_template_retry_policy_waits_out_capacity_errors(self):

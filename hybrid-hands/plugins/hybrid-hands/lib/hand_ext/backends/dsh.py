@@ -95,6 +95,20 @@ PLAYWRIGHT_BROWSERS_PATH = "PLAYWRIGHT_BROWSERS_PATH"
 KEY_ENV = "OPENCODE_GO_API_KEY"  # matches apiKeyEnv in templates/dsh-hand.yml
 ENV_HOME = "DSH_HOME"
 ENV_PERMISSION = "DSH_PERMISSION_MODE"
+# Codex marks its child processes with this env var; nesting a second sandbox-exec below
+# seatbelt fails with "sandbox_apply: Operation not permitted" (dsh-sandbox fail-closed).
+OUTER_SANDBOX_ENV = "CODEX_SANDBOX"
+OUTER_SANDBOX_SEATBELT = "seatbelt"
+SANDBOX_READ_ONLY = "read-only"
+SANDBOX_WORKSPACE_WRITE = "workspace-write"
+SANDBOX_DANGER_FULL_ACCESS = "danger-full-access"
+SEATBELT_REASON = "trong sandbox Codex (seatbelt): seatbelt ngoài vẫn giới hạn quyền ghi"
+SEATBELT_READ_ONLY_ERROR = (
+    "dsh không giữ được read-only bên trong sandbox Codex (CODEX_SANDBOX=seatbelt): "
+    "dùng --sandbox workspace-write hoặc giao việc cho hand Claude")
+OUTSIDE_SEATBELT_FULL_ACCESS_ERROR = (
+    "dsh chỉ chạy danger-full-access khi đã ở trong sandbox Codex (CODEX_SANDBOX=seatbelt)")
+META_FILE = "meta.json"
 ENV_TELEMETRY = "DSH_TELEMETRY_MODE"
 TELEMETRY_OFF = "DISABLED"
 ENV_WORKSPACE = "HAND_EXT_DSH_WORKSPACE"
@@ -238,6 +252,48 @@ def model_id(raw: str) -> str:
     return model
 
 
+def in_codex_seatbelt() -> bool:
+    """True when dsh runs below Codex's seatbelt sandbox (nested sandbox-exec is refused)."""
+    return os.environ.get(OUTER_SANDBOX_ENV) == OUTER_SANDBOX_SEATBELT
+
+
+def _record_sandbox(spec: RunSpec, mode: str, requested: str, reason: str,
+                    refused: bool = False) -> None:
+    """Put the effective sandbox mode and why it changed into the run's meta.json."""
+    path = spec.run_dir / META_FILE
+    spec.run_dir.mkdir(parents=True, exist_ok=True)
+    meta = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    if not isinstance(meta, dict):
+        raise ValueError(f"{path} phải chứa một JSON object")
+    meta["sandbox_mode"] = mode
+    meta["sandbox_requested"] = requested
+    meta["sandbox_reason"] = reason
+    if refused:
+        meta["sandbox_refused"] = True
+    path.write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def permission_mode(spec: RunSpec) -> Tuple[str, Optional[str]]:
+    """Effective DSH_PERMISSION_MODE plus a reason when seatbelt forces a change.
+
+    Inside Codex's seatbelt, dsh cannot nest another sandbox: workspace-write becomes
+    danger-full-access (the outer seatbelt still limits writes) and read-only is refused
+    because dsh has no way to guarantee it. Outside seatbelt, danger-full-access is refused:
+    the preset exists only for the nested case and dsh must never run unconfined.
+    """
+    if not in_codex_seatbelt():
+        if spec.sandbox == SANDBOX_DANGER_FULL_ACCESS:
+            raise ValueError(OUTSIDE_SEATBELT_FULL_ACCESS_ERROR)
+        return spec.sandbox, None
+    if spec.sandbox == SANDBOX_READ_ONLY:
+        _record_sandbox(spec, spec.sandbox, spec.sandbox, SEATBELT_READ_ONLY_ERROR,
+                        refused=True)
+        raise ValueError(SEATBELT_READ_ONLY_ERROR)
+    if spec.sandbox == SANDBOX_WORKSPACE_WRITE:
+        return SANDBOX_DANGER_FULL_ACCESS, SEATBELT_REASON
+    return spec.sandbox, None
+
+
 class DshBackend(Backend):
     name = "dsh"
     BLOCKED_ENV = ("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "OPENCODE_API_KEY", KEY_ENV,
@@ -271,10 +327,22 @@ class DshBackend(Backend):
         checks.append(Check("version_verified", version.strip() in VERIFIED_VERSIONS,
                             "đã đọc mã nguồn bản " + ", ".join(sorted(VERIFIED_VERSIONS))))
         checks.append(self._key_check(key_file(options)))
+        seatbelt = self._seatbelt_check(options)
+        if seatbelt is not None:
+            checks.append(seatbelt)
         checks.extend(self._isolation_checks(options))
         checks.append(self._patch_check(options))
         checks.append(self._browser_check(options))
         return checks
+
+    @staticmethod
+    def _seatbelt_check(options: dict) -> Optional[Check]:
+        """Read-only cannot be honoured under Codex's seatbelt, so `auto` must skip dsh."""
+        if not in_codex_seatbelt():
+            return None
+        if str(options.get("sandbox", "")) == SANDBOX_READ_ONLY:
+            return Check("sandbox", False, SEATBELT_READ_ONLY_ERROR)
+        return Check("sandbox", True, "sandbox dùng được trong seatbelt Codex")
 
     @staticmethod
     def _key_check(path: Path) -> Check:
@@ -344,11 +412,14 @@ class DshBackend(Backend):
             raise ValueError(f"{home_dir(options) / ENV_FILE_NAME} tồn tại: dsh sẽ nạp nó")
         effort = spec.effort if spec.effort in EFFORTS else _opt(options, "effort",
                                                                   DEFAULT_EFFORT)
+        permission, reason = permission_mode(spec)
+        if reason:
+            _record_sandbox(spec, permission, spec.sandbox, reason)
         env = {
             KEY_ENV: read_key(key_file(options)),
             ENV_HOME: str(home_dir(options)),
             ENV_TELEMETRY: TELEMETRY_OFF,
-            ENV_PERMISSION: spec.sandbox,
+            ENV_PERMISSION: permission,
             ENV_WORKSPACE: str(Path(spec.cwd).resolve()),
             ENV_SESSION: session_uuid(spec.run_dir.name),
             ENV_MODEL: model_id(spec.model or _opt(options, "model", DEFAULT_MODEL)),

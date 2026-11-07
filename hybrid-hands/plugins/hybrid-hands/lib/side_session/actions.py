@@ -118,6 +118,10 @@ def start(cfg: SideConfig, a) -> int:
     chrome = K.chrome_enabled(cfg, a.chrome)
     is_external = a.provider in C.EXTERNAL_PROVIDERS
     prompt_file = cfg.state_dir / f"{name}{C.PROMPT_FILE_SUFFIX}" if is_external else None
+    # Sandbox writable roots must exist before any provider opens its screen.
+    # Keep dry-run free of filesystem changes.
+    if not a.dry_run:
+        cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
     cmds = []
     if a.worktree:
@@ -215,6 +219,26 @@ def _age(seconds: float) -> str:
     return f"{minutes // 60}h{minutes % 60:02d}m"
 
 
+def _token_display(cfg: SideConfig, st: state.SessionState, used: int) -> tuple[int, int]:
+    """Display Codex context separately from its cumulative accounting counter.
+
+    Read the latest rollout even for a stopped session, whose persisted
+    tokens_used remains cumulative usage for reports.
+    """
+    if st.provider == C.PROVIDER_CODEX:
+        rollout = tokens.codex_rollout(cfg.codex_home, st.uuid, st.started)
+        return tokens.codex_context_tokens(rollout), C.CODEX_AUTO_COMPACT_TOKEN_LIMIT
+    return used, st.max_tokens
+
+
+def _token_cell(cfg: SideConfig, st: state.SessionState, used: int) -> str:
+    used, cap = _token_display(cfg, st, used)
+    cell = f"{used}/{cap}"
+    if st.provider != C.PROVIDER_CODEX and used >= cap:
+        cell += C.OVER_CAP_SUFFIX
+    return cell
+
+
 def ls(cfg: SideConfig, _a) -> int:
     alive = screen.screen_names()
     rows = [("NAME", "PROVIDER", "CHROME", "STATUS", "LIVE", "TOKENS/CAP", "AGE", "HANDOFF")]
@@ -223,9 +247,7 @@ def ls(cfg: SideConfig, _a) -> int:
         status = C.STATUS_DONE if done else st.status
         used = (count_tokens(cfg, st) if status == C.STATUS_RUNNING
                 else st.tokens_used)
-        token_cell = f"{used}/{st.max_tokens}"
-        if used >= st.max_tokens:
-            token_cell += C.OVER_CAP_SUFFIX
+        token_cell = _token_cell(cfg, st, used)
         rows.append((st.name, st.provider, "yes" if st.chrome else "no", status,
                      "alive" if st.screen in alive else "dead", token_cell,
                      _age(time.time() - st.started),
@@ -293,6 +315,17 @@ def _external_tick(cfg: SideConfig, st: state.SessionState, run) -> bool:
 
 
 def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
+    # Codex owns context compaction; cumulative spending must never stop it.
+    if st.provider == C.PROVIDER_CODEX:
+        # The day-budget and done-marker checks still run before this branch.
+        # Persist cumulative tokens_used, but display the current context only.
+        if not screen.is_alive(st.screen):
+            st.status = C.STATUS_DEAD
+            state.save(cfg.state_dir, st)
+            return False
+        print(f"{st.name}: {_token_cell(cfg, st, st.tokens_used)} context tokens")
+        state.save(cfg.state_dir, st)
+        return True
     over_cap = st.tokens_used >= st.max_tokens
     if over_cap and cfg.enforce_token_cap:
         stop_session(cfg, st, C.STATUS_CAPPED, stop_watch=False)

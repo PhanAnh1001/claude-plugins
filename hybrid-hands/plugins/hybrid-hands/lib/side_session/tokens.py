@@ -5,7 +5,7 @@ Claude sessions can use the status-line token file configured as
 over unique assistant message ids of input_tokens + cache_creation_input_tokens +
 output_tokens (cache_read_input_tokens NOT counted). Codex = last `token_count` event
 in the rollout file: input_tokens - cached_input_tokens + output_tokens (cache reads
-NOT counted).
+NOT counted). Current Codex context includes cached input and output from last_token_usage.
 """
 from __future__ import annotations
 
@@ -78,18 +78,42 @@ def codex_rollout(codex_home: Path, uuid: str, since: float = 0.0) -> Path | Non
     return (tagged or hits or [None])[-1]
 
 
-def codex_tokens(path: Path | None) -> int:
+def _codex_usage(path: Path | None, usage_key: str) -> dict:
+    """Read the requested usage from the last token_count, ignoring other events.
+
+    A missing usage on the latest event means unknown (zero), not stale usage
+    from before native compaction. A partial JSON line is skipped by _iter_json.
+    """
     if path is None or not path.is_file():
-        return 0
-    last = 0
+        return {}
+    last: dict = {}
     for rec in _iter_json(path):
         payload = rec.get("payload") or {}
         if payload.get("type") != "token_count":
             continue
         info = payload.get("info") or {}
-        usage = info.get("total_token_usage") or {}
-        total_input = int(usage.get("input_tokens") or 0)
-        cached = int(usage.get("cached_input_tokens") or 0)
-        output = int(usage.get("output_tokens") or 0)
-        last = max(0, total_input - cached + output)
+        last = info.get(usage_key) or {}
     return last
+
+
+def codex_tokens(path: Path | None) -> int:
+    """Cumulative non-cached usage for spending reports only."""
+    usage = _codex_usage(path, "total_token_usage")
+    total_input = int(usage.get("input_tokens") or 0)
+    cached = int(usage.get("cached_input_tokens") or 0)
+    output = int(usage.get("output_tokens") or 0)
+    return max(0, total_input - cached + output)
+
+
+def codex_context_tokens(path: Path | None) -> int:
+    """Current context; input_tokens already includes cached_input_tokens.
+
+    Do not subtract cache or use model_context_window: the displayed threshold
+    is the native auto-compaction limit explicitly passed in the Codex argv.
+    """
+    # Missing last_token_usage must not fall back to cumulative total_token_usage.
+    # That total can exceed the context threshold many times in a long session.
+    usage = _codex_usage(path, "last_token_usage")
+    total_input = int(usage.get("input_tokens") or 0)
+    output = int(usage.get("output_tokens") or 0)
+    return max(0, total_input + output)

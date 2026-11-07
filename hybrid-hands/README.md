@@ -132,6 +132,8 @@ Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_s
 
 `side_session.budget_check_cmd` (mặc định `[]` = tắt) là argv của lệnh kiểm trần ngày, chạy không qua shell, timeout 30 s; phần tử đầu là đường dẫn tương đối thì tính từ repo (ví dụ `["scripts/day-budget.sh", "status"]`). `start`: mã khác 0 (kể cả lỗi không chạy được lệnh) in stdout của lệnh rồi từ chối, thoát 4, trừ khi có `--budget-exempt` hoặc `--force-budget`. `watch`: chạy lại mỗi vòng; mã 20 và state không `budget_exempt` thì dừng phiên với trạng thái `daystop`. `side-session ls` thêm cột `CHROME`.
 
+Với phiên phụ `codex`, argv có `-c model_auto_compact_token_limit=272000`: Codex tự nén context, `watch` không dừng `capped` theo tổng token tiêu. `TOKENS/CAP` hiển thị `last_token_usage` cuối (input gồm cached + output) trên 272000, không có dấu ` !`; tổng token cộng dồn chỉ để báo cáo.
+
 `side_session.codex_model`/`codex_effort` (mặc định `gpt-6.1-sol`/`high`) là model/effort cho provider `codex` (Sol) và được chuyển tiếp cho hand-ext khi có `--model`/`--effort`; `--model`/`--effort` của `start` đè cho một lượt.
 
 `side_session.status_line_cmd` (mặc định `""` = status line mặc định) là lệnh status line cho phiên phụ provider `claude`, đường dẫn tương đối tính từ repo; `start` truyền `--settings {"statusLine":{"type":"command","command":<đường dẫn tuyệt đối>}}`, ví dụ để phiên phụ ghi số liệu cho lệnh trần ngày.

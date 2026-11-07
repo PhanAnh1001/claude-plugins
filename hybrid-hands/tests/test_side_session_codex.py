@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
 from side_session import actions, constants as C, state, tokens  # noqa: E402
 from side_session.commands import (HAND_EXT_BIN, build_codex_prompt,  # noqa: E402
                                    codex_argv, provider_argv)
+from side_session.cli import build_parser
 from side_session.config import SideConfig  # noqa: E402
 
 OLD_AGE_S = 3600  # an earlier hand-gpt run finished an hour before the session
@@ -82,6 +83,41 @@ class CodexArgvTest(unittest.TestCase):
                 "sandbox_workspace_write.writable_roots=")).split("=", 1)[1])
             self.assertIn(str((repo / ".git").resolve()),
                           [str(Path(path).resolve()) for path in roots])
+
+    def test_codex_context_does_not_cap_cumulative_usage(self):
+        self.assertIn("model_auto_compact_token_limit=272000", codex_argv(self._cfg(""), "/w", "hi"))
+        with tempfile.TemporaryDirectory() as d:
+            cfg = SideConfig(Path(d), Path(d)/"h", Path(d)/"wt", 2, 300000, 0,
+                             state_dir=Path(d)/"state", codex_home=Path(d))
+            rollout = Path(d)/"sessions"/"rollout-u.jsonl"
+            rollout.parent.mkdir()
+            rollout.write_text(json.dumps({"payload": {"type": "token_count", "info": {
+                "total_token_usage": {"input_tokens": 400000},
+                "last_token_usage": {"input_tokens": 10000, "cached_input_tokens": 9000,
+                                     "output_tokens": 100}}}}) + "\n")
+            state.save(cfg.state_dir, state.SessionState(
+                "n", "u", C.PROVIDER_CODEX, d, "side-n", "side-n-watch", 300000, 0,
+                C.STATUS_RUNNING, str(cfg.handoff_dir/"n.md")))
+            out = io.StringIO()
+            with mock.patch.object(actions.screen, "is_alive", return_value=True), redirect_stdout(out), \
+                    mock.patch.object(actions.screen, "screen_names", return_value={"side-n"}):
+                self.assertTrue(actions.watch_tick(cfg, "n"))
+                actions.ls(cfg, None)
+            self.assertEqual(state.load(cfg.state_dir, "n").tokens_used, 400000)
+            self.assertRegex(out.getvalue(), r"10100/272000\s+\S")
+
+    def test_start_creates_handoff_dir_before_screen(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = SideConfig(Path(d), Path(d)/"missing"/"h", Path(d)/"wt", 2, 300000, 0,
+                             state_dir=Path(d)/"state")
+            args = build_parser().parse_args(["start", "--name", "n", "--prompt", "hi",
+                                              "--provider", C.PROVIDER_CODEX])
+            with mock.patch.object(actions.K, "session_cmd", return_value=["screen"]), \
+                    mock.patch.object(actions.screen, "screen_names", return_value=set()), \
+                    mock.patch.object(actions.subprocess, "run") as run, redirect_stdout(io.StringIO()):
+                run.side_effect = lambda *a, **kw: (self.assertTrue(cfg.handoff_dir.is_dir())
+                                                   or SimpleNamespace(returncode=0, stdout=""))
+                self.assertEqual(actions.start(cfg, args), 0)
 
 
 class DoneContractTest(unittest.TestCase):

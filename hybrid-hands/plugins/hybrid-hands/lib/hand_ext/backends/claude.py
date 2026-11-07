@@ -220,6 +220,20 @@ class ClaudeMainBackend(ClaudeBackend):
         "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT,
     }
     ALLOW_MAIN_CONFIG_DIR = True
+    # Claude Code reads ~/.claude.json while CLAUDE_CONFIG_DIR is unset; pointing it at
+    # ~/.claude makes Claude Code look for ~/.claude/.claude.json and report "Not logged in".
+    # Blocking the name also strips a value inherited from the parent environment.
+    BLOCKED_ENV = ClaudeBackend.BLOCKED_ENV + (CONFIG_DIR_ENV,)
+
+    def _base_env(self, options: dict) -> Dict[str, str]:
+        env = super()._base_env(options)
+        env.pop(CONFIG_DIR_ENV, None)
+        return env
+
+    def build_command(self, spec: RunSpec) -> Tuple[List[str], Dict[str, str], Optional[str]]:
+        argv, env_add, stdin = super().build_command(spec)
+        env_add.pop(CONFIG_DIR_ENV, None)
+        return argv, env_add, stdin
 
     def setup(self, options: dict) -> List[str]:
         cdir = self._config_dir(options)

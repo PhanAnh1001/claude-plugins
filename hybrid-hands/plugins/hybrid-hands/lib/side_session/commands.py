@@ -138,6 +138,7 @@ def codex_argv(cfg: SideConfig, workdir: str, prompt: str,
             "-c", f"model_reasoning_effort={json.dumps(effort or cfg.codex_effort)}",
             "-c", "sandbox_workspace_write.network_access=true",
             "-c", f"sandbox_workspace_write.writable_roots={roots}",
+            "-c", f"model_auto_compact_token_limit={C.CODEX_AUTO_COMPACT_TOKEN_LIMIT}",
             prompt]
 
 

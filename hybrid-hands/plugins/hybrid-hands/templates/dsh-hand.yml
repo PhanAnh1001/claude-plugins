@@ -78,6 +78,11 @@
       workspace-write:
         sandbox: workspace-write
         approval: never
+      # Only when already inside Codex's seatbelt sandbox: dsh must not nest sandbox-exec,
+      # and the outer seatbelt still limits writes.
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never
     defaultPreset: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
 
 # Web search and the DeepSeek web API bill a DeepSeek API key; the hand has none.

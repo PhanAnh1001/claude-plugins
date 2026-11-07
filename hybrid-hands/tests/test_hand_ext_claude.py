@@ -21,7 +21,7 @@ from hand_ext.backends.base import RunSpec, RunState, Status, Usage  # noqa: E40
 from hand_ext.backends.claude import (  # noqa: E402
     ClaudeBackend, ClaudeMainBackend, parse_reset,
 )
-from hand_ext.runner import RunOutcome  # noqa: E402
+from hand_ext.runner import RunOutcome, child_env  # noqa: E402
 
 
 def _spec(tmp: str, sandbox: str = "workspace-write", **opts) -> RunSpec:
@@ -160,9 +160,22 @@ class MainBackendTest(unittest.TestCase):
         self.assertTrue(main["config_dir"].ok)
         self.assertTrue(main["login"].ok)
         self.assertFalse(hand["config_dir"].ok)
-        self.assertEqual(env_add["CLAUDE_CONFIG_DIR"], str(Path(tmp) / ".claude"))
+        self.assertNotIn("CLAUDE_CONFIG_DIR", env_add)
         self.assertEqual(argv[argv.index("--model") + 1], "claude-opus-5-5")
         self.assertEqual(argv[argv.index("--effort") + 1], "low")
+
+    def test_main_never_sets_or_inherits_config_dir(self):
+        tmp = tempfile.mkdtemp()
+        main_cfg = tmp + "/main-cfg"
+        env = {"HAND_EXT_CLAUDE_BIN": FAKE_BIN, "CLAUDE_CONFIG_DIR": "/parent/cfg"}
+        with mock.patch.dict(os.environ, env):
+            _, env_add, _ = ClaudeMainBackend().build_command(
+                _spec(tmp, config_dir=main_cfg))
+            doctor_env = ClaudeMainBackend()._base_env({"config_dir": main_cfg})
+            _, hand_env, _ = ClaudeBackend().build_command(_spec(tmp, config_dir=main_cfg))
+        for kept in (env_add, child_env(ClaudeMainBackend(), env_add), doctor_env):
+            self.assertNotIn("CLAUDE_CONFIG_DIR", kept)
+        self.assertEqual(hand_env["CLAUDE_CONFIG_DIR"], main_cfg)
 
 
 class DayBudgetTest(unittest.TestCase):
