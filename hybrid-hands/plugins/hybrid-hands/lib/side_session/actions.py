@@ -116,9 +116,12 @@ def start(cfg: SideConfig, a) -> int:
         return C.EXIT_USAGE
     name = a.name
     prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
-    handoff = cfg.handoff_dir / f"{name}.md"
+    sid = str(uuidlib.uuid4())
+    # A reused main name must never consume a previous launch's finish marker.
+    handoff_name = f"{name}-{sid}" if is_main else name
+    handoff = cfg.handoff_dir / f"{handoff_name}.md"
     if is_main:
-        full_prompt = K.build_main_codex_prompt(prompt_text or C.MAIN_DEFAULT_PROMPT)
+        full_prompt = K.build_main_codex_prompt(prompt_text or C.MAIN_DEFAULT_PROMPT, handoff)
     elif a.provider == C.PROVIDER_CODEX:
         full_prompt = K.build_codex_prompt(prompt_text, name, handoff)
     else:
@@ -137,7 +140,6 @@ def start(cfg: SideConfig, a) -> int:
     paseo_plan = paseo.plan(cfg, a)
     if paseo_plan is not None and paseo_plan.get("error"):
         return paseo_plan.get("exit_code", C.EXIT_USAGE)
-    sid = str(uuidlib.uuid4())
     workdir = str(cfg.worktree_root / name) if a.worktree else str(cfg.repo)
     max_tokens = K.max_tokens_for(cfg, a.max_tokens, a.hours)
     chrome = K.chrome_enabled(cfg, a.chrome)
@@ -145,7 +147,7 @@ def start(cfg: SideConfig, a) -> int:
     prompt_file = cfg.state_dir / f"{name}{C.PROMPT_FILE_SUFFIX}" if is_external else None
     # Sandbox writable roots must exist before any provider opens its screen.
     # Keep dry-run free of filesystem changes.
-    if not a.dry_run and not is_main:
+    if not a.dry_run:
         cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
     st = state.SessionState(
@@ -155,8 +157,6 @@ def start(cfg: SideConfig, a) -> int:
         parent_session=os.environ.get(C.PARENT_SESSION_ENV, ""), chrome=chrome,
         budget_exempt=bool(a.budget_exempt), role="main" if is_main else "")
     if is_main:
-        st.handoff = ""
-        st.watch_screen = ""
         st.parent_session = ""
     if paseo_plan is not None:
         return paseo.start_session(cfg, a, st, workdir, full_prompt, paseo_plan["target"])
@@ -363,7 +363,7 @@ def ls(cfg: SideConfig, _a) -> int:
     for st in sessions:
         if st.provider == C.PROVIDER_CODEX:
             _pin_rollout(cfg, st)
-        done = st.role != "main" and K.done_path(st.handoff).is_file()
+        done = bool(st.handoff) and K.done_path(st.handoff).is_file()
         live = "alive" if st.screen in alive else "dead"
         if done and st.provider == C.PROVIDER_CODEX and st.status in C.ACTIVE_STATUSES:
             _finish_codex(cfg, st)
@@ -565,14 +565,38 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
     return True
 
 
+def _watch_main(cfg: SideConfig, st: state.SessionState) -> bool:
+    """Main sessions end only on their explicit, launch-specific finish marker.
+
+    Idle, a completed turn and budget/context thresholds are not completion.
+    Legacy main states lack a marker path: never guess one on their behalf.
+    No status refresh is needed while waiting, so disconnects cannot close Sol.
+    """
+    if st.status not in C.ACTIVE_STATUSES:
+        return False
+    if not st.handoff:
+        return False
+    if not K.done_path(st.handoff).is_file():
+        return True
+    if st.transport != C.TRANSPORT_PASEO or not st.paseo_agent_id:
+        print(f"{st.name}: warning: main .done thiếu Paseo agent; giữ active")
+        return True
+    # Reuse the exact-agent archive operation and its retry-on-failure contract.
+    # Never resolve an agent by title, cwd, parent id or the newest open tab.
+    if not _finish_codex(cfg, st):
+        return True
+    print(f"{st.name}: done")
+    return False
+
+
 def watch_tick(cfg: SideConfig, name: str) -> bool:
     """One watchdog step. Returns True while the watch loop should continue."""
     st = state.load(cfg.state_dir, name)
     if st.role == "main":
-        return False
+        return _watch_main(cfg, st)
     if st.status not in C.ACTIVE_STATUSES:
         return False
-    done = st.role != "main" and K.done_path(st.handoff).is_file()
+    done = bool(st.handoff) and K.done_path(st.handoff).is_file()
     if st.provider == C.PROVIDER_CODEX:
         # Pin before the done branch: a session that finishes on its first tick
         # must still remember the rollout that produced its token count. A Paseo

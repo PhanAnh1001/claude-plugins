@@ -12,3 +12,14 @@ Không in/hiện giá trị `.env`, token, credential ở bất kỳ tầng nào
 Không đọc `.env` bằng lệnh hay tool hiện giá trị: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `more`, `rg`, `Read`, kể cả có che phần sau dấu `=`.
 Không đọc hay in token, auth.json, file credential. Không giao hand ngoài việc cần secret hay dữ liệu khách hàng. Chỉ dùng code và fixtures giả công khai được; không đọc transcript/log thật. Không gọi API trả phí, không tạo hay dùng API key.
 
+
+## Kết thúc tường minh
+
+Khi đã hoàn thành toàn bộ yêu cầu đang nhận, mọi hand đã kết thúc và Sol review xong:
+1. Ghi báo cáo cuối vào `{handoff}` và gửi kết quả cho người dùng trên Paseo.
+2. Thao tác cuối cùng là tạo `{done}` bằng `touch`. Watchdog sẽ archive đúng phiên
+   Sol này, giữ lịch sử và workspace, đóng runtime và bỏ khỏi danh sách đang mở.
+Không tạo marker khi chỉ xong một turn, idle, đang chờ việc/duyệt/trả lời, hoặc còn
+việc/hand chưa xong. Prompt mặc định chờ việc không phải yêu cầu kết thúc.
+Không archive parent hay phiên khác; không tự gọi Paseo archive. Lần mở Sol mới có
+marker riêng và vẫn hiển thị bình thường.

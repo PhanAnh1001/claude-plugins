@@ -106,7 +106,7 @@ def fake_app_popen(procs: list[FakeAppServer], cmd, **kwargs) -> FakeAppServer:
 
 class PaseoStartTest(unittest.TestCase):
     def test_main_start(self):
-        with tempfile.TemporaryDirectory() as d, mock.patch.object(actions.paseo, "plan", return_value={"target": "fake"}), mock.patch.object(actions.paseo, "start_agent", return_value={"agentId": "main"}) as agent, mock.patch.object(actions.K, "watch_cmd") as watch, mock.patch.object(actions.paseo.codex_trust, "ensure_codex_compact_limit") as compact:
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(actions.paseo, "plan", return_value={"target": "fake"}), mock.patch.object(actions.paseo, "start_agent", return_value={"agentId": "main"}) as agent, mock.patch.object(actions.K, "watch_cmd", return_value=["true"]) as watch, mock.patch.object(actions.paseo.codex_trust, "ensure_codex_compact_limit") as compact:
             cfg = cfg_for(Path(d))
             with mock.patch.object(actions, "_running", return_value=[None] * cfg.max_parallel):
                 self.assertEqual(actions.start(cfg, start_args("main", main=True, worktree=False, prompt=None)), 0)
@@ -115,12 +115,28 @@ class PaseoStartTest(unittest.TestCase):
             self.assertIn("PHIÊN CHÍNH", call["initial_prompt"])
             self.assertIn(C.MAIN_DEFAULT_PROMPT, call["initial_prompt"])
             st = state.load(cfg.state_dir, "main")
-            self.assertEqual((st.role, st.handoff, st.watch_screen, call["hand_scope"]), ("main", "", "", st.uuid))
+            self.assertEqual((st.role, call["hand_scope"]), ("main", st.uuid))
+            self.assertIn(str(actions.K.done_path(st.handoff)), call["initial_prompt"])
             self.assertEqual(actions._running(cfg), [])
-            self.assertFalse(cfg.handoff_dir.exists())
-            watch.assert_not_called()
+            self.assertTrue(cfg.handoff_dir.exists())
+            watch.assert_called_once_with(cfg, "main")
             compact.assert_called_once_with(cfg.codex_home, C.CODEX_AUTO_COMPACT_TOKEN_LIMIT)
 
+    def test_main_done_marker_only_archives_its_agent(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = cfg_for(Path(d))
+            save_session(cfg, "main")
+            st = state.load(cfg.state_dir, "main")
+            st.role = "main"
+            state.save(cfg.state_dir, st)
+            with mock.patch.object(actions.paseo, "_call", return_value={"ok": True}) as call:
+                self.assertTrue(actions.watch_tick(cfg, st.name))
+                call.assert_not_called()
+                Path(st.handoff).parent.mkdir(parents=True, exist_ok=True)
+                actions.K.done_path(st.handoff).touch()
+                self.assertFalse(actions.watch_tick(cfg, st.name))
+                self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_DONE)
+                self.assertEqual(call.call_args.args[1]["agentId"], st.paseo_agent_id)
     def test_main_invalid_options(self):
         for over in ({"worktree": True}, {"worktree": False, "provider": "claude"}, {"worktree": False, "provider": "dsh"}):
             self.assertEqual(actions.start(cfg_for(Path("/fake")), start_args("bad", main=True, **over)), 2)

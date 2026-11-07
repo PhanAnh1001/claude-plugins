@@ -2,7 +2,7 @@
 
 ## Phiên chính Sol trên Paseo
 
-Mở brain Sol Codex (mặc định `gpt-6.1-sol`, effort high) tại repo chính bằng `side-session start --main --name sol-main [--prompt ...]`, rồi xem và trao đổi trên điện thoại qua Paseo. Cần daemon Paseo; không dùng `--worktree` hay provider khác. Bỏ prompt để Sol đọc luật repo và chờ việc; `--effort` ghi đè mặc định. Phiên chính không có handoff/watchdog và không chiếm slot phiên phụ; dùng `side-session ls` để xem, `side-session stop sol-main` để archive và giữ lịch sử. `--dry-run` chỉ in kế hoạch, không gọi daemon.
+Mở brain Sol Codex (mặc định `gpt-6.1-sol`, effort high) tại repo chính bằng `side-session start --main --name sol-main [--prompt ...]`, rồi xem và trao đổi trên điện thoại qua Paseo. Cần daemon Paseo; không dùng `--worktree` hay provider khác. Bỏ prompt để Sol đọc luật repo và chờ việc; `--effort` ghi đè mặc định. Phiên chính không chiếm slot phiên phụ. Mỗi lần mở có handoff/marker riêng `<handoff_dir>/<tên>-<uuid>.md`/`.done`; Sol chỉ tạo marker sau báo cáo cuối, khi toàn bộ việc và hand đã xong. Watchdog archive đúng agent đó, giữ lịch sử/workspace và bỏ khỏi danh sách đang mở; idle/kết thúc một turn/chờ việc không đóng phiên. Mở Sol mới vẫn hiển thị bình thường. Phiên main cũ chưa có contract này cần dừng thủ công; dùng `side-session ls` để xem, `side-session stop sol-main` để archive và giữ lịch sử. `--dry-run` chỉ in kế hoạch, không gọi daemon.
 
 
 
