@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from . import go_live, go_usage, ledger, measure, quota_state, render
+from . import go_live, go_usage, measure, quota_state, render, report
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
@@ -132,12 +132,15 @@ def cmd_usage(cfg: ExtConfig, args: argparse.Namespace) -> int:
 
 
 def cmd_report(cfg: ExtConfig, args: argparse.Namespace) -> int:
-    entries = ledger.read_entries(cfg.ledger)
+    scope = report.collect(cfg)
+    entries = scope.entries
     if args.since:
         entries = [e for e in entries if str(e.get("started", ""))[:10] >= args.since]
     for key in ("backend", "label"):
         if getattr(args, key):
             entries = [e for e in entries if e.get(key) == getattr(args, key)]
+    print(report.format_scope(scope))
+    print()
     print(render.ledger_report(entries))
     return EXIT_OK
 

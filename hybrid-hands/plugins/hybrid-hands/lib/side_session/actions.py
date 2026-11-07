@@ -299,11 +299,18 @@ def stop_session(cfg: SideConfig, st: state.SessionState, status: str, *, stop_w
         _quit(st.watch_screen)
 
 
+def _stopped_message(st: state.SessionState) -> str:
+    if st.provider == C.PROVIDER_CODEX:
+        return (f"stopped {st.name} "
+                f"(context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén))")
+    return f"stopped {st.name} ({st.tokens_used}/{st.max_tokens} tokens)"
+
+
 def stop(cfg: SideConfig, a) -> int:
     st = state.load(cfg.state_dir, a.name)
     st.tokens_used = count_tokens(cfg, st)
     stop_session(cfg, st, C.STATUS_STOPPED, stop_watch=True)
-    print(f"stopped {st.name} ({st.tokens_used}/{st.max_tokens} tokens)")
+    print(_stopped_message(st))
     if st.worktree:
         print(f"worktree kept; remove with: git -C {shlex.quote(str(cfg.repo))} worktree remove "
               f"{shlex.quote(st.dir)} && git -C {shlex.quote(str(cfg.repo))} branch -D "

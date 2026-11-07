@@ -3,15 +3,13 @@
 ## Tóm tắt
 
 - **Mục tiêu:** làm theo spec `2026-11-07-ba-tang-opus-sol-dsh-spec.md`. Có 5 nhóm: phiên Sol trên Codex, backend `claude-main`, policy mới, kiểm thực tế, và (thêm 07/11) dự phòng 429 bằng Sol low cùng hạn mức GPT trên Paseo và statusline.
-- **Trạng thái (07/11/2026, 15:50):** xong mọi task trừ 4.15, 4.16 (phiên Sol `sol-415` đang chạy) và 5.6. Nhánh `feat/ba-tang-opus-sol-dsh` đã merge fast-forward vào `main` và push (người dùng đồng ý 07/11 15:45). Hai plugin đọc thẳng từ thư mục repo (`hybrid-hands` 0.24.0, `statusline` 0.19.1), `claude plugin validate` đạt.
-  - Test đầy đủ: hybrid-hands 395/395 (15:35), statusline 187/187 (15:40). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng xanh); chưa xử lý.
+- **Trạng thái (07/11/2026, 16:35):** xong mọi task trừ 5.6. Nhánh `feat/ba-tang-opus-sol-dsh` đã merge fast-forward vào `main` và push (người dùng đồng ý 07/11). Hai plugin đọc thẳng từ thư mục repo (`hybrid-hands` 0.24.0, `statusline` 0.19.1), `claude plugin validate` đạt. `paseo daemon restart` đã chạy lúc 15:40 (lệnh tắt luôn phiên brain chạy dưới Paseo, mã 137); panel đã hiện dòng `GPT tuần`.
+  - Test đầy đủ: hybrid-hands 396/396 (16:35), statusline 187/187 (15:40). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng xanh); chưa xử lý.
   - Lịch sử các lượt sửa và kiểm thực tế ghi ở từng task mục 4 và 5.
   - **Phiên brain sau làm tiếp:**
-    1. **`sol-415` (4.15, 4.16):** mở lúc 15:40 bằng `--worktree` (`~/app/claude-plugins-wt/sol-415`, nhánh `side/sol-415`, gốc `c1ce540`), prompt `/tmp/hh-briefs/sol-415.md`. Xong khi có `docs/work-in-progress/handoffs/sol-415.done` ở repo chính (thư mục `docs/` gốc repo không track, không commit). Đọc `side-session handoff sol-415`.
-    2. Áp patch: `git -C <worktree> add -A -N . && git -C <worktree> diff --binary HEAD -- . ':!output' > /tmp/p.patch`, rồi `git apply --3way /tmp/p.patch` vào `feat/ba-tang-opus-sol-dsh`. Chạy `python3 -m unittest discover -s hybrid-hands/tests -q` một lần, commit, `side-session stop sol-415`, `git worktree remove --force <worktree>`, `git branch -D side/sol-415`. Fast-forward `main` rồi push (người dùng đã đồng ý cho đợt này).
-    3. **5.6:** người dùng đã duyệt `paseo daemon restart` (đã chạy lúc 15:50). Còn: một lượt hand codex low thật để sổ có `cost_usd`, rồi xem `hh-ps` và thanh trạng thái hiện đủ USD và %; Paseo không còn tài khoản `~/.codex`. Gộp: ẩn `GPT 5h ?` trên cây khi tài khoản không có cửa sổ 5h; typecheck TS `hh-tree-pane`, `paseo-hh-tree`; xem UI trên điện thoại (người dùng tự xem).
-    4. Phiên `sol-paseo` do phiên brain khác mở, không động vào.
-    5. Đo lại 4.3 trong khoảng 14-21/11/2026.
+    1. **5.6:** còn một lượt hand codex low thật để sổ có `cost_usd`, rồi xem `hh-ps` và thanh trạng thái hiện đủ USD và %; Paseo không còn tài khoản `~/.codex`. Gộp: ẩn `GPT 5h ?` trên cây khi tài khoản không có cửa sổ 5h; typecheck TS `hh-tree-pane`, `paseo-hh-tree`; xem UI trên điện thoại (người dùng tự xem).
+    2. Phiên `sol-paseo` do phiên brain khác mở, không động vào.
+    3. Đo lại 4.3 trong khoảng 14-21/11/2026.
 - **Cách làm:**
   - Nhóm 1 và 2 chạm vùng code khác nhau, nên giao 2 hand dsh song song (`hand-ext run --backend auto`), mức test tối thiểu.
   - Nhóm 3 là văn bản policy, giao 1 hand dsh sau khi nhóm 1-2 xong để chép đúng tên cờ và khoá.
@@ -70,7 +68,7 @@
     | Lỗi Opus bắt được mà Sol bỏ sót | 2 (test giá null tường minh; dòng báo `start` codex) | mục 4.11 |
 
   - Lúc đo lại: tính Opus theo task bằng cách ghép mã phiên với task; tính số dsh từ `go_usage.jsonl`, không dùng `hand-ext report` (lỗi 4.15).
-- [ ] 4.15 Lỗi: `hand-ext report --since ... --cwd <repo>` lọc theo cwd nên bỏ sót các lượt chạy trong worktree (`~/app/claude-plugins-wt/*`, `~/.hybrid-hands/worktrees/*`): ngày 07/11 report đếm 15 lượt, sổ có 23. Không truyền `--cwd` thì report in "Tổng lượt: 0". Sửa: các lượt có git common dir trùng repo thì tính cho repo đó. Thêm 1 test.
+- [x] 4.15 Lỗi: `hand-ext report --since ... --cwd <repo>` lọc theo cwd nên bỏ sót các lượt chạy trong worktree (`~/app/claude-plugins-wt/*`, `~/.hybrid-hands/worktrees/*`): ngày 07/11 report đếm 15 lượt, sổ có 23. Không truyền `--cwd` thì report in "Tổng lượt: 0". Sửa: các lượt có git common dir trùng repo thì tính cho repo đó. Thêm 1 test.
 - [x] 4.4 Lỗi phát hiện ở 4.1: Codex TUI dừng ở màn "Trust this folder?", nên phiên Sol chạy không người trực bị kẹt.
   - Sửa: trước khi mở phiên, `side-session start` ghi `[projects."<workdir>"] trust_level = "trusted"` vào `<codex_home>/config.toml`, chỉ khi workdir chưa có mục này. Workdir có thể là worktree mới.
   - Cột TOKENS báo 0 trong lúc kẹt là đúng: lúc đó chưa có rollout.
@@ -121,7 +119,8 @@
   - 4.14: `backends/sandbox.py` mới; codex trong seatbelt chạy `danger-full-access`, `read-only` thì từ chối, mode thật ghi vào meta.
   - Lỗi lộ thêm khi chạy thật: `templates/dsh-hand.yml` đặt `retryPolicy.initialDelayMs`/`maxDelayMs` sai cấp (phải nằm dưới `backoff`), dsh báo NO_ADAPTER. Shared patch cũ che lỗi này. Sol đã sửa.
   - Test: 394/394 trong worktree (seatbelt); chạy thật codex low và dsh trong sandbox Sol, exit 0, không hỏi duyệt, không `sandbox_apply`.
-- [ ] 4.16 Lỗi nhỏ: `side-session stop` provider codex vẫn in `(146296/300000 tokens)`; đổi giống dòng báo `start` (context 272000, tự nén). Gộp vào gói 4.15.
+- [x] 4.16 Lỗi nhỏ: `side-session stop` provider codex vẫn in `(146296/300000 tokens)`; đổi giống dòng báo `start` (context 272000, tự nén). Gộp vào gói 4.15.
+- Kết quả lượt `sol-415` (07/11, 15:40-16:30, Sol đã review; 5 file): `lib/hand_ext/report.py` mới gom sổ theo git common dir (gồm lượt trong worktree, dedup, dùng metadata còn sót), report in rõ phạm vi lọc; `side-session stop` codex báo context 272000 (tự nén). Report thật ở repo chính: 16 lượt ngày 07/11. Không khôi phục được lượt của worktree đã xoá sạch metadata, nên vẫn tính baseline dsh từ `go_usage.jsonl`. 396 test xanh ở repo chính.
 - Ghi nhận chi phí: lượt dsh của `sol-51-52` chạy 45 phút (13:39-14:24), 30,9M token input (30,3M cache), 174k output, rồi chết vì 429 quá tải. Nhánh 5.1 giúp lần sau chuyển sớm hơn, nhưng thời gian dsh tự thử lại theo `retryPolicy` trước khi trả 429 vẫn dài. Xem lại `maxRetries`/`maxDelayMs` ở 4.3.
 
 ## 5. Dự phòng 429 bằng Sol low, hiện hạn mức GPT trên Paseo và statusline

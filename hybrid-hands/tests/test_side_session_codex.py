@@ -121,8 +121,14 @@ class CodexArgvTest(unittest.TestCase):
                     mock.patch.object(actions.screen, "screen_names", return_value={"side-n"}):
                 self.assertTrue(actions.watch_tick(cfg, "n"))
                 actions.ls(cfg, None)
+                with mock.patch.object(actions.screen, "quit") as quit_screen:
+                    self.assertEqual(actions.stop(cfg, SimpleNamespace(name="n")), 0)
+            self.assertEqual(quit_screen.call_args_list, [mock.call("side-n"),
+                                                          mock.call("side-n-watch")])
             self.assertEqual(state.load(cfg.state_dir, "n").tokens_used, 400000)
             self.assertRegex(out.getvalue(), r"10100/272000\s+\S")
+            self.assertIn("stopped n (context 272000 (tự nén))", out.getvalue())
+            self.assertNotIn("/300000 tokens", out.getvalue())
 
     def test_start_creates_handoff_dir_before_screen(self):
         with tempfile.TemporaryDirectory() as d:
