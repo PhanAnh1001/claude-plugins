@@ -3,7 +3,7 @@
 #   1. user@host  current-dir (basename, ~ for $HOME)  (git-branch in green)
 #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
 #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
-#   3. an aligned limit table: row "Claude" (5h / 7d + reset times; 5h only from the live payload,
+#   3. an aligned limit table: row "Claude" (5h / 7d + reset times; 5h from the live payload or a valid shared cache,
 #      "5h:-" without it; 7d estimated to 0.1, "~4.3%", from week_split.py's summary when valid;
 #      this machine's USD per 1% inside the 7d parentheses)
 #   3b. rows "· máy này" and "· máy khác": 7-day usage split by machine (per weekday for this
@@ -11,7 +11,7 @@
 #   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
 #      the estimated DS cells from hand-ext
 #   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from the hand-ext
-#      Codex ledger, when that sample ended within 24h
+#      Codex ledger / local rollout; USD remains ledger-only
 #   3e. one line per main-session group (session-lines.sh): Claude and Go % of the group
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
@@ -45,7 +45,7 @@ WEEK_SPLIT_SUMMARY="$CLAUDE_HOME/.statusline-week-split.json"
 WEEK_SPLIT_SUMMARY_VERSION=2
 ESTIMATE_FRESH_SECONDS=1800
 ESTIMATE_SAME_WINDOW_SECONDS=3600
-# Shown when the live payload has no 5-hour data (cached 5h values are never shown).
+# Shown when neither live payload nor a fresh shared 5-hour cache is usable.
 FIVE_ABSENT="-"
 # shellcheck source=go-segments.sh
 . "$SCRIPTS_DIR/go-segments.sh"
@@ -287,7 +287,13 @@ build_claude_row() {
   if [ -n "$five" ]; then
     five_cell=$(rate_limit_segment 5h "$five" "$five_reset" "" "")
   else
-    five_cell="${DIM}5h:${FIVE_ABSENT}${RESET}"
+    local shared_five
+    shared_five=$(python3 "$SCRIPTS_DIR/shared_usage.py" claude 2>/dev/null)
+    if [ -n "$shared_five" ]; then
+      five_cell=$(rate_limit_segment 5h "" "" "$shared_five" "")
+    else
+      five_cell="${DIM}5h:${FIVE_ABSENT}${RESET}"
+    fi
   fi
   est=$(week_estimate "${week:-$cached_week}" "${week_reset:-$cached_week_reset}")
   week_cell=$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset" \

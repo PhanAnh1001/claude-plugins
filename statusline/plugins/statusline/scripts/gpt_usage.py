@@ -1,11 +1,8 @@
 """GPT (Codex) cells for the statusline limit table.
 
-Reads the hand-ext Codex ledger (`codex_usage.jsonl`, schema 1) and prints three US-separated
-fields: the newest valid 5h/7d percentages and today's estimated USD. Only validated numbers
-leave this script, so ledger data never becomes ANSI or shell code. Missing, stale or broken data
-is silent: no output means no GPT row.
-
-The ledger is written by hand-ext, never by this script: read-only, no cache, no network.
+Reads local shared Codex account samples (ledger and fixed .codex-hand rollouts).
+Today's estimated USD remains ledger-only. Read-only, no network or credentials.
+Missing shared sources fail open; collect() remains a deterministic ledger-only helper.
 """
 from __future__ import annotations
 
@@ -140,7 +137,28 @@ def collect(path: Path, now: dt.datetime) -> Optional[Tuple[Optional[float], Opt
 
 
 def main() -> int:
-    data = collect(ledger_path(), dt.datetime.now(dt.timezone.utc))
+    now = dt.datetime.now(dt.timezone.utc)
+    data = collect(ledger_path(), now)
+    from shared_usage import account_windows
+    windows = account_windows(now.timestamp())
+    # Keep the ledger's schema/freshness checks; compare each rollout window independently.
+    latest = {}
+    for record in read_records(ledger_path()):
+        ended = parse_moment(record.get("ended")) if is_account_record(record) else None
+        if ended is None or not 0 <= (now - ended).total_seconds() < FRESH_SECONDS:
+            continue
+        raw = record.get("windows")
+        if not isinstance(raw, dict):
+            continue
+        for key, label in (("5h", "5h"), ("7d", "tuần")):
+            if key in raw and (label not in latest or ended.timestamp() > latest[label][1]):
+                latest[label] = (window_percent(raw[key], now), ended.timestamp())
+    for label, sample in windows.items():
+        if label not in latest or sample[1] >= latest[label][1]:
+            latest[label] = sample
+    if latest or data is not None:
+        data = (latest.get("5h", (None,))[0], latest.get("tuần", (None,))[0],
+                data[2] if data else UNKNOWN_USD)
     if data is None:
         return 0
     five, seven, usd = data

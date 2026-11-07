@@ -10,7 +10,7 @@ is ignored).
 USD is re-estimated from the central table and the ledger/registry token totals.
 An explicit backend price overrides the table; unknown models stay unknown.
 GPT percentages are account samples, kept in their own Usage fields; they are never
-derived from USD and never written to the Claude/Go `week_pct`.
+derived from USD. Measured same-rollout weekly movement uses `week_pct`.
 """
 from __future__ import annotations
 
@@ -18,11 +18,10 @@ import json
 import math
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
-from hand_ext.backends.codex import windows_from_rate_limits
 from hand_ext.codex_usage import price_for
 from usage_pricing import explicit_options
 from hand_ext.constants import CODEX_USAGE_LEDGER_NAME, DEFAULTS
@@ -45,7 +44,7 @@ ROLLOUT_GLOB = "rollout-*.jsonl"
 # A rollout envelope is exactly `{timestamp?, ordinal?, type: "event_msg", payload: {...}}`;
 # numeric `ordinal` is metadata, and only a payload whose first key is
 # `type: "token_count"` is usage, never chat.
-_HEADER_META = (r'(?:"timestamp"\s*:\s*"[^"]*"\s*,\s*)?'
+_HEADER_META = (r'(?:"timestamp"\s*:\s*(?:"[^"]*"|-?\d+(?:\.\d+)?|null|true|false)\s*,\s*)?'
                 r'(?:"ordinal"\s*:\s*-?\d+\s*,\s*)?')
 EVENT_HEADER = re.compile(
     r'^\s*\{\s*' + _HEADER_META +
@@ -64,9 +63,11 @@ class GptWindow:
     resets_at: Optional[float]
     at: float
     source: str
+    duration: float = 604800
 
     def usable(self, now: float) -> bool:
-        return self.resets_at is not None and self.resets_at > now
+        return (self.resets_at is not None and self.resets_at > now
+                and self.resets_at - self.duration <= self.at <= now)
 
 
 @dataclass
@@ -121,8 +122,18 @@ class CodexData:
         if not tokens and not windows:
             return None
         priced = _priced_tokens(tokens)
-        usd = estimate_cost(priced, self.price) if tokens else None
-        return _usage(priced, windows, usd, now)
+        # Resolve the actual rollout model; a default model must not price an
+        # unknown or missing one. Import locally to keep metadata parsing shared.
+        from .native_source import _records
+        model = ""
+        for kind, payload, _ in _records(path, token_only=True):
+            if kind in ("session_meta", "turn_context"):
+                model = str(payload.get("model") or model)
+        usd = estimate_cost(priced, price_for(self.price_options, model)) if tokens else None
+        usage = _usage(priced, windows, usd, now)
+        measured = rollout_week(path, now)
+        return replace(usage, week_pct=measured,
+                       week_pct_source="codex_rate_limits_delta" if measured is not None else "")
 
 
 def _options(cfg: Any) -> Dict[str, Any]:
@@ -173,7 +184,7 @@ def _contained(root: Path, path: Path) -> Optional[Path]:
     return resolved if resolved.is_file() else None
 
 
-def _iter_json_lines(path: Path) -> Iterable[dict]:
+def _iter_json_lines(path: Path, strict: bool = False) -> Iterable[dict]:
     """Decode only standard `event_msg`/`token_count` envelopes, never conversation JSON."""
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
@@ -183,6 +194,8 @@ def _iter_json_lines(path: Path) -> Iterable[dict]:
                 try:
                     record = json.loads(line)
                 except ValueError:
+                    if strict:
+                        yield {}
                     continue
                 if not isinstance(record, dict) or record.get("type") != EVENT_RECORD:
                     continue
@@ -203,7 +216,7 @@ def _number(value: Any) -> Optional[float]:
 
 def _pct(value: Any) -> Optional[float]:
     number = _number(value)
-    return max(0.0, number) if number is not None else None
+    return number if number is not None and number <= 100 else None
 
 
 def _token_count(value: Any) -> int:
@@ -245,7 +258,7 @@ def _ledger_windows(record: Optional[dict],
         if pct is None:
             continue
         found[label] = GptWindow(pct, to_epoch(window.get("resets_at")),
-                                 at, SOURCE_LEDGER)
+                                 at, SOURCE_LEDGER, 18000 if label == WINDOW_5H else 604800)
     return found
 
 
@@ -278,22 +291,23 @@ def _ledger(path: Path) -> Tuple[Dict[str, dict], Dict[str, GptWindow]]:
     return records, samples
 
 
-def _rate_limit_windows(limits: Any, at: float) -> Dict[str, GptWindow]:
-    try:
-        windows = windows_from_rate_limits(limits if isinstance(limits, dict) else {})
-    except (ValueError, OverflowError, OSError):
-        # A malformed resets_at (nan/inf/out of range) drops that sample only.
-        return {}
+def _rate_limit_windows(limits: Any, at: float, explicit_only: bool = False) -> Dict[str, GptWindow]:
     found: Dict[str, GptWindow] = {}
-    for key, label in ROLLOUT_WINDOWS:
-        window = windows.get(key)
-        if not isinstance(window, dict):
+    if not isinstance(limits, dict):
+        return found
+    for name in ("primary", "secondary"):
+        raw = limits.get(name)
+        if not isinstance(raw, dict):
             continue
-        pct = _pct(window.get("used_percent"))
-        if pct is None:
-            continue
-        found[label] = GptWindow(pct, to_epoch(window.get("resets_at")),
-                                 at, SOURCE_ROLLOUT)
+        duration = raw.get("window_minutes")
+        if duration is None and not explicit_only:
+            duration = 300 if name == "primary" else 10080
+        label = ({300: WINDOW_5H, 10080: WINDOW_WEEK}.get(duration)
+                 if isinstance(duration, (int, float)) and not isinstance(duration, bool) else None)
+        pct = _pct(raw.get("used_percent"))
+        reset = to_epoch(raw.get("resets_at"))
+        if label and pct is not None and reset is not None:
+            found[label] = GptWindow(pct, reset, at, SOURCE_ROLLOUT, duration * 60)
     return found
 
 
@@ -329,6 +343,26 @@ def _read_rollout(path: Path) -> Tuple[Optional[dict], Dict[str, GptWindow]]:
         if isinstance(limits, dict):
             windows.update(_rate_limit_windows(limits, at if at is not None else 0.0))
     return tokens, windows
+
+
+def measured_week(records, now: float) -> Optional[float]:
+    """Account movement during one rollout, possibly including concurrent usage."""
+    samples = []
+    for payload, at in records:
+        sample = _rate_limit_windows(payload.get("rate_limits"), at or 0, explicit_only=True).get(WINDOW_WEEK)
+        if (sample is None or at is None or at > now or sample.resets_at <= now
+                or not sample.resets_at - 604800 <= at <= now):
+            return None
+        if samples and (sample.resets_at != samples[-1].resets_at
+                        or at < samples[-1].at or sample.pct < samples[-1].pct):
+            return None
+        samples.append(sample)
+    return samples[-1].pct - samples[0].pct if len(samples) >= 2 else None
+
+
+def rollout_week(path, now):
+    return measured_week(((r.get("payload", {}), to_epoch(r.get("timestamp")))
+                          for r in _iter_json_lines(path, strict=True)), now)
 
 
 def _scan_rollouts(home: Path) -> Dict[str, GptWindow]:

@@ -37,6 +37,7 @@ class SessionState:
     paseo_target: str = ""
     # Thread Codex lấy từ persistence/runtime của Paseo; "" = chưa có.
     codex_thread_id: str = ""
+    role: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

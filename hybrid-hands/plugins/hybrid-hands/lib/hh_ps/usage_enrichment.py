@@ -10,7 +10,8 @@ from hand_ext.codex_usage import price_for as codex_price
 from hand_ext.go_usage import estimate_cost, price_for as go_price
 from usage_pricing import explicit_options, token_price
 
-from .models import Usage
+from .models import Usage, Limit
+from .timeutil import to_epoch
 from .pricing import hand_usage
 from .live_rate import read_live_window
 from .week import (read_json, _number, _path_mtime, SUMMARY_STALE_SECONDS,
@@ -32,19 +33,28 @@ def _account(usage: Usage, plan: str, snapshot: Any, now: float, five: dict) -> 
                    account_week_pct=week)
 
 
+def _claude_five(home: Path, now: float):
+    path = home / ".statusline-cache.json"
+    cache = read_json(path) or {}
+    stamp = _path_mtime(path)
+    raw_pct = _number(cache.get("five"))
+    pct = raw_pct if raw_pct is not None and 0 <= raw_pct <= 100 else None
+    reset = to_epoch(cache.get("five_reset"))
+    candidate = ((pct, reset, "claude_5h_cache")
+                 if pct is not None and reset is not None and now < reset <= now + 18000
+                 and 0 <= now - stamp < SUMMARY_STALE_SECONDS else None)
+    live = read_live_window(home, "five_hour", now)
+    if live is not None and live.resets_at <= now + 18000 and (candidate is None or live.ts > stamp):
+        candidate = (live.pct, live.resets_at, "claude_5h_live")
+    return candidate
+
+
 def _five_hour(plan: str, now: float) -> Optional[float]:
     home = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR")
                                  or os.environ.get("CLAUDE_HOME") or "~/.claude"))
     if plan == "Claude":
-        path = home / ".statusline-cache.json"
-        cache = read_json(path) or {}
-        stamp = _path_mtime(path)
-        pct, reset = _percent(cache.get("five")), _number(cache.get("five_reset"))
-        live = read_live_window(home, "five_hour", now)
-        if live is not None and live.ts > stamp:
-            pct, reset, stamp = _percent(live.pct), live.resets_at, live.ts
-        return (pct if reset is not None and reset > now
-                and 0 <= now - stamp < SUMMARY_STALE_SECONDS else None)
+        sample = _claude_five(home, now)
+        return sample[0] if sample is not None else None
     if plan == "Go":
         cache = read_json(home / ".statusline-go-usage.json") or {}
         windows = cache.get("windows")
@@ -106,6 +116,17 @@ def _go_run_week_pct(backend: str, usd: Optional[float], limit: Any) -> Optional
 def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
     """Mutate rows only; no network, ledger writes, or inferred account percentages."""
     five: dict = {}
+    # These rows are derived from the current cache/live sample, not durable
+    # account facts. Rebuild them on every pass, including invalidation.
+    snapshot.limits[:] = [row for row in snapshot.limits
+                          if row.source not in ("claude_5h_cache", "claude_5h_live")]
+    home = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR")
+                                 or os.environ.get("CLAUDE_HOME") or "~/.claude"))
+    sample = _claude_five(home, now)
+    if sample is not None and not any(r.plan == "Claude" and r.window == "5h" for r in snapshot.limits):
+        pct, reset, source = sample
+        snapshot.limits.append(Limit("Claude", "5h", None, None, pct, reset, source))
+    five["Claude"] = sample[0] if sample is not None else None
     for session in snapshot.sessions:
         provider = session.provider
         plan = ("GPT" if provider == "codex" else "Go" if provider in GO_BACKENDS
@@ -138,6 +159,8 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
                        or tokens.get("cache_creation_input_tokens") or tokens.get("cache_creation"))
                else estimate_cost(tokens, price) if run.tokens or any(
                    (usage.read, usage.cache_read, usage.out)) else None)
-        week = _go_run_week_pct(backend, usd, run.week_limit_usd)
+        week = (usage.week_pct if backend == "codex"
+                else _go_run_week_pct(backend, usd, run.week_limit_usd))
         run.usage = _account(replace(usage, usd=usd, usd_estimated=usd is not None,
-            week_pct=week, week_pct_estimated=week is not None), plan, snapshot, now, five)
+            week_pct=week, week_pct_estimated=(usage.week_pct_estimated if backend == "codex"
+                                            else week is not None)), plan, snapshot, now, five)

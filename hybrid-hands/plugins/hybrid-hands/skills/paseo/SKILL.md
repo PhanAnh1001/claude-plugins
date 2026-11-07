@@ -3,6 +3,9 @@ name: paseo
 description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi và điều khiển phiên brain/hand từ xa - cài đặt, khởi và dừng daemon, ghép điện thoại (người dùng tự làm), chạy hand Codex với CODEX_HOME riêng (~/.codex-hand, đăng nhập gói ChatGPT, không API key) qua provider tuỳ biến, theo dõi bằng ls/logs/wait/send, và giới hạn (phiên claude mở ngoài Paseo không tự hiện). Từ khoá kích hoạt - "paseo", "điện thoại", "theo dõi phiên", "điều khiển từ xa", "ghép điện thoại", "pair", "xem hand trên điện thoại", "daemon paseo".
 ---
 
+Mở phiên chính Sol high tại repo chính: `side-session start --main --name sol-main [--prompt ...]`; xem trên điện thoại qua Paseo. Cần daemon, chỉ provider codex, không `--worktree`; phiên chính không handoff/watchdog và không chiếm slot phiên phụ.
+
+
 ## Ngoại lệ Sol native trên Paseo — 0.27.0 (quyết định A)
 
 Theo [policy đầy đủ ở ext-hand](../ext-hand/SKILL.md), ưu tiên tab native chỉ cho Sol trên Paseo khi backend thực theo `ext_hand.order` là codex `gpt-6.1-sol` low và tools chọn được model/effort riêng; giữ `fork_turns=none`, full brief/luật dữ liệu, executor không recursion, tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4), cùng file/phụ thuộc tuần tự. Không áp cho Opus/Claude/dsh hay executor, không đổi code/slots hand-ext, bật parallel-subagents hay sửa config. Thiếu capability trước spawn hoặc backend khác thì fallback `hand-ext run --backend auto`; unknown sau spawn phải xác minh child, không tạo duplicate writer. Native dùng báo cáo/usage native/Paseo, không có ledger hand-ext; thiếu hiện `?`, không bịa quota. Trên điện thoại đã kết nối Paseo, mở Sol rồi bấm tab child; completed giữ tab/history, không archive top-level/parent, không cần pairing/config mới. Hand-ext shell không tự hiện hội thoại; A đã đạt nên B (agent ngang hàng/archive) chưa triển khai.

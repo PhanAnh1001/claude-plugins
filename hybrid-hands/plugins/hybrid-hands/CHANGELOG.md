@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.31.0
+
+- Thêm `side-session start --main` mở brain Sol Codex trên Paseo tại repo chính, prompt tùy chọn, effort mặc định high; không fallback screen, handoff/watchdog hay slot phiên phụ. State giữ role tương thích và stop archive lịch sử; bổ sung template và hướng dẫn phiên chính.
+
+## 0.30.0
+
+- GPT machine USD~ dùng token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại ở `~/.codex-hand/sessions` và `archived_sessions`, khử trùng thread/event, không cộng ledger trùng. Metadata-only thread không làm tổng observed thành unknown; không có event trong cửa sổ, event thiếu baseline/timestamp/giá hợp lệ hoặc file không đọc được thì `?`. Tổng chỉ phản ánh nguồn cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; USD~ là ước tính offline subscription, không phải hoá đơn.
+- Phần riêng session pinned rollout/native child đo biến động quota tuần từ ít nhất hai sample `rate_limits` hợp lệ, không giảm trong cùng reset hiện tại. `Usage.week_pct_source` mặc định rỗng; nguồn known `codex_rate_limits_delta`, `week_pct_estimated=false`, nhãn `GPT riêng (đo) N% tuần`. Khoảng đo có thể gồm phiên đồng thời, không quy riêng độc quyền; thiếu nguồn/qua reset hiện `?`, không suy quota từ token/USD.
+- GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`, không đổi nhãn primary tuần `10080`; source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần. Phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h kiểm freshness/reset numeric hoặc ISO của cache/live sẵn có; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage và bump phiên bản riêng.
+- Giữ nguồn giá canonical duy nhất, không fallback model lạ; giữ colors/layout/counts/pool và unknown legacy.
+
 ## 0.29.0
 
 - hh-ps đọc metadata native Codex child từ rollout cục bộ trong đường dẫn cố định ~/.codex-hand/sessions (không dùng override CODEX_HOME để giữ cô lập tài khoản), không gọi daemon RPC/API; đối chiếu parent thread qua pinned Sol rollout về sid canonical và xuất trong Session.subagents với provider codex, agent_type native-codex.

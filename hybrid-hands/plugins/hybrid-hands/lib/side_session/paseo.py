@@ -176,6 +176,21 @@ def plan(cfg: SideConfig, a) -> dict | None:
     ready: falling back to screen then would silently lose the phone-controlled
     agent. With no daemon (or in dry-run) the plan stays the old screen profile.
     """
+    if getattr(a, "main", False):
+        if a.dry_run:
+            return {"target": ""}
+        if disabled() or cli_package_root() is None:
+            print("side-session: --main cần daemon Paseo; không fallback screen")
+            return {"error": "PASEO_REQUIRED", "exit_code": 1}
+        try:
+            target = str(ready().get("targetKey") or "")
+        except PaseoError as exc:
+            print(f"side-session: --main cần daemon Paseo kết nối được ({exc.code}); không fallback screen")
+            return {"error": exc.code, "exit_code": 1}
+        if not target or cfg.codex_profile:
+            print("side-session: --main cần endpoint Paseo và codex_profile rỗng; không fallback screen")
+            return {"error": "PASEO_REQUIRED", "exit_code": 1}
+        return {"target": target}
     if a.provider != C.PROVIDER_CODEX or disabled():
         return None
     if a.dry_run:
@@ -217,7 +232,13 @@ def _print_unknown_guidance(st: state.SessionState) -> None:
 def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
                   full_prompt: str, target: str) -> int:
     """Create worktree then workspace/agent; any failure after the ready check is final."""
-    cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
+    if a.dry_run:
+        print(f"# dry-run: Paseo role={st.role or 'side'} dir={workdir} "
+              f"model={a.model or cfg.codex_model} effort={a.effort or cfg.codex_effort}")
+        print(full_prompt)
+        return 0
+    if st.role != "main":
+        cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     if a.worktree:
         if subprocess.run(K.worktree_cmd(cfg, st.name, a.base or C.DEFAULT_BASE)).returncode != 0:
             print("side-session: failed: git worktree add")
@@ -270,7 +291,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     # Save once, before the watchdog can legitimately write done/tokens. No second
     # save here may overwrite what the watcher already persisted.
     state.save(cfg.state_dir, st)
-    if subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
+    if st.role != "main" and subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
         print("side-session: warning: watchdog failed to start")
     print(f"started {st.name} (Paseo agent {st.paseo_agent_id}), uuid {st.uuid}, "
           f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén); "
@@ -304,7 +325,7 @@ def refresh(cfg: SideConfig, st: state.SessionState) -> str:
     if raw in C.PASEO_AGENT_ALIVE:
         st.status = C.STATUS_RUNNING
     elif raw == C.PASEO_AGENT_IDLE:
-        st.status = (C.STATUS_IDLE_NO_DONE if st.provider == C.PROVIDER_CODEX
+        st.status = (C.STATUS_IDLE_NO_DONE if st.provider == C.PROVIDER_CODEX and st.role != "main"
                      else C.STATUS_IDLE)
     elif raw in C.PASEO_AGENT_DEAD:
         st.status = C.STATUS_DEAD

@@ -162,6 +162,17 @@ class LimitTableTest(unittest.TestCase):
         rows = self.table_rows(self.render())
         self.assertFalse(any(row.startswith("GPT") for row in rows), rows)
 
+        # A weekly-only local rollout needs no ledger and must never become a 5h sample.
+        sessions = self.home / ".codex-hand" / "sessions"
+        sessions.mkdir(parents=True)
+        rollout = sessions / "rollout-fixture.jsonl"
+        rollout.write_text(json.dumps({"timestamp": iso(now - dt.timedelta(seconds=1)),
+            "type": "event_msg", "payload": {"type": "token_count", "rate_limits": {
+                "secondary": {"used_percent": 23, "window_minutes": 10080,
+                              "resets_at": int(now.timestamp()) + 86400}}}}) + "\n", encoding="utf-8")
+        rows = self.table_rows(self.render())
+        self.assertRegex(rows[-1], r"^GPT\s+5h:--\s+\| 7d:23%\s+\| hôm nay ~\$\?$")
+
     def test_missing_go_keeps_the_other_rows_aligned(self) -> None:
         self.write_summary()
         rows = self.table_rows(self.render())

@@ -90,6 +90,12 @@ def codex_argv(cfg: SideConfig, workdir: str, prompt: str,
             prompt]
 
 
+def build_main_codex_prompt(user_prompt: str) -> str:
+    """Main Sol has its own instructions and no side-session finish contract."""
+    template = (Path(__file__).resolve().parents[2] / C.MAIN_CODEX_TEMPLATE_RELPATH)
+    return f"{template.read_text(encoding='utf-8').strip()}\n\n{user_prompt.rstrip()}\n"
+
+
 def build_codex_prompt(user_prompt: str, name: str, handoff: Path) -> str:
     """The Codex-specific prompt: no SendMessage, finish contract is <handoff>.done."""
     tpl = (Path(__file__).resolve().parents[2] / C.CODEX_TEMPLATE_RELPATH).read_text(

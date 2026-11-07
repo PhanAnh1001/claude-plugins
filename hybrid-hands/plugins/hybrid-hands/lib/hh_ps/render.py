@@ -28,6 +28,8 @@ def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
         "week_pct_estimated": usage.week_pct_estimated,
     }
     # Codex-only keys stay absent on Claude/Go rows, whose JSON shape is unchanged.
+    if usage.week_pct_source:
+        data["week_pct_source"] = usage.week_pct_source
     if usage.usd_estimated:
         data["usd_estimated"] = True
     if usage.gpt_5h_pct is not None:

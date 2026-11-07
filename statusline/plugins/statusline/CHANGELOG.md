@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.0 — 2026-11-08
+
+- GPT quota dùng nguồn account chung từ ledger và rollout local cố định `.codex-hand`, chọn sample mới nhất riêng từng cửa sổ; USD hôm nay vẫn chỉ thuộc ledger.
+- Claude 5h thiếu payload dùng cache chung còn mới và reset hợp lệ; thiếu nguồn giữ dấu thiếu.
+- Dòng hand hiện nhãn `GPT riêng (đo)` khi có weekly delta rate-limit đo được; không suy quota từ token/USD.
+
 ## 0.20.0 — 2026-11-07
 
 - Thêm khối phiên hiện tại và descendants từ JSON hh-ps: session, subagent, hand-ext,

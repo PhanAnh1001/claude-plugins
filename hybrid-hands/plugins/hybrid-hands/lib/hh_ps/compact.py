@@ -84,7 +84,8 @@ def usage_cells(usage: Optional[Usage]) -> List[Cell]:
     plan = getattr(usage, "account_plan", "") or "TK"
     share = f"{plan} 5h {percent_text(five) or '?'} · tuần {percent_text(week) or '?'}"
     if usage is not None and usage.week_pct is not None:
-        share += f" · riêng {percent_text(usage.week_pct, usage.week_pct_estimated)} tuần"
+        label = "riêng (đo)" if usage.week_pct_source == "codex_rate_limits_delta" else "riêng"
+        share += f" · {label} {percent_text(usage.week_pct, usage.week_pct_estimated)} tuần"
     return [Cell(usd, align_right=True), Cell(share, align_right=True)]
 
 

@@ -4,7 +4,7 @@ import type {
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { NestedSession } from "./nest";
 // @ts-ignore -- Also run directly with Node strip-types.
-import { durationText, limitPercentText, truncate, usdText } from "./format.ts";
+import { ownShareLabel, durationText, limitPercentText, truncate, usdText } from "./format.ts";
 
 export const MAX_SIDE_SESSIONS = 4;
 export const MAX_SUBAGENTS = 4;
@@ -222,7 +222,7 @@ export function rowText(
   return `${statusIcon(item)} ${truncate(name || "?", 32)} · ` +
     `${item.model || "?"}·${item.effort || "?"} · ` +
     `${elapsedText(item, now)}${ended ? ` · ${ended}` : ""} · ${cost} · ` +
-    `${providerLabel(item)} riêng ${limitPercentText(item.usage?.week_pct, item.usage?.week_pct_estimated === true)} tuần`;
+    `${providerLabel(item)} ${ownShareLabel(item.usage)} ${limitPercentText(item.usage?.week_pct, item.usage?.week_pct_estimated === true)} tuần`;
 }
 
 /** Render order shared by the panel and sidebar: machine summaries precede trees. */

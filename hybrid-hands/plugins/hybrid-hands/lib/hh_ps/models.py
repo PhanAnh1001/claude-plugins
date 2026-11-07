@@ -31,6 +31,7 @@ class Usage:
     account_plan: str = ""
     account_5h_pct: Optional[float] = None
     account_week_pct: Optional[float] = None
+    week_pct_source: str = ""
 
 
 @dataclass(frozen=True)

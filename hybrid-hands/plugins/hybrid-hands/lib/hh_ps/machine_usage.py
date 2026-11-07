@@ -81,8 +81,11 @@ def _gpt_usd(codex, cfg, start, now):
     if not threads:
         return None
     total_usd = 0.0
+    observed = False
     for merged in threads.values():
         records = list(merged.values())
+        if not any(kind == "event_msg" for kind, _, _ in records):
+            continue
         born = next((to_epoch(p.get("timestamp")) or at for kind, p, at in records
                      if kind == "session_meta"), None)
         undated_models = {str(p.get("model")) for kind, p, stamp in records
@@ -92,7 +95,6 @@ def _gpt_usd(codex, cfg, start, now):
             return None
         model = ""
         previous = None
-        seen_tokens = False
         # Metadata without a timestamp precedes events, preserving file order for ties.
         for kind, p, stamp in sorted(records, key=lambda row: row[2] if row[2] is not None else float("-inf")):
             if kind in ("session_meta", "turn_context"):
@@ -106,7 +108,7 @@ def _gpt_usd(codex, cfg, start, now):
             if stamp < start:
                 previous = current
                 continue
-            seen_tokens = True
+            observed = True
             if current is None or (previous is None and (born is None or born < start)):
                 return None
             decreases = previous is not None and any(a < b for a, b in zip(current, previous))
@@ -124,11 +126,7 @@ def _gpt_usd(codex, cfg, start, now):
             if cost is None:
                 return None
             total_usd += cost
-        recent_metadata = any(kind == "turn_context" and stamp is not None
-                              and start <= stamp <= now for kind, _, stamp in records)
-        if not seen_tokens and (born is None or start <= born <= now or recent_metadata):
-            return None
-    return round(total_usd, 8)
+    return round(total_usd, 8) if observed else None
 
 
 def machine_usage(home, claude_week, codex, cfg, now):
@@ -144,4 +142,4 @@ def machine_usage(home, claude_week, codex, cfg, now):
     return [{"plan": "Claude", "window": "tuần", "usd": claude_usd,
              "source": "claude_machine_week"},
             {"plan": "GPT", "window": "tuần", "usd": gpt_usd,
-             "source": "codex_rollout_deltas"}]
+             "source": "codex_rollout_observed_deltas"}]

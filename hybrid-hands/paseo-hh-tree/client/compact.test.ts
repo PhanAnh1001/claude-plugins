@@ -134,6 +134,8 @@ test("panel row list starts with machine summaries; own share and local finish e
   assert.equal(rows[0].kind === "summary" && rows[0].text, "Claude máy này tuần ~$? · Claude 5h ? · tuần 33.0%");
   assert.equal(rows[1].kind === "summary" && rows[1].text, "GPT máy này tuần ~$7.00 · GPT 5h 11.0% · tuần 22.0%");
   assert.match(rowText(done, "root", now), /14:30.*GPT riêng 2.5% tuần/);
+  assert.match(rowText({ ...done, usage: { ...done.usage, week_pct_source: "codex_rate_limits_delta" } }, "root", now), /GPT riêng \(đo\) 2.5% tuần/);
+  assert.match(rowText({ ...done, usage: { account_plan: "GPT", week_pct_source: "codex_rate_limits_delta" } }, "root", now), /GPT riêng \? tuần/);
   assert.doesNotMatch(rowText(done, "root", now), /11.0%|22.0%|5h/);
   assert.match(rowText({ ...done, ended_at: new Date(2026, 10, 6, 14, 30).toISOString() }, "root", now), /06\/11 14:30/);
   assert.doesNotMatch(rowText({ ...done, status: "running", live: true }, "root", now), /14:30/);

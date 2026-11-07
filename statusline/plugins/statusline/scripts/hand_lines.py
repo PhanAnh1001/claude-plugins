@@ -75,10 +75,14 @@ def row(item: dict, kind: str, label: object, prefix: str) -> str:
         five = usage.get("gpt_5h_pct")
     if week is None:
         week = usage.get("gpt_week_pct")
+    own_label = "riêng (đo)" if (number(usage.get("week_pct")) is not None and
+                                    usage.get("week_pct_source") == "codex_rate_limits_delta") else "riêng"
+    plan = clean(usage.get("account_plan")) or ("GPT" if item.get("provider") == "codex" or item.get("backend") == "codex" else UNKNOWN)
     fields = [f"{prefix}{clean(kind)} {clean(label)}", f"model:{clean(item.get('model')) or UNKNOWN}",
               f"effort:{clean(item.get('effort')) or UNKNOWN}", cost,
               f"account:{clean(usage.get('account_plan')) or UNKNOWN}",
-              f"5h:{percent(five)}", f"tuần:{percent(week)}", f"ended:{ended}", f"elapsed:{elapsed}"]
+              f"5h:{percent(five)}", f"tuần:{percent(week)}",
+              f"{plan} {own_label} {percent(usage.get('week_pct'))} tuần", f"ended:{ended}", f"elapsed:{elapsed}"]
     return " | ".join(fields)
 
 

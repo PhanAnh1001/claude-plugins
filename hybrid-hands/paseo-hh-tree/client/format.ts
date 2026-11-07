@@ -62,11 +62,16 @@ export function gptShareText(usage: TreeUsage): string {
 }
 
 /** `$0.78 · 1.6% tuần`, only the parts the row has; "" when it has neither. */
+export function ownShareLabel(usage: TreeUsage): string {
+  return usage?.week_pct != null && Number.isFinite(usage.week_pct) &&
+    usage.week_pct_source === "codex_rate_limits_delta" ? "riêng (đo)" : "riêng";
+}
+
 export function costText(usage: TreeUsage): string {
   const five = usage?.account_5h_pct ?? usage?.gpt_5h_pct;
   const week = usage?.account_week_pct ?? usage?.gpt_week_pct;
   const own = percentText(usage?.week_pct, usage?.week_pct_estimated === true);
-  return `${usage?.usd == null ? '~$?' : usdText(usage.usd, true)} · ${usage?.account_plan || 'TK'} 5h ${limitPercentText(five)} · tuần ${limitPercentText(week)}${own ? ` · riêng ${own} tuần` : ''}`;
+  return `${usage?.usd == null ? '~$?' : usdText(usage.usd, true)} · ${usage?.account_plan || 'TK'} 5h ${limitPercentText(five)} · tuần ${limitPercentText(week)}${own ? ` · ${ownShareLabel(usage)} ${own} tuần` : ''}`;
 
 }
 

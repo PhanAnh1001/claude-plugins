@@ -24,7 +24,7 @@ def _running(cfg: SideConfig) -> list[state.SessionState]:
     alive = screen.screen_names() if needs_screen else set()
     running = []
     for st in sessions:
-        if st.status not in C.ACTIVE_STATUSES:
+        if st.role == "main" or st.status not in C.ACTIVE_STATUSES:
             continue
         if st.transport == C.TRANSPORT_PASEO:
             # Unknown (disconnect) still counts; only a confirmed dead agent drops out.
@@ -68,6 +68,8 @@ def _preflight(cfg: SideConfig, a) -> int | None:
         result = budget.check(cfg)
         if result.refused:
             return _refuse_budget(result)
+    if getattr(a, "main", False):
+        return None
     running = _running(cfg)
     if not a.dry_run and len(running) >= cfg.max_parallel:
         print(f"side-session: {len(running)} running >= max_parallel {cfg.max_parallel}: "
@@ -103,15 +105,21 @@ def _launch(cfg: SideConfig, a, st: state.SessionState, cmds: list[list[str]], *
 
 
 def start(cfg: SideConfig, a) -> int:
+    is_main = getattr(a, "main", False)
+    if is_main and (a.provider != C.PROVIDER_CODEX or a.worktree or a.resume):
+        print("side-session: --main chỉ dùng với provider codex, không dùng --worktree/--resume")
+        return C.EXIT_USAGE
     if a.resume:
         return resume(cfg, a)
-    if a.prompt is None and a.prompt_file is None:
+    if not is_main and a.prompt is None and a.prompt_file is None:
         print("side-session: start cần --prompt hoặc --prompt-file")
         return C.EXIT_USAGE
     name = a.name
     prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
     handoff = cfg.handoff_dir / f"{name}.md"
-    if a.provider == C.PROVIDER_CODEX:
+    if is_main:
+        full_prompt = K.build_main_codex_prompt(prompt_text or C.MAIN_DEFAULT_PROMPT)
+    elif a.provider == C.PROVIDER_CODEX:
         full_prompt = K.build_codex_prompt(prompt_text, name, handoff)
     else:
         full_prompt = build_prompt(prompt_text, name, handoff, a.brain or "",
@@ -128,7 +136,7 @@ def start(cfg: SideConfig, a) -> int:
         return C.EXIT_USAGE
     paseo_plan = paseo.plan(cfg, a)
     if paseo_plan is not None and paseo_plan.get("error"):
-        return C.EXIT_USAGE
+        return paseo_plan.get("exit_code", C.EXIT_USAGE)
     sid = str(uuidlib.uuid4())
     workdir = str(cfg.worktree_root / name) if a.worktree else str(cfg.repo)
     max_tokens = K.max_tokens_for(cfg, a.max_tokens, a.hours)
@@ -137,7 +145,7 @@ def start(cfg: SideConfig, a) -> int:
     prompt_file = cfg.state_dir / f"{name}{C.PROMPT_FILE_SUFFIX}" if is_external else None
     # Sandbox writable roots must exist before any provider opens its screen.
     # Keep dry-run free of filesystem changes.
-    if not a.dry_run:
+    if not a.dry_run and not is_main:
         cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     started = time.time()
     st = state.SessionState(
@@ -145,7 +153,11 @@ def start(cfg: SideConfig, a) -> int:
         watch_screen=K.watch_screen(name), max_tokens=max_tokens, started=started,
         status=C.STATUS_RUNNING, handoff=str(handoff), worktree=bool(a.worktree),
         parent_session=os.environ.get(C.PARENT_SESSION_ENV, ""), chrome=chrome,
-        budget_exempt=bool(a.budget_exempt))
+        budget_exempt=bool(a.budget_exempt), role="main" if is_main else "")
+    if is_main:
+        st.handoff = ""
+        st.watch_screen = ""
+        st.parent_session = ""
     if paseo_plan is not None:
         return paseo.start_session(cfg, a, st, workdir, full_prompt, paseo_plan["target"])
     cmds = []
@@ -351,7 +363,7 @@ def ls(cfg: SideConfig, _a) -> int:
     for st in sessions:
         if st.provider == C.PROVIDER_CODEX:
             _pin_rollout(cfg, st)
-        done = K.done_path(st.handoff).is_file()
+        done = st.role != "main" and K.done_path(st.handoff).is_file()
         live = "alive" if st.screen in alive else "dead"
         if done and st.provider == C.PROVIDER_CODEX and st.status in C.ACTIVE_STATUSES:
             _finish_codex(cfg, st)
@@ -401,7 +413,7 @@ def stop(cfg: SideConfig, a) -> int:
     st = state.load(cfg.state_dir, a.name)
     st.tokens_used = count_tokens(cfg, st)
     if st.transport == C.TRANSPORT_PASEO:
-        failure = paseo.interrupt(st)
+        failure = paseo.finish(st) if st.role == "main" else paseo.interrupt(st)
         if failure:
             print(f"side-session: không dừng được Paseo agent ({failure}); "
                   "giữ nguyên state và watchdog")
@@ -556,9 +568,11 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
 def watch_tick(cfg: SideConfig, name: str) -> bool:
     """One watchdog step. Returns True while the watch loop should continue."""
     st = state.load(cfg.state_dir, name)
+    if st.role == "main":
+        return False
     if st.status not in C.ACTIVE_STATUSES:
         return False
-    done = K.done_path(st.handoff).is_file()
+    done = st.role != "main" and K.done_path(st.handoff).is_file()
     if st.provider == C.PROVIDER_CODEX:
         # Pin before the done branch: a session that finishes on its first tick
         # must still remember the rollout that produced its token count. A Paseo

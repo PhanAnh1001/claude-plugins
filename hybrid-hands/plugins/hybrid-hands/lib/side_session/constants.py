@@ -152,6 +152,9 @@ CODEX_SESSIONS_SUBDIR = "sessions"
 CODEX_ROLLOUT_GLOB = "rollout-*.jsonl"
 
 TEMPLATE_RELPATH = "templates/side-session-prompt.md"
+MAIN_CODEX_TEMPLATE_RELPATH = "templates/main-session-prompt-codex.md"
+MAIN_DEFAULT_PROMPT = "Đọc AGENTS.md/CLAUDE.md của repo rồi chờ việc từ người dùng."
+
 CODEX_TEMPLATE_RELPATH = "templates/side-session-prompt-codex.md"
 BRAIN_PLACEHOLDER = "{brain}"
 NAME_PLACEHOLDER = "{name}"

@@ -22,6 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     g = s.add_mutually_exclusive_group()
     g.add_argument("--prompt")
     g.add_argument("--prompt-file")
+    s.add_argument("--main", action="store_true", help="mở phiên chính Sol trên Paseo")
     s.add_argument("--worktree", action="store_true")
     s.add_argument("--base", default=None)
     s.add_argument("--provider", choices=C.PROVIDERS, default=None,

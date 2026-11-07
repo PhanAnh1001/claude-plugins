@@ -105,6 +105,35 @@ def fake_app_popen(procs: list[FakeAppServer], cmd, **kwargs) -> FakeAppServer:
 
 
 class PaseoStartTest(unittest.TestCase):
+    def test_main_start(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(actions.paseo, "plan", return_value={"target": "fake"}), mock.patch.object(actions.paseo, "start_agent", return_value={"agentId": "main"}) as agent, mock.patch.object(actions.K, "watch_cmd") as watch, mock.patch.object(actions.paseo.codex_trust, "ensure_codex_compact_limit") as compact:
+            cfg = cfg_for(Path(d))
+            with mock.patch.object(actions, "_running", return_value=[None] * cfg.max_parallel):
+                self.assertEqual(actions.start(cfg, start_args("main", main=True, worktree=False, prompt=None)), 0)
+            call = agent.call_args.kwargs
+            self.assertEqual((call["workdir"], call["effort"]), (str(cfg.repo), "high"))
+            self.assertIn("PHIÊN CHÍNH", call["initial_prompt"])
+            self.assertIn(C.MAIN_DEFAULT_PROMPT, call["initial_prompt"])
+            st = state.load(cfg.state_dir, "main")
+            self.assertEqual((st.role, st.handoff, st.watch_screen, call["hand_scope"]), ("main", "", "", st.uuid))
+            self.assertEqual(actions._running(cfg), [])
+            self.assertFalse(cfg.handoff_dir.exists())
+            watch.assert_not_called()
+            compact.assert_called_once_with(cfg.codex_home, C.CODEX_AUTO_COMPACT_TOKEN_LIMIT)
+
+    def test_main_invalid_options(self):
+        for over in ({"worktree": True}, {"worktree": False, "provider": "claude"}, {"worktree": False, "provider": "dsh"}):
+            self.assertEqual(actions.start(cfg_for(Path("/fake")), start_args("bad", main=True, **over)), 2)
+
+    def test_main_requires_daemon(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(actions.paseo, "disabled", return_value=False), mock.patch.object(actions.paseo, "cli_package_root", return_value=Path("/fake")), mock.patch.object(actions.paseo, "ready", side_effect=actions.paseo.PaseoError("DAEMON_UNREACHABLE")) as ready, mock.patch.object(actions.K, "session_cmd") as screen:
+            cfg = cfg_for(Path(d))
+            self.assertEqual(actions.start(cfg, start_args("main", main=True, worktree=False)), 1)
+            screen.assert_not_called(); ready.reset_mock()
+            self.assertEqual(actions.start(cfg, start_args("dry", main=True, worktree=False, dry_run=True)), 0)
+            ready.assert_not_called()
+
+
     def test_watch_flags_idle_without_done_and_closes_done_agent(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             cfg = cfg_for(Path(d))

@@ -131,8 +131,16 @@ class StatuslineTest(unittest.TestCase):
         cache = json.loads((self.claude_home / CACHE_NAME).read_text(encoding="utf-8"))
         self.assertEqual(cache["five"], str(FIVE_PCT))
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
-        # 5h comes only from the live payload: a cached five is never shown.
+        # The original fixture's expired reset stays absent.
         self.assertRegex(plain, r"^Claude\s+5h:- \| 7d:~85% \(reset .+\)$")
+        import time
+        cache["five_reset"] = str(int(time.time()) + 3600)
+        (self.claude_home / CACHE_NAME).write_text(json.dumps(cache), encoding="utf-8")
+        plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
+        self.assertRegex(plain, r"^Claude\s+5h:~12% \|")
+        cache["five_reset"] = str(int(time.time()) - 1)
+        (self.claude_home / CACHE_NAME).write_text(json.dumps(cache), encoding="utf-8")
+        self.assertIn("5h:-", ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2]))
 
     def test_placeholders_without_rate_limits_or_cache(self) -> None:
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])

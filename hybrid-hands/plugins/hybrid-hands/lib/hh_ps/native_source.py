@@ -1,12 +1,14 @@
 """Local Codex child metadata only; never decode response/chat records."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 import json
 import math
 import re
 from pathlib import Path
 
-from .codex import _HEADER_META, _contained, _sessions_root, _priced_tokens, codex_home
+from .codex import _HEADER_META, _contained, _sessions_root, _priced_tokens, codex_home, rollout_week
 from .models import Subagent, Usage
 from .registry_source import _exit_code
 from .timeutil import to_epoch
@@ -35,7 +37,7 @@ def _records(path, token_only=False, strict=False):
                     continue
                 payload = row.get("payload")
                 if isinstance(payload, dict):
-                    keys = {"id", "parent_thread_id", "source", "timestamp", "model", "effort", "reasoning_effort"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info"}
+                    keys = {"id", "parent_thread_id", "source", "timestamp", "model", "effort", "reasoning_effort"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info", "rate_limits"}
                     yield row["type"], {k: v for k, v in payload.items() if k in keys}, to_epoch(row.get("timestamp"))
     except OSError:
         if strict:
@@ -93,6 +95,10 @@ def _read(path, now):
     if tokens is not None:
         usage = Usage(read=max(0, tokens["input"] - tokens["cached_input"]),
                       cache_read=tokens["cached_input"], out=tokens["output"])
+    measured = rollout_week(path, now)
+    if measured is not None:
+        usage = usage or Usage(usd=None)
+        usage = replace(usage, week_pct=measured, week_pct_source="codex_rate_limits_delta")
     agent = Subagent(sid, "native-codex", name, status not in ("running", "unknown"),
                      False, None, duration, activity, usage, start, model, effort,
                      "codex", status, exit_code, end)

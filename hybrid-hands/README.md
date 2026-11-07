@@ -1,5 +1,10 @@
 # hybrid-hands
 
+## Phiên chính Sol trên Paseo
+
+Mở brain Sol Codex (mặc định `gpt-6.1-sol`, effort high) tại repo chính bằng `side-session start --main --name sol-main [--prompt ...]`, rồi xem và trao đổi trên điện thoại qua Paseo. Cần daemon Paseo; không dùng `--worktree` hay provider khác. Bỏ prompt để Sol đọc luật repo và chờ việc; `--effort` ghi đè mặc định. Phiên chính không có handoff/watchdog và không chiếm slot phiên phụ; dùng `side-session ls` để xem, `side-session stop sol-main` để archive và giữ lịch sử. `--dry-run` chỉ in kế hoạch, không gọi daemon.
+
+
 
 Opus chia brief thành các gói L1 độc lập khác file, chủ động lấp tối đa `side_session.max_parallel` Sol (mặc định 4). MỖI SOL chia brief độc lập khác file và chạy nền tối đa `ext_hand.max_parallel` hand (mặc định 4), chờ đủ tất cả kết thúc rồi Sol review. Cùng file hoặc phụ thuộc phải tuần tự; không ép song song. Có thể 16 hand tổng khi 4 Sol độc lập; không phải cap toàn máy 4. Hai giới hạn là số nguyên 1..4, có thể giảm, không >4. Thứ tự scope: `HYBRID_HANDS_HAND_SCOPE` → `CODEX_THREAD_ID` → `CLAUDE_CODE_SESSION_ID` → repo root. Scope hand riêng mỗi Sol qua `HYBRID_HANDS_HAND_SCOPE` = uuid Sol, giữ nguyên `CODEX_HOME` và parent Claude session. Exit 8: đợi slot/tiến trình đang chạy kết thúc rồi thử lại; không đổi backend hay tự làm như lỗi hand.
 
@@ -225,6 +230,14 @@ Mọi `USD~` là ước tính offline từ token trên gói subscription, không
 Phần trăm **tài khoản** 5h/tuần lấy từ cache/sample sẵn có của đúng gói Claude/GPT/Go; thiếu nguồn hiện `?`. Không suy token hoặc USD thành quota GPT. Phần **riêng hand tuần** chỉ thêm khi có nguồn tính được và có nhãn riêng, không trộn với phần trăm tài khoản. Cache/sample hết kỳ reset không được trình bày như số hiện tại. Khối hạn mức giữ nguồn và giờ reset khi có; số ước tính được đánh dấu `~`.
 
 Sổ usage của statusline dùng version 4 và fingerprint để nhận biết dữ liệu cần tính lại. USD~ Claude vẫn là ước tính offline, không phải chi phí chính xác hay hoá đơn.
+
+### Nguồn usage 0.30.0
+
+GPT machine `USD~` cộng các token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại từ hai đường dẫn cố định `~/.codex-hand/sessions` và `~/.codex-hand/archived_sessions`, khử trùng thread/event, không cộng trùng ledger. Thread chỉ có metadata, chưa có token event không làm tổng observed thành unknown. Không có token event trong cửa sổ thì hiện `?`; token event thiếu baseline/timestamp/model-price hợp lệ, file không đọc được hoặc thiếu cửa sổ hiện tại cũng giữ `?`. Model lạ không fallback; giá duy nhất từ file canonical. Tổng chỉ phản ánh token events cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; đây là ước tính offline subscription, không phải hoá đơn. Riêng gắn native child vào cây vẫn chỉ đọc `sessions`.
+
+GPT phần riêng của session pinned rollout/native child dùng `rate_limits` weekly `used_percent` cuối trừ đầu: cần ít nhất hai sample có timestamp hợp lệ, không giảm, cùng reset và reset đó còn hiện tại. Thiếu điều kiện hoặc qua reset thì `?`. Bổ sung cuối `Usage` với default `week_pct_source: str = ""`; khi đo được, source là `codex_rate_limits_delta`, `week_pct_estimated` là false và nhãn `GPT riêng (đo) N% tuần`. Đây là biến động quota tài khoản trong khoảng phiên, có thể gồm phiên chạy đồng thời, không phải phần sử dụng quy riêng độc quyền cho phiên. Không suy quota từ token/USD.
+
+GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Giữ contract colors/layout/counts/pool và unknown legacy hiện có.
 
 ### Dữ liệu và contract
 

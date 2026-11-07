@@ -16,6 +16,7 @@ const usageSchema = z
     usd_estimated: z.boolean().optional(),
     week_pct: z.number().nullable().optional(),
     week_pct_estimated: z.boolean().optional(),
+    week_pct_source: z.string().optional(),
     gpt_5h_pct: z.number().nullable().optional(),
     gpt_week_pct: z.number().nullable().optional(),
   })

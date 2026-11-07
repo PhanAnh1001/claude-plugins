@@ -2,6 +2,8 @@
 
 ## Phạm vi và vai trò
 
+**Phiên chính Sol:** Người dùng có thể mở Sol high qua `side-session start --main`; Sol kiêm vai Opus + lead tech, L2/L3 người dùng duyệt. Luật delegate và dữ liệu giữ nguyên.
+
 Đọc brief, AGENTS.md/CLAUDE.md ở thư mục áp dụng trước khi sửa. Brief thiếu PHẠM VI GHI hoặc ghi CHỈ ĐỌC thì chỉ đọc; không mở rộng phạm vi. Giữ thay đổi chưa commit của người khác; cùng file/phụ thuộc phải tuần tự. Không nạp luật của `dev-workflow/` cho công việc hybrid-hands không liên quan.
 
 Sol là lead tech/QA: giao code/test/tài liệu L0/L1 qua `hand-ext run --backend auto` theo `ext_hand.order`, review code hand mình giao; chỉ tự làm khi hand-ext lỗi (ghi lý do/mã thoát) hoặc việc cần secret/dữ liệu khách hàng. Exit 7 chạy doctor trước, chỉ chuyển codex medium khi xác nhận dsh hết quota; exit 8 chờ slot. Opus review spec/plan/giải pháp và đọc bàn giao. Hand nhận brief trực tiếp là executor, không phải Sol: làm trực tiếp phần được giao, không gọi hand-ext, không mở side-session, không recursion hay giao tiếp phiên khác. Chỉ Sol có quyền chia hand theo brief/policy; hand không tự review việc hand khác.
@@ -31,7 +33,7 @@ Nguồn giá DUY NHẤT: `hybrid-hands/plugins/hybrid-hands/config/model-prices.
 
 Mọi USD~ là ước tính offline subscription, không phải hoá đơn. Quota tài khoản 5h/tuần lấy cache/sample sẵn có, thiếu `?`; không suy token/USD thành quota GPT. Phần riêng hand tuần chỉ hiện khi có nguồn và nhãn riêng.
 
-## Contract dữ liệu và hiển thị 0.29.0
+## Contract dữ liệu và hiển thị 0.30.0
 
 Bổ sung cuối dataclass với default để giữ tương thích:
 
@@ -55,6 +57,14 @@ Khối riêng ở đầu panel/sidebar hiện tổng USD~ toàn máy trong tuầ
 Giữ tối đa 4 phiên phụ, pool chung 4 agent, lựa chọn phiên gần nhất, số đếm phần ẩn và loại nhóm orphan. Addon này chỉ áp dụng panel/sidebar Paseo; hh-tree-pane giữ bố cục, chỉ nhận sửa tương thích native status/exit/unknown ban đầu.
 
 Mỗi cây chính flatten tối đa 4 phiên phụ (running trước, rồi ended/started mới nhất); phần dư gộp số done/error/running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây mở tối đa 4 subagent/hand có cha; các agent khác gộp số, kể cả phiên bị ẩn. Tie giữ thứ tự duyệt cây/agent đầu vào; không ưu tiên is_main. Duration đang chạy tăng theo thời gian, xong cố định theo ended. KHÔNG hiện giờ bắt đầu trong text hh-ps, panel, statusline; meta/JSON vẫn giữ started. `hh-ps --once` chạy một lần; mặc định đủ việc chạy/vừa xong theo since, không fold 3/hide-ended. Cả hai giao diện cây (`hh-tree-pane`, panel agent/sidebar `paseo-hh-tree`) tuyệt đối không hiện nhóm orphan hand-ext; hh-ps text/JSON vẫn giữ orphan.
+
+### Nguồn usage 0.30.0
+
+GPT machine `USD~` cộng các token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại từ hai đường dẫn cố định `~/.codex-hand/sessions` và `~/.codex-hand/archived_sessions`, khử trùng thread/event, không cộng trùng ledger. Thread chỉ có metadata, chưa có token event không làm tổng observed thành unknown. Không có token event trong cửa sổ thì hiện `?`; token event thiếu baseline/timestamp/model-price hợp lệ, file không đọc được hoặc thiếu cửa sổ hiện tại cũng giữ `?`. Model lạ không fallback; giá duy nhất từ file canonical. Tổng chỉ phản ánh token events cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; đây là ước tính offline subscription, không phải hoá đơn. Riêng gắn native child vào cây vẫn chỉ đọc `sessions`.
+
+GPT phần riêng của session pinned rollout/native child dùng `rate_limits` weekly `used_percent` cuối trừ đầu: cần ít nhất hai sample có timestamp hợp lệ, không giảm, cùng reset và reset đó còn hiện tại. Thiếu điều kiện hoặc qua reset thì `?`. Bổ sung cuối `Usage` với default `week_pct_source: str = ""`; khi đo được, source là `codex_rate_limits_delta`, `week_pct_estimated` là false và nhãn `GPT riêng (đo) N% tuần`. Đây là biến động quota tài khoản trong khoảng phiên, có thể gồm phiên chạy đồng thời, không phải phần sử dụng quy riêng độc quyền cho phiên. Không suy quota từ token/USD.
+
+GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Giữ contract colors/layout/counts/pool và unknown legacy hiện có.
 
 ## Kiểm chứng
 
