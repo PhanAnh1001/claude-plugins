@@ -25,6 +25,7 @@ SUMMARY_HEADING = "## Tóm tắt"
 # Codex provider defaults for the Sol side session.
 # Context threshold for native Codex compaction; not a cumulative spending cap.
 CODEX_AUTO_COMPACT_TOKEN_LIMIT = 272_000
+HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
 CODEX_MODEL_DEFAULT = "gpt-6.1-sol"
 CODEX_EFFORT_DEFAULT = "high"
 # Sol runs unconfined with no approval prompts (user decision 07/11): the screen path uses
@@ -36,7 +37,7 @@ CODEX_SANDBOX = "danger-full-access"
 DEFAULTS: dict = {
     "handoff_dir": "docs/work-in-progress/handoffs",
     "worktree_root": "../{repo}-wt",
-    "max_parallel": 2,
+    "max_parallel": 4,
     "default_max_tokens": DEFAULT_MAX_TOKENS,
     "watch_interval_s": 30,
     "claude_args": ["--permission-mode", "bypassPermissions", "--no-chrome"],

@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"
 
 from codex_harness import SECRET, Sandbox  # noqa: E402
 from hand_ext.backends import codex  # noqa: E402
+from hand_ext.config import load_config  # noqa: E402
+from hand_ext.run_cmd import candidates  # noqa: E402
 from hand_ext.backends.codex import quota_from_rate_limits  # noqa: E402
 from hand_ext.backends.codex_config import merge_top_level  # noqa: E402
 from hand_ext.backends.base import RunSpec  # noqa: E402
@@ -141,6 +143,7 @@ class CodexSetupDoctorTest(HandExtTestCase):
     def test_setup_drops_service_tier_idempotent(self) -> None:
         cfg = self.sb.home / "config.toml"
         cfg.write_text(OLD_CONFIG)
+        self.assertEqual(self.sb.cli("doctor", "--backend", "codex")[0], 1)
         code, out, _ = self.sb.cli("setup", "--backend", "codex")
         self.assertEqual(code, 0)
         self.assertIn("đã ghi", out)
@@ -164,6 +167,27 @@ class CodexSetupDoctorTest(HandExtTestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("chatgpt", out)
         self.assertNotIn(SECRET, out)
+
+    def test_doctor_runtime_overrides_and_auto_auth(self) -> None:
+        cfg = load_config(self.sb.dir)
+        cfg.backends["codex"].update(effort="low")
+        path = self.sb.home / "config.toml"
+        backend = codex.CodexBackend()
+        for text in ('model = "other"\nmodel_reasoning_effort = "high"\nsandbox_mode = "read-only"\n', ""):
+            with self.subTest(config_present=bool(text)):
+                path.write_text(text)
+                for mode in ("chatgpt", None):
+                    with self.subTest(auth_mode=mode), mock.patch.object(codex.cc, "auth_mode", return_value=mode):
+                        checks = backend.doctor(cfg.options("codex"))
+                        self.assertEqual(all(c.ok or not c.required for c in checks), mode == "chatgpt")
+                        self.assertEqual([b.name for b in candidates(cfg, "auto")], ["codex"] if mode else [])
+                        self.assertTrue(any(not c.required and "override" in c.detail for c in checks))
+                spec = RunSpec("", self.sb.dir, self.sb.dir, "hand-model", "low", "workspace-write", 1, None, cfg.options("codex"))
+                with mock.patch.dict(os.environ, {codex.OUTER_SANDBOX_ENV: ""}):
+                    argv, _, _ = backend.build_command(spec)
+                self.assertEqual((argv[argv.index("-m") + 1], argv[argv.index("-c") + 1], argv[argv.index("-s") + 1]),
+                                 ("hand-model", 'model_reasoning_effort="low"', "workspace-write"))
+                self.assertEqual(path.read_text(), text)
 
     def test_doctor_rejects_api_key_login(self) -> None:
         (self.sb.home / "auth.json").write_text(json.dumps({"OPENAI_API_KEY": SECRET}))

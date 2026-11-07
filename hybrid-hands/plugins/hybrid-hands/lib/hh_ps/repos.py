@@ -48,6 +48,7 @@ class RepoState:
     meta: Dict[str, SessionMeta] = field(default_factory=dict)
     roots: List[Path] = field(default_factory=list)
     _by_cwd: Dict[str, Optional[Path]] = field(default_factory=dict)
+    _main_by_root: Dict[Path, Optional[Path]] = field(default_factory=dict)
 
     def add_root(self, root: Path, config: Optional[PsConfig] = None) -> bool:
         """Load one repo once; returns True when it brought new side sessions."""
@@ -67,15 +68,35 @@ class RepoState:
             self.meta.setdefault(uuid, found)
         return len(self.side) > before
 
+    def config_files(self) -> Dict[Path, Path]:
+        """Resolve known config locations without repeating git directory discovery."""
+        from .constants import PROJECT_CONFIG_RELPATH
+
+        files = {}
+        for root in self.roots:
+            own = root / PROJECT_CONFIG_RELPATH
+            main = self._main_by_root.get(root)
+            files[root] = own if own.is_file() or main is None else main / PROJECT_CONFIG_RELPATH
+        return files
+
     def add_cwds(self, cwds: Iterable[str]) -> bool:
         """Load the repo of each new directory; git runs once per directory."""
         grew = False
         for raw in cwds:
-            if not raw or raw in self._by_cwd:
+            if not raw:
                 continue
-            path = Path(raw)
-            root = main_repo_root(path) if path.is_dir() else None
-            self._by_cwd[raw] = root
+            path = Path(raw).resolve()
+            cache_key = str(path)
+            if cache_key in self._by_cwd:
+                continue
+            if path.is_dir():
+                project = path if path in self.roots else project_root(path)
+                grew = self.add_root(project) or grew
+                root = main_repo_root(path)
+                self._main_by_root[project] = root
+            else:
+                root = None
+            self._by_cwd[cache_key] = root
             if root is not None and self.add_root(root):
                 grew = True
         return grew

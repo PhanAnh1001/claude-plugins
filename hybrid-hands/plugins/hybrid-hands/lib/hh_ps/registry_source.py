@@ -5,7 +5,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from side_session.state import load_all as load_side_states
 
@@ -128,6 +128,10 @@ def _side_entry(state: Any) -> Dict[str, Any]:
         "max_tokens": getattr(state, "max_tokens", None),
         "started": getattr(state, "started", None),
         "tokens_used": getattr(state, "tokens_used", None),
+        "model": getattr(state, "model", ""),
+        "effort": getattr(state, "effort", ""),
+        "codex_rollout": getattr(state, "codex_rollout", ""),
+        "handoff": getattr(state, "handoff", ""),
     }
 
 
@@ -141,6 +145,23 @@ def side_state_caps(cfg: PsConfig) -> Dict[str, dict]:
         uuid = str(getattr(state, "uuid", "") or "")
         if uuid and uuid not in found:
             found[uuid] = _side_entry(state)
+            handoff = found[uuid].get("handoff")
+            if handoff and found[uuid]["status"] != RUN_STATUS_RUNNING:
+                try:
+                    found[uuid]["ended_at"] = Path(handoff).with_suffix(".done").stat().st_mtime
+                except OSError:
+                    pass
+            # Newer launchers may persist metadata not yet in SessionState.
+            name = found[uuid]["name"]
+            if name and Path(name).name == name:
+                try:
+                    raw = json.loads((cfg.side_state_dir / f"{name}.json").read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    raw = {}
+                if isinstance(raw, dict):
+                    for key in ("model", "effort", "ended_at"):
+                        if raw.get(key) is not None:
+                            found[uuid][key] = raw[key]
     return found
 
 
@@ -156,6 +177,13 @@ def _tokens(raw: Any) -> Dict[str, int]:
     return tokens
 
 
+def _exit_code(value: Any) -> Optional[int]:
+    try:
+        return int(value) if value is not None and not isinstance(value, bool) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _pid(value: Any) -> Optional[int]:
     try:
         number = int(value)
@@ -164,22 +192,76 @@ def _pid(value: Any) -> Optional[int]:
     return number if number > 0 else None
 
 
-def load_hand_runs(root: Path, cutoff: float) -> List[HandRun]:
+def load_hand_runs(root: Path, cutoff: float,
+                   repo_roots: Iterable[Path] = (), *,
+                   known_configs: Optional[Dict[Path, Any]] = None,
+                   config_files: Optional[Dict[Path, Path]] = None) -> List[HandRun]:
     runs: List[HandRun] = []
-    folder = root / RUNS_SUBDIR
-    if not folder.is_dir():
-        return runs
-    for path in sorted(folder.glob(RUNS_GLOB)):
+    paths = list((root / RUNS_SUBDIR).glob(RUNS_GLOB))
+    ledger_entries: Dict[str, dict] = {}
+    configs = dict(known_configs or {})
+    for repo in repo_roots:
+        if repo not in configs:
+            from hand_ext.config import load_config
+            try:
+                configs[repo] = load_config(repo, known_root=repo,
+                                           config_file=(config_files or {}).get(repo))
+            except (OSError, ValueError, TypeError, AttributeError):
+                configs[repo] = None
+        cfg = configs[repo]
+        if cfg is not None:
+            paths.extend(cfg.runs_dir.glob("*/meta.json"))
+            try:
+                entries = json.loads(cfg.ledger.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                entries = []
+            if isinstance(entries, list):
+                ledger_entries.update({str(entry["run_id"]): entry for entry in entries
+                                       if isinstance(entry, dict) and entry.get("run_id")})
+        paths.extend((repo / "sessions/hybrid-hands/hand-ext").glob("*/meta.json"))
+    merged: Dict[str, Tuple[Path, dict]] = {}
+    for path in sorted(set(paths)):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if not isinstance(data, dict):
             continue
+        run_id = str(data.get("run_id") or (path.parent.name if path.name == "meta.json" else path.stem))
+        previous = merged.get(run_id)
+        if previous is not None:
+            old = previous[1]
+            if (to_epoch(old.get("ended_at") or old.get("ended")) or to_epoch(old.get("updated_at")) or 0) > (
+                    to_epoch(data.get("ended_at") or data.get("ended")) or to_epoch(data.get("updated_at")) or 0):
+                data = {**data, **{key: value for key, value in old.items()
+                                      if value is not None}}
+            else:
+                data = {**old, **{key: value for key, value in data.items()
+                                     if value is not None}}
+        data["run_id"] = run_id
+        merged[run_id] = (path, data)
+    for path, data in merged.values():
+        entry = ledger_entries.get(data["run_id"])
+        if entry is None and path.name == "meta.json":
+            # Only machine-readable reports; never inspect a hand's prose report.
+            try:
+                report = json.loads((path.parent / "report.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                report = None
+            if isinstance(report, dict):
+                entry = {key: report[key] for key in
+                         ("ended", "ended_at", "status", "tokens", "exit", "exit_code") if key in report}
+        if entry is not None:
+            for key, value in entry.items():
+                missing = data.get(key) is None or data.get(key) == ""
+                stale = key == "status" and data.get(key) == RUN_STATUS_RUNNING
+                empty_tokens = key == "tokens" and not any(_tokens(data.get(key)).values())
+                if value is not None and (missing or stale or empty_tokens):
+                    data[key] = value
         status = str(data.get("status") or "")
         pid = _pid(data.get("pid"))
-        started = to_epoch(data.get("started"))
-        ended = to_epoch(data.get("ended"))
+        started = to_epoch(data.get("started_at") or data.get("started"))
+        ended = to_epoch(data.get("ended_at") or data.get("ended"))
         running = status == RUN_STATUS_RUNNING
         if not running:
             moment = ended if ended is not None else started
@@ -190,7 +272,9 @@ def load_hand_runs(root: Path, cutoff: float) -> List[HandRun]:
             label=str(data.get("label") or ""),
             backend=str(data.get("backend") or ""),
             model=str(data.get("model") or ""),
+            effort=str(data.get("effort") or ""),
             status=status,
+            exit_code=_exit_code(data.get("exit_code") if data.get("exit_code") is not None else data.get("exit")),
             parent_session=str(data["parent_session"])
             if data.get("parent_session") else None,
             tokens=_tokens(data.get("tokens")),

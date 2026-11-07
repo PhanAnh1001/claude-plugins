@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from hand_ext.constants import GO_USAGE_BACKENDS
+
 from .claude_source import claude_config_dir, load_sessions, short_session_id
 from .codex import CodexData, load_codex, pinned_rollouts
 from .constants import (
@@ -85,6 +87,9 @@ def _apply_side_fields(session: Session, state: Dict[str, Any]) -> None:
     session.parent_session = state.get("parent_session") or None
     session.side_name = state.get("name") or None
     session.provider = state.get("provider") or PROVIDER_CLAUDE
+    session.model = state.get("model") or session.model
+    session.effort = state.get("effort") or session.effort
+    session.finished_at = to_epoch(state.get("ended_at")) or session.finished_at
 
 
 def _synthetic_session(uuid: str, state: Dict[str, Any]) -> Session:
@@ -99,7 +104,7 @@ def _synthetic_session(uuid: str, state: Dict[str, Any]) -> Session:
         cwd=state.get("dir") or "",
         context_tokens=used,
         started_at=started,
-        last_activity=started,
+        last_activity=None,
         is_main=False,
         live=status == RUN_STATUS_RUNNING,
         parent_session=state.get("parent_session") or None,
@@ -113,20 +118,21 @@ def _synthetic_session(uuid: str, state: Dict[str, Any]) -> Session:
 
 
 def _add_external_sessions(sessions: List[Session], side: SideMap,
-                           cutoff: float) -> None:
+                           cutoff: float, root: Path, all_projects: bool) -> None:
     visible = {session.session_id for session in sessions}
     added = True
     while added:
         added = False
         for uuid, state in side.items():
-            if uuid in visible or state.get("provider") == PROVIDER_CLAUDE:
+            if uuid in visible:
                 continue
             parent = state.get("parent_session")
             if not parent or parent not in visible:
-                continue
+                from .claude_source import _in_project
+                if not all_projects and not _in_project(str(state.get("dir") or ""), "", root):
+                    continue
             started = to_epoch(state.get("started"))
-            live = state.get("status") == RUN_STATUS_RUNNING
-            if not live and started is not None and started < cutoff:
+            if started is not None and started < cutoff:
                 continue
             sessions.append(_synthetic_session(uuid, state))
             visible.add(uuid)
@@ -188,6 +194,10 @@ def _run_in_week(run: HandRun, week: Optional[GoWeek]) -> bool:
 
 
 def _apply_run_week(run: HandRun, week: Optional[GoWeek]) -> None:
+    if run.backend not in GO_USAGE_BACKENDS:
+        run.week_limit_usd = None
+        run.week_pct_estimated = False
+        return
     run.week_limit_usd = (week.limit_usd
                           if week is not None and _run_in_week(run, week)
                           else None)
@@ -207,12 +217,50 @@ def _apply_weeks(sessions: List[Session], claude_week: Optional[ClaudeWeek],
             _apply_run_week(run, go_week)
 
 
+def _rollout_metadata(session: Session, path: Path) -> None:
+    """Keep only session/turn metadata from a pinned rollout, never chat payloads."""
+    import json
+    import re
+    header_meta = (r'(?:"timestamp"\s*:\s*"[^"]*"\s*,\s*)?'
+                   r'(?:"ordinal"\s*:\s*-?\d+\s*,\s*)?')
+    header = re.compile(r'^\s*\{\s*' + header_meta +
+                        r'"type"\s*:\s*"(?:session_meta|turn_context)"\s*[,}]')
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not header.match(line):
+                    continue
+                try:
+                    item = json.loads(line)
+                except ValueError:
+                    continue
+                payload = item.get("payload")
+                if not isinstance(payload, dict):
+                    continue
+                metadata = payload.get("metadata")
+                metadata = metadata if isinstance(metadata, dict) else {}
+                reasoning = payload.get("reasoning")
+                reasoning = reasoning if isinstance(reasoning, dict) else {}
+                session.model = str(payload.get("model") or metadata.get("model") or session.model)
+                session.effort = str(payload.get("effort") or
+                                     payload.get("reasoning_effort") or reasoning.get("effort") or
+                                     metadata.get("effort") or
+                                     metadata.get("reasoning_effort") or session.effort)
+                if item.get("type") == "session_meta":
+                    session.started_at = to_epoch(payload.get("timestamp")) or session.started_at
+    except OSError:
+        return
+
+
 def _apply_codex(sessions: List[Session], orphans: List[HandRun],
                  codex: CodexData, rollouts: Dict[str, str], now: float) -> None:
     """Attach each Codex row's own usage from its ledger line or pinned rollout."""
     for session in sessions:
         if session.provider != PROVIDER_CODEX:
             continue
+        path = codex.contained_rollout(rollouts.get(session.session_id))
+        if path is not None:
+            _rollout_metadata(session, path)
         usage = codex.rollout_usage(rollouts.get(session.session_id), now)
         if usage is not None:
             session.usage = usage
@@ -250,13 +298,14 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
         sessions = _claude_sessions(root, cutoff, all_projects, main_session_id,
                                     moment, repos.side, since)
     meta, side = repos.meta, repos.side
-    _add_external_sessions(sessions, side, cutoff)
+    _add_external_sessions(sessions, side, cutoff, root, all_projects)
     for session in sessions:
         _enrich(session, meta, side)
     by_id = {session.session_id: session for session in sessions}
     targets = _side_run_targets(sessions, side)
     orphans: List[HandRun] = []
-    for run in load_hand_runs(state_root(), cutoff):
+    for run in load_hand_runs(state_root(), cutoff, repos.roots,
+                              known_configs={root: cfg}, config_files=repos.config_files()):
         target = _label_target(run, targets)
         side_label = run.label in targets or run.label.startswith(SIDE_RUN_LABEL_PREFIX)
         if target is None and run.parent_session and not side_label:
@@ -272,10 +321,19 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     for run in orphans:
         _apply_run_week(run, go_week)
     codex = load_codex(cfg, moment)
-    _apply_codex(sessions, orphans, codex, pinned_rollouts(repos.roots), moment)
-    return Snapshot(sessions=sessions, orphan_runs=orphans, since_seconds=since_seconds,
+    pinned = pinned_rollouts(repos.roots)
+    _apply_codex(sessions, orphans, codex, pinned, moment)
+    from .native_source import attach_native
+    attach_native(sessions, pinned, moment)
+    snapshot = Snapshot(sessions=sessions, orphan_runs=orphans, since_seconds=since_seconds,
                     cwd=str(cwd), all_projects=all_projects,
                     main_session_id=main_session_id, generated_at=moment,
                     limits=collect_limits(root, moment, cfg=cfg,
                                           claude_week=claude_week, go_week=go_week,
                                           codex_windows=codex.account))
+
+    from .machine_usage import machine_usage
+    snapshot.machine_usage = machine_usage(home, claude_week, codex, cfg, moment)
+    from .usage_enrichment import enrich_snapshot
+    enrich_snapshot(snapshot, cfg, moment)
+    return snapshot

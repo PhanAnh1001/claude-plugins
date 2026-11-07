@@ -205,6 +205,17 @@ class CcSwitchSelfTest(unittest.TestCase):
         with mock.patch.object(proc, "ancestors", return_value=None):
             self.assertIsNone(proc.select_tui_pid([200, 300]))
 
+    def test_process_alive_rechecks_pid_when_ps_has_no_state(self) -> None:
+        # The parent can reap a child after kill(pid, 0), before ps reads it.
+        # A missing ps state must still preserve the fallback for a live PID.
+        for still_alive in (False, True):
+            with self.subTest(still_alive=still_alive), \
+                    mock.patch.object(proc, "pid_alive",
+                                      side_effect=[True, still_alive]) as alive, \
+                    mock.patch.object(proc, "_ps_value", return_value=None):
+                self.assertEqual(proc.process_alive(4242), still_alive)
+                self.assertEqual(alive.call_count, 2)
+
     def test_worker_sigterms_tui_then_reloads_paseo(self) -> None:
         transcript = (self.fx.projects / slugify(self.fx.project)
                       / f"{SID_TUI}.jsonl")

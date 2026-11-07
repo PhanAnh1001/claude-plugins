@@ -68,10 +68,14 @@ class RunRegistry:
     def __init__(self, runs_dir: Path, run_id: str, label: str, backend: str, model: str,
                  cwd: Path, run_dir: Path, parent_session: Optional[str] = None,
                  parent_claude_pid: Optional[int] = None, pid: Optional[int] = None,
-                 clock: Callable[[], float] = time.time) -> None:
+                 clock: Callable[[], float] = time.time, effort: str = "",
+                 metadata: Optional[Dict[str, Any]] = None) -> None:
         self.runs_dir = Path(runs_dir)
         self.path = self.runs_dir / f"{run_id}.json"
         self.clock = clock
+        self.meta_path = Path(run_dir) / "meta.json" if metadata is not None else None
+        self.metadata = dict(metadata or {})
+        self.started_at = self.clock()
         self._last_write = 0.0
         self._tokens: TokenMap = _token_map(None)
         self._data: Dict[str, Any] = {
@@ -79,15 +83,21 @@ class RunRegistry:
             "label": label,
             "backend": backend,
             "model": model,
+            "effort": effort,
+            "started_at": self.started_at,
+            "ended": None,
+            "ended_at": None,
+            "exit_code": None,
             "cwd": str(cwd),
             "run_dir": str(run_dir),
             "pid": os.getpid() if pid is None else pid,
             "child_pid": None,
-            "parent_session": (os.environ.get(PARENT_SESSION_ENV) or None
+            "parent_session": (os.environ.get("CODEX_THREAD_ID") or
+                                os.environ.get(PARENT_SESSION_ENV) or None
                                if parent_session is None else parent_session),
             "parent_claude_pid": (_int_or_none(os.environ.get(PARENT_CLAUDE_PID_ENV))
                                   if parent_claude_pid is None else parent_claude_pid),
-            "started": _iso(self.clock()),
+            "started": _iso(self.started_at),
             "updated_at": int(self.clock()),
             "status": HAND_RUN_STATUS_RUNNING,
             "tokens": dict(self._tokens),
@@ -122,6 +132,9 @@ class RunRegistry:
         self._data.update({
             "status": str(value),
             "ended": _iso(now),
+            "ended_at": now,
+            "duration_seconds": max(0.0, now - self.started_at),
+            "exit_code": exit_code,
             "updated_at": int(now),
             "tokens": dict(self._tokens),
             "exit": exit_code,
@@ -131,14 +144,19 @@ class RunRegistry:
 
     # ---- writing --------------------------------------------------------
     def _write(self) -> bool:
-        try:
-            self.runs_dir.mkdir(parents=True, exist_ok=True)
-            write_atomic(self.path, self._data)
-        except OSError as exc:
-            print(f"{RUN_REGISTRY_WARNING}: {exc}", file=sys.stderr)
-            return False
+        targets = [(self.path, self._data)]
+        if self.meta_path is not None:
+            targets.append((self.meta_path, {**self.metadata, **self._data}))
+        success = True
+        for path, data in targets:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                write_atomic(path, data)
+            except OSError as exc:
+                print(f"{RUN_REGISTRY_WARNING}: {exc}", file=sys.stderr)
+                success = False
         self._last_write = self.clock()
-        return True
+        return success
 
     def _cleanup(self, now: Optional[float] = None) -> None:
         """Delete finished entries older than the retention window, never running ones."""

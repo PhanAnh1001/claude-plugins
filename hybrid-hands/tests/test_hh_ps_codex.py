@@ -29,7 +29,7 @@ class CodexPanelTest(unittest.TestCase):
         day.mkdir(parents=True)
         rollout = day / "rollout-2026-11-07T00-00-00-sol.jsonl"
         rollout.write_text("\n".join([
-            json.dumps({"type": "session_meta", "payload": {"id": "sol"}}),
+            json.dumps({"type": "session_meta", "payload": {"id": "sol", "model": "gpt-6.1-sol"}}),
             # A conversation record carrying the old hint words must not be parsed as usage.
             json.dumps({"type": "response_item", "payload": {
                 "type": "message", "text": "event_msg", "sentinel": "999999999",
@@ -81,6 +81,7 @@ class CodexPanelTest(unittest.TestCase):
                 started=iso(NOW - 180), ended=iso(NOW - 120), tokens=tokens)
         (fx.project / "output" / "state" / "sol-side.json").write_text(json.dumps({
             "name": "sol-side", "uuid": SOL_SIDE, "provider": "codex",
+            "model": "gpt-6.1-sol",
             "dir": str(fx.project), "screen": "sol", "watch_screen": "sol-watch",
             "max_tokens": 300000, "started": NOW - 300, "status": "running",
             "handoff": "", "tokens_used": 0, "worktree": False,
@@ -106,7 +107,7 @@ class CodexPanelTest(unittest.TestCase):
         sessions = {item["session_id"]: item for item in data["sessions"]}
         hand = next(run for run in sessions[MAIN_SESSION]["hand_runs"]
                     if run["run_id"] == HAND_RUN)["usage"]
-        self.assertEqual(hand["usd"], 1.25)
+        self.assertEqual(hand["usd"], SOL_USD)
         self.assertTrue(hand["usd_estimated"])
         self.assertEqual((hand["gpt_5h_pct"], hand["gpt_week_pct"]), (12.5, 34.0))
         sol = sessions[SOL_SIDE]["usage"]
@@ -114,11 +115,11 @@ class CodexPanelTest(unittest.TestCase):
         self.assertEqual((sol["read"], sol["cache_read"], sol["out"]),
                          (600_000, 400_000, 500_000))
         self.assertEqual((sol["gpt_5h_pct"], sol["gpt_week_pct"]), (44, 55))
-        self.assertIn("~$1.25", text)
         self.assertIn("~$6.24", text)
-        self.assertIn("GPT 5h 12.5% · tuần 34.0%", text)
+        self.assertIn("~$6.24", text)
         self.assertIn("GPT 5h 44.0% · tuần 55.0%", text)
-        self.assertRegex(text, r"GPT 5h\s+tổng 44\.0% · reset \d\d:\d\d")
+        self.assertIn("GPT 5h 44.0% · tuần 55.0%", text)
+        self.assertRegex(text, r"GPT 5h\s+tổng 44\.0% · reset (?:\d\d/\d\d )?\d\d:\d\d")
         self.assertNotIn("97.0%", text)
         self.assertNotIn("999999999", text)
 

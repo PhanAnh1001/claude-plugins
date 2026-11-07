@@ -325,6 +325,7 @@ limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_r
 line_sessions=""
 [ -f "$SESSION_LINES_SCRIPT" ] && line_sessions=$(bash "$SESSION_LINES_SCRIPT" --color \
   "$session_id" 2>/dev/null)
+line_hands=$(python3 "$SCRIPTS_DIR/hand_lines.py" "$session_id" "$cwd" 2>/dev/null)
 maybe_start_go_live_fetch
 # --- Skill block (after the rate-limit lines) ---
 build_skill_block() {
@@ -342,6 +343,7 @@ printf "%b" "$out"
 [ -n "$limit_table" ] && printf '\n%s' "$limit_table"
 # printf %s, not %b: session names and aliases are data.
 [ -n "$line_sessions" ] && printf '\n%s' "$line_sessions"
+[ -n "$line_hands" ] && printf '\n%s' "$line_hands"
 # printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
 [ -n "$skill_block" ] && printf '\n%s' "$skill_block"
 exit 0

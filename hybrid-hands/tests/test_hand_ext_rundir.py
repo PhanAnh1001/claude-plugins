@@ -15,6 +15,7 @@ PLUGIN_LIB = Path(__file__).resolve().parents[1] / "plugins" / "hybrid-hands" / 
 sys.path.insert(0, str(PLUGIN_LIB))
 
 from hand_ext.backends.base import Backend, RunSpec, RunState, Status, Usage  # noqa: E402
+from hand_ext.run_registry import RunRegistry
 from hand_ext.runner import run_backend  # noqa: E402
 from hand_ext_case import HandExtTestCase  # noqa: E402
 
@@ -73,7 +74,12 @@ class RunDirDeletedTest(HandExtTestCase):
                        max_tokens=None, options={})
         err = io.StringIO()
         with redirect_stderr(err):
-            outcome = run_backend(RundirBackend(delete=delete), spec)
+            registry = RunRegistry(self.tmp / "registry", "run-1", "fixture", "rundir",
+                                   "fixture-model", self.tmp, self.run_dir,
+                                   effort="fixture-effort", metadata={"fixture": True})
+            registry.start()
+            outcome = run_backend(RundirBackend(delete=delete), spec, registry=registry)
+            registry.finish(outcome.status, outcome.exit_code, outcome.state.usage)
         return outcome, err.getvalue()
 
     def test_deleted_run_dir_keeps_status_tokens_and_stderr(self) -> None:
@@ -84,6 +90,13 @@ class RunDirDeletedTest(HandExtTestCase):
         self.assertEqual(outcome.state.usage.output, EXPECTED_OUTPUT)
         self.assertIn(FAKE_STDERR, outcome.state.extra["stderr_text"])
         self.assertEqual(outcome.state.final_text, FINAL_TEXT)
+        meta = json.loads((self.run_dir / "meta.json").read_text(encoding="utf-8"))
+        self.assertEqual((meta["run_id"], meta["model"], meta["effort"], meta["status"],
+                          meta["exit_code"]),
+                         ("run-1", "fixture-model", "fixture-effort", "ok", 0))
+        self.assertGreaterEqual(meta["ended_at"], meta["started_at"])
+        self.assertGreaterEqual(meta["duration_seconds"], 0)
+        self.assertEqual(meta["tokens"]["input"], EXPECTED_INPUT)
 
     def test_deleted_run_dir_is_recreated_with_report_and_one_warning(self) -> None:
         _, err = self._run()

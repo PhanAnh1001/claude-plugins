@@ -20,11 +20,11 @@ test("usd keeps the hh-tree-pane format", () => {
 });
 
 test("cost shows only what the row has", () => {
-  assert.equal(costText({ usd: 0.7824, week_pct: 1.5648 }), "$0.78 · 1.6% tuần");
-  assert.equal(costText({ usd: 0.42, week_pct: null }), "$0.42");
+  assert.equal(costText({ usd: 0.7824, week_pct: 1.5648 }), "~$0.78 · TK 5h ? · tuần ? · riêng 1.6% tuần");
+  assert.equal(costText({ usd: 0.42, week_pct: null }), "~$0.42 · TK 5h ? · tuần ?");
   assert.equal(costText({ usd: 0.42, week_pct: 1.2, week_pct_estimated: true }),
-    "$0.42 · ~1.2% tuần");
-  assert.equal(costText(null), "");
+    "~$0.42 · TK 5h ? · tuần ? · riêng ~1.2% tuần");
+  assert.equal(costText(null), "~$? · TK 5h ? · tuần ?");
 });
 
 test("limit split keeps one decimal and marks unknowns", () => {

@@ -27,6 +27,9 @@ class TranscriptInfo:
     slug: str = ""
     ai_title: str = ""
     usage: Optional[Usage] = None
+    model: str = ""
+    effort: str = ""
+    finished_at: Optional[float] = None
 
 
 def _read_json(path: Path) -> Optional[dict]:
@@ -110,7 +113,7 @@ class _UsageAccumulator:
             return None
         read = cache_read = cache_write = out = 0
         usd = 0.0
-        priced = False
+        priced = True
         for usage, model in records:
             read += _usage_int(usage.get("input_tokens"))
             cache_read += _usage_int(usage.get("cache_read_input_tokens"))
@@ -118,10 +121,11 @@ class _UsageAccumulator:
             out += _usage_int(usage.get("output_tokens"))
             price = price_for(model)
             if price is not None:
-                priced = True
                 usd += usage_usd(price, usage)
+            else:
+                priced = False
         return Usage(read=read, cache_read=cache_read, cache_write=cache_write,
-                     out=out, usd=usd if priced else None)
+                     out=out, usd=usd if priced else None, usd_estimated=True)
 
 
 def _iter_objects(path: Path):
@@ -159,6 +163,11 @@ def parse_transcript(path: Path, since: Optional[float] = None) -> TranscriptInf
                 info.started_at, moment)
             info.last_activity = moment if info.last_activity is None else max(
                 info.last_activity, moment)
+        model, effort = _model_effort(item)
+        info.model = model or info.model
+        info.effort = effort or info.effort
+        if _finished(item):
+            info.finished_at = moment or info.finished_at
         kind = item.get("type")
         if kind == TRANSCRIPT_TITLE_TYPE:
             title = item.get("customTitle")
@@ -200,37 +209,62 @@ def _parse_agent(
     return context, first, last, usage.result()
 
 
+def _model_effort(item: dict) -> Tuple[str, str]:
+    message = item.get("message")
+    metadata = item.get("metadata")
+    source = message if isinstance(message, dict) else {}
+    metadata = metadata if isinstance(metadata, dict) else {}
+    return (str(item.get("model") or source.get("model") or metadata.get("model") or ""),
+            str(item.get("effort") or item.get("reasoning_effort") or
+                metadata.get("effort") or ""))
+
+
+def _finished(item: dict) -> bool:
+    return (item.get("finished") is True or
+            item.get("type") in {"agent_finished", "session_end", "session-end"} or
+            (item.get("type") == "result" and item.get("subtype") in
+             {"success", "error", "error_max_turns", "error_during_execution"}))
+
+
 def load_subagents(dirs: Iterable[Path], cutoff: float, now: float,
-                   since: Optional[float] = None) -> List[Subagent]:
-    agents: List[Subagent] = []
+                   since: Optional[float] = None,
+                   parent_ended: Optional[float] = None) -> List[Subagent]:
+    agents: Dict[str, Subagent] = {}
     for folder in dirs:
-        for meta_path in sorted(folder.glob(SUBAGENT_META_GLOB)):
+        paths = {path.name[:-len(SUBAGENT_META_SUFFIX)] for path in
+                 folder.glob(SUBAGENT_META_GLOB)}
+        paths.update(path.stem for path in folder.glob("agent-*.jsonl"))
+        for stem in sorted(paths):
+            meta_path = folder / (stem + SUBAGENT_META_SUFFIX)
+            jsonl = folder / (stem + SUBAGENT_JSONL_SUFFIX)
             meta = _read_json(meta_path) or {}
-            agent_id = meta_path.name[len("agent-"):-len(SUBAGENT_META_SUFFIX)]
-            jsonl = meta_path.with_name(
-                meta_path.name[:-len(SUBAGENT_META_SUFFIX)] + SUBAGENT_JSONL_SUFFIX)
             context, first, last, usage = _parse_agent(jsonl, since)
+            first = to_epoch(meta.get("started_at") or meta.get("startedAt")) or first
+            finished = _finished(meta)
+            model, effort = _model_effort(meta)
+            agent_type = str(meta.get("agentType") or "")
+            for item in _iter_objects(jsonl):
+                found_model, found_effort = _model_effort(item)
+                model, effort = found_model or model, found_effort or effort
+                agent_type = str(item.get("agentType") or agent_type)
+                finished = finished or _finished(item)
+            finished = finished or parent_ended is not None
             try:
                 mtime = (jsonl if jsonl.is_file() else meta_path).stat().st_mtime
             except OSError:
-                mtime = meta_path.stat().st_mtime
-            finished = meta.get("finished") is True
-            if finished and mtime < cutoff:
                 continue
-            duration = None
-            if first is not None:
-                end = last if finished and last is not None else now
-                duration = max(0.0, end - first)
-            agents.append(Subagent(
-                agent_id=agent_id,
-                agent_type=str(meta.get("agentType") or ""),
-                description=str(meta.get("description") or ""),
-                finished=finished,
-                silent=not finished and now - mtime > SILENT_AFTER_SECONDS,
+            activity = last or to_epoch(meta.get("ended_at") or meta.get("endedAt"))
+            observed = activity or mtime
+            if finished and observed < cutoff:
+                continue
+            end = activity if finished else now
+            agent_id = stem[len("agent-"):]
+            agents[agent_id] = Subagent(
+                agent_id=agent_id, agent_type=agent_type,
+                description=str(meta.get("description") or ""), finished=finished,
+                silent=not finished and now - observed > SILENT_AFTER_SECONDS,
                 context_tokens=context,
-                duration_seconds=duration,
-                last_activity=mtime,
-                usage=usage,
-            ))
-    agents.sort(key=lambda item: (item.finished, -(item.last_activity or 0.0)))
-    return agents
+                duration_seconds=max(0.0, end - first) if first is not None and end is not None else None,
+                last_activity=activity, usage=usage, started_at=first,
+                model=model, effort=effort)
+    return sorted(agents.values(), key=lambda item: (item.finished, -(item.last_activity or 0.0)))

@@ -132,6 +132,8 @@ def _new_session(session_id: str, data: dict, main_session_id: Optional[str]) ->
         last_activity=_ms(data.get("updatedAt")),
         is_main=session_id == main_session_id,
         live=True,
+        model=str(data.get("model") or ""),
+        effort=str(data.get("effort") or ""),
     )
 
 
@@ -151,6 +153,7 @@ def _ended_session(session_id: str, info: TranscriptInfo, old: dict, project_roo
         live=False,
         ai_title=info.ai_title,
         usage=info.usage,
+        model=info.model, effort=info.effort, finished_at=info.finished_at,
     )
 
 
@@ -163,6 +166,9 @@ def _merge(session: Session, info: TranscriptInfo, path: Path) -> None:
         session.context_tokens = info.context_tokens
     if info.usage is not None:
         session.usage = info.usage
+    session.model = info.model or session.model
+    session.effort = info.effort or session.effort
+    session.finished_at = info.finished_at
     session.ai_title = info.ai_title
     if session.started_at is None:
         session.started_at = info.started_at
@@ -210,7 +216,8 @@ def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
     subagent_index = _subagent_dirs(config_dir)
     for session in sessions.values():
         session.subagents = load_subagents(subagent_index.get(session.session_id, []),
-                                           cutoff, now, since)
+                                           cutoff, now, since,
+                                           parent_ended=session.ended_at)
     return sorted(sessions.values(), key=_session_sort_key)
 
 

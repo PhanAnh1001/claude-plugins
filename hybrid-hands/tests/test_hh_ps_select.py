@@ -1,25 +1,24 @@
-"""`hh-ps` lists running children, the 3 newest finished ones and a summary."""
+"""`hh-ps` lists all children, running first and finished newest first."""
 from __future__ import annotations
 
 import io
 import sys
 import unittest
 from contextlib import redirect_stdout
+from unittest.mock import patch
 from pathlib import Path
 
 TESTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(TESTS.parent / "plugins" / "hybrid-hands" / "lib"))
 
 from hh_ps import cli  # noqa: E402
-from hh_ps.constants import FULL_FLAG, RECENT_FINISHED_SHOWN  # noqa: E402
+from hh_ps.constants import FULL_FLAG  # noqa: E402
 from hh_ps.models import HandRun, Session, Snapshot, Subagent  # noqa: E402
 from hh_ps.selection import ChildItem, select_children  # noqa: E402
-from hh_ps.textwidth import display_width  # noqa: E402
 from hh_ps.text_render import render_text  # noqa: E402
 from hh_ps.textwidth import display_width  # noqa: E402
 
 NOW = 1_800_000_000.0
-MAX_CHILD_CELLS = 68
 FINISHED_OK = 5
 FAILED = 2
 
@@ -65,27 +64,29 @@ class SelectChildrenTest(unittest.TestCase):
         items = [ChildItem(f"ok{i}", False, False, NOW - i) for i in range(5)]
         items += [ChildItem("bad", False, True, NOW - 10), ChildItem("run", True, False, None)]
         picked = select_children(items)
-        self.assertEqual(picked.shown, ["run", "ok0", "ok1", "ok2"])
-        self.assertEqual(picked.summary, "+2 xong · 1 lỗi")
+        self.assertEqual(picked.shown, ["run", "ok0", "ok1", "ok2", "ok3", "ok4", "bad"])
+        self.assertEqual(picked.summary, "")
         self.assertEqual(len(select_children(items, full=True).shown), len(items))
 
     def test_summary_drops_zero_parts(self) -> None:
         only_bad = [ChildItem(i, False, True, NOW - i) for i in range(4)]
-        self.assertEqual(select_children(only_bad).summary, "+1 lỗi")
+        self.assertEqual(select_children(only_bad).summary, "")
         self.assertEqual(select_children(only_bad[:3]).summary, "")
 
 
 class TextRuleTest(unittest.TestCase):
     def test_session_rule_and_summary(self) -> None:
         lines = _render([_mixed("s")])
-        children = lines[3:-2]
+        children = [line for line in lines if any(name in line for name in ("chạy", "done-", "fail-")) and line.startswith("  ")]
         self.assertIn("chạy", children[0])
-        # Newest three by end time: done-1, done-2, fail-2.5 (failed mixes in).
+        # Every finished child follows the running one, newest end first.
         self.assertIn("done-1", children[1])
         self.assertIn("done-2", children[2])
         self.assertIn("fail-2.5", children[3])
-        self.assertEqual(children[4], "  └ +3 xong · 1 lỗi")
-        self.assertEqual(len(children), 1 + RECENT_FINISHED_SHOWN + 1)
+        self.assertIn("done-3", children[4])
+        self.assertIn("done-5", children[6])
+        self.assertIn("fail-7", children[7])
+        self.assertEqual(len(children), 8)
 
     def test_full_lists_every_child(self) -> None:
         text = "\n".join(_render([_mixed("s")], full=True))
@@ -95,19 +96,18 @@ class TextRuleTest(unittest.TestCase):
 
     def test_duration_cell_comes_before_description(self) -> None:
         row = next(line for line in _render([_mixed("s")]) if "done-1" in line)
-        self.assertLess(row.index("30s"), row.index(" - "))  # USD unknown
-        self.assertLess(row.index(" - "), row.index("done-1"))
+        self.assertLess(row.index("30s"), row.index("~$?"))
+        self.assertLess(row.index("~$?"), row.index("done-1"))
         self.assertNotIn("ctx", row)
         self.assertTrue(row.endswith("done-1"))
         failed = next(line for line in _render([_mixed("s")]) if "fail-2.5" in line)
         self.assertGreater(failed.index("failed"), failed.index("fail-2.5"))
-        self.assertTrue(all(display_width(line) <= MAX_CHILD_CELLS
-                            for line in _render([_mixed("s")])[3:-2]))
+        self.assertIn("TK 5h ? · tuần ?", row)
 
     def test_ok_row_has_no_gap_before_description(self) -> None:
         lines = _render([_mixed("s")])
         ok = next(line for line in lines if "done-1" in line)
-        self.assertRegex(ok, r" -\s+done-1$")  # USD `-`, empty limit %  # status column sits after it
+        self.assertRegex(ok, r"TK 5h \? · tuần \?\s+done-1$")
         failed = next(line for line in lines if "fail-2.5" in line)
         self.assertEqual(failed.index("fail-2.5"), ok.index("done-1"))
 
@@ -122,8 +122,8 @@ class TextRuleTest(unittest.TestCase):
         lines = _render([parent, *sides])
         rows = [line for line in lines if "phụ:RV" in line]
         self.assertEqual(len(rows), 2)
-        # The time cell is right-aligned; the USD cell `-` ends both rows.
-        usd = [row.rindex("-") for row in rows]
+        # Both side rows align the elapsed/end cells before the unknown USD cell.
+        usd = [row.index("~$?") for row in rows]
         time_ends = {display_width(row[:at].rstrip()) for row, at in zip(rows, usd)}
         self.assertEqual(len(time_ends), 1, rows)
         self.assertEqual(len({display_width(row[:at]) for row, at in zip(rows, usd)}), 1, rows)
@@ -137,20 +137,20 @@ class TextRuleTest(unittest.TestCase):
         old_side.parent_session, old_side.side_name = "cha", "cũ"
         lines = _render([parent, live_side, old_side])
         text = "\n".join(lines)
-        self.assertRegex(lines[3], r"^  ├ ● phụ:sống +1p +-$")
-        child = next(line for line in lines if "done-1" in line)
-        self.assertEqual(lines[3].rindex("-"), child.rindex(" -") + 1)  # shared columns
-        self.assertIn("  │ └ +3 xong · 1 lỗi", text)
-        # Recent: done-1 (1 min), ended side (1 min, sorted after), done-2; done-3, done-4 fold.
+        side_index = next(i for i, line in enumerate(lines) if "phụ:sống" in line)
+        self.assertIn("(side session)", lines[side_index])
+        nested_child = next(line for line in lines[side_index + 1:] if "done-1" in line)
+        self.assertTrue(nested_child.startswith("  │ "), nested_child)
         self.assertIn("○ phụ:cũ", text)
-        self.assertNotIn("done-3", text)
-        self.assertEqual(lines[-3], "  └ +2 xong")
+        self.assertIn("done-3", text)
+        self.assertIn("done-4", text)
+        self.assertNotIn("+3 xong", text)
 
 
 class FullFlagCliTest(unittest.TestCase):
     def test_full_flag_is_accepted(self) -> None:
         out = io.StringIO()
-        with redirect_stdout(out):
+        with patch.object(cli, "build_snapshot", return_value=Snapshot([], [], 60, "", False, None, NOW)), redirect_stdout(out):
             code = cli.main([FULL_FLAG, "--since", "1m", "--cwd", str(TESTS)])
         self.assertEqual(code, 0)
 

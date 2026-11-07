@@ -58,7 +58,8 @@ def _child_items(session: Session, children: Dict[str, List[Session]],
                  now: float) -> List[ChildItem]:
     """Each child as (running?, failed?, end) with a builder of its rows."""
     items: List[ChildItem] = [
-        ChildItem([subagent_line(agent, now)], not agent.finished, False, agent.ended_at)
+        ChildItem([subagent_line(agent, now)],
+                  agent.running if agent.provider else not agent.finished, agent.status in ("error", "failed", "errored", "cancelled") or agent.exit_code not in (None, 0), agent.ended_at)
         for agent in session.subagents]
     items += [ChildItem([run_line(run, now)], run.running, run_is_bad(run), run.end_moment)
               for run in session.hand_runs]
@@ -126,7 +127,7 @@ def _header_counts(snapshot: Snapshot) -> str:
 
 
 def render_text(snapshot: Snapshot, color: bool = False, full: bool = False) -> str:
-    """`full` lists every child; otherwise running + recent ones and a summary."""
+    """List all rows in the snapshot; `full` remains a compatibility argument."""
     roots, unknown, children = _partition(snapshot.sessions)
     total = len(roots) + (1 if unknown else 0) + (1 if snapshot.orphan_runs else 0)
     now = snapshot.generated_at
@@ -134,7 +135,8 @@ def render_text(snapshot: Snapshot, color: bool = False, full: bool = False) -> 
               f" · since {duration_text(snapshot.since_seconds)}", LEGEND]
     if snapshot.limits:
         header.append("Hạn mức")
-        header.extend(limit_line(limit, now) for limit in snapshot.limits)
+        header.extend(limit_line(limit, now) for limit in snapshot.limits
+                      if limit.plan != "GPT" or limit.total_pct is not None)
     if not total:
         header.append("(không có phiên hay lượt hand nào trong khoảng --since)")
     tree: List[Line] = []
@@ -148,6 +150,7 @@ def render_text(snapshot: Snapshot, color: bool = False, full: bool = False) -> 
     if snapshot.orphan_runs:
         index += 1
         tree += _orphan_block(snapshot.orphan_runs, index == total, now)
+    header.append("LOẠI / TÊN  MODEL/EFFORT  THỜI GIAN  KẾT THÚC (local)  USD  TÀI KHOẢN 5h / tuần")
     lines = header + render_lines(tree, lambda text, key: _paint(text, key, color))
     lines.append("")
     lines.append(f"Tổng: {snapshot.live_sessions} phiên sống, "

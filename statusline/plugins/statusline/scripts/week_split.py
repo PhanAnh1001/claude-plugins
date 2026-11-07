@@ -23,7 +23,7 @@ import sys
 import time
 from bisect import bisect_left
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as day_time, timedelta
 from itertools import accumulate
 from pathlib import Path
 from typing import Optional
@@ -143,9 +143,15 @@ class UsdIndex:
 
     def by_weekday(self, start: float) -> dict[int, float]:
         result: dict[int, float] = {}
-        for i in range(bisect_left(self.times, start), len(self.times)):
-            weekday = datetime.fromtimestamp(self.times[i]).weekday()
-            result[weekday] = result.get(weekday, 0.0) + self.usd[i]
+        low = bisect_left(self.times, start)
+        while low < len(self.times):
+            # Jump over empty days; derive local midnight afresh for DST.
+            day = datetime.fromtimestamp(self.times[low]).date()
+            boundary = datetime.combine(day + timedelta(days=1), day_time.min).timestamp()
+            high = bisect_left(self.times, boundary, lo=low)
+            weekday = day.weekday()
+            result[weekday] = result.get(weekday, 0.0) + self.prefix[high] - self.prefix[low]
+            low = high
         return result
 
 

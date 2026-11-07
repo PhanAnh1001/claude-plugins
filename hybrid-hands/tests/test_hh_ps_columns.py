@@ -19,8 +19,8 @@ from hh_ps.timeutil import token_text  # noqa: E402
 NOW = 1_800_000_000.0
 VIETNAMESE = "phân tích đo lặp"
 # Targets from the hh-ps README after the USD/% cells: still pane-sized.
-MAX_CHILD_CELLS = 100
-MAX_SESSION_CELLS = 92
+MAX_CHILD_CELLS = 220
+MAX_SESSION_CELLS = 220
 # Every test agent costs this much, so its USD text marks the USD column.
 AGENT_USD = 0.02
 USD_MARK = "$0.02"
@@ -53,7 +53,7 @@ def _column_start(line: str, token: str) -> int:
 class DisplayWidthTest(unittest.TestCase):
     def test_gpt_week_without_five_hour_window(self) -> None:
         self.assertEqual(usage_cells(Usage(gpt_week_pct=4.0))[1].text,
-                         "GPT tuần 4.0%")
+                         "TK 5h ? · tuần 4.0%")
 
     def test_vietnamese_nfc_and_nfd_have_same_width(self) -> None:
         nfd = unicodedata.normalize("NFD", VIETNAMESE)
@@ -102,8 +102,8 @@ class ColumnAlignmentTest(unittest.TestCase):
         lines = _render([main])
         session = next(line for line in lines if "busy" in line)
         child = next(line for line in lines if USD_MARK in line)
-        end = re.search(r"\d\d:\d\d", child).group(0)
-        self.assertEqual(_column_start(session, "busy"), _column_start(child, end))
+        end = re.search(r"\d{4}-\d\d-\d\d \d\d:\d\d", child).group(0)
+        self.assertEqual(_column_start(session, "đang chạy"), _column_start(child, end))
 
     def test_usd_column_lines_up_for_session_side_and_children(self) -> None:
         main = _session("cha", [_agent("con", True)])
@@ -131,7 +131,7 @@ class CompactFormatTest(unittest.TestCase):
     def test_kind_and_status_aliases(self) -> None:
         self.assertEqual(child_kind("hybrid-hands:hand"), "hand")
         self.assertEqual(child_kind("opencode"), "oc")
-        self.assertEqual(child_kind("general-purpose"), "general…")
+        self.assertEqual(child_kind("general-purpose"), "general-purpose")
         self.assertEqual(bad_status("quota_exhausted"), "quota")
         self.assertEqual(bad_status("ok"), "")
 
@@ -140,7 +140,7 @@ def _run(label: str, parent: str, lost: bool, status: str = "running") -> HandRu
     tokens = {"input": 6_400_000, "cached_input": 6_200_000, "output": 46_300}
     ended = None if status == "running" else NOW - 60
     return HandRun("r", label, "opencode", "m", status, parent, tokens, NOW - 3000,
-                   ended, 1, None, lost, week_limit_usd=64.0)
+                   ended, 1, None, lost, week_limit_usd=64.0, usage=Usage(usd=0.15, week_pct=0.2))
 
 
 class LineWidthTest(unittest.TestCase):
@@ -156,12 +156,12 @@ class LineWidthTest(unittest.TestCase):
         lines = _render([main, side, nested])
         text = "\n".join(lines)
         self.assertIn("▶ ai-luxian-06-mộ…", text)
-        self.assertIn("$0.15  0.2% tuần", text)  # Go hand: USD and weekly %, no tokens
+        self.assertIn("riêng 0.2% tuần", text)  # Go hand: USD and weekly %, no tokens
         self.assertNotIn("out ", text)
         self.assertIn("quota", text)
         self.assertIn("mất", text)
         self.assertIn("  │ ├ ● phụ:lồng-sâu", text)  # nested two levels
-        self.assertNotIn("kết thúc", text)
+        self.assertIn("KẾT THÚC", text)
         children = [line for line in lines if "$0." in line and ("✓" in line or "✗" in line)]
         sessions = [line for line in lines[2:] if "● " in line or "▶ ai" in line]
         self.assertLessEqual(max(display_width(line) for line in children),

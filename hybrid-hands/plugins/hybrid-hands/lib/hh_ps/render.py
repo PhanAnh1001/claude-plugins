@@ -5,7 +5,7 @@ from typing import Dict, Optional
 
 from .constants import SCHEMA_VERSION, SUBAGENT_SILENT
 from .models import HandRun, Limit, Session, Snapshot, Subagent, Usage
-from .pricing import hand_usage
+from .compact import elapsed_seconds, subagent_duration
 from .text_render import color_enabled, render_text
 from .timeutil import iso_at
 
@@ -14,8 +14,11 @@ __all__ = ["color_enabled", "render_json", "render_text"]
 
 def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
     if usage is None:
-        return None
+        usage = Usage()
     data: Dict[str, object] = {
+        "account_plan": getattr(usage, "account_plan", ""),
+        "account_5h_pct": getattr(usage, "account_5h_pct", None),
+        "account_week_pct": getattr(usage, "account_week_pct", None),
         "read": usage.read,
         "cache_read": usage.cache_read,
         "cache_write": usage.cache_write,
@@ -48,18 +51,16 @@ def _limit_json(limit: Limit) -> Dict[str, object]:
 
 
 def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
-    end = run.ended_at if run.ended_at is not None else now
-    duration = None if run.started_at is None else max(0.0, end - run.started_at)
+    duration = elapsed_seconds(run.started_at, run.ended_at, run.running, now)
     usage = run.usage
-    if usage is None:
-        usage = hand_usage(run.tokens, run.backend, run.week_limit_usd,
-                           run.week_pct_estimated)
     return {
         "run_id": run.run_id,
         "label": run.label,
         "backend": run.backend,
         "model": run.model,
+        "effort": getattr(run, "effort", ""),
         "status": run.status,
+        "exit_code": run.exit_code,
         "state": run.state,
         "tokens": dict(run.tokens),
         "usage": _usage_json(usage),
@@ -72,23 +73,34 @@ def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
     }
 
 
-def _subagent_json(agent: Subagent) -> Dict[str, object]:
+def _subagent_json(agent: Subagent, now: float, parent_session: Optional[str] = None) -> Dict[str, object]:
     status = ("running" if agent.running else
               "silent" if agent.state == SUBAGENT_SILENT else "finished")
-    return {
+    data = {
+        "model": getattr(agent, "model", ""),
+        "effort": getattr(agent, "effort", ""),
+        "started_at": iso_at(getattr(agent, "started_at", None)),
         "agent_id": agent.agent_id,
         "agent_type": agent.agent_type,
         "description": agent.description,
-        "status": status,
+        "status": agent.status if agent.provider else status,
+        "exit_code": agent.exit_code,
         "context_tokens": agent.context_tokens,
         "usage": _usage_json(agent.usage),
-        "duration_seconds": agent.duration_seconds,
+        "duration_seconds": subagent_duration(agent, now),
         "ended_at": iso_at(agent.ended_at),
     }
+
+    if agent.provider:
+        data.update(provider=agent.provider, parent_session=parent_session)
+    return data
 
 
 def _session_json(session: Session, now: float) -> Dict[str, object]:
     return {
+        "model": getattr(session, "model", ""),
+        "effort": getattr(session, "effort", ""),
+        "duration_seconds": elapsed_seconds(session.started_at, session.ended_at, session.live, now),
         "session_id": session.session_id,
         "name": session.name,
         "status": session.status,
@@ -108,7 +120,7 @@ def _session_json(session: Session, now: float) -> Dict[str, object]:
         "provider": session.provider,
         "ai_title": session.ai_title,
         "usage": _usage_json(session.usage),
-        "subagents": [_subagent_json(agent) for agent in session.subagents],
+        "subagents": [_subagent_json(agent, now, session.session_id) for agent in session.subagents],
         "hand_runs": [_hand_run_json(run, now) for run in session.hand_runs],
     }
 
@@ -123,6 +135,7 @@ def render_json(snapshot: Snapshot) -> Dict[str, object]:
         "main_session_id": snapshot.main_session_id,
         "hidden_ended_sessions": snapshot.hidden_ended_sessions,
         "limits": [_limit_json(limit) for limit in snapshot.limits],
+        "machine_usage": list(snapshot.machine_usage),
         "sessions": [_session_json(session, snapshot.generated_at)
                      for session in snapshot.sessions],
         "orphan_runs": [_hand_run_json(run, snapshot.generated_at)

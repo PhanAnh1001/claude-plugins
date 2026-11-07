@@ -7,9 +7,8 @@ before JSON decoding, then both types are checked again. Every path is resolved,
 and both the sessions root and a pinned rollout must stay inside it (a symlink out
 is ignored).
 
-USD for a hand run comes from `cost_usd` in `codex_usage.jsonl` by `run_id`, never
-recomputed. Sol's USD is estimated from the pinned rollout's total token usage and
-`backends.codex.price_per_mtok`; a missing/invalid price yields no number, not 0.
+USD is re-estimated from the central table and the ledger/registry token totals.
+An explicit backend price overrides the table; unknown models stay unknown.
 GPT percentages are account samples, kept in their own Usage fields; they are never
 derived from USD and never written to the Claude/Go `week_pct`.
 """
@@ -25,6 +24,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 from hand_ext.backends.codex import windows_from_rate_limits
 from hand_ext.codex_usage import price_for
+from usage_pricing import explicit_options
 from hand_ext.constants import CODEX_USAGE_LEDGER_NAME, DEFAULTS
 from hand_ext.go_usage import estimate_cost
 from side_session.state import load_all as load_side_states
@@ -76,6 +76,7 @@ class CodexData:
     account: Dict[str, GptWindow]
     ledger: Dict[str, Dict[str, Any]]
     price: Optional[Dict[str, float]]
+    price_options: dict = field(default_factory=dict)
     _sessions: Optional[Path] = field(default=None, repr=False)
     _rollouts: Dict[str, Tuple[Optional[dict], Dict[str, GptWindow]]] = field(
         default_factory=dict, repr=False)
@@ -105,7 +106,8 @@ class CodexData:
         windows = _ledger_windows(record) if record is not None else {}
         if not tokens and not windows:
             return None
-        usd = _number(record.get("cost_usd")) if record is not None else None
+        model = str(record.get("model") or "") if record else ""
+        usd = estimate_cost(dict(tokens), price_for(self.price_options, model))
         return _usage(tokens, windows, usd, now)
 
     def rollout_usage(self, raw: Any, now: float) -> Optional[Usage]:
@@ -372,7 +374,8 @@ def load_codex(cfg: Any, now: float) -> CodexData:
     for label, sample in _scan_rollouts(home).items():
         _keep_newest(account, label, sample)
     return CodexData(home=home, account=account, ledger=records,
-                     price=price_for(_options(cfg)))
+                     price=price_for(explicit_options(cfg, "codex")),
+                     price_options=explicit_options(cfg, "codex"))
 
 
 def pinned_rollouts(roots: Iterable[Path]) -> Dict[str, str]:

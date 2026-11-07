@@ -138,11 +138,42 @@ class SessionLinesTest(SessionLinesBase):
                               "model": {"display_name": "Opus"}})
         env = clean_env(HOME=str(self.home), CLAUDE_HOME=str(self.claude_home),
                         HYBRID_HANDS_STATE_DIR=str(state), STATUSLINE_GO_LIVE="0")
+        fake = self.home / "hh-ps"
+        snapshot = {"sessions": [{"session_id": "A", "name": "main", "provider": "claude",
+                     "live": True, "model": "opus", "effort": "high", "duration_seconds": 60,
+                     "subagents": [{"agent_id": "fake-agent", "agent_type": "tester",
+                                    "status": "running", "duration_seconds": 12}],
+                     "hand_runs": [{"run_id": "fake-run", "backend": "codex", "model": "sol",
+                                    "effort": "high", "status": "finished", "duration_seconds": 30,
+                                    "ended_at": "2026-11-07T01:00:00Z", "usage": {"usd": 0.25,
+                                    "account_plan": "pro", "account_5h_pct": 4}},
+                                   {"run_id": "lost-run", "backend": "codex", "state": "lost",
+                                    "status": "running", "duration_seconds": 999}]},
+                    {"session_id": "B", "parent_session": "A", "provider": "codex",
+                     "name": "side", "live": True}, {"session_id": "unrelated"}],
+                    "orphan_runs": [{"run_id": "hidden-orphan"}]}
+        fake.write_text("#!/usr/bin/env python3\nimport json, sys\n"
+                        "assert '--json' in sys.argv and '--once' in sys.argv\n"
+                        + "print(" + repr(json.dumps(snapshot)) + ")\n")
+        fake.chmod(0o755)
+        env.update(STATUSLINE_HANDS="1", HYBRID_HANDS_HH_PS=str(fake))
         result = run_bash(STATUSLINE, [], env, stdin=payload, cwd=self.home)
         lines = ANSI_ESCAPE.sub("", result.stdout).split("\n")
         self.assertTrue(lines[3].startswith("Go"), lines)
         self.assertIn("DS 5h", lines[3])
         self.assertEqual(lines[4], "\u25b6\ufe0e main  Claude 1.0% | Go 0.0%")
+        block = "\n".join(lines[5:])
+        self.assertIn("session/claude main | model:opus | effort:high", block)
+        self.assertIn("subagent/tester fake-agent", block)
+        self.assertIn("hand-ext/codex fake-run | model:sol | effort:high | ~$0.2500", block)
+        self.assertIn("account:pro | 5h:4% | tuần:?", block)
+        self.assertIn("ended:đang chạy | elapsed:12s", block)
+        self.assertIn("session/codex side", block)
+        self.assertNotIn("unrelated", block)
+        self.assertNotIn("hidden-orphan", block)
+        self.assertNotIn("started", block)
+        lost = next(line for line in lines if "lost-run" in line)
+        self.assertIn("ended:? | elapsed:?", lost)
 
 
 class SessionRegistryTest(SessionLinesBase):

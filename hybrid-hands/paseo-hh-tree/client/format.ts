@@ -63,16 +63,11 @@ export function gptShareText(usage: TreeUsage): string {
 
 /** `$0.78 · 1.6% tuần`, only the parts the row has; "" when it has neither. */
 export function costText(usage: TreeUsage): string {
-  const gpt = gptShareText(usage);
-  const share = percentText(usage?.week_pct, usage?.week_pct_estimated === true);
-  const estimated = usage?.usd_estimated === true;
-  const usd =
-    estimated && (usage?.usd === null || usage?.usd === undefined)
-      ? UNKNOWN_PERCENT
-      : usdText(usage?.usd, estimated);
-  return [usd, gpt || (share ? `${share} ${WEEK_WINDOW}` : "")]
-    .filter(Boolean)
-    .join(" · ");
+  const five = usage?.account_5h_pct ?? usage?.gpt_5h_pct;
+  const week = usage?.account_week_pct ?? usage?.gpt_week_pct;
+  const own = percentText(usage?.week_pct, usage?.week_pct_estimated === true);
+  return `${usage?.usd == null ? '~$?' : usdText(usage.usd, true)} · ${usage?.account_plan || 'TK'} 5h ${limitPercentText(five)} · tuần ${limitPercentText(week)}${own ? ` · riêng ${own} tuần` : ''}`;
+
 }
 
 /** Limit-cell text: `?` when hh-ps did not know the share. */
@@ -88,8 +83,8 @@ export function limitPercentText(
 /** True for every plan window hh-ps and both panels display: weekly + GPT 5h. */
 export function isShownLimit(limit: TreeLimit): boolean {
   return (
-    limit.window === WEEK_WINDOW ||
-    (limit.plan === GPT_PLAN && limit.window === GPT_5H_WINDOW)
+    (limit.window === WEEK_WINDOW && (limit.plan !== GPT_PLAN || limit.total_pct != null)) ||
+    (limit.plan === GPT_PLAN && limit.window === GPT_5H_WINDOW && limit.total_pct != null)
   );
 }
 
@@ -113,7 +108,7 @@ export function limitLine(limit: TreeLimit, now: number): string {
 
 export function durationText(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds)) {
-    return "";
+    return "?";
   }
   const total = Math.max(0, Math.floor(seconds));
   const days = Math.floor(total / SECONDS_PER_DAY);
@@ -157,15 +152,7 @@ export function ageText(iso: string | null, now: number): string {
 }
 
 export function sessionRuntimeText(session: TreeSession, now: number): string {
-  const sinceStart = secondsSince(session.started_at, now);
-  if (sinceStart === null) {
-    return "";
-  }
-  if (session.live) {
-    return durationText(sinceStart);
-  }
-  const sinceActivity = secondsSince(session.last_activity, now);
-  return sinceActivity === null ? "" : durationText(Math.max(0, sinceStart - sinceActivity));
+  return durationText(session.duration_seconds ?? null);
 }
 
 /** Reset time: `HH:MM` today, `dd/mm HH:MM` on another local day; "" when unknown. */
@@ -179,6 +166,13 @@ export function resetText(iso: string | null, now: number): string {
   const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   const sameDay = date.toDateString() === new Date(now).toDateString();
   return sameDay ? clock : `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${clock}`;
+}
+
+export function completedText(iso: string | null | undefined): string {
+  if (!iso || !Number.isFinite(Date.parse(iso))) return "?";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export function clockText(iso: string): string {

@@ -164,10 +164,15 @@ class CodexBackend(Backend):
             checks.append(Check("đăng nhập gói", False, f"chưa đăng nhập ({mode or 'không có auth'}); {hint}"))
         path = home / cc.CONFIG_FILE
         current = cc.top_level_values(path.read_text(encoding="utf-8") if path.is_file() else "")
-        wrong = [k for k, v in self._keys(options).items() if current.get(k) != v]
-        wrong += [k for k in cc.REMOVED_KEYS if k in current]
+        # Sol and hand share CODEX_HOME. Only non-overridden legacy keys block runs.
+        wrong = [k for k in cc.REMOVED_KEYS if k in current]
         checks.append(Check("cấu hình", not wrong,
                             str(path) if not wrong else f"lệch {wrong}; chạy `hand-ext setup --backend codex`"))
+        checks.append(Check(
+            "override mỗi lượt", True,
+            "model (-m), model_reasoning_effort (-c), sandbox_mode (-s): "
+            "CLI override mỗi lượt; thiếu/lệch config không chặn; không ghi config",
+            required=False))
         return checks
 
     def build_command(self, spec: RunSpec) -> Tuple[List[str], Dict[str, str], Optional[str]]:

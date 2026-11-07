@@ -1,20 +1,7 @@
-"""Compact row layout shared by the `hh-ps` text tree and hh-tree-pane.
-
-Session, side-session and child rows share one column table, so the USD and
-limit cells start at the same display column at every depth:
-Session: `<mark> <name>  <quiet | end>  <status>  <usd>  <limit %>`.
-Child:   `<mark> <kind>  <duration>  [<end>]  <usd>  <limit %>  <description>  [<bad status>]`.
-Side session listed as a child: `<mark> phụ:<name>  <quiet | duration>  [<end>]  <usd>  <limit %>  [<ai title>]`.
-No token count is shown (not even `ctx`); USD and limit % are right-aligned, and a row with no
-known limit share leaves the % cell empty. Codex rows print `~$USD` and an account
-sample as `GPT 5h X% · tuần Y%`, never the older Claude/Go `week_pct`. The session status
-takes the child end-time column (empty when ended). The bad status follows the
-description: it is empty on most rows, so a column before the description would
-leave a gap on every ok row. hh-tree-pane (hooks/tree.ts) mirrors these rules;
-change both together.
-"""
+"""Shared text rows: kind, full model/effort, elapsed, local completion time, estimated cost and account quota."""
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 
 from .constants import (
@@ -24,7 +11,6 @@ from .constants import (
     STATUS_ALIASES, SUBAGENT_RUNNING, SUBAGENT_SILENT,
 )
 from .models import HandRun, Limit, Session, Subagent, Usage
-from .pricing import hand_usage
 from .table import GROUP_TREE, Cell, Line
 from .textwidth import truncate_display
 from .timeutil import duration_text, ended_text, percent_text, usd_text
@@ -59,38 +45,47 @@ def _session_mark(session: Session) -> Cell:
     return Cell(mark, key)
 
 
-def _usd_cell(usage: Optional[Usage]) -> str:
-    amount = usage.usd if usage is not None else None
-    text = usd_text(amount)
-    if text:
-        return f"~{text}" if usage is not None and usage.usd_estimated else text
-    # Codex knows the row but not a complete price: "?" beats inventing $0.
-    return UNKNOWN_PCT if usage is not None and usage.usd_estimated else UNKNOWN
+def elapsed_seconds(start: Optional[float], end: Optional[float], running: bool,
+                    now: float) -> Optional[float]:
+    if start is None or (end is None and not running):
+        return None
+    return max(0.0, (end if end is not None else now) - start)
 
 
-def _gpt_share(usage: Optional[Usage]) -> str:
-    if usage is None or (usage.gpt_5h_pct is None and usage.gpt_week_pct is None):
-        return ""
-    windows = []
-    if usage.gpt_5h_pct is not None:
-        windows.append(f"5h {percent_text(usage.gpt_5h_pct)}")
-    if usage.gpt_week_pct is not None:
-        windows.append(f"{WEEK_WINDOW} {percent_text(usage.gpt_week_pct)}")
-    return f"GPT {' · '.join(windows)}"
+def subagent_duration(agent: Subagent, now: float) -> Optional[float]:
+    start = getattr(agent, "started_at", None)
+    if start is None:
+        return agent.duration_seconds
+    active = agent.running if agent.provider else not agent.finished
+    duration = elapsed_seconds(start, agent.ended_at, active, now)
+    return agent.duration_seconds if duration is None and agent.provider else duration
+
+
+def model_effort(row) -> str:
+    return f"{getattr(row, 'model', '') or '?'}/{getattr(row, 'effort', '') or '?'}"
+
+
+def end_cell(end: Optional[float], running: bool, now: float) -> str:
+    if running:
+        return "đang chạy"
+    return datetime.fromtimestamp(end).strftime("%Y-%m-%d %H:%M") if end is not None else "?"
 
 
 def usage_cells(usage: Optional[Usage]) -> List[Cell]:
-    """The right-aligned USD cell and the weekly/GPT-% cell (empty when unknown)."""
-    gpt = _gpt_share(usage)
-    if gpt:
-        share_text = gpt
-    else:
-        share = usage.week_pct if usage is not None else None
-        estimated = usage.week_pct_estimated if usage is not None else False
-        week = percent_text(share, estimated)
-        share_text = f"{week} {WEEK_WINDOW}" if week else ""
-    return [Cell(_usd_cell(usage), align_right=True),
-            Cell(share_text, align_right=True)]
+    amount = usage.usd if usage is not None else None
+    usd = f"~{usd_text(amount)}" if amount is not None else "~$?"
+    five = getattr(usage, "account_5h_pct", None)
+    week = getattr(usage, "account_week_pct", None)
+    if usage is not None:
+        if five is None:
+            five = usage.gpt_5h_pct
+        if week is None:
+            week = usage.gpt_week_pct
+    plan = getattr(usage, "account_plan", "") or "TK"
+    share = f"{plan} 5h {percent_text(five) or '?'} · tuần {percent_text(week) or '?'}"
+    if usage is not None and usage.week_pct is not None:
+        share += f" · riêng {percent_text(usage.week_pct, usage.week_pct_estimated)} tuần"
+    return [Cell(usd, align_right=True), Cell(share, align_right=True)]
 
 
 def limit_line(limit: Limit, now: float) -> str:
@@ -111,37 +106,22 @@ def limit_line(limit: Limit, now: float) -> str:
 
 
 def session_line(session: Session, now: float) -> Line:
-    live = session.live
-    time_text = (duration_text(_age(session.last_activity, now)) if live
-                 else ended_text(session.ended_at, now))
-    mark = _session_mark(session)
-    cells = [
-        Cell(session_name(session)),
-        Cell(time_text, align_right=True),
-        Cell(session.status if live else "", mark.color_key),
-        *usage_cells(session.usage),
-    ]
-    return Line("", cells, GROUP_TREE, mark)
+    kind = "side session" if session.side_name else "root session"
+    duration = elapsed_seconds(session.started_at, session.ended_at, session.live, now)
+    cells = [Cell(f"{session_name(session)} ({kind})"),
+             Cell(model_effort(session)), Cell(duration_text(duration) or "?", align_right=True),
+             Cell(end_cell(session.ended_at, session.live, now)),
+             *usage_cells(session.usage), Cell(session.status)]
+    return Line("", cells, GROUP_TREE, _session_mark(session))
 
 
 def side_child_line(session: Session, now: float) -> Line:
-    """A side session listed among its parent's children (shared tree columns)."""
-    if session.live:
-        time_text = duration_text(_age(session.last_activity, now))
-    elif session.started_at is not None and session.ended_at is not None:
-        time_text = duration_text(max(0.0, session.ended_at - session.started_at))
-    else:
-        time_text = ""
-    cells = [Cell(session_name(session)), Cell(time_text, align_right=True),
-             Cell(ended_text(session.ended_at, now)),
-             *usage_cells(session.usage),
-             Cell(truncate_display(session.ai_title or "", DESCRIPTION_MAX_LEN))]
-    return Line("", cells, GROUP_TREE, _session_mark(session))
+    return session_line(session, now)
 
 
 def child_kind(raw: Optional[str]) -> str:
     kind = raw or UNKNOWN
-    return truncate_display(KIND_ALIASES.get(kind, kind), KIND_MAX_LEN)
+    return KIND_ALIASES.get(kind, kind)
 
 
 def bad_status(raw: Optional[str]) -> str:
@@ -154,8 +134,8 @@ def bad_status(raw: Optional[str]) -> str:
 
 def _child_line(mark: str, key: str, kind: str, description: str, status: str,
                 duration: Optional[str], end: Optional[str],
-                usage: Optional[Usage]) -> Line:
-    cells = [Cell(child_kind(kind)), Cell(duration, align_right=True), Cell(end),
+                usage: Optional[Usage], model: str) -> Line:
+    cells = [Cell(child_kind(kind)), Cell(model), Cell(duration or "?", align_right=True), Cell(end),
              *usage_cells(usage),
              Cell(truncate_display(description or "", DESCRIPTION_MAX_LEN)),
              Cell(status, key)]
@@ -163,18 +143,27 @@ def _child_line(mark: str, key: str, kind: str, description: str, status: str,
 
 
 def subagent_line(agent: Subagent, now: float) -> Line:
-    if agent.state == SUBAGENT_RUNNING:
+    active = agent.running if agent.provider else not agent.finished
+    if agent.exit_code not in (None, 0):
+        mark, key, status = CHILD_BAD_MARK, "lost", f"exit {agent.exit_code}"
+    elif agent.provider and agent.status in ("error", "failed", "errored", "cancelled"):
+        mark, key, status = CHILD_BAD_MARK, "lost", agent.status
+    elif agent.provider and agent.status not in ("running", "completed"):
+        mark, key, status = "?", "lost", "unknown"
+    elif agent.state == SUBAGENT_RUNNING:
         mark, key, status = CHILD_RUNNING_MARK, "running", ""
     elif agent.state == SUBAGENT_SILENT:
         mark, key, status = CHILD_RUNNING_MARK, "lost", SUBAGENT_SILENT
     else:
         mark, key, status = CHILD_OK_MARK, "finished", ""
     return _child_line(mark, key, agent.agent_type, agent.description, status,
-                       duration_text(agent.duration_seconds),
-                       ended_text(agent.ended_at, now), agent.usage)
+                       duration_text(subagent_duration(agent, now)),
+                       end_cell(agent.ended_at, active, now), agent.usage, model_effort(agent))
 
 
 def _run_mark(run: HandRun) -> tuple:
+    if run.exit_code not in (None, 0):
+        return CHILD_BAD_MARK, "lost", f"exit {run.exit_code}"
     if run.state == RUN_STATE_LOST:
         return CHILD_BAD_MARK, "lost", RUN_LOST_TEXT
     if run.state == RUN_STATE_RUNNING:
@@ -189,11 +178,7 @@ def run_is_bad(run: HandRun) -> bool:
 
 def run_line(run: HandRun, now: float) -> Line:
     mark, key, status = _run_mark(run)
-    end = run.ended_at if run.ended_at is not None else now
-    duration = duration_text(None if run.started_at is None else end - run.started_at)
+    duration = duration_text(elapsed_seconds(run.started_at, run.ended_at, run.running, now))
     usage = run.usage
-    if usage is None:
-        usage = hand_usage(run.tokens, run.backend, run.week_limit_usd,
-                           run.week_pct_estimated)
     return _child_line(mark, key, run.backend, run.label or UNKNOWN, status,
-                       duration, ended_text(run.end_moment, now), usage)
+                       duration, end_cell(run.end_moment, run.running, now), usage, model_effort(run))

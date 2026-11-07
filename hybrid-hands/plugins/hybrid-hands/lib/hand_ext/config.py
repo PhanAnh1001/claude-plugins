@@ -9,11 +9,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .parallel import validate_limit
 from .constants import (
     CONFIG_SECTION, DEFAULTS, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
     GO_USAGE_LEDGER_NAME, GO_USAGE_LIVE_DEFAULT, GO_USAGE_LIVE_KEY, GO_USAGE_SECTION,
     GO_USAGE_STATE_DIR_ENV, ISOLATIONS, PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH,
-    WORKTREES_DIRNAME,
+    WORKTREES_DIRNAME, MAX_PARALLEL,
 )
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]
@@ -38,6 +39,7 @@ class ExtConfig:
     go_monthly_limit_usd: float
     go_usage_live: bool
     machine_state_dir: Path
+    max_parallel: int = MAX_PARALLEL
 
     def options(self, name: str) -> Dict[str, Any]:
         return dict(self.backends.get(name, {}))
@@ -64,18 +66,20 @@ def main_repo_root(root: Path) -> Optional[Path]:
 
 def _config_path(root: Path) -> Optional[Path]:
     """Own config first; a worktree without one shares its main repo's config."""
-    for candidate_root in (root, main_repo_root(root)):
-        if candidate_root is None:
-            continue
-        path = candidate_root / PROJECT_CONFIG_RELPATH
+    own = root / PROJECT_CONFIG_RELPATH
+    if own.is_file():
+        return own
+    main = main_repo_root(root)
+    if main is not None:
+        path = main / PROJECT_CONFIG_RELPATH
         if path.is_file():
             return path
     return None
 
 
-def _read_section(root: Path) -> Dict[str, Any]:
-    path = _config_path(root)
-    if path is None:
+def _read_section(root: Path, config_file: Optional[Path] = None) -> Dict[str, Any]:
+    path = config_file if config_file is not None else _config_path(root)
+    if path is None or not path.is_file():
         return {}
     section = json.loads(path.read_text(encoding="utf-8")).get(CONFIG_SECTION, {})
     if not isinstance(section, dict):
@@ -128,10 +132,12 @@ def _go_usage(root: Path, section: Dict[str, Any]) -> tuple[Path, Path, float, b
     return ledger, summary, limit_usd, live
 
 
-def load_config(cwd: Optional[Path] = None) -> ExtConfig:
-    root = git_toplevel(Path(cwd or Path.cwd()))
+def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None,
+                config_file: Optional[Path] = None) -> ExtConfig:
+    """Reuse caller-resolved roots/config paths within a snapshot, without caching globally."""
+    root = known_root if known_root is not None else git_toplevel(Path(cwd or Path.cwd()))
     merged = copy.deepcopy(DEFAULTS)
-    section = _read_section(root)
+    section = _read_section(root, config_file)
     isolation_explicit = "isolation" in section
     worktree_root_raw = section.get("worktree_root")
     go_section = section.pop(GO_USAGE_SECTION, {}) or {}
@@ -140,6 +146,7 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
     backends = merge_backends(merged["backends"], section.pop("backends", {}) or {})
     merged.update(section)
     go_ledger, go_summary, go_limit, go_live = _go_usage(root, go_section)
+    max_parallel = validate_limit(merged["max_parallel"])
     max_tokens = merged["max_tokens"]
     isolation = str(merged["isolation"])
     if isolation not in ISOLATIONS:
@@ -161,4 +168,5 @@ def load_config(cwd: Optional[Path] = None) -> ExtConfig:
         go_monthly_limit_usd=go_limit,
         go_usage_live=go_live,
         machine_state_dir=_state_dir(),
+        max_parallel=max_parallel,
     )

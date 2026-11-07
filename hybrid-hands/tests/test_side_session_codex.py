@@ -61,6 +61,10 @@ class CodexArgvTest(unittest.TestCase):
         argv, env = provider_argv(self._cfg(""), C.PROVIDER_CODEX, "n", "u", "/w", "hi")
         self.assertNotIn("-p", argv)
         self.assertEqual(env["CODEX_HOME"], "/h")
+        self.assertEqual(env["HYBRID_HANDS_HAND_SCOPE"], "u")
+        from side_session.commands import session_cmd
+        self.assertIn("HYBRID_HANDS_HAND_SCOPE=u", session_cmd(
+            self._cfg(""), C.PROVIDER_CODEX, "n", "u", "/w", "hi")[-1])
 
     def test_p_flag_when_profile_set(self):
         argv, _ = provider_argv(self._cfg("x"), C.PROVIDER_CODEX, "n", "u", "/w", "hi")
@@ -78,6 +82,12 @@ class CodexArgvTest(unittest.TestCase):
         prompt = build_codex_prompt("hi", "n", Path("/repo/docs/handoffs/n.md"))
         self.assertIn(str(HAND_EXT_BIN), prompt)
         self.assertNotIn(C.HAND_EXT_PLACEHOLDER, prompt)
+        for required in ("BẮT BUỘC giao code/test/tài liệu L0/L1", "ext_hand.order",
+                         "run --backend auto", "MỖI SOL", "chạy nền", "chờ đủ", "Cùng file", "Exit 8", "Sol chỉ tự viết", "hand-ext thoát lỗi",
+                         "lý do và mã thoát", "doctor` trước", "không giả định dsh hết quota"):
+            self.assertIn(required, prompt)
+        self.assertNotIn("mặc định dsh", prompt)
+        self.assertLess(prompt.index("doctor` trước"), prompt.index("codex effort medium"))
 
     def test_codex_context_does_not_cap_cumulative_usage(self):
         self.assertIn("model_auto_compact_token_limit=272000", codex_argv(self._cfg(""), "/w", "hi"))

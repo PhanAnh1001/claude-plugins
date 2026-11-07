@@ -1,12 +1,11 @@
 """USD cost of this machine's Claude API calls, read incrementally from local transcripts.
 
-Ported from live-tiktok-games sessions/ops/runs/local-usage.sh: the USD/MTok price table, the
-"keep the LAST record per (message.id, requestId)" dedupe and the skipped "<synthetic>" model.
-Differences: incremental scan by (inode, offset) into a JSON ledger, cache writes split into the
-1-hour and 5-minute kinds, model-family fallback prices, session id and cwd kept per message.
+Uses the shared hybrid-hands price file, exact model ids and incremental ledger scans.
 """
 from __future__ import annotations
 
+import hashlib
+import importlib.util
 import json
 import os
 from dataclasses import dataclass
@@ -14,8 +13,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
 
-# v3 adds session names and aliases: older ledgers are rescanned from scratch.
-LEDGER_VERSION = 3
+# hh-ps loads this file by absolute path, without the scripts directory on sys.path.
+_prices_spec = importlib.util.spec_from_file_location(
+    "_statusline_shared_prices", Path(__file__).with_name("shared_prices.py"))
+if _prices_spec is None or _prices_spec.loader is None:
+    raise ImportError("Cannot load sibling shared_prices.py")
+_prices_module = importlib.util.module_from_spec(_prices_spec)
+_prices_spec.loader.exec_module(_prices_module)
+load_prices = _prices_module.load_prices
+
+# v4 uses canonical prices and invalidates USD when the price fingerprint changes.
+LEDGER_VERSION = 4
 LEDGER_NAME = ".statusline-local-usage.json"
 DAY_SECONDS = 86400
 # Keep a little more than one 7-day window of history (window plus slack for late renders).
@@ -36,23 +44,22 @@ TITLE_MARKERS = tuple((f'"type":"{kind}"'.encode(), kind, key, field)
 class ModelPrice:
     input: float   # USD per million input tokens
     output: float  # USD per million output tokens
+    cached: Optional[float] = None
+    cache_write_5m: Optional[float] = None
+    cache_write_1h: Optional[float] = None
 
 
-# Anthropic first-party API list prices, USD per million tokens (data of 10/2026):
-#   https://platform.claude.com/docs/en/about-claude/pricing (cached table in the claude-api skill)
-# Haiku 5.5 is priced for prompts <= 100K tokens (0.50 / 2.50 above), so its cost can be low.
-PRICES = {
-    "claude-opus-5-5": ModelPrice(4.00, 20.00),
-    "claude-sonnet-5-5": ModelPrice(2.00, 10.00),
-    "claude-haiku-5-5": ModelPrice(0.10, 0.50),
-}
-# Unknown model ids fall back to the 5.5 price of their family.
-FAMILY_FALLBACK = (("opus", "claude-opus-5-5"), ("sonnet", "claude-sonnet-5-5"),
-                   ("haiku", "claude-haiku-5-5"))
-# Cache multipliers on the input price (Anthropic prompt-caching pricing).
-CACHE_WRITE_1H_FACTOR = 2.0
-CACHE_WRITE_5M_FACTOR = 1.25
-CACHE_READ_FACTOR = 0.1
+def refresh_prices() -> str:
+    rows = load_prices()
+    PRICES.clear()
+    PRICES.update({model: ModelPrice(row["input"], row["output"], row["cached"],
+                                    row.get("cache_write_5m"), row.get("cache_write_1h"))
+                   for model, row in rows.items()})
+    return hashlib.sha256(json.dumps(rows, sort_keys=True).encode()).hexdigest()
+
+
+PRICES: dict[str, ModelPrice] = {}
+refresh_prices()
 
 
 @dataclass(frozen=True)
@@ -67,13 +74,7 @@ class UsageRecord:
 
 
 def price_for(model: str) -> Optional[ModelPrice]:
-    if model in PRICES:
-        return PRICES[model]
-    name = model.lower()
-    for family, model_id in FAMILY_FALLBACK:
-        if family in name:
-            return PRICES[model_id]
-    return None
+    return PRICES.get(model)
 
 
 def _num(mapping: object, key: str) -> float:
@@ -83,20 +84,16 @@ def _num(mapping: object, key: str) -> float:
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 
-def cache_write_input_units(usage: dict) -> float:
-    """Cache-write tokens expressed in input-price units, split by cache lifetime when known."""
-    detail = usage.get("cache_creation")
-    if isinstance(detail, dict) and ("ephemeral_1h_input_tokens" in detail
-                                     or "ephemeral_5m_input_tokens" in detail):
-        return (CACHE_WRITE_1H_FACTOR * _num(detail, "ephemeral_1h_input_tokens")
-                + CACHE_WRITE_5M_FACTOR * _num(detail, "ephemeral_5m_input_tokens"))
-    return CACHE_WRITE_5M_FACTOR * _num(usage, "cache_creation_input_tokens")
-
-
 def usage_usd(price: ModelPrice, usage: dict) -> float:
-    input_units = (_num(usage, "input_tokens") + cache_write_input_units(usage)
-                   + CACHE_READ_FACTOR * _num(usage, "cache_read_input_tokens"))
-    return (input_units * price.input + _num(usage, "output_tokens") * price.output) / PER_TOKENS
+    costs = token_costs(price, token_counts(usage))
+    return sum(costs.values())
+
+
+def token_costs(price: ModelPrice, tokens: dict) -> dict:
+    rates = {"input": price.input, "output": price.output, "cache_read": price.cached,
+             "cache_write_5m": price.cache_write_5m, "cache_write_1h": price.cache_write_1h}
+    return {kind: tokens[kind] * (rate if rate is not None else 0.0) / PER_TOKENS
+            for kind, rate in rates.items()}
 
 
 def parse_timestamp(value: object) -> Optional[float]:
@@ -166,7 +163,8 @@ def session_name(entry: dict) -> tuple[str, str]:
 
 # --- Ledger ---
 def empty_ledger() -> dict:
-    return {"version": LEDGER_VERSION, "files": {}, "messages": {}, "sessions": {}, "unpriced": {}}
+    return {"version": LEDGER_VERSION, "pricing": refresh_prices(),
+            "files": {}, "messages": {}, "sessions": {}, "unpriced": {}}
 
 
 def load_ledger(path: Path) -> dict:
@@ -177,6 +175,8 @@ def load_ledger(path: Path) -> dict:
     if not isinstance(ledger, dict) or ledger.get("version") != LEDGER_VERSION:
         return empty_ledger()  # v1 ledgers hold relative units: rescan from scratch
     base = empty_ledger()
+    if ledger.get("pricing") != base["pricing"]:
+        return base
     for key in ("files", "messages", "sessions", "unpriced"):
         if not isinstance(ledger.get(key, base[key]), dict):
             return empty_ledger()
@@ -261,9 +261,6 @@ def update_ledger(home: Path, now: float) -> dict:
 
 # --- One-off window report: `usage_ledger.py --since ISO [--until ISO] [--home DIR ...]` ---
 TOKEN_KINDS = ("input", "output", "cache_write_5m", "cache_write_1h", "cache_read")
-# Input-price multiplier per token kind; output is priced separately.
-INPUT_FACTORS = {"input": 1.0, "cache_write_5m": CACHE_WRITE_5M_FACTOR,
-                 "cache_write_1h": CACHE_WRITE_1H_FACTOR, "cache_read": CACHE_READ_FACTOR}
 TOP_SESSIONS = 5
 MAIN, SUBAGENT = "main", "subagent"
 
@@ -311,9 +308,7 @@ def model_usd(model: str, tokens: dict) -> dict:
     price = price_for(model)
     if price is None:
         return {}
-    usd = {k: tokens[k] * f * price.input / PER_TOKENS for k, f in INPUT_FACTORS.items()}
-    usd["output"] = tokens["output"] * price.output / PER_TOKENS
-    return usd
+    return token_costs(price, tokens)
 
 
 def window_report(messages: dict) -> str:

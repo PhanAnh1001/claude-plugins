@@ -2,12 +2,8 @@
 
 A group is one main Claude session (its subagents share its session id) plus every claude side
 session below it. Finished runs come from go_usage.jsonl (cost_usd), runs still going from the
-run registry (tokens priced with the default Go price table). The Go week window comes from the
-live usage cache, the weekly USD limit from go_usage_summary.json.
-
-The default price table and the cost formula are ported from hybrid-hands
-plugins/hybrid-hands/lib/hand_ext/go_usage.py (estimate_cost) and constants.py
-(GO_USAGE_DEFAULT_PRICE); no hybrid-hands code is imported.
+run registry (tokens priced from the shared canonical price file). The Go week window comes
+from the live usage cache, the weekly USD limit from go_usage_summary.json.
 """
 from __future__ import annotations
 
@@ -17,6 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from shared_prices import load_prices
 
 DAY_SECONDS = 86400
 GO_WEEK_SECONDS = 7 * DAY_SECONDS
@@ -33,9 +31,7 @@ TOKENS_PER_MTOK = 1_000_000
 PERCENT = 100.0
 USD_DECIMALS = 4
 PCT_DECIMALS = 2
-# Peak Go prices, USD per 1M tokens (https://opencode.ai/docs/go, read 2026-11-04 by hybrid-hands).
-# Peak keeps the estimate an upper bound; the OpenCode Console stays the authoritative meter.
-GO_DEFAULT_PRICE = {"input": 0.30, "cached_input": 0.006, "output": 1.20}
+LEGACY_GO_MODEL = "deepseek-v4.1-flash"
 
 
 @dataclass(frozen=True)
@@ -107,14 +103,19 @@ def _tokens(value: object) -> float:
     return max(0.0, count) if count is not None else 0.0
 
 
-def estimate_cost(tokens: object) -> float:
+def estimate_cost(tokens: object, model: str = LEGACY_GO_MODEL,
+                  prices: Optional[dict] = None) -> Optional[float]:
     """USD for a run's tokens: uncached input + cached input + output, each at its own price."""
+    price = (load_prices() if prices is None else prices).get(
+        str(model).removeprefix("opencode-go/"))
+    if price is None:
+        return None
     if not isinstance(tokens, dict):
         return 0.0
     total_input, cached = _tokens(tokens.get("input")), _tokens(tokens.get("cached_input"))
     uncached = max(0.0, total_input - cached)
-    cost = (uncached * GO_DEFAULT_PRICE["input"] + cached * GO_DEFAULT_PRICE["cached_input"]
-            + _tokens(tokens.get("output")) * GO_DEFAULT_PRICE["output"]) / TOKENS_PER_MTOK
+    cost = (uncached * price["input"] + cached * price["cached"]
+            + _tokens(tokens.get("output")) * price["output"]) / TOKENS_PER_MTOK
     return round(cost, USD_DECIMALS + 2)
 
 
@@ -167,9 +168,15 @@ def finished_runs(state: Path, start: float, registry: dict[str, dict]) -> tuple
 
 
 def running_runs(registry: dict[str, dict], logged: set[str]) -> list[GoRun]:
-    return [GoRun(run_id, estimate_cost(record.get("tokens")), _parent(record), _cwd(record))
-            for run_id, record in registry.items()
-            if record.get("status") == RUN_STATUS_RUNNING and run_id not in logged]
+    runs = []
+    prices = load_prices()
+    for run_id, record in registry.items():
+        if record.get("status") != RUN_STATUS_RUNNING or run_id in logged:
+            continue
+        usd = estimate_cost(record.get("tokens"), record.get("model", ""), prices)
+        if usd is not None:
+            runs.append(GoRun(run_id, usd, _parent(record), _cwd(record)))
+    return runs
 
 
 def load_go_week(home: Path, state: Path) -> Optional[GoWeek]:

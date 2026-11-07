@@ -28,6 +28,9 @@ class Usage:
     # ChatGPT plan account samples, kept apart from the row's own weekly share above.
     gpt_5h_pct: Optional[float] = None
     gpt_week_pct: Optional[float] = None
+    account_plan: str = ""
+    account_5h_pct: Optional[float] = None
+    account_week_pct: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -55,9 +58,18 @@ class Subagent:
     duration_seconds: Optional[float]
     last_activity: Optional[float]
     usage: Optional[Usage] = None
+    started_at: Optional[float] = None
+    model: str = ""
+    effort: str = ""
+    provider: str = ""
+    status: str = ""
+    exit_code: Optional[int] = None
+    finished_at: Optional[float] = None
 
     @property
     def state(self) -> str:
+        if self.provider:
+            return self.status or "unknown"
         if self.finished:
             return SUBAGENT_FINISHED
         return SUBAGENT_SILENT if self.silent else SUBAGENT_RUNNING
@@ -69,6 +81,8 @@ class Subagent:
     @property
     def ended_at(self) -> Optional[float]:
         # The last transcript record is the best end mark a finished subagent has.
+        if self.provider:
+            return self.finished_at
         return self.last_activity if self.finished else None
 
 
@@ -92,6 +106,8 @@ class HandRun:
     week_pct_estimated: bool = False
     # Snapshot usage (Codex cost/account samples); renderers fall back to hand_usage.
     usage: Optional[Usage] = None
+    effort: str = ""
+    exit_code: Optional[int] = None
 
     @property
     def running(self) -> bool:
@@ -113,6 +129,8 @@ class HandRun:
     @property
     def duration_seconds(self) -> Optional[float]:
         if self.started_at is None:
+            return None
+        if not self.running and self.ended_at is None:
             return None
         end = self.ended_at if self.ended_at is not None else time.time()
         return max(0.0, end - self.started_at)
@@ -141,6 +159,9 @@ class Session:
     usage: Optional[Usage] = None
     subagents: List[Subagent] = field(default_factory=list)
     hand_runs: List[HandRun] = field(default_factory=list)
+    model: str = ""
+    effort: str = ""
+    finished_at: Optional[float] = None
 
     @property
     def alive(self) -> bool:
@@ -148,7 +169,8 @@ class Session:
 
     @property
     def ended_at(self) -> Optional[float]:
-        return None if self.live else self.last_activity
+        return self.finished_at if self.finished_at is not None else (
+            None if self.live else self.last_activity)
 
 
 @dataclass
@@ -162,6 +184,7 @@ class Snapshot:
     generated_at: float
     hidden_ended_sessions: int = 0
     limits: List[Limit] = field(default_factory=list)
+    machine_usage: List[dict] = field(default_factory=list)
 
     @property
     def live_sessions(self) -> int:

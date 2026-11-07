@@ -6,7 +6,7 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.19.1). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
+  `statusline` (bản 0.20.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
 - **Bản 0.19.1:** thêm dòng `GPT` dưới dòng `Go` (hoặc cuối bảng khi không có `Go`): % 5h/7d mới
@@ -136,24 +136,16 @@ số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá 
   - Khử trùng theo cặp (`message.id`, `requestId`), giữ bản ghi **cuối**; bỏ model `<synthetic>`.
   - Đo một khung giờ bất kỳ (token và USD theo model/loại token, main/subagent, top phiên):
     `python3 scripts/usage_ledger.py --since 2026-11-06T20:00:00+07:00 [--until ISO] [--home DIR]`.
-  - USD = input × giá input + output × giá output + ghi cache 1 giờ × 2 × giá input + ghi cache
-    5 phút × 1,25 × giá input + đọc cache × 0,1 × giá input. Bản ghi không tách loại cache thì toàn
-    bộ cache ghi tính 1,25×.
-  - Sổ `.statusline-local-usage.json` (version 3) lưu USD, thời điểm và phiên của từng phản hồi,
-    cùng tên và alias của phiên chính (xem mục "Khối dòng phiên"); sổ version cũ hơn bị bỏ và quét
-    lại từ đầu.
-- **Bảng giá** (USD / 1 triệu token, dữ liệu 10/2026,
-  <https://platform.claude.com/docs/en/about-claude/pricing>):
-
-  | Model | Input | Output |
-  |---|---|---|
-  | `claude-opus-5-5` | 4,00 | 20,00 |
-  | `claude-sonnet-5-5` | 2,00 | 10,00 |
-  | `claude-haiku-5-5` | 0,10 | 0,50 |
-
-  Model lạ khớp theo họ (`opus`/`sonnet`/`haiku`) và dùng giá 5.5; không khớp được thì tính 0 USD
-  và ghi vào `unpriced_models` của tóm tắt. Giá Haiku 5.5 là cho prompt ≤ 100K token, nên chi phí
-  Haiku có thể bị tính thấp.
+  - USD dùng giá riêng của input, output, cached, cache-write 5 phút/1 giờ trong nguồn chung;
+    bản ghi không tách thời hạn cache ghi dùng loại 5 phút. Cache-read Opus 5.5 là 5% giá input.
+  - Sổ `.statusline-local-usage.json` (version 4) lưu USD, thời điểm, phiên, tên và alias.
+    Fingerprint bảng giá thay đổi hoặc sổ version cũ sẽ khiến quét lại để tính USD mới.
+- **Một nguồn giá:** `hybrid-hands/plugins/hybrid-hands/config/model-prices.json`.
+  Ledger tìm file theo thứ tự `HYBRID_HANDS_PRICING_FILE`, source sibling, rồi hybrid-hands
+  installed mới nhất trong `$CLAUDE_HOME/plugins/cache/*/hybrid-hands/*`.
+  Override hỏng không chuyển sang nguồn khác. Không có hybrid-hands hoặc giá/model chưa biết
+  thì fail-open, đánh dấu `unpriced_models`, không đoán theo family và không dùng bảng fallback.
+  Giá, ngày xác minh và URL nguồn nằm trong file chung; statusline không chép bảng giá riêng.
 - **Hiệu chỉnh $/1%:**
   - Khung mặc định hằng ngày theo giờ máy: `12:00-13:30` và `21:00` hôm trước tới `07:00`.
   - File tuỳ chọn `$CLAUDE_HOME/statusline-solo-windows.txt`, mỗi dòng một khung:
@@ -182,7 +174,7 @@ số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá 
   - Giá là giá API niêm yết; hạn mức gói Claude có thể không tỉ lệ đúng với giá này giữa các model.
   - Chỉ đếm transcript trong `$CLAUDE_HOME/projects`; tài khoản khác ở thư mục cấu hình khác
     (ví dụ `~/.claude-hand`) và phiên phụ provider khác `claude` không bị tính.
-- **Nguồn port:** bảng giá và khử trùng từ `live-tiktok-games sessions/ops/runs/local-usage.sh`;
+- **Nguồn port:** khử trùng từ `live-tiktok-games sessions/ops/runs/local-usage.sh`;
   hiệu chỉnh khung solo từ `calibrate.sh`; % máy = USD ÷ $/1% từ `day-budget.sh` (cùng thư mục).
 
 ## Số ước tính tới 0,1%
@@ -225,8 +217,8 @@ Ví dụ:
     `7d.limit_usd` của model `deepseek*` trong `go_usage_summary.json`. Thiếu một trong hai thì in
     `Go -`.
   - Lượt đã xong lấy `cost_usd` trong `go_usage.jsonl` (lọc theo `ended`); lượt đang chạy trong
-    `runs/` được ước tính từ token theo bảng giá Go mặc định (giờ cao điểm: input $0,30, cached
-    $0,006, output $1,20 / 1 triệu token, port từ hybrid-hands). Lượt nối với phiên qua
+    `runs/` được ước tính theo model chính xác và giá từ file canonical chung
+    (DeepSeek dùng giá peak ước tính bảo thủ); thiếu model/giá thì không cộng USD ước tính. Lượt nối với phiên qua
     `parent_session`; lượt không có trường này không thuộc phiên nào.
 - **Phiên đang mở:** khi có thư mục `$CLAUDE_HOME/sessions` (sổ Claude Code ghi mỗi tiến trình một
   file `<pid>.json`), chỉ hiện nhóm có ít nhất một thành viên (phiên gốc hoặc phiên phụ) có tiến
@@ -340,3 +332,27 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   └── skills/setup/SKILL.md             # skill statusline:setup
 └── tests/                                # unittest (stdlib)
 ```
+
+
+### Khối hand — 0.20.0
+
+Sau bảng và nhóm phiên hiện có, statusline gọi adapter chỉ đọc `hh-ps --json --once` (thêm `--main-session` nếu session ID là UUID hợp lệ)
+để hiện phiên hiện tại, mọi subagent/hand-ext gắn với phiên và cây phiên phụ descendants.
+Mỗi dòng có loại/provider/backend, model, effort, USD ước tính `~$`, account plan,
+quota account 5h/tuần, `ended` (hoặc `đang chạy`) và elapsed. Không hiện giờ bắt đầu.
+Không hiện phiên không liên quan hoặc orphan trong khối này. Quota là mức toàn tài khoản,
+không phải phần quota riêng của hand. Thiếu quota/model/effort/thời lượng dùng `?`,
+hand có state `lost` không ghi đang chạy, thiếu end thì elapsed là `?`.
+Thiếu giá dùng `~$?`; adapter không tự suy giá hay sao chép bảng giá.
+
+Tìm executable theo thứ tự: `HYBRID_HANDS_HH_PS` (đường dẫn tuyệt đối), source sibling
+`hybrid-hands/plugins/hybrid-hands/bin/hh-ps`, rồi bản installed mới nhất trong
+`$CLAUDE_HOME/plugins/cache/*/hybrid-hands/*/bin/hh-ps`. CLI cũ không có `--once`
+được gọi lại bằng `--json` (mặc định chỉ chạy một lần). Timeout 2 giây mỗi lần gọi;
+không có executable, snapshot không có session hiện tại hoặc lỗi thì bỏ khối, giữ bảng cũ.
+`STATUSLINE_HANDS=0` tắt riêng khối này. Adapter không gọi `hand-ext run`, không khởi động
+hand/UI, không thêm network và không đọc raw transcript/auth; dữ liệu chung do hh-ps cung cấp.
+Các nguồn dữ liệu của bảng cũ giữ hành vi hiện tại.
+
+Kiểm tra dry-run adapter với executable fixture sanitized (không cài đặt hay sửa settings):
+`HYBRID_HANDS_HH_PS=/absolute/path/fake-hh-ps python3 plugins/statusline/scripts/hand_lines.py SESSION_ID /project`.

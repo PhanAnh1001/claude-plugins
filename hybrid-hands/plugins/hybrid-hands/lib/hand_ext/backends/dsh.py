@@ -70,7 +70,20 @@ DEFAULT_EFFORT = "max"
 DEFAULT_BASE_URL = "https://opencode.ai/inference/go/openai/v1"
 GO_MODEL_PREFIX = "opencode-go/"  # accepted and stripped: provider-prefixed Go model id
 EFFORTS = frozenset({"off", "low", "high", "max"})
-USER_AGENT = "hybrid-hands-hand-ext/0.25.2"  # Go asks third-party clients for their own UA
+
+
+def _plugin_version() -> str:
+    try:
+        manifest = json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        version = manifest.get("version") if isinstance(manifest, dict) else None
+        if isinstance(version, str) and re.fullmatch(r"[0-9A-Za-z.+-]+", version):
+            return version
+    except (OSError, ValueError, UnicodeError):
+        pass
+    return "unknown"
+
+
+USER_AGENT = f"hybrid-hands-hand-ext/{_plugin_version()}"  # Go asks clients for their own UA
 KEY_FILE_MODE = 0o600
 # Per-run overlay: dsh applies --patch in argv order, so this wins over hand.patch.yml.
 COMPACTION_PATCH_FILE = "compaction.patch.yml"

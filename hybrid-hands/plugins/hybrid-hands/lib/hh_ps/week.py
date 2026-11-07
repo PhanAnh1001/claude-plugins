@@ -14,6 +14,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import functools
+import hashlib
 import importlib.util
 import json
 import math
@@ -23,8 +24,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from hand_ext.constants import GO_USAGE_DEFAULT_PRICE
-from hand_ext.go_usage import estimate_cost
+from hand_ext.go_usage import estimate_cost, price_for as go_price_for
+
+from usage_pricing import load_prices
 
 from .live_rate import read_live_window
 from .models import Usage
@@ -47,9 +49,9 @@ GO_SUMMARY_NAME = "go_usage_summary.json"
 GO_LIVE_CACHE_NAME = ".statusline-go-usage.json"
 CLAUDE_CACHE_NAME = ".statusline-cache.json"
 CLAUDE_WEEK_SPLIT_NAME = ".statusline-week-split.json"
-# Statusline's per-message USD ledger; only version 3 stores USD (v1 stores relative units).
+# Statusline v4 USD requires a matching canonical pricing fingerprint.
 CLAUDE_LOCAL_USAGE_NAME = ".statusline-local-usage.json"
-LOCAL_LEDGER_VERSION = 3
+LOCAL_LEDGER_VERSION = 4
 WEEK_SPLIT_SOURCE = "statusline_week_split"
 LIVE_WINDOW = "seven_day"
 LIVE_SOURCE = "rate_limit_event"
@@ -139,6 +141,11 @@ def _number(value: Any) -> Optional[float]:
     return number if math.isfinite(number) and number >= 0 else None
 
 
+def _percent(value: Any) -> Optional[float]:
+    number = _number(value)
+    return number if number is not None and number <= PERCENT else None
+
+
 def _int(value: Any) -> Optional[int]:
     number = _number(value)
     return int(number) if number is not None else None
@@ -221,7 +228,10 @@ def _running_runs(registry: Dict[str, Dict[str, Any]], logged: set) -> List[GoWe
     for run_id, record in registry.items():
         if record.get("status") != RUN_STATUS_RUNNING or run_id in logged:
             continue
-        usd = estimate_cost(record.get("tokens") or {}, GO_USAGE_DEFAULT_PRICE)
+        usd = estimate_cost(record.get("tokens") or {},
+                            go_price_for(None, str(record.get("model") or "")))
+        if usd is None:
+            continue
         runs.append(GoWeekRun(
             run_id=run_id, usd=float(usd or 0.0),
             parent_session=str(record["parent_session"])
@@ -257,7 +267,7 @@ def _go_total(cache: Optional[Dict[str, Any]], now: float,
     reset = _number(weekly.get("resets_at"))
     now_i = int(now)
     complete = all(isinstance(windows.get(name), dict)
-                   and _number(windows[name].get("percent")) is not None
+                   and _percent(windows[name].get("percent")) is not None
                    and _number(windows[name].get("resets_at")) is not None
                    for name in ("rolling", "weekly", "monthly"))
     fetch = _number((cache or {}).get("fetched_at"))
@@ -265,29 +275,17 @@ def _go_total(cache: Optional[Dict[str, Any]], now: float,
     state_name = (cache or {}).get("state")
     live_ok = False
     if complete and state_name == "ok" and fetch is not None:
-        live_ok = True
+        live_ok = 0 <= now_i - fetch < GO_LIVE_STALE_SECONDS
     elif complete and state_name == "error" and last_ok is not None:
-        live_ok = now_i - last_ok < GO_LIVE_ERROR_KEEP_SECONDS
+        live_ok = 0 <= now_i - last_ok < GO_LIVE_ERROR_KEEP_SECONDS
     if live_ok:
-        percent = _number(weekly.get("percent"))
+        percent = _percent(weekly.get("percent"))
         stale = (now_i - (last_ok or fetch or 0)) >= GO_LIVE_STALE_SECONDS
         if reset is not None and reset <= now:
             # Same as the statusline: an expired window has reset, so show ~0%.
             return 0.0, None, True, "go_live"
         return percent, reset, bool(stale), "go_live"
-    summary = _go_summary(state) or {}
-    models = summary.get("models") if isinstance(summary.get("models"), dict) else {}
-    for name, model in models.items():
-        if GO_MODEL_MARKER not in str(name).lower() or not isinstance(model, dict):
-            continue
-        week = model.get(GO_WEEK_KEY) if isinstance(model.get(GO_WEEK_KEY), dict) else {}
-        percent = _number(week.get("percent"))
-        if percent is None:
-            continue
-        updated = _number(summary.get("updated_at"))
-        stale = (bool(week.get("estimated")) or updated is None
-                 or now_i - int(updated) >= 5 * 3600)
-        return percent, reset, stale, "ledger"
+    # Local ledger percentages describe this machine, never the whole account.
     return None, reset, True, "ledger"
 
 
@@ -300,7 +298,7 @@ def read_go_week(state: Path, claude_home: Path, now: float) -> Optional[GoWeek]
     weekly = windows.get("weekly") if isinstance(windows.get("weekly"), dict) else {}
     reset = _number(weekly.get("resets_at"))
     total, live_reset, total_estimated, source = _go_total(cache, now, state)
-    if total is None and not windows:
+    if total is None and not windows and limit is None:
         return None
     start = (live_reset if live_reset is not None else now) - WEEK_SECONDS
     registry = _registry(state)
@@ -366,6 +364,10 @@ def _ledger_usd_since(claude_home: Path, since: float, until: float) -> Optional
     """This machine's USD after ``since`` from the statusline ledger; None when unusable."""
     ledger = read_json(claude_home / CLAUDE_LOCAL_USAGE_NAME)
     if ledger is None or ledger.get("version") != LOCAL_LEDGER_VERSION:
+        return None
+    prices = load_prices()
+    if not prices or ledger.get("pricing") != hashlib.sha256(
+            json.dumps(prices, sort_keys=True).encode()).hexdigest():
         return None
     messages = ledger.get("messages")
     if not isinstance(messages, dict):
@@ -494,10 +496,12 @@ def read_claude_week(claude_home: Path, now: float) -> Optional[ClaudeWeek]:
     """The Claude weekly account split; uses the live wrapper sample when it is the newest."""
     cache_path = claude_home / CLAUDE_CACHE_NAME
     cache = read_json(cache_path)
-    cache_pct = _number((cache or {}).get("week"))
+    cache_pct = _percent((cache or {}).get("week"))
     cache_ts = _path_mtime(cache_path)
     live = read_live_window(claude_home, LIVE_WINDOW, now)
-    use_live = live is not None and (cache_ts == 0 or live.ts > cache_ts)
+    use_live = (live is not None and _percent(live.pct) is not None
+                and 0 <= now - live.ts < SUMMARY_STALE_SECONDS
+                and (cache_ts == 0 or live.ts > cache_ts))
     if cache_pct is None and not use_live:
         return None
     cache_reset = _number((cache or {}).get("week_reset"))

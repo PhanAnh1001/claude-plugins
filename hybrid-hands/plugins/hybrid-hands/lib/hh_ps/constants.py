@@ -70,9 +70,8 @@ ENDED_DOT = "○"
 CHILD_RUNNING_MARK = "▶"
 CHILD_OK_MARK = "✓"
 CHILD_BAD_MARK = "✗"
-LEGEND = ("▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · "
-          "$ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng · "
-          "% GPT = tài khoản")
+LEGEND = ("▶ phiên này ● sống ○ đã dừng · kết thúc = giờ local · "
+          "USD ước tính · % tài khoản 5h/tuần · riêng = phần của lượt")
 # Two-cell tree art keeps nested rows narrow enough for a pane beside the chat.
 BRANCH = "├ "
 LAST_BRANCH = "└ "

@@ -9,6 +9,9 @@ export const UUID_RE =
 // older hh-ps builds omit all of them.
 const usageSchema = z
   .object({
+    account_plan: z.string().optional(),
+    account_5h_pct: z.number().nullable().optional(),
+    account_week_pct: z.number().nullable().optional(),
     usd: z.number().nullable().optional(),
     usd_estimated: z.boolean().optional(),
     week_pct: z.number().nullable().optional(),
@@ -36,12 +39,15 @@ const limitSchema = z
 
 const handRunSchema = z
   .object({
+    effort: z.string().optional(),
+    exit_code: z.number().nullable().optional(),
+    exit: z.number().nullable().optional(),
     run_id: z.string(),
     label: z.string(),
     backend: z.string(),
     model: z.string(),
     status: z.string(),
-    state: z.enum(["running", "finished", "lost"]),
+    state: z.string(),
     tokens: z
       .object({
         input: z.number(),
@@ -61,10 +67,18 @@ const handRunSchema = z
 
 const subagentSchema = z
   .object({
+    provider: z.string().optional(),
+    parent_session: z.string().nullable().optional(),
+    model: z.string().optional(),
+    effort: z.string().optional(),
+    exit_code: z.number().nullable().optional(),
+    exit: z.number().nullable().optional(),
+    started_at: z.string().nullable().optional(),
+    ended_at: z.string().nullable().optional(),
     agent_id: z.string(),
     agent_type: z.string(),
     description: z.string(),
-    status: z.enum(["running", "silent", "finished"]),
+    status: z.string(),
     context_tokens: z.number().nullable(),
     duration_seconds: z.number().nullable(),
     usage: usageSchema,
@@ -73,6 +87,12 @@ const subagentSchema = z
 
 const sessionSchema = z
   .object({
+    model: z.string().optional(),
+    effort: z.string().optional(),
+    exit_code: z.number().nullable().optional(),
+    exit: z.number().nullable().optional(),
+    duration_seconds: z.number().nullable().optional(),
+    ended_at: z.string().nullable().optional(),
     session_id: z.string(),
     name: z.string(),
     parent_session: z.string().nullable().optional(),
@@ -104,6 +124,10 @@ export const treeSchema = z
     all_projects: z.boolean(),
     main_session_id: z.string().nullable(),
     limits: z.array(limitSchema).optional(),
+    machine_usage: z.array(z.object({
+      plan: z.enum(["Claude", "GPT"]), window: z.literal("tuần"),
+      usd: z.number().nullable(), source: z.string(),
+    })).optional(),
     sessions: z.array(sessionSchema),
     orphan_runs: z.array(handRunSchema),
     totals: z

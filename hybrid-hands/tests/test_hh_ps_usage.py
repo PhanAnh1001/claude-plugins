@@ -122,8 +122,8 @@ class ClaudePriceTest(unittest.TestCase):
     def test_opus_sonnet_haiku_and_family_fallback(self) -> None:
         self.assertEqual(price_for(OPUS), PRICES[OPUS])
         self.assertEqual(price_for(HAIKU), PRICES[HAIKU])
-        self.assertEqual(price_for(SONNET), PRICES["claude-sonnet-5-5"])
-        self.assertEqual(price_for("claude-opus-4-20250514"), PRICES[OPUS])
+        self.assertIsNone(price_for(SONNET))
+        self.assertIsNone(price_for("claude-opus-4-20250514"))
         self.assertIsNone(price_for("unknown-model"))
 
     def test_cache_write_5m_and_1h_prices(self) -> None:
@@ -217,21 +217,21 @@ class TextUsageTest(unittest.TestCase):
         self.assertEqual(len(rows), 4, "\n".join(rows))
         # USD is right-aligned: every row's USD text ends at the same cell.
         ends = {display_width(line[:line.index("$")]) + len(re.search(r"\$[\d.]+", line).group(0))
-                for line in rows if "<$" not in line}
+                for line in rows if "<$" not in line and re.search(r"\$[\d.]+", line)}
         self.assertEqual(len(ends), 1, "\n".join(rows))
 
     def test_side_ai_title_uses_the_hand_description_column(self) -> None:
         lines = render_text(_tree_snapshot([_main_session(), _side_session()])).splitlines()
-        side = next(line for line in lines if "Tiêu đề tự động" in line)
+        side = next(line for line in lines if "phụ:RV-12" in line)
         hand = next(line for line in lines if "lượt hand" in line)
-        self.assertEqual(display_width(side[:side.index("Tiêu đề tự động")]),
+        self.assertEqual(display_width(side[:side.rindex("busy")]),
                          display_width(hand[:hand.index("lượt hand")]))
 
     def test_rows_show_usd_and_limit_percent_but_no_tokens(self) -> None:
         text = render_text(_tree_snapshot([_main_session(), _side_session()]))
         self.assertIn("$0.42", text)
         self.assertIn("<$0.01", text)
-        self.assertRegex(text, r"\$0\.78\s+1\.6% tuần")  # $0.7824 of the $50 week
+        self.assertRegex(text, r"\$\?.*lượt hand")  # Unknown model has no family fallback.
         for gone in ("|", "ctx ", "out ", "1k", "500k"):
             self.assertNotIn(gone, text)
 
@@ -241,7 +241,7 @@ class TextUsageTest(unittest.TestCase):
         main = _session("main", "cha")
         lines = render_text(_tree_snapshot([main, side])).splitlines()
         row = next(line for line in lines if "phụ:codex" in line)
-        self.assertRegex(row, r"1p\s+-$")
+        self.assertRegex(row, r"đang chạy.*\?")
 
 
 class JsonUsageTest(unittest.TestCase):
@@ -254,7 +254,8 @@ class JsonUsageTest(unittest.TestCase):
             sessions=[main], orphan_runs=[orphan], since_seconds=3600, cwd="",
             all_projects=False, main_session_id=None, generated_at=NOW))
         session = data["sessions"][0]
-        self.assertEqual(session["usage"], {"read": 1000, "cache_read": 2000,
+        self.assertEqual(session["usage"], {"account_plan": "", "account_5h_pct": None,
+                                            "account_week_pct": None, "read": 1000, "cache_read": 2000,
                                             "cache_write": 300, "out": 40,
                                             "usd": 0.42, "week_pct": None,
                                             "week_pct_estimated": False})
@@ -263,11 +264,11 @@ class JsonUsageTest(unittest.TestCase):
         self.assertEqual(agent_usage["out"], 7)
         hand_usage_json = session["hand_runs"][0]["usage"]
         self.assertIsNone(hand_usage_json["cache_write"])
-        self.assertIsNotNone(hand_usage_json["usd"])
-        self.assertAlmostEqual(hand_usage_json["week_pct"], 0.7824 / 50.0 * 100,
-                               places=4)
+        self.assertIsNone(hand_usage_json["usd"])
+        self.assertIsNone(hand_usage_json["week_pct"])
         orphan_usage = data["orphan_runs"][0]["usage"]
-        self.assertEqual(orphan_usage["read"], 80)
+        self.assertEqual(data["orphan_runs"][0]["tokens"]["input"], 90)
+        self.assertEqual(orphan_usage["read"], 0)
         self.assertIsNone(orphan_usage["usd"])
         self.assertIsNone(orphan_usage["week_pct"])
 

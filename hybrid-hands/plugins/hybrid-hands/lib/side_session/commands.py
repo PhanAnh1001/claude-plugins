@@ -108,7 +108,7 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
                   effort: str | None = None) -> tuple[list[str], dict[str, str]]:
     if provider == C.PROVIDER_CODEX:
         return (codex_argv(cfg, workdir, prompt, model, effort),
-                {"CODEX_HOME": str(cfg.codex_home)})
+                {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: uuid})
     if provider in C.EXTERNAL_PROVIDERS:
         if prompt_path is None:
             raise ValueError(f"{provider} cần prompt_path để chạy hand-ext")

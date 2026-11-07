@@ -12,10 +12,10 @@ from hand_ext.constants import GO_USAGE_BACKENDS
 from hand_ext.go_usage import estimate_cost, price_for as go_price_for
 
 from .models import Usage
+from usage_pricing import model_price, load_prices
 
 PER_TOKENS = 1_000_000
 SYNTHETIC_MODEL = "<synthetic>"
-GO_HAND_PRICE = go_price_for(None)
 PERCENT = 100.0
 
 
@@ -23,32 +23,22 @@ PERCENT = 100.0
 class ModelPrice:
     input: float   # USD per million input tokens
     output: float  # USD per million output tokens
+    cached: Optional[float] = None
+    cache_write_5m: Optional[float] = None
+    cache_write_1h: Optional[float] = None
 
 
-# Anthropic first-party API list prices, USD per million tokens (data of 10/2026):
-#   https://platform.claude.com/docs/en/about-claude/pricing
-PRICES = {
-    "claude-opus-5-5": ModelPrice(4.00, 20.00),
-    "claude-sonnet-5-5": ModelPrice(2.00, 10.00),
-    "claude-haiku-5-5": ModelPrice(0.10, 0.50),
-}
-# Unknown model ids fall back to the 5.5 price of their family.
-FAMILY_FALLBACK = (("opus", "claude-opus-5-5"), ("sonnet", "claude-sonnet-5-5"),
-                   ("haiku", "claude-haiku-5-5"))
-# Cache multipliers on the input price (Anthropic prompt-caching pricing).
+# The public two-field constructor remains compatible with older callers.
+def price_for(model: str) -> Optional[ModelPrice]:
+    row = model_price(model)
+    return ModelPrice(row["input"], row["output"], row["cached"],
+                      row.get("cache_write_5m"), row.get("cache_write_1h")) if row else None
+
+
+PRICES = {key: price_for(key) for key in load_prices()}
 CACHE_WRITE_1H_FACTOR = 2.0
 CACHE_WRITE_5M_FACTOR = 1.25
 CACHE_READ_FACTOR = 0.1
-
-
-def price_for(model: str) -> Optional[ModelPrice]:
-    if model in PRICES:
-        return PRICES[model]
-    name = model.lower()
-    for family, model_id in FAMILY_FALLBACK:
-        if family in name:
-            return PRICES[model_id]
-    return None
 
 
 def _num(mapping: object, key: str) -> float:
@@ -69,15 +59,29 @@ def cache_write_input_units(usage: dict) -> float:
 
 
 def usage_usd(price: ModelPrice, usage: dict) -> float:
-    input_units = (_num(usage, "input_tokens") + cache_write_input_units(usage)
-                   + CACHE_READ_FACTOR * _num(usage, "cache_read_input_tokens"))
-    return (input_units * price.input + _num(usage, "output_tokens") * price.output) / PER_TOKENS
+    detail = usage.get("cache_creation")
+    five = price.cache_write_5m
+    hour = price.cache_write_1h
+    cached = price.cached
+    # Legacy two-field ModelPrice callers retain their documented multipliers.
+    five = five if five is not None else price.input * CACHE_WRITE_5M_FACTOR
+    hour = hour if hour is not None else price.input * CACHE_WRITE_1H_FACTOR
+    cached = cached if cached is not None else price.input * CACHE_READ_FACTOR
+    if isinstance(detail, dict) and any(k in detail for k in
+            ("ephemeral_1h_input_tokens", "ephemeral_5m_input_tokens")):
+        write = (hour * _num(detail, "ephemeral_1h_input_tokens")
+                 + five * _num(detail, "ephemeral_5m_input_tokens"))
+    else:
+        write = five * _num(usage, "cache_creation_input_tokens")
+    return (price.input * _num(usage, "input_tokens") + write
+            + cached * _num(usage, "cache_read_input_tokens")
+            + price.output * _num(usage, "output_tokens")) / PER_TOKENS
 
 
 def _token_count(value: Any) -> int:
     try:
         return max(0, int(value or 0))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 
@@ -96,7 +100,7 @@ def hand_usage(tokens: Dict[str, Any], backend: str,
     if backend in GO_USAGE_BACKENDS:
         usd = estimate_cost({"input": total_input, "cached_input": cached,
                              "output": _token_count(tokens.get("output"))},
-                            GO_HAND_PRICE)
+                            go_price_for(None))
     if usd is not None and week_limit_usd and week_limit_usd > 0:
         week_pct = usd / week_limit_usd * PERCENT
     return Usage(read=max(0, total_input - cached), cache_read=cached,

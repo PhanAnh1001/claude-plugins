@@ -117,15 +117,17 @@ class HhPsTest(unittest.TestCase):
         self.assertEqual(session["subagents"][0]["status"], "running")
         self.assertEqual(set(session["subagents"][0]),
                          {"agent_id", "agent_type", "description", "status",
-                          "context_tokens", "usage", "duration_seconds", "ended_at"})
+                          "context_tokens", "usage", "duration_seconds", "ended_at",
+                          "model", "effort", "started_at", "exit_code"})
         run = session["hand_runs"][0]
         self.assertEqual(set(run), {"run_id", "label", "backend", "model", "status",
                                     "state", "tokens", "usage", "started_at", "ended_at",
                                     "duration_seconds", "parent_session", "pid",
-                                    "child_pid"})
+                                    "child_pid", "effort", "exit_code"})
         self.assertEqual(set(session["usage"]),
                          {"read", "cache_read", "cache_write", "out", "usd",
-                          "week_pct", "week_pct_estimated"})
+                          "week_pct", "week_pct_estimated", "usd_estimated",
+                          "account_plan", "account_5h_pct", "account_week_pct"})
         self.assertIn("ai_title", session)
         self.assertEqual(set(run["tokens"]), {"input", "cached_input", "output"})
         self.assertEqual(len(data["orphan_runs"]), 1)
@@ -167,7 +169,7 @@ class HhPsTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, ARGPARSE_EXIT)
 
     def test_watch_one_iteration_returns(self) -> None:
-        code, out = self.run_cli("--watch", "2", "--count", "1")
+        code, out = self.run_cli("--watch", "2", "--count", "1", "--once")
         self.assertEqual(code, 0, out)
         self.assertIn("Tổng:", out)
 

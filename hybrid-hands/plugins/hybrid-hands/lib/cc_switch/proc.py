@@ -39,7 +39,9 @@ def process_alive(pid: int) -> bool:
         return False
     state = _ps_value("stat=", pid)
     if state is None:
-        return True
+        # The process may have exited/reaped between kill(pid, 0) and ps.
+        # Keep the live-PID fallback when ps itself is unavailable.
+        return pid_alive(pid)
     return not state.startswith(ZOMBIE_STATE_PREFIX)
 
 

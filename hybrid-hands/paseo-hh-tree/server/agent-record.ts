@@ -33,6 +33,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function asSessionId(value: unknown): string | null {
+  return typeof value === "string" && UUID_RE.test(value) ? value : null;
+}
+
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
@@ -71,7 +75,8 @@ export async function findAgentSession(agentId: string): Promise<AgentSession | 
     return {
       cwd: asString(record.cwd),
       sessionId:
-        asString(runtime?.sessionId) ?? asString(persistence?.sessionId),
+        asSessionId(runtime?.sessionId) ?? asSessionId(persistence?.sessionId)
+        ?? asSessionId(persistence?.nativeHandle),
     };
   }
   return null;

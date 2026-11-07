@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -20,10 +21,11 @@ from .config import PLUGIN_DIR, ExtConfig
 from .constants import (
     AUTO_BACKEND, BROWSER_BACKEND, CODEX_FALLBACK_EFFORT, CODEX_FALLBACK_MODEL,
     DSH_CAPACITY_MAX_CONTINUATIONS, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_USAGE,
-    FALLBACK_STATUSES,
+    FALLBACK_STATUSES, EXIT_PARALLEL_FULL,
     GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
     ISOLATION_WORKTREE, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
+from .parallel import ParallelFull, reserve_slot
 from .prompt import STDIN_MARK, build_prompt, read_brief
 from .run_registry import RunRegistry
 from .runner import RunOutcome, run_backend
@@ -144,14 +146,13 @@ def _plugin_version() -> Optional[str]:
 
 
 def _write_meta(run_dir: Path, ctx: isolation.IsolationContext, spec: RunSpec,
-                backend: str, label: str) -> None:
+                backend: str, label: str) -> dict:
     meta = {
         "base_commit": ctx.base_commit, "dirty": ctx.dirty,
         "dirty_files": ctx.dirty_files, "plugin_version": _plugin_version(),
         "backend": backend, "model": spec.model, "label": label,
     }
-    _write_run_file(run_dir / META_FILE,
-                    json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
+    return meta
 
 
 @dataclass
@@ -186,6 +187,24 @@ def _prepare_context(cfg: ExtConfig, cwd: Path, choice: isolation.IsolationChoic
         return None, EXIT_USAGE
 
 
+def _resolve_parent_session(cfg: ExtConfig) -> Optional[str]:
+    """Map runtime thread/agent ids to the side state's canonical session uuid."""
+    thread = os.environ.get("CODEX_THREAD_ID")
+    agent = os.environ.get("PASEO_AGENT_ID")
+    if thread or agent:
+        from hh_ps.registry_source import load_ps_config
+        from side_session.state import load_all
+        try:
+            states = load_all(load_ps_config(cfg.root).side_state_dir)
+        except (OSError, ValueError, TypeError, KeyError):
+            states = []
+        for state in states:
+            if ((thread and thread in (state.uuid, state.codex_thread_id)) or
+                    (agent and agent in (state.uuid, state.paseo_agent_id))):
+                return state.uuid
+    return thread or os.environ.get("CLAUDE_CODE_SESSION_ID") or None
+
+
 def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
                  label: str, cwd: Path, *, brief: Optional[str] = None,
                  ctx: Optional[isolation.IsolationContext] = None,
@@ -199,11 +218,12 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
     if ctx is None:
         raise isolation.IsolationError("thiếu worktree đã chuẩn bị cho lượt chạy")
     spec = _spec(cfg, args, backend, prompt, ctx.run_cwd, run_id)
-    _write_meta(run_dir, ctx, spec, backend.name, label)
+    metadata = _write_meta(run_dir, ctx, spec, backend.name, label)
     started = _now()
     registry = RunRegistry(
         cfg.machine_state_dir / HAND_RUNS_SUBDIR, run_id, label, backend.name,
-        spec.model, cwd, spec.run_dir)
+        spec.model, cwd, spec.run_dir, parent_session=_resolve_parent_session(cfg),
+        effort=spec.effort, metadata=metadata)
     registry.start()
     no_apply = bool(getattr(args, "no_apply", False))
     keep_worktree = bool(getattr(args, "keep_worktree", False))
@@ -458,6 +478,19 @@ def _record_go(cfg: ExtConfig, entry: dict,
 
 
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    with ExitStack() as slots:
+        try:
+            slots.enter_context(reserve_slot(cfg.root, cfg.max_parallel))
+        except ParallelFull as exc:
+            print(f"hand-ext: {exc}", file=sys.stderr)
+            return EXIT_PARALLEL_FULL
+        except OSError as exc:
+            print(f"hand-ext: không khóa được slot hand: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        return _cmd_run(cfg, args)
+
+
+def _cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
     browser = bool(getattr(args, "browser", False))
     validate_browser(args.backend, browser)
     brief = read_brief(args.brief)

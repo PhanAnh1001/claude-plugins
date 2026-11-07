@@ -24,6 +24,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from usage_pricing import token_price, explicit_options
+
 from .backends import codex
 from .constants import CODEX_PRICE_KEY, CODEX_USAGE_LEDGER_NAME
 from .go_usage import COST_ESTIMATED, COST_UNKNOWN, _number, estimate_cost
@@ -40,8 +42,10 @@ def ledger_path(cfg: Any) -> Path:
     return Path(cfg.machine_state_dir) / CODEX_USAGE_LEDGER_NAME
 
 
-def price_for(options: Optional[dict]) -> Optional[Dict[str, float]]:
+def price_for(options: Optional[dict], model: str = "gpt-6.1-sol") -> Optional[Dict[str, float]]:
     """`backends.codex.price_per_mtok` = {input, cached, output} USD/1M, or None."""
+    if CODEX_PRICE_KEY not in (options or {}):
+        return token_price(model)
     raw = (options or {}).get(CODEX_PRICE_KEY)
     if not isinstance(raw, dict):
         return None
@@ -111,7 +115,7 @@ def record_run(cfg: Any, entry: Dict[str, Any], spec: Any,
     """Append one codex turn; only file errors escape (the caller warns and keeps going)."""
     tokens = entry.get("tokens")
     tokens = tokens if isinstance(tokens, dict) else {}
-    price = price_for(spec.options)
+    price = price_for(explicit_options(cfg, "codex"), str(entry.get("model") or ""))
     cost = estimate_cost(tokens, price)
     source = COST_ESTIMATED if cost is not None else COST_UNKNOWN
     record = build_record(str(entry.get("run_id") or ""), str(entry.get("ended") or ""),

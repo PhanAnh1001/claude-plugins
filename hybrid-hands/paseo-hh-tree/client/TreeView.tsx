@@ -6,15 +6,13 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 
 import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
-import { OrphanBlock } from "./ChildRows";
-import { durationText, clockText } from "./format";
-import { LimitsBlock } from "./LimitsBlock";
+import { panelRows } from "./compact";
+import type { NestedSession } from "./nest";
+import { durationText } from "./format";
 import { nestSessions } from "./nest";
 import { OrphanSideBlock, SessionBlock } from "./SessionBlock";
 
 const REFRESH_INTERVAL_MS = 5_000;
-const REFRESH_SECONDS = REFRESH_INTERVAL_MS / 1_000;
-const SEPARATOR = " · ";
 
 interface TreeViewProps {
   agentId?: string;
@@ -58,12 +56,11 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
 
   const tree = query.data.tree;
   const now = Date.now();
-  const empty = tree.sessions.length === 0 && tree.orphan_runs.length === 0;
+  const empty = tree.sessions.length === 0;
   const nested = nestSessions(tree.sessions);
 
   const toggleSession = (session: TreeSession) => {
-    const runningChild = session.subagents.some((agent) => agent.status === "running");
-    const fallback = session.live || runningChild;
+    const fallback = true;
     setExpanded((previous) => {
       const current = previous[session.session_id] ?? fallback;
       return { ...previous, [session.session_id]: !current };
@@ -75,34 +72,12 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
       contentContainerStyle={{ padding: layout.compact ? 12 : 20 }}
     >
-      <LimitsBlock
-        limits={tree.limits ?? []}
-        theme={theme}
-        compact={layout.compact}
-        now={now}
-      />
-      <Text style={{ color: theme.colors.foreground, fontSize: 15, fontWeight: "600" }}>
-        Cây phiên hybrid-hands
-      </Text>
-      <Text
-        style={{
-          color: theme.colors.foregroundMuted,
-          fontSize: 12,
-          marginTop: 2,
-          marginBottom: 8,
-        }}
-      >
-        Tự làm mới mỗi {REFRESH_SECONDS} giây
-      </Text>
-      {empty ? (
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>
-          Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
-        </Text>
-      ) : null}
-      {nested.roots.map((session) => (
-        <View key={session.session_id} style={{ marginBottom: 6 }}>
+      {panelRows(tree).filter(row => row.kind === "summary" || nested.roots.some(s => s.session_id === row.session.session_id)).map((row, i) => row.kind === "summary" ? (
+        <Text key={`summary-${i}`} style={{ color: theme.colors.foregroundMuted, fontSize: layout.compact ? 12 : 13 }}>{row.text}</Text>
+      ) : (
+        <View key={row.session.session_id} style={{ marginBottom: 6 }}>
           <SessionBlock
-            session={session}
+            session={nested.roots.find(s => s.session_id === row.session.session_id) as NestedSession}
             depth={0}
             theme={theme}
             compact={layout.compact}
@@ -112,6 +87,11 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
           />
         </View>
       ))}
+      {empty ? (
+        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>
+          Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
+        </Text>
+      ) : null}
       <OrphanSideBlock
         sessions={nested.orphanSides}
         theme={theme}
@@ -120,31 +100,6 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
         expanded={expanded}
         onToggle={toggleSession}
       />
-      <OrphanBlock
-        runs={tree.orphan_runs}
-        theme={theme}
-        compact={layout.compact}
-        now={now}
-      />
-      <View
-        style={{
-          marginTop: 16,
-          paddingTop: 8,
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.border,
-        }}
-      >
-        <Text style={{ color: theme.colors.foreground, fontSize: 13 }}>
-          Tổng: {tree.totals.live_sessions} phiên sống
-          {SEPARATOR}
-          {tree.totals.running_subagents} subagent đang chạy
-          {SEPARATOR}
-          {tree.totals.running_hand_runs} hand ngoài đang chạy
-        </Text>
-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12, marginTop: 2 }}>
-          cập nhật lúc {clockText(tree.generated_at)}
-        </Text>
-      </View>
     </ScrollView>
   );
 }

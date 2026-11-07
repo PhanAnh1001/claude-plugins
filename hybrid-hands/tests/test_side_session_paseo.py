@@ -212,7 +212,8 @@ class PaseoStartTest(unittest.TestCase):
             self.assertEqual(payload["workdir"], str(tmp / "wt" / "n"))
             self.assertEqual(payload["model"], C.CODEX_MODEL_DEFAULT)
             self.assertEqual(payload["effort"], C.CODEX_EFFORT_DEFAULT)
-            self.assertEqual(payload["env"], {"CODEX_HOME": str(cfg.codex_home)})
+            self.assertEqual(payload["env"]["CODEX_HOME"], str(cfg.codex_home))
+            self.assertEqual(payload["env"]["HYBRID_HANDS_HAND_SCOPE"], actions.state.load(cfg.state_dir, "n").uuid)
             self.assertNotIn("modeId", payload)
             options = payload["providerOptions"]
             self.assertEqual(options["approval_policy"], "never")

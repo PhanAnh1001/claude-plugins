@@ -3,6 +3,36 @@ name: paseo
 description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi và điều khiển phiên brain/hand từ xa - cài đặt, khởi và dừng daemon, ghép điện thoại (người dùng tự làm), chạy hand Codex với CODEX_HOME riêng (~/.codex-hand, đăng nhập gói ChatGPT, không API key) qua provider tuỳ biến, theo dõi bằng ls/logs/wait/send, và giới hạn (phiên claude mở ngoài Paseo không tự hiện). Từ khoá kích hoạt - "paseo", "điện thoại", "theo dõi phiên", "điều khiển từ xa", "ghép điện thoại", "pair", "xem hand trên điện thoại", "daemon paseo".
 ---
 
+## Ngoại lệ Sol native trên Paseo — 0.27.0 (quyết định A)
+
+Theo [policy đầy đủ ở ext-hand](../ext-hand/SKILL.md), ưu tiên tab native chỉ cho Sol trên Paseo khi backend thực theo `ext_hand.order` là codex `gpt-6.1-sol` low và tools chọn được model/effort riêng; giữ `fork_turns=none`, full brief/luật dữ liệu, executor không recursion, tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4), cùng file/phụ thuộc tuần tự. Không áp cho Opus/Claude/dsh hay executor, không đổi code/slots hand-ext, bật parallel-subagents hay sửa config. Thiếu capability trước spawn hoặc backend khác thì fallback `hand-ext run --backend auto`; unknown sau spawn phải xác minh child, không tạo duplicate writer. Native dùng báo cáo/usage native/Paseo, không có ledger hand-ext; thiếu hiện `?`, không bịa quota. Trên điện thoại đã kết nối Paseo, mở Sol rồi bấm tab child; completed giữ tab/history, không archive top-level/parent, không cần pairing/config mới. Hand-ext shell không tự hiện hội thoại; A đã đạt nên B (agent ngang hàng/archive) chưa triển khai.
+
+### Kiểm chứng bridge read-only
+
+Gửi một JSON qua stdin cho `node "${CLAUDE_PLUGIN_ROOT}/lib/side_session/paseo_bridge.mjs" "<thư-mục-gói-@getpaseo/cli-0.15.0>"`. Hai request mẫu dưới đây dùng placeholder, không chứa credential; chỉ dùng với phiên/fixture được phép đọc:
+
+```json
+{"command":"subagents","agentId":"<parent-agent-id>","expectedTargetKey":"<targetKey-đã-lưu>"}
+```
+
+```json
+{"command":"subagent-timeline","agentId":"<parent-agent-id>","subagentId":"<child-id-từ-subagents>","expectedTargetKey":"<targetKey-đã-lưu>"}
+```
+
+`agentId` là parent Sol trong Paseo; lấy `subagentId` từ danh sách child của parent đó. Dùng `expectedTargetKey` từ state/metadata endpoint đã lưu để chặn nhầm daemon (`TARGET_CHANGED`); không lấy từ credential. Đối chiếu `parentAgentId` và `subagents[].parentAgentId` với parent, rồi `subagentId` và `rows` của timeline để xác minh history. Hai command chỉ đọc, không tạo/gửi prompt/cancel/archive agent. Probe local Codex CLI 0.166.0 + Paseo CLI 0.15.0 đã xác minh child `completed` đúng parent và timeline 3 dòng assistant; nếu unknown thì giữ child hiện có để xác minh, không spawn lại.
+
+## Usage panel 0.26.0
+
+`hh-ps --once` chạy một lần; `--json` giữ dữ liệu máy đọc, `--watch 5` theo dõi. Mặc định hiện đủ việc chạy/vừa xong theo `--since`, không gấp còn 3 việc và không ẩn cây đã xong (`--full`/`--ended` giữ tương thích). Mỗi dòng session/subagent/hand và phiên phụ mọi provider/backend có model, effort, USD~, quota tài khoản 5h/tuần, ended hoặc `đang chạy`, elapsed. Elapsed đang chạy tăng theo thời gian; ended cố định duration khi xong. Không hiện giờ bắt đầu trong text/panel/statusline; metadata/JSON vẫn giữ started. Thiếu nguồn hoặc legacy unknown hiện `?`, không bịa.
+
+Giá chỉ từ [`config/model-prices.json`](../../config/model-prices.json), override bằng `HYBRID_HANDS_PRICING_FILE`; mỗi entry có source/price_date, file có verified_at. Mọi USD~ là ước tính offline trên gói subscription, không phải hoá đơn. Cache Claude dùng đúng giá cấu hình 5m/1h; không fallback theo họ/model khác. Nguồn giá công khai được xác minh ngày 2026-11-07 và lưu trong file canonical. Giá DeepSeek peak là ước tính bảo thủ. Không thêm bảng giá backend thứ hai.
+
+Quota tài khoản lấy từ cache/sample sẵn có của đúng gói; thiếu 5h/tuần hiện `?`, tuyệt đối không suy token hay USD thành quota GPT. Phần riêng hand tuần chỉ thêm khi có nguồn và gắn nhãn riêng. Cả hai giao diện cây `hh-tree-pane` và `paseo-hh-tree` không hiện nhóm orphan hand-ext; `hh-ps` text/JSON vẫn giữ orphan.
+
+Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn đúng cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Hand nhận brief trực tiếp là executor: làm trong phạm vi được giao, không gọi hand-ext, không mở side-session hay giao tiếp phiên khác. Luật Sol bắt buộc delegate chỉ áp dụng vai trò Sol; dùng `hand-ext run --backend auto` trừ ngoại lệ native trên Paseo nêu trên.
+
+
+
 # Paseo: theo dõi và điều khiển phiên từ điện thoại
 
 ## Tóm tắt
@@ -65,7 +95,7 @@ Paseo dùng lại đăng nhập gói của CLI, không cần API key. Tình tr�
   Rồi: `paseo provider models codex-hand` (kiểm model), `paseo run --provider codex-hand --title hand-x --no-wait "$(cat brief.md)"`. `codex: {enabled: false}` tắt provider `codex` mặc định (`~/.codex`) toàn cục; vẫn dùng `codex-hand` (kế thừa `codex` qua `extends`) với tài khoản `~/.codex-hand`. Không sửa config thật khi chưa được duyệt.
 - **Cấu hình model:** đặt `model` mặc định trong `~/.codex-hand/config.toml` (`hand-ext setup --backend codex` ghi sẵn; CODEX_HOME riêng nên không ảnh hưởng `~/.codex`). Trường `command` của provider thay toàn bộ lệnh khởi nhưng Paseo tự thêm subcommand nên chèn profile `-p` **chưa kiểm**, đừng dùng khi chưa thử.
 - **% tuần sống cho phiên Paseo:** thêm provider `claude-tee` (`extends: "claude"`, `command` trỏ tuyệt đối tới `bin/claude-tee`), `paseo reload`, chạy thử rồi mới ghi đè `command` của provider `claude`. Wrapper chỉ chuyển tiếp stream-json và ghi `rate_limit_event` (`seven_day`/`five_hour`) vào `$CLAUDE_CONFIG_DIR/.hh-claude-rate-limit.json`, không lưu hội thoại/`session_id`; `hh-ps`/`hh-tree` dùng mẫu mới hơn cache và không ngoại suy. Gỡ bằng cách bỏ provider/khôi phục `claude` rồi `paseo reload`; đặt `env.HH_CLAUDE_REAL` nếu cần chỉ `claude` thật. Chi tiết ở README hybrid-hands mục 8.1.
-- **Hạn mức:** mỗi `paseo run` với hand dùng hạn mức gói ChatGPT của `~/.codex-hand`; Paseo 0.15.0 không có lệnh xem usage/quota, nên đọc trên `hh-ps`/`hh-tree` (USD ước tính, % 5h/tuần và giờ reset của tài khoản), luật như skill `ext-hand`.
+- **Hạn mức:** mỗi `paseo run` với hand dùng hạn mức gói ChatGPT của `~/.codex-hand`; Paseo 0.15.0 không có lệnh xem usage/quota, nên đọc trên `hh-ps`/`hh-tree` (USD~ ước tính, % 5h/tuần và giờ reset của tài khoản), luật như skill `ext-hand`.
 
 ## 5. Theo dõi và điều khiển
 

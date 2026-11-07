@@ -6,6 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -39,9 +40,9 @@ class PriceTest(unittest.TestCase):
         self.assertAlmostEqual(ul.usage_usd(ul.price_for(HAIKU), usage), 0.60)
         self.assertAlmostEqual(ul.usage_usd(ul.price_for("claude-sonnet-5-5"), usage), 12.0)
 
-    def test_unknown_model_uses_family_or_none(self) -> None:
-        self.assertEqual(ul.price_for("claude-opus-9-1"), ul.PRICES[OPUS])
-        self.assertEqual(ul.price_for("claude-haiku-4-5"), ul.PRICES[HAIKU])
+    def test_unknown_model_is_unpriced(self) -> None:
+        self.assertIsNone(ul.price_for("claude-opus-9-1"))
+        self.assertIsNone(ul.price_for("claude-haiku-4-5"))
         self.assertIsNone(ul.price_for("gpt-x"))
 
     def test_cache_kinds(self) -> None:
@@ -49,7 +50,7 @@ class PriceTest(unittest.TestCase):
         split = {"cache_creation_input_tokens": 2 * MILLION, "cache_read_input_tokens": MILLION,
                  "cache_creation": {"ephemeral_1h_input_tokens": MILLION,
                                     "ephemeral_5m_input_tokens": MILLION}}
-        self.assertAlmostEqual(ul.usage_usd(price, split), 4 * (2 + 1.25 + 0.1))
+        self.assertAlmostEqual(ul.usage_usd(price, split), 4 * (2 + 1.25 + 0.05))
         lump = {"cache_creation_input_tokens": MILLION}
         self.assertAlmostEqual(ul.usage_usd(price, lump), 4 * 1.25)
 
@@ -111,6 +112,11 @@ class LedgerTest(unittest.TestCase):
         self.write(self.main, [record("b", self.now - 5)], mode="a")
         self.assertAlmostEqual(self.total(self.ledger()), 40.0)
         self.assertAlmostEqual(self.total(self.ledger()), 40.0)
+        rows = ul.load_prices()
+        rows[OPUS] = {**rows[OPUS], "output": 30}
+        with patch.object(ul, "load_prices", return_value=rows):
+            self.assertAlmostEqual(self.total(self.ledger()), 60.0)
+        ul.refresh_prices()
 
     def test_partial_last_line_waits(self) -> None:
         self.main.write_text(record("a", self.now - 10), encoding="utf-8")

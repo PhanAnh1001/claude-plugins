@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "verified_at": "2026-11-07",
+  "models": {
+    "gpt-6.1-sol": {
+      "input": 2,
+      "cached": 0.1,
+      "output": 10,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "price_date": "2026-11-07"
+    },
+    "claude-opus-5-5": {
+      "input": 4,
+      "cached": 0.2,
+      "output": 20,
+      "cache_write_5m": 5,
+      "cache_write_1h": 8,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "price_date": "2026-11-07"
+    },
+    "claude-sonnet-5-5": {
+      "input": 2,
+      "cached": 0.1,
+      "output": 10,
+      "cache_write_5m": 2.5,
+      "cache_write_1h": 4,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "price_date": "2026-11-07"
+    },
+    "claude-haiku-5-5": {
+      "input": 0.1,
+      "cached": 0.01,
+      "output": 0.5,
+      "cache_write_5m": 0.125,
+      "cache_write_1h": 0.2,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "price_date": "2026-11-07"
+    },
+    "deepseek-v4.1-flash": {
+      "input": 0.3,
+      "cached": 0.006,
+      "output": 1.2,
+      "source": "https://dev.opencode.ai/docs/console/go",
+      "price_date": "2026-11-07",
+      "note": "Conservative estimate using peak prices."
+    }
+  }
+}

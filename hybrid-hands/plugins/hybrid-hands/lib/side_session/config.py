@@ -74,11 +74,14 @@ def load_config(cwd: Path) -> SideConfig:
     if cfg_file.is_file():
         data = json.loads(cfg_file.read_text(encoding="utf-8"))
         merged.update(data.get(C.CONFIG_SECTION, {}))
+    max_parallel = merged["max_parallel"]
+    if type(max_parallel) is not int or not 1 <= max_parallel <= C.DEFAULTS["max_parallel"]:
+        raise ValueError("side_session.max_parallel phải là số nguyên 1..4")
     return SideConfig(
         repo=repo,
         handoff_dir=_resolve(repo, merged["handoff_dir"]),
         worktree_root=_resolve(repo, merged["worktree_root"]),
-        max_parallel=int(merged["max_parallel"]),
+        max_parallel=max_parallel,
         default_max_tokens=int(merged["default_max_tokens"]),
         watch_interval_s=float(merged["watch_interval_s"]),
         claude_args=list(merged["claude_args"]),

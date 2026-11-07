@@ -9,6 +9,7 @@ Cross-checked against the statusline plugin itself:
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import sys
 import tempfile
@@ -32,6 +33,7 @@ from hh_ps.pricing import hand_usage  # noqa: E402
 from hh_ps.render import render_json  # noqa: E402
 from hh_ps.timeutil import iso_at, percent_text  # noqa: E402
 from hh_ps.tree import build_snapshot  # noqa: E402
+from usage_pricing import load_prices
 from hh_ps.week import (STATUSLINE_LEDGER_ENV, claude_pct, read_claude_week,
                         read_go_week)  # noqa: E402
 
@@ -132,7 +134,8 @@ class LimitFixture:
 
     def local_ledger(self, entries: List[tuple]) -> None:
         write_json(self.claude / ".statusline-local-usage.json", {
-            "version": 3, "messages": {f"m{i}": [ts, usd, "sid"] for i, (ts, usd) in enumerate(entries)}})
+            "version": 4, "pricing": hashlib.sha256(
+                json.dumps(load_prices(), sort_keys=True).encode()).hexdigest(), "messages": {f"m{i}": [ts, usd, "sid"] for i, (ts, usd) in enumerate(entries)}})
 
     def live_rate(self, pct: float, ts: float = NOW - 60,
                   reset: float = NOW + 2 * DAY, window: str = "seven_day") -> None:
@@ -245,10 +248,11 @@ class GoWeekTest(unittest.TestCase):
         self.fx.config(100)
         self.fx.go_summary(50.0, percent=16.0)
         self.fx.go_cache(16.0, reset=NOW - HOUR, fetched_at=NOW - 2 * HOUR)
-        row = rows(self.fx.limits(), "Go")["tuần"]
-        self.assertEqual(row.total_pct, 0.0)
-        self.assertIsNone(row.resets_at)
-        self.assertTrue(row.estimated)
+        self.assertNotIn("tuần", rows(self.fx.limits(), "Go"))
+        with self.fx.env():
+            week = read_go_week(self.fx.state, self.fx.claude, NOW)
+        self.assertIsNone(week.total_pct)
+        self.assertEqual(week.source, "ledger")
 
     def test_go_week_is_the_only_go_row(self) -> None:
         self.fx.config(100)
@@ -360,6 +364,11 @@ class ClaudeWeekTest(unittest.TestCase):
             row = rows(self.fx.limits(ledger_path=None), "Claude")["tuần"]
         self.assertEqual(round(row.total_pct, 2), 11.0)
         self.assertTrue(row.source.endswith("+extrapolated"))
+        path = self.fx.claude / ".statusline-local-usage.json"
+        ledger = json.loads(path.read_text())
+        ledger["pricing"] = "different-prices"
+        write_json(path, ledger)
+        self.assertEqual(rows(self.fx.limits(ledger_path=None), "Claude")["tuần"].total_pct, 10.0)
 
     def test_claude_formula_matches_week_split_summary(self) -> None:
         reset = NOW + 2 * DAY
@@ -458,7 +467,8 @@ class ConfigAndJsonTest(unittest.TestCase):
                           "total_pct", "resets_at", "source", "estimated"})
         self.assertEqual(set(data["sessions"][0]["usage"]),
                          {"read", "cache_read", "cache_write", "out", "usd",
-                          "week_pct", "week_pct_estimated"})
+                          "week_pct", "week_pct_estimated", "account_plan",
+                          "account_5h_pct", "account_week_pct"})
         self.assertEqual(data["sessions"][0]["usage"]["week_pct"], 6.2)
 
 

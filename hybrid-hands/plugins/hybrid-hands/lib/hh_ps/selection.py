@@ -1,15 +1,10 @@
-"""Which children of a session are listed: the rule shared with hh-tree-pane.
-
-Running children first (in source order), then up to RECENT_FINISHED_SHOWN
-finished or failed children by end time, newest first; the rest are counted
-for a `+N xong · M lỗi` summary. hooks/tree.ts mirrors this; change both.
-"""
+"""List running children first, then every finished child newest first."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Generic, List, Optional, TypeVar
 
-from .constants import RECENT_FINISHED_SHOWN, SUMMARY_BAD_TEXT, SUMMARY_OK_TEXT
+from .constants import SUMMARY_BAD_TEXT, SUMMARY_OK_TEXT
 
 T = TypeVar("T")
 
@@ -48,8 +43,4 @@ def select_children(items: List[ChildItem[T]], full: bool = False) -> Selection[
     running = [item for item in items if item.running]
     done = sorted((item for item in items if not item.running), key=_end_key,
                   reverse=True)
-    if full:
-        return Selection([item.payload for item in running + done])
-    kept, rest = done[:RECENT_FINISHED_SHOWN], done[RECENT_FINISHED_SHOWN:]
-    bad = sum(1 for item in rest if item.bad)
-    return Selection([item.payload for item in running + kept], len(rest) - bad, bad)
+    return Selection([item.payload for item in running + done])

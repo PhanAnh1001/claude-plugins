@@ -52,6 +52,18 @@ class HhPsSideTest(unittest.TestCase):
         self.assertEqual(existing["provider"], "claude")
 
     def test_external_side_row_owns_labelled_run_and_counts_live(self) -> None:
+        from hh_ps.models import Session
+        from hh_ps.tree import _rollout_metadata
+        row = Session("fake", "fake", "running", "", None, None, None, False, True)
+        rollout = self.fx.base / "fake-rollout.jsonl"
+        for effort in ({"effort": "high"}, {"reasoning_effort": "high"},
+                       {"reasoning": {"effort": "high"}}):
+            row.model = row.effort = ""
+            rollout.write_text(json.dumps({"timestamp": "2026-11-07T00:00:00Z",
+                "ordinal": 12, "type": "session_meta" if "effort" in effort else "turn_context",
+                "payload": {"model": "fake-codex", **effort}}) + "\n")
+            _rollout_metadata(row, rollout)
+            self.assertEqual((row.model, row.effort), ("fake-codex", "high"))
         data = self.json_cli()
         sessions = {item["session_id"]: item for item in data["sessions"]}
         self.assertIn(DSH_SIDE, sessions)

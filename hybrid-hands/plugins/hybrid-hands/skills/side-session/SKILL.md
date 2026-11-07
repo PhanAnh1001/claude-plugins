@@ -3,13 +3,36 @@ name: side-session
 description: Mở và quản lý phiên phụ (phiên Sol Codex mặc định, hoặc Claude Code/dsh chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, cờ --model/--effort, hợp đồng bàn giao .done, đọc tóm tắt bàn giao, backend claude-main và chặn 5%/ngày, hand ngoài dsh trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage khi provider claude. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
 ---
 
+## Ngoại lệ Sol native trên Paseo — 0.27.0 (quyết định A)
+
+Theo [policy đầy đủ ở ext-hand](../ext-hand/SKILL.md), ưu tiên tab native chỉ cho Sol trên Paseo khi backend thực theo `ext_hand.order` là codex `gpt-6.1-sol` low và tools chọn được model/effort riêng; giữ `fork_turns=none`, full brief/luật dữ liệu, executor không recursion, tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4), cùng file/phụ thuộc tuần tự. Không áp cho Opus/Claude/dsh hay executor, không đổi code/slots hand-ext, bật parallel-subagents hay sửa config. Thiếu capability trước spawn hoặc backend khác thì fallback `hand-ext run --backend auto`; unknown sau spawn phải xác minh child, không tạo duplicate writer. Native dùng báo cáo/usage native/Paseo, không có ledger hand-ext; thiếu hiện `?`, không bịa quota. Trên điện thoại đã kết nối Paseo, mở Sol rồi bấm tab child; completed giữ tab/history, không archive top-level/parent, không cần pairing/config mới. Hand-ext shell không tự hiện hội thoại; A đã đạt nên B (agent ngang hàng/archive) chưa triển khai. Xem [kiểm chứng parent/history qua bridge](../paseo/SKILL.md#kiểm-chứng-bridge-read-only).
+
+## Usage panel 0.26.0
+
+`hh-ps --once` chạy một lần; `--json` giữ dữ liệu máy đọc, `--watch 5` theo dõi. Mặc định hiện đủ việc chạy/vừa xong theo `--since`, không gấp còn 3 việc và không ẩn cây đã xong (`--full`/`--ended` giữ tương thích). Mỗi dòng session/subagent/hand và phiên phụ mọi provider/backend có model, effort, USD~, quota tài khoản 5h/tuần, ended hoặc `đang chạy`, elapsed. Elapsed đang chạy tăng theo thời gian; ended cố định duration khi xong. Không hiện giờ bắt đầu trong text/panel/statusline; metadata/JSON vẫn giữ started. Thiếu nguồn hoặc legacy unknown hiện `?`, không bịa.
+
+Giá chỉ từ [`config/model-prices.json`](../../config/model-prices.json), override bằng `HYBRID_HANDS_PRICING_FILE`; mỗi entry có source/price_date, file có verified_at. Mọi USD~ là ước tính offline trên gói subscription, không phải hoá đơn. Cache Claude dùng đúng giá cấu hình 5m/1h; không fallback theo họ/model khác. Nguồn giá công khai được xác minh ngày 2026-11-07 và lưu trong file canonical. Giá DeepSeek peak là ước tính bảo thủ. Không thêm bảng giá backend thứ hai.
+
+Quota tài khoản lấy từ cache/sample sẵn có của đúng gói; thiếu 5h/tuần hiện `?`, tuyệt đối không suy token hay USD thành quota GPT. Phần riêng hand tuần chỉ thêm khi có nguồn và gắn nhãn riêng. Cả hai giao diện cây `hh-tree-pane` và `paseo-hh-tree` không hiện nhóm orphan hand-ext; `hh-ps` text/JSON vẫn giữ orphan.
+
+Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn đúng cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Hand nhận brief trực tiếp là executor: làm trong phạm vi được giao, không gọi hand-ext, không mở side-session hay giao tiếp phiên khác. Luật Sol bắt buộc delegate chỉ áp dụng vai trò Sol; dùng `hand-ext run --backend auto` trừ ngoại lệ native trên Paseo nêu trên.
+
+
+
+Opus chia brief thành các gói L1 độc lập khác file, chủ động lấp tối đa `side_session.max_parallel` Sol (mặc định 4). MỖI SOL chia brief độc lập khác file và chạy nền tổng native + hand-ext tối đa `ext_hand.max_parallel` hand (mặc định 4), chờ đủ tất cả kết thúc rồi Sol review. Cùng file hoặc phụ thuộc phải tuần tự; không ép song song. Có thể 16 hand tổng khi 4 Sol độc lập; không phải cap toàn máy 4. Hai giới hạn là số nguyên 1..4, có thể giảm, không >4. Scope hand riêng mỗi Sol qua `HYBRID_HANDS_HAND_SCOPE` = uuid Sol, giữ nguyên `CODEX_HOME` và parent Claude session. Exit 8: đợi slot/tiến trình đang chạy kết thúc rồi thử lại; không đổi backend hay tự làm như lỗi hand.
+
+
 # Phiên phụ (side-session)
+
+Trừ ngoại lệ Sol native trên Paseo nêu trên, Sol **BẮT BUỘC giao code/test/tài liệu L0/L1** bằng `hand-ext run --backend auto` theo `ext_hand.order` của repo. Sol chỉ tự viết khi hand-ext thoát lỗi (ghi lý do và mã thoát vào bàn giao) hoặc việc cần secret/dữ liệu khách hàng theo luật dữ liệu. Exit 7: chạy `hand-ext doctor` trước, đọc lý do rồi mới quyết định dự phòng; không giả định dsh hết quota. Chỉ khi xác nhận dsh thật hết quota mới dùng `hand-ext run --backend codex --effort medium`.
+
+Codex Sol và hand dùng chung `~/.codex-hand`: mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy không override như `service_tier` vẫn bắt buộc.
 
 ## Tóm tắt
 
 - **Dùng khi:** gói việc dài nhiều bước cần ngữ cảnh brain riêng (L1 trở lên, L0 gom nhiều việc vào một phiên), ví dụ cả một tính năng hay một chương; việc ngắn thì giao hand.
-- **Giới hạn:** tối đa `max_parallel` phiên (mặc định 2) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`), xong thì tạo `<handoff_dir>/<tên>.done`; phiên phụ ngoài (`dsh`) chỉ chạy trong worktree.
-- **Chuỗi bước:** viết prompt giao việc → `side-session start --provider codex` (thử `--dry-run` trước) → chờ `<handoff_dir>/<tên>.done` bằng Monitor, không hỏi trạng thái → đọc `handoff` → Sol review code, Opus review spec/plan/giải pháp → `stop`. Xem toàn cảnh phiên chính, phiên phụ, subagent và hand ngoài bằng `hh-ps` (`--watch 5`, `--json`).
+- **Giới hạn:** tối đa `max_parallel` phiên (mặc định 4) theo mục `side_session` của `.claude/hybrid-hands.json`; bàn giao ghi ở `handoff_dir` (mặc định `docs/work-in-progress/handoffs`), xong thì tạo `<handoff_dir>/<tên>.done`; phiên phụ ngoài (`dsh`) chỉ chạy trong worktree.
+- **Chuỗi bước:** viết prompt giao việc → `side-session start --provider codex` (thử `--dry-run` trước) → chờ `<handoff_dir>/<tên>.done` bằng Monitor, không hỏi trạng thái → đọc `handoff` → Sol review code, Opus review spec/plan/giải pháp → `stop`. Xem toàn cảnh phiên chính, phiên phụ, subagent và hand ngoài bằng `hh-ps` (`--once`, `--watch 5`, `--json`).
 
 Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt đối `${CLAUDE_PLUGIN_ROOT}/bin/side-session`.
 
@@ -18,15 +41,15 @@ Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt
 | Tầng | Vai trò |
 |---|---|
 | Opus (brain, gói Claude chính) | Thư ký, solution architect, BA, product manager; phân lane, viết spec/plan L2/L3, duyệt tóm tắt, đọc bàn giao, không đọc diff task đã giao Sol |
-| Sol (phiên phụ Codex `gpt-6.1-sol` effort high, tài khoản ChatGPT riêng, `CODEX_HOME` `~/.codex-hand`) | Lead tech, lead QA, quyền ngang Opus; viết spec L1, review code mọi hand mình giao, gọi `hand-ext` cho dsh |
+| Sol (phiên phụ Codex `gpt-6.1-sol` effort high, tài khoản ChatGPT riêng, `CODEX_HOME` `~/.codex-hand`) | Lead tech, lead QA, quyền ngang Opus; viết spec L1, review code mọi hand mình giao, gọi `hand-ext run --backend auto` theo `ext_hand.order` |
 | dsh (gói OpenCode Go) | Dev, tester |
-| Hand Opus `low` (`hybrid-hands:hand`) | Việc sáng tạo: UI design, mockup, design token, câu chữ; phần code hoá giao hand mặc định theo `ext_hand.order` (mặc định plugin `dsh`; repo này tạm đặt codex `gpt-6.1-sol` `low`, bật lại dsh bằng xoá `.claude/hybrid-hands.json` của repo gốc hoặc đặt `order: ["dsh"]`) |
+| Hand Opus `low` (`hybrid-hands:hand`) | Việc sáng tạo: UI design, mockup, design token, câu chữ; phần code hoá giao hand mặc định theo `ext_hand.order` (mặc định plugin `dsh`) |
 
 | Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
 |---|---|---|---|---|
-| L0 (sửa nhanh) | Không viết spec | Không duyệt | dsh | Sol |
-| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | dsh | Sol |
-| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | dsh | Sol |
+| L0 (sửa nhanh) | Không viết spec | Không duyệt | hand theo `ext_hand.order` | Sol |
+| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | hand theo `ext_hand.order` | Sol |
+| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | hand theo `ext_hand.order` | Sol |
 | L2/L3 | Opus | Người dùng | Opus cắt thành các gói cỡ L1, giao các phiên Sol | Sol |
 
 Opus gom nhiều việc L0 vào một phiên Sol; mỗi task một phiên, xong thì Sol ghi bàn giao và đóng phiên, không giữ phiên qua nhiều task. L2/L3: Opus viết spec/plan, người dùng duyệt, Opus cắt thành gói cỡ L1 giao các phiên Sol (tối đa `max_parallel`).
@@ -51,7 +74,7 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 ## 3. Dự phòng và đồng bộ
 
 - **Provider:** mặc định `codex` cho phiên Sol (đăng nhập ChatGPT riêng qua `CODEX_HOME=~/.codex-hand`, không API key); `--provider claude` cho phiên Claude Code, `--provider dsh` cho hand ngoài (xem mục 4). Codex chạy `--dangerously-bypass-approvals-and-sandbox`: không sandbox, không hỏi phê duyệt, toàn quyền ghi và mạng (gọi được `hand-ext`, `git worktree add`).
-- **Đồng bộ:** phiên `claude` hiện trong ListAgents; gửi SendMessage trước khi ghi file chung, dùng tài nguyên trả phí hay Chrome, và sau mỗi commit. Phiên Sol (Codex) không có ListAgents/SendMessage: đồng bộ bằng file `<handoff_dir>/<tên>.done` và bàn giao. Hai phiên không ghi cùng một file.
+- **Đồng bộ:** phiên `claude` hiện trong ListAgents; gửi SendMessage trước khi ghi file chung, dùng tài nguyên trả phí hay Chrome, và sau mỗi commit. ListAgents/SendMessage của Claude không phải native tools Codex; native child của Sol trên Paseo có tab/timeline theo ngoại lệ A ở trên. Đồng bộ Sol với brain vẫn bằng file `<handoff_dir>/<tên>.done` và bàn giao. Hai phiên không ghi cùng một file.
 
 ## 4. Chrome và hand ngoài
 

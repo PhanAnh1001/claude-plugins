@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .backends.base import Status
+from usage_pricing import token_price
 
 PROJECT_CONFIG_RELPATH = ".claude/hybrid-hands.json"
 CONFIG_SECTION = "ext_hand"
@@ -45,13 +46,14 @@ GO_PRICE_KEY = "go_price_per_mtok"
 # Peak prices from https://opencode.ai/docs/go (read 2026-11-04), USD per 1M tokens:
 # input $0.30, cached read $0.006, output $1.20. Off-peak is half; using peak keeps the
 # estimate an upper bound, and the OpenCode Console remains the authoritative meter.
-GO_USAGE_DEFAULT_PRICE = {"input": 0.30, "cached_input": 0.006, "output": 1.20}
+GO_USAGE_DEFAULT_PRICE = token_price("deepseek-v4.1-flash") or {}
 
 # Codex usage ledger (one JSON line per finished codex turn), beside the Go ledger.
 CODEX_PRICE_KEY = "price_per_mtok"
 # gpt-6.1-sol Standard, context <=272k, from https://developers.openai.com/api/docs/pricing
 # (read 2026-11-07): USD per 1M tokens. Codex compacts at 272k, so the short tier applies.
-CODEX_DEFAULT_PRICE = {"input": 2.00, "cached": 0.10, "output": 10.00}
+CODEX_DEFAULT_PRICE = {("cached" if key == "cached_input" else key): value
+                       for key, value in (token_price("gpt-6.1-sol") or {}).items()}
 CODEX_USAGE_LEDGER_NAME = "codex_usage.jsonl"
 # Capacity (429 prefill_cap_refused) fallback for `--backend auto` on dsh.
 DSH_CAPACITY_WAIT_MIN_LINES = 30
@@ -89,7 +91,11 @@ SECRET_FILE_ALLOW = (".env.example", ".env.sample", ".env.template", "*.env.exam
 SECRET_SKIP_PREFIX = "- Bỏ qua file nghi bí mật: "
 SYMLINK_OUTSIDE_NOTE = "symlink tuyệt đối hoặc ra ngoài repo hoặc tới file bí mật"
 
+MAX_PARALLEL = 4
+HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
+
 DEFAULTS = {
+    "max_parallel": MAX_PARALLEL,
     # The only default hand is dsh (DeepSeek V4.1 Flash on the OpenCode Go plan).
     # codex/claude/gemini stay declared for explicit `--backend` use only.
     "order": ["dsh"],
@@ -153,6 +159,7 @@ EXIT_USAGE = 2
 EXIT_CAPPED = 4
 EXIT_TIMEOUT = 6
 EXIT_ALL_UNAVAILABLE = 7
+EXIT_PARALLEL_FULL = 8
 
 STATUS_EXIT = {
     Status.OK: EXIT_OK,

@@ -62,7 +62,8 @@ class RegistryFileTest(HandExtTestCase):
         return json.loads(self.path(run_id).read_text(encoding="utf-8"))
 
     def test_start_records_parent_env_and_running_state(self) -> None:
-        self.registry().start()
+        with mock.patch.dict(os.environ, {"HYBRID_HANDS_HAND_SCOPE": "fake-cap-key"}):
+            self.registry().start()
         data = self.read()
         self.assertEqual(data["run_id"], "run-1")
         self.assertEqual(data["label"], "lab")

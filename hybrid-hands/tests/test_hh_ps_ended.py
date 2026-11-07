@@ -70,7 +70,7 @@ class HideEndedTreesTest(unittest.TestCase):
         self.assertEqual(snap.hidden_ended_sessions, 0)
         lines = render_text(snap).splitlines()
         side = next(line for line in lines if "○ phụ:s" in line)
-        self.assertIn("04/11 23:50  -", side)
+        self.assertIn("2026-11-04 23:50", side)
         main = next(line for line in lines if "● main" in line)
         self.assertNotRegex(main, r"\d\d:\d\d")  # no end time on a live session
 
@@ -94,11 +94,11 @@ class HideEndedTreesTest(unittest.TestCase):
         main.hand_runs.append(_run(False, ended=OTHER_DAY_END))
         main.hand_runs.append(_run(True))
         lines = render_text(_snapshot([main])).splitlines()
-        self.assertIn("  09:05  ", next(l for l in lines if "done" in l))
+        self.assertIn("2026-11-06 09:05  ", next(l for l in lines if "done" in l))
         busy = next(l for l in lines if "busy" in l and "lbl" not in l and "●" not in l)
         self.assertNotRegex(busy, r"\d\d:\d\d")
         runs = sorted((l for l in lines if "lbl" in l), key=lambda l: "▶" in l)
-        self.assertIn("04/11 23:50", runs[0])
+        self.assertIn("2026-11-04 23:50", runs[0])
         self.assertNotRegex(runs[1], r"\d\d:\d\d")
 
 
@@ -116,15 +116,15 @@ class EndedCliTest(unittest.TestCase):
 
     def test_default_hides_ended_and_flag_restores(self) -> None:
         default = self.run_cli()
-        self.assertNotIn("ended-name", default)
-        self.assertIn("đã kết thúc: --ended để xem", default)
+        self.assertIn("ended-name", default)
+        self.assertNotIn("đã kết thúc: --ended để xem", default)
         full = self.run_cli("--ended")
         self.assertIn("ended-name", full)
         self.assertRegex(full.split("ended-name", 1)[1].splitlines()[0], r"\d\d:\d\d")
 
     def test_json_has_ended_at_and_hidden_count(self) -> None:
         data = json.loads(self.run_cli("--json"))
-        self.assertGreater(data["hidden_ended_sessions"], 0)
+        self.assertEqual(data["hidden_ended_sessions"], 0)
         main = {s["session_id"]: s for s in data["sessions"]}[MAIN_SESSION]
         self.assertIsNone(main["ended_at"])
         states = {a["status"]: a["ended_at"] for a in main["subagents"]}

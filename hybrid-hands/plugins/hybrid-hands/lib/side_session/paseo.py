@@ -103,7 +103,7 @@ def ready() -> dict:
 
 
 def start_agent(*, workdir: str, name: str, model: str, effort: str,
-                initial_prompt: str, codex_home: Path, target_key: str) -> dict:
+                initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str) -> dict:
     """Create the directory workspace and `codex-hand` agent in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
@@ -117,7 +117,7 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
         "model": model,
         "effort": effort,
         "initialPrompt": initial_prompt,
-        "env": {"CODEX_HOME": str(codex_home)},
+        "env": {"CODEX_HOME": str(codex_home), C.HAND_SCOPE_ENV: hand_scope},
         "providerOptions": provider_options,
         "expectedTargetKey": target_key,
         "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
@@ -128,6 +128,25 @@ def status(agent_id: str, target_key: str) -> dict:
     return _call("status", {"agentId": agent_id, "expectedTargetKey": target_key,
                             "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS},
                  timeout=C.PASEO_STATUS_TIMEOUT_S)
+
+
+def subagents(agent_id: str, target_key: str) -> dict:
+    """Read native provider children; these are not hand-ext ledger runs."""
+    return _call("subagents", {
+        "agentId": agent_id,
+        "expectedTargetKey": target_key,
+        "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
+    }, timeout=C.PASEO_STATUS_TIMEOUT_S)
+
+
+def subagent_timeline(agent_id: str, subagent_id: str, target_key: str) -> dict:
+    """Read a native child's timeline after the bridge verifies parent ownership."""
+    return _call("subagent-timeline", {
+        "agentId": agent_id,
+        "subagentId": subagent_id,
+        "expectedTargetKey": target_key,
+        "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
+    }, timeout=C.PASEO_STATUS_TIMEOUT_S)
 
 
 def stop_agent(agent_id: str, target_key: str) -> dict:
@@ -219,7 +238,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         result = start_agent(
             workdir=workdir, name=st.name, model=a.model or cfg.codex_model,
             effort=a.effort or cfg.codex_effort, initial_prompt=full_prompt,
-            codex_home=cfg.codex_home,
+            codex_home=cfg.codex_home, hand_scope=st.uuid,
             target_key=st.paseo_target)
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")

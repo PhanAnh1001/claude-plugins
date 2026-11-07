@@ -9,11 +9,10 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-from .constants import ENDED_FLAG, FULL_FLAG, MIN_WATCH_SECONDS, RECENT_FINISHED_SHOWN
+from .constants import ENDED_FLAG, FULL_FLAG, MIN_WATCH_SECONDS
 from .render import color_enabled, render_json, render_text
 from .timeutil import parse_since
 from .tree import build_snapshot
-from .visibility import hide_ended_trees
 
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
@@ -54,10 +53,10 @@ def _parser() -> argparse.ArgumentParser:
                         help="khoảng thời gian cho phiên/subagent/lượt đã xong (m/h/d)")
     parser.add_argument("--all", action="store_true", help="mọi project")
     parser.add_argument(ENDED_FLAG, action="store_true",
-                        help="hiện cả cây phiên đã kết thúc (mặc định ẩn)")
+                        help="tương thích: mặc định đã hiện cây phiên đã kết thúc")
     parser.add_argument(FULL_FLAG, action="store_true",
-                        help=f"liệt kê đủ mọi việc con (mặc định: việc đang chạy, "
-                             f"{RECENT_FINISHED_SHOWN} việc xong gần nhất và dòng tóm tắt)")
+                        help="tương thích: mặc định đã liệt kê đủ mọi việc con")
+    parser.add_argument("--once", action="store_true", help="chạy một lần (mặc định)")
     parser.add_argument("--json", action="store_true", help="in JSON")
     parser.add_argument("--watch", type=_watch_seconds,
                         help=f"vẽ lại mỗi N giây (tối thiểu {MIN_WATCH_SECONDS})")
@@ -91,14 +90,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         while True:
             snapshot = build_snapshot(cwd, since, args.all,
                                       main_session_id=args.main_session)
-            if not args.ended:
-                snapshot = hide_ended_trees(snapshot)
             color = color_enabled(sys.stdout)
             if args.watch is not None and drawn and sys.stdout.isatty():
                 print("\033[2J\033[H", end="")
             _emit(snapshot, args.json, color, args.full)
             drawn += 1
-            if args.watch is None or (args.count is not None and drawn >= args.count):
+            if args.once or args.watch is None or (args.count is not None and drawn >= args.count):
                 return 0
             time.sleep(args.watch)
     except KeyboardInterrupt:

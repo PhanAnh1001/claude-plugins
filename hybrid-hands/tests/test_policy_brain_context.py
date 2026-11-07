@@ -50,6 +50,9 @@ class BrainContextPolicyTest(unittest.TestCase):
         for marker in ("phiên brain mới", "tự tra cứu", "không hỏi trạng thái",
                        "Test tối thiểu", "tạo hứng thú", "bảo mật"):
             self.assertIn(marker, text)
+        for policy in (text, self._session_start_context()):
+            for marker in ("MỖI SOL", "chờ đủ", "Cùng file", "Exit 8", "doctor", "ext_hand.order", "mặc định 4"):
+                self.assertIn(marker, policy)
         # bắn mỗi prompt nên phải ngắn
         self.assertLess(len(text), 1800)
 

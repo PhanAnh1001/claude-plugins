@@ -1,5 +1,5 @@
 import { constants as fsConstants } from "node:fs";
-import { access, stat } from "node:fs/promises";
+import { access, stat, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,15 +86,36 @@ function pluginDirCandidates(): string[] {
 
 async function findBesidePlugin(): Promise<string | null> {
   for (const dir of pluginDirCandidates()) {
-    const candidate = resolve(dir, HH_PS_RELATIVE);
-    if (await isExecutableFile(candidate)) {
-      return candidate;
+    for (const relative of [HH_PS_RELATIVE, join("..", HH_PS_RELATIVE)]) {
+      const candidate = resolve(dir, relative);
+      if (await isExecutableFile(candidate)) return candidate;
     }
   }
   return null;
 }
 
-/** Settings path first, then PATH, then the sibling hybrid-hands plugin checkout. */
+async function findInstalled(): Promise<string | null> {
+  const cache = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"), "plugins", "cache");
+  let markets: string[];
+  try { markets = await readdir(cache); } catch { return null; }
+  const candidates: { path: string; version: string }[] = [];
+  for (const market of markets) {
+    const plugin = join(cache, market, "hybrid-hands");
+    let versions: string[];
+    try { versions = await readdir(plugin); } catch { continue; }
+    for (const version of versions) {
+      if (!/^\d+(?:\.\d+)*$/.test(version)) continue;
+      candidates.push({ path: join(plugin, version, "bin", HH_PS_NAME), version });
+    }
+  }
+  candidates.sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }));
+  for (const candidate of candidates) {
+    if (await isExecutableFile(candidate.path)) return candidate.path;
+  }
+  return null;
+}
+
+/** Explicit settings, newest installed plugin, PATH, then sibling checkout. */
 export async function findHhPs(configuredPath: string): Promise<string | null> {
   const raw = configuredPath.trim();
   if (raw) {
@@ -103,6 +124,8 @@ export async function findHhPs(configuredPath: string): Promise<string | null> {
       return candidate;
     }
   }
+  const installed = await findInstalled();
+  if (installed) return installed;
   const onPath = await findOnPath();
   if (onPath) {
     return onPath;
@@ -111,7 +134,7 @@ export async function findHhPs(configuredPath: string): Promise<string | null> {
 }
 
 export function buildHhPsArgs(options: RunOptions): string[] {
-  const args = ["--json", "--since", HH_PS_SINCE];
+  const args = ["--json", "--ended", "--full", "--since", HH_PS_SINCE];
   if (options.all) {
     args.push("--all");
   }

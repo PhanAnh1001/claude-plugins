@@ -1,23 +1,10 @@
-// Turns `hh-ps --json` into compact pane rows, in the same layout as the hh-ps
-// text tree (lib/hh_ps/compact.py; change both together):
-//   session: `<mark> <name>  <quiet | end>  <status>  <usd>  <limit %>`
-//   child:   `<mark> <kind>  <duration>  [<end>]  <usd>  <limit %>  <description>  [<bad status>]`
-//   side session as a child: `<mark> phụ:<name>  <quiet | duration>  [<end>]  <usd>  <limit %>  [<ai title>]`
-// Session, side-session and child rows share one column table, so the USD and
-// limit-% cells line up at every depth. No token count is shown (not even
-// `ctx`); a Codex row prints `~$USD` and `GPT 5h X% · tuần Y%` from the account
-// samples, while other rows keep the weekly plan share. Claude/Go weekly and
-// GPT 5h/weekly limit rows are rendered. Every session lists its children
-// (subagents, hand runs, side sessions) by one rule (lib/hh_ps/selection.py):
-// running first, then the RECENT_FINISHED_SHOWN newest finished or failed, then
-// `+N xong · M lỗi`. The bad status follows the description so ok rows (most of
-// them) leave no gap before the description. hh-ps already hides fully ended trees.
+// Pane rows mirror hh-ps: full model/effort, elapsed, end, cost and account quota.
 import type { Row, Tone } from '../types'
 
-type Usage = { read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null; usd_estimated?: boolean; week_pct?: number | null; week_pct_estimated?: boolean; gpt_5h_pct?: number | null; gpt_week_pct?: number | null }
-type Sub = { description?: string; agent_type?: string; status?: string; context_tokens?: number | null; duration_seconds?: number | null; ended_at?: string | null; usage?: Usage | null }
+type Usage = { account_plan?: string; account_5h_pct?: number | null; account_week_pct?: number | null; read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null; usd_estimated?: boolean; week_pct?: number | null; week_pct_estimated?: boolean; gpt_5h_pct?: number | null; gpt_week_pct?: number | null }
+type Sub = { provider?: string; exit_code?: number | null; model?: string; effort?: string; started_at?: string | null; description?: string; agent_type?: string; status?: string; context_tokens?: number | null; duration_seconds?: number | null; ended_at?: string | null; usage?: Usage | null }
 type Run = {
-  label?: string; backend?: string; status?: string; state?: string
+  exit_code?: number | null; model?: string; effort?: string; label?: string; backend?: string; status?: string; state?: string
   tokens?: { input?: number; cached_input?: number; output?: number } | null
   usage?: Usage | null
   started_at?: string | null; ended_at?: string | null; duration_seconds?: number | null
@@ -28,7 +15,7 @@ type Limit = {
   resets_at?: string | null; source?: string; estimated?: boolean
 }
 type Session = {
-  session_id: string; name?: string | null; status?: string; context_tokens?: number | null
+  model?: string; effort?: string; duration_seconds?: number | null; session_id: string; name?: string | null; status?: string; context_tokens?: number | null
   last_activity?: string | null; ended_at?: string | null; is_main?: boolean; live?: boolean
   side_name?: string | null; parent_session?: string | null; started_at?: string | null
   ai_title?: string | null; usage?: Usage | null
@@ -43,9 +30,7 @@ export type HhPs = {
   totals?: { live_sessions?: number; running_subagents?: number; running_hand_runs?: number }
 }
 
-export const LEGEND = '▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · $ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng · % GPT = tài khoản'
-// Finished or failed children listed per session; hh-ps constants.py keeps the same.
-const RECENT_FINISHED_SHOWN = 3
+export const LEGEND = '▶ phiên này ● sống ○ đã dừng · kết thúc local · USD ước tính · % tài khoản 5h/tuần · riêng = phần của lượt'
 // Display-cell caps shared with hh-ps (constants.py): keep child rows within
 // ~68 cells and session rows within ~52 so the pane beside the chat is not cut.
 // The shared lead column (session name plus tree art) leaves less room for the
@@ -114,17 +99,27 @@ export function endedText(iso: string | null | undefined, now: number): string {
   return sameDay ? clock : `${pad2(end.getDate())}/${pad2(end.getMonth() + 1)} ${clock}`
 }
 
+const failedExit = (r: { exit_code?: number | null }) =>
+  typeof r.exit_code === 'number' && Number.isFinite(r.exit_code) && r.exit_code !== 0
+
 function runIsLive(r: Run): boolean {
   // `state` is the registry's view checked against the process; a dead
   // process keeps `status: running` but reads `state: lost`.
-  return r.state ? r.state === 'running' : r.status === 'running'
+  return !failedExit(r) && (r.state ? r.state === 'running' : r.status === 'running')
 }
 
 function runIsBad(r: Run): boolean {
-  return r.state === 'lost' || (r.status != null && !OK_STATUSES.includes(r.status))
+  return failedExit(r) || r.state === 'lost' || (r.status != null && !OK_STATUSES.includes(r.status))
 }
 
-const kind = (raw: string | undefined) => cut(KIND_ALIASES[raw ?? ''] ?? raw ?? '-', KIND_MAX)
+const completedText = (iso: string | null | undefined) => {
+  if (!iso || Number.isNaN(Date.parse(iso))) return '?'
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+}
+
+const kind = (raw: string | undefined) => KIND_ALIASES[raw ?? ''] ?? raw ?? '?'
+const modelEffort = (r: {model?: string; effort?: string}) => `${r.model || '?'}/${r.effort || '?'}`
 
 // A row before alignment: `lead` is the first column (mark + name/kind), `cols`
 // the rest. All tree rows share one group so later columns line up; `group`
@@ -193,19 +188,18 @@ const gptShare = (usage: Usage | null | undefined) => {
 
 // USD then the GPT sample or weekly share, both right-aligned; same cells as hh-ps compact.py.
 function usageCols(usage: Usage | null | undefined): Col[] {
-  const gpt = gptShare(usage)
-  const share = percentText(usage?.week_pct, usage?.week_pct_estimated === true)
-  const estimated = usage?.usd_estimated === true
-  const usd = estimated && usage?.usd == null
-    ? UNKNOWN_PERCENT
-    : usdText(usage?.usd, estimated)
-  return [{ text: usd, right: true },
-    { text: gpt || (share ? `${share} ${WEEK_WINDOW}` : '-'), right: true }]
+  const five = usage?.account_5h_pct ?? usage?.gpt_5h_pct
+  const week = usage?.account_week_pct ?? usage?.gpt_week_pct
+  const own = percentText(usage?.week_pct, usage?.week_pct_estimated === true)
+  const share = `${usage?.account_plan || 'TK'} 5h ${limitPercent(five)} · tuần ${limitPercent(week)}${own ? ` · riêng ${own} tuần` : ''}`
+  return [{ text: usage?.usd == null ? '~$?' : usdText(usage.usd, true), right: true },
+    { text: share, right: true }]
+
 }
 
 function childRow(mark: string, tone: Tone, k: string | undefined, what: string, bad: string,
-  dur: string, end: string, usage: Usage | null | undefined, indent: number): Draft {
-  const cols = [{ text: dur, right: true }, { text: end }, ...usageCols(usage),
+  dur: string, end: string, usage: Usage | null | undefined, indent: number, model: string): Draft {
+  const cols = [{ text: model }, { text: dur, right: true }, { text: end }, ...usageCols(usage),
     { text: cut(what, DESCRIPTION_MAX) }, { text: bad }]
   return { lead: `${mark} ${kind(k)}`, cols, tone, indent, group: 'tree' }
 }
@@ -214,20 +208,28 @@ function runRow(r: Run, now: number, indent: number): Draft {
   const live = runIsLive(r)
   const lost = r.state === 'lost'
   const bad = !live && runIsBad(r)
-  const dur = live || lost ? since(r.started_at, now) : r.duration_seconds
+  const dur = live ? since(r.started_at, now) : lost && !r.ended_at ? null : r.duration_seconds
   const text = lost ? 'mất' : bad ? STATUS_ALIASES[r.status ?? ''] ?? r.status ?? '' : ''
   const mark = live ? MARK.running : bad ? MARK.bad : MARK.ok
   const tone: Tone = live ? 'running' : bad ? 'bad' : 'dim'
   return childRow(mark, tone, r.backend, r.label ?? '?', text,
-    age(dur), live || lost ? '' : endedText(r.ended_at, now), r.usage, indent)
+    age(dur), live ? 'đang chạy' : completedText(r.ended_at), r.usage, indent, modelEffort(r))
 }
 
+const nativeSub = (s: Sub) => s.agent_type === 'native-codex'
+const subIsBad = (s: Sub) => failedExit(s) ||
+  (nativeSub(s) && ['failed', 'error', 'errored', 'cancelled', 'canceled'].includes(s.status ?? ''))
+const subIsLive = (s: Sub) => !subIsBad(s) &&
+  (s.status === 'running' || (!nativeSub(s) && s.status === 'silent'))
+
 function subRow(s: Sub, now: number, indent: number): Draft {
-  const live = s.status === 'running' || s.status === 'silent'
+  const live = subIsLive(s)
   const silent = s.status === 'silent'
-  return childRow(live ? MARK.running : MARK.ok, silent ? 'bad' : live ? 'running' : 'dim', s.agent_type,
+  const bad = subIsBad(s)
+  const mark = bad ? MARK.bad : live ? MARK.running : nativeSub(s) && s.status !== 'completed' ? '?' : MARK.ok
+  return childRow(mark, bad || silent ? 'bad' : live ? 'running' : 'dim', s.agent_type,
     s.description ?? '', silent ? 'im lặng' : '', age(s.duration_seconds),
-    live ? '' : endedText(s.ended_at, now), s.usage, indent)
+    live ? 'đang chạy' : completedText(s.ended_at), s.usage, indent, modelEffort(s))
 }
 
 function isLive(s: Session): boolean {
@@ -248,26 +250,18 @@ function sessionLook(s: Session, now: number, isHere: boolean) {
 function headRow(s: Session, now: number, isHere: boolean, indent: number): Draft {
   const { live, quiet, stale, mark, tone } = sessionLook(s, now, isHere)
   const cols = [
-    { text: live ? age(quiet) : endedText(s.ended_at, now), right: true },
-    { text: !live ? '' : stale ? STUCK_TEXT : s.status ?? '?' },
-    ...usageCols(s.usage),
+    { text: modelEffort(s) },
+    { text: age(s.duration_seconds), right: true },
+    { text: live ? 'đang chạy' : completedText(s.ended_at) },
+    ...usageCols(s.usage), { text: s.status || '?' },
   ]
-  return { lead: `${mark} ${sessionName(s)}`, cols, tone, indent, group: 'tree' }
+  return { lead: `${mark} ${sessionName(s)} (${s.side_name ? 'side' : 'root'} session)`, cols, tone, indent, group: 'tree' }
+
 }
 
 // A side session listed among its parent's children, in the child columns.
 function sideRow(s: Session, now: number, isHere: boolean, indent: number): Draft {
-  const { live, quiet, stale, mark, tone } = sessionLook(s, now, isHere)
-  const start = since(s.started_at, now)
-  const end = since(s.ended_at, now)
-  const dur = live ? quiet : start != null && end != null ? start - end : null
-  const cols = [
-    { text: dur != null ? age(dur) : '', right: true },
-    { text: live ? (stale ? STUCK_TEXT : '') : endedText(s.ended_at, now) },
-    ...usageCols(s.usage),
-    { text: cut(s.ai_title ?? '', DESCRIPTION_MAX) },
-  ]
-  return { lead: `${mark} ${sessionName(s)}`, cols, tone, indent, group: 'tree' }
+  return headRow(s, now, isHere, indent)
 }
 
 const stamp = (iso: string | null | undefined) => (iso ? Date.parse(iso) : NaN)
@@ -276,13 +270,7 @@ type Item = { running: boolean; bad: boolean; end: number; rows: () => Draft[] }
 // Running children first, then the newest finished or failed, then a summary.
 function childRows(items: Item[], indent: number): Draft[] {
   const done = items.filter(x => !x.running).sort((a, b) => (Number.isNaN(b.end) ? -Infinity : b.end) - (Number.isNaN(a.end) ? -Infinity : a.end))
-  const rest = done.slice(RECENT_FINISHED_SHOWN)
-  const rows = [...items.filter(x => x.running), ...done.slice(0, RECENT_FINISHED_SHOWN)].flatMap(x => x.rows())
-  const bad = rest.filter(x => x.bad).length
-  const ok = rest.length - bad
-  if (!rest.length) return rows
-  const summary = plain(`+${ok ? `${ok} xong` : ''}${ok && bad ? ' · ' : ''}`, 'dim', indent)
-  return [...rows, { ...summary, bad: bad ? `${bad} lỗi` : undefined }]
+  return [...items.filter(x => x.running), ...done].flatMap(x => x.rows())
 }
 
 // One session row, then its children one level deeper; side sessions are
@@ -295,7 +283,7 @@ function sessionTree(s: Session, now: number, hereId: string, indent: number,
   const head = asChild ? sideRow(s, now, isHere, indent) : headRow(s, now, isHere, indent)
   const inner = indent + 1
   const items: Item[] = [
-    ...(s.subagents ?? []).map(x => ({ running: x.status === 'running' || x.status === 'silent', bad: false,
+    ...(s.subagents ?? []).map(x => ({ running: subIsLive(x), bad: subIsBad(x),
       end: stamp(x.ended_at), rows: () => [subRow(x, now, inner)] })),
     ...(s.hand_runs ?? []).map(x => ({ running: runIsLive(x), bad: !runIsLive(x) && runIsBad(x),
       end: stamp(x.ended_at), rows: () => [runRow(x, now, inner)] })),
@@ -349,17 +337,13 @@ export function buildRows(data: HhPs, hereId: string): { rows: Row[]; header: st
   roots.sort((a, b) => rank(a) - rank(b))
 
   const limits = (data.limits ?? []).filter(
-    l => l.window === WEEK_WINDOW || (l.plan === GPT_PLAN && l.window === GPT_5H_WINDOW))
+    l => (l.plan !== GPT_PLAN || l.total_pct != null) && (l.window === WEEK_WINDOW || (l.plan === GPT_PLAN && l.window === GPT_5H_WINDOW)))
   const drafts: Draft[] = limits.length
     ? [plain('Hạn mức', 'plain', 0), ...limits.map(l => plain(limitLine(l, now), 'dim', 0))]
     : []
+  drafts.push(plain('LOẠI / TÊN  MODEL/EFFORT  THỜI GIAN  KẾT THÚC (local)  USD  TÀI KHOẢN 5h / tuần', 'dim', 0))
   const seen = new Set<string>()
   for (const s of roots) drafts.push(...sessionTree(s, now, hereId, 0, kids, seen, false))
-  const orphans = (data.orphan_runs ?? []).filter(runIsLive)
-  if (orphans.length) {
-    drafts.push(plain('hand ngoài không rõ phiên gọi', 'plain', 0))
-    drafts.push(...orphans.map(r => runRow(r, now, 1)))
-  }
   const rows = align(drafts)
   const t = data.totals ?? {}
   const header = `${t.live_sessions ?? 0} phiên sống · ${t.running_hand_runs ?? 0} hand chạy · ${t.running_subagents ?? 0} subagent${data.hidden_ended_sessions ? ` · ẩn ${data.hidden_ended_sessions} đã kết thúc` : ''}`

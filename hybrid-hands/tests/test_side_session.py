@@ -101,12 +101,20 @@ class SideSessionTest(unittest.TestCase):
 
     def test_config_defaults_and_override(self) -> None:
         cfg = load_config(self.repo)
-        self.assertEqual(cfg.max_parallel, 2)
+        self.assertEqual(cfg.max_parallel, 4)
         self.assertEqual(cfg.worktree_root, (self.repo / ".." / "repo-wt").resolve())
         (self.repo / ".claude").mkdir()
         (self.repo / ".claude" / "hybrid-hands.json").write_text(
             json.dumps({"side_session": {"max_parallel": 1}}))
         self.assertEqual(load_config(self.repo).max_parallel, 1)
+        for value in (2, 3, 4, 0, 5, True, "4", 1.5):
+            (self.repo / ".claude" / "hybrid-hands.json").write_text(
+                json.dumps({"side_session": {"max_parallel": value}}))
+            if type(value) is int and 1 <= value <= 4:
+                self.assertEqual(load_config(self.repo).max_parallel, value)
+            else:
+                with self.assertRaises(ValueError):
+                    load_config(self.repo)
 
     def test_dry_run_prints_commands_and_creates_nothing(self) -> None:
         code, out = self.run_cli("start", "--name", "demo", "--provider", "claude",
@@ -130,7 +138,7 @@ class SideSessionTest(unittest.TestCase):
     def test_start_ls_stop_and_parallel_limit(self) -> None:
         (self.repo / ".claude").mkdir()
         (self.repo / ".claude" / "hybrid-hands.json").write_text(
-            json.dumps({"side_session": {"codex_home": str(self.tmp / "codex-home")}}))
+            json.dumps({"side_session": {"max_parallel": 2, "codex_home": str(self.tmp / "codex-home")}}))
         for name in ("a", "b"):
             code, _ = self.run_cli("start", "--name", name, "--prompt", "do it")
             self.assertEqual(code, 0)

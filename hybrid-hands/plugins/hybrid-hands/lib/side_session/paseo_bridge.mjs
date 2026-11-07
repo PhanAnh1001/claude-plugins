@@ -11,6 +11,86 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_TIMEOUT_MS = 3000;
+const SUBAGENT_TIMELINE_LIMIT = 100;
+const TIMELINE_METADATA = [
+  "provider", "direction", "epoch", "projection", "startCursor", "endCursor",
+  "reset", "staleCursor", "gap", "window", "hasOlder", "hasNewer",
+];
+
+function nonemptyId(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function nativePayloadValid(payload, parentAgentId) {
+  if (!payload || typeof payload !== "object") {
+    fail("PASEO_BRIDGE_PROTOCOL");
+    return false;
+  }
+  // Provider errors are nullable strings, potentially containing private details.
+  // Preserve a safe machine code only; never forward error text or other fields.
+  if (payload.error != null) {
+    fail(errorCode({ code: payload.error }));
+    return false;
+  }
+  if (payload.parentAgentId !== parentAgentId) {
+    fail("SUBAGENT_PARENT_MISMATCH");
+    return false;
+  }
+  return true;
+}
+
+async function readNativeSubagents(client, request, key) {
+  const parent = request.agentId;
+  const timeline = request.command === "subagent-timeline";
+  if (!nonemptyId(parent) || (timeline && !nonemptyId(request.subagentId))) {
+    fail("INVALID_AGENT_ID");
+    return;
+  }
+  if (typeof client.listProviderSubagents !== "function"
+      || (timeline && typeof client.fetchProviderSubagentTimeline !== "function")) {
+    fail("NATIVE_SUBAGENTS_UNSUPPORTED");
+    return;
+  }
+  const listed = await client.listProviderSubagents(parent);
+  if (!nativePayloadValid(listed, parent)) {
+    return;
+  }
+  if (!Array.isArray(listed.subagents)) {
+    fail("PASEO_BRIDGE_PROTOCOL");
+    return;
+  }
+  if (!listed.subagents.every((child) => child && nonemptyId(child.id)
+      && child.parentAgentId === parent)) {
+    fail("SUBAGENT_PARENT_MISMATCH");
+    return;
+  }
+  if (!timeline) {
+    emit({ ok: true, parentAgentId: parent, subagents: listed.subagents, targetKey: key });
+    return;
+  }
+  if (!listed.subagents.some((child) => child.id === request.subagentId)) {
+    fail("SUBAGENT_NOT_FOUND");
+    return;
+  }
+  const fetched = await client.fetchProviderSubagentTimeline(parent, request.subagentId, {
+    limit: SUBAGENT_TIMELINE_LIMIT,
+  });
+  if (!nativePayloadValid(fetched, parent)) {
+    return;
+  }
+  if (fetched.subagentId !== request.subagentId || !Array.isArray(fetched.rows)) {
+    fail("PASEO_BRIDGE_PROTOCOL");
+    return;
+  }
+  const metadata = {};
+  for (const field of TIMELINE_METADATA) {
+    if (Object.hasOwn(fetched, field)) {
+      metadata[field] = fetched[field];
+    }
+  }
+  emit({ ok: true, parentAgentId: parent, subagentId: request.subagentId,
+    rows: fetched.rows, ...metadata, targetKey: key });
+}
 
 function emit(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
@@ -86,6 +166,10 @@ async function main() {
     timeout: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   });
   try {
+    if (request.command === "subagents" || request.command === "subagent-timeline") {
+      await readNativeSubagents(client, request, key);
+      return;
+    }
     if (request.command === "ready") {
       // Read-only probe: an accepted daemon connection plus a list request.
       await client.fetchAgents({ page: { limit: 1 } });

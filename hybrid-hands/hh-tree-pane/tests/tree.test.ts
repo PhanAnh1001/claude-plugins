@@ -32,7 +32,7 @@ test('rows show USD and limit % but no token counts', () => {
   }
   const text = buildRows(data, 'main').rows.map(r => r.text).join('\n')
   assert.match(text, /\$0\.42/)
-  assert.match(text, /\$0\.78\s+~1\.6% tuần/)
+  assert.match(text, /\$0\.78.*riêng ~1\.6% tuần/)
   for (const gone of ['|', 'ctx ', 'out ', '157k', '500k']) assert.ok(!text.includes(gone), `${gone} in\n${text}`)
   assert.ok(!LEGEND.includes('token'))
 })
@@ -55,7 +55,7 @@ test('limits block sits at the top of the pane', () => {
   const rows = buildRows(data, 'main').rows
   assert.equal(rows[0].text, 'Hạn mức')
   assert.equal(rows[1].text, 'Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00')
-  assert.ok(!rows.some(row => row.text.includes(' 5h ')), 'the 5h window is not rendered')
+  assert.ok(!rows.some(row => row.text.startsWith('Go 5h ')), 'the 5h window is not rendered')
   assert.equal(limitLine({ plan: 'Go', window: 'tuần', this_machine_pct: 20,
     other_pct: null, total_pct: null, resets_at: null }, now),
   'Go tuần   máy này 20.0% · máy khác ? · tổng ?')

@@ -9,21 +9,23 @@ from __future__ import annotations
 import os
 import unittest
 
-SANDBOX_ENV = "CODEX_SANDBOX"
+ISOLATED_ENV = ("CODEX_SANDBOX", "CODEX_THREAD_ID", "PASEO_AGENT_ID",
+                "HYBRID_HANDS_HAND_SCOPE")
 
 
 class HandExtTestCase(unittest.TestCase):
-    """Strip an inherited CODEX_SANDBOX for the lifetime of each test class."""
+    """Isolate inherited sandbox and parent/scope identifiers, then restore them."""
 
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        cls._inherited_sandbox = os.environ.pop(SANDBOX_ENV, None)
+        cls._inherited_env = {key: os.environ.pop(key, None) for key in ISOLATED_ENV}
         cls.addClassCleanup(cls._restore_sandbox)
 
     @classmethod
     def _restore_sandbox(cls) -> None:
-        if cls._inherited_sandbox is None:
-            os.environ.pop(SANDBOX_ENV, None)
-        else:
-            os.environ[SANDBOX_ENV] = cls._inherited_sandbox
+        for key, value in cls._inherited_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value

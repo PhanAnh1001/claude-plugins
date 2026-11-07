@@ -56,7 +56,7 @@ class GoSessionsTest(unittest.TestCase):
     def run_record(self, run_id: str, parent: str | None, status: str = "done",
                    tokens: dict | None = None) -> None:
         record = {"run_id": run_id, "parent_session": parent, "status": status,
-                  "cwd": str(self.repo), "tokens": tokens or {}}
+                  "cwd": str(self.repo), "model": gs.LEGACY_GO_MODEL, "tokens": tokens or {}}
         (self.state / gs.RUNS_SUBDIR / f"{run_id}.json").write_text(json.dumps(record))
 
     def finished(self, run_id: str, parent: str | None, usd: float, ended: float) -> None:
@@ -117,6 +117,7 @@ class GoSessionsTest(unittest.TestCase):
     def test_estimate_cost_matches_hybrid_hands_formula(self) -> None:
         tokens = {"input": 4_589_145, "cached_input": 4_481_152, "output": 32_152}
         self.assertAlmostEqual(gs.estimate_cost(tokens), 0.097867, places=5)
+        self.assertIsNone(gs.estimate_cost(tokens, "deepseek-unknown"))
 
 
 if __name__ == "__main__":

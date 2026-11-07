@@ -20,9 +20,11 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from usage_pricing import token_price, explicit_options
+
 from .config import ExtConfig
 from .constants import (
-    GO_PRICE_KEY, GO_USAGE_DEFAULT_PRICE, GO_USAGE_WINDOW_SHARES,
+    GO_PRICE_KEY, GO_USAGE_WINDOW_SHARES,
 )
 from .locked_json import locked, write_atomic
 
@@ -62,12 +64,12 @@ def _token_count(value: Any) -> int:
         return 0
 
 
-def price_for(options: Optional[dict]) -> Optional[Dict[str, float]]:
+def price_for(options: Optional[dict], model: str = "deepseek-v4.1-flash") -> Optional[Dict[str, float]]:
     """`backends.<name>.go_price_per_mtok`, defaulting to the docs' peak Go prices."""
     options = options or {}
     raw = options.get(GO_PRICE_KEY)
     if raw is None and GO_PRICE_KEY not in options:
-        raw = GO_USAGE_DEFAULT_PRICE
+        return token_price(model)
     if not isinstance(raw, dict):
         return None
     price: Dict[str, float] = {}
@@ -256,7 +258,7 @@ def record_run(cfg: ExtConfig, entry: Dict[str, Any], exact_usd: Any = None,
     """Append one Go turn and refresh the summary, serialised on the ledger lock."""
     backend = str(entry.get("backend") or "")
     tokens = entry.get("tokens") or {}
-    cost, source = resolve_cost(tokens, exact_usd, price_for(cfg.options(backend)))
+    cost, source = resolve_cost(tokens, exact_usd, price_for(explicit_options(cfg, backend), str(entry.get("model") or "")))
     record = build_record(str(entry.get("run_id") or ""), str(entry.get("ended") or ""),
                           backend, str(entry.get("model") or ""), tokens, cost, source,
                           str(entry.get("cwd") or ""))
