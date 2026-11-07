@@ -19,10 +19,15 @@ class Usage:
     cache_write: Optional[int] = None
     out: int = 0
     usd: Optional[float] = None
+    # True when usd is a token-price estimate (Codex subscription), not a ledger exact value.
+    usd_estimated: bool = False
     # Share of the weekly plan limit this row used, in percent; None when unknown.
     week_pct: Optional[float] = None
     # True when the statusline would mark this percentage with "~".
     week_pct_estimated: bool = False
+    # ChatGPT plan account samples, kept apart from the row's own weekly share above.
+    gpt_5h_pct: Optional[float] = None
+    gpt_week_pct: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +90,8 @@ class HandRun:
     week_limit_usd: Optional[float] = None
     # True when the run cost or the Go weekly source is an estimate.
     week_pct_estimated: bool = False
+    # Snapshot usage (Codex cost/account samples); renderers fall back to hand_usage.
+    usage: Optional[Usage] = None
 
     @property
     def running(self) -> bool:

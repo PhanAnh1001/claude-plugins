@@ -5,7 +5,8 @@ import os
 import sys
 from typing import Dict, List, Optional, TextIO
 
-from .compact import run_is_bad, run_line, session_line, side_child_line, subagent_line
+from .compact import (limit_line, run_is_bad, run_line, session_line, side_child_line,
+                      subagent_line)
 from .constants import (
     BRANCH, COLORS, COLOR_RESET, ENDED_FLAG, LAST_BRANCH, LEGEND, NO_COLOR_ENV,
     ORPHAN_HEADING, PIPE, SIDE_UNKNOWN_HEADING, SPACE,
@@ -131,6 +132,9 @@ def render_text(snapshot: Snapshot, color: bool = False, full: bool = False) -> 
     now = snapshot.generated_at
     header = [f"Phiên Claude ({_header_counts(snapshot)})"
               f" · since {duration_text(snapshot.since_seconds)}", LEGEND]
+    if snapshot.limits:
+        header.append("Hạn mức")
+        header.extend(limit_line(limit, now) for limit in snapshot.limits)
     if not total:
         header.append("(không có phiên hay lượt hand nào trong khoảng --since)")
     tree: List[Line] = []

@@ -40,20 +40,21 @@ Agent chỉ được nhắc các bước, không chạy hộ (bật relay mở �
 
 ## 4. Chạy hand Codex với CODEX_HOME riêng
 
-Paseo dùng lại đăng nhập gói của CLI, không cần API key. `~/.codex` là đăng nhập ChatGPT chính của người dùng; hand dùng `~/.codex-hand` (gói ChatGPT riêng cho hand, cùng thư mục với backend `codex` của `hand-ext`).
+Paseo dùng lại đăng nhập gói của CLI, không cần API key. Tình trạng từ 07/11/2026: `~/.codex` là tài khoản free cũ đã tạm tắt; `~/.paseo/config.json` đã có `agents.providers.codex={enabled:false}`; hand Codex dùng `~/.codex-hand` (gói ChatGPT riêng cho hand, cùng thư mục với backend `codex` của `hand-ext`).
 
-- **Cách nên dùng — provider tuỳ biến** (đề xuất; người dùng duyệt rồi mới ghi vào `~/.paseo/config.json`, sau đó `paseo reload`) ([custom providers](https://paseo.sh/docs/custom-providers), 11/2026):
+- **Cách đang dùng — provider tuỳ biến** (`~/.paseo/config.json` đã có `agents.providers.codex={enabled:false}` từ 07/11/2026; provider `codex-hand` dùng `~/.codex-hand`, đổi config thì `paseo reload`) ([custom providers](https://paseo.sh/docs/custom-providers), 11/2026):
 
 ```json
 {
   "agents": {
     "providers": {
+      "codex": { "enabled": false },
       "codex-hand": {
         "extends": "codex",
         "label": "Codex hand (gói ChatGPT)",
         "env": { "CODEX_HOME": "/Users/anhtp/.codex-hand" },
         "models": [
-          { "id": "<model id GPT-6.1 Sol trong ~/.codex-hand>", "label": "GPT-6.1 Sol", "isDefault": true }
+          { "id": "gpt-6.1-sol", "label": "GPT-6.1 Sol", "isDefault": true }
         ]
       }
     }
@@ -61,11 +62,10 @@ Paseo dùng lại đăng nhập gói của CLI, không cần API key. `~/.codex`
 }
 ```
 
-  Rồi: `paseo provider models codex-hand` (kiểm model), `paseo run --provider codex-hand --title hand-x --no-wait "$(cat brief.md)"`.
-- **Một lần, không sửa config:** `paseo run --provider codex --env CODEX_HOME=/Users/anhtp/.codex-hand --model <id> --no-wait "..."` (`--env`, `--model`, `--provider provider/model` có trong `paseo run --help`, 0.15.0). Danh sách model của provider `codex` mặc định lấy từ `~/.codex` nên có thể không có GPT-6.1 Sol (trên máy chỉ thấy `gpt-5.6-terra`, `gpt-5.6-luna`) — vì vậy ưu tiên provider tuỳ biến.
+  Rồi: `paseo provider models codex-hand` (kiểm model), `paseo run --provider codex-hand --title hand-x --no-wait "$(cat brief.md)"`. `codex: {enabled: false}` tắt provider `codex` mặc định (`~/.codex`) toàn cục; vẫn dùng `codex-hand` (kế thừa `codex` qua `extends`) với tài khoản `~/.codex-hand`. Không sửa config thật khi chưa được duyệt.
 - **Cấu hình model:** đặt `model` mặc định trong `~/.codex-hand/config.toml` (`hand-ext setup --backend codex` ghi sẵn; CODEX_HOME riêng nên không ảnh hưởng `~/.codex`). Trường `command` của provider thay toàn bộ lệnh khởi nhưng Paseo tự thêm subcommand nên chèn profile `-p` **chưa kiểm**, đừng dùng khi chưa thử.
 - **% tuần sống cho phiên Paseo:** thêm provider `claude-tee` (`extends: "claude"`, `command` trỏ tuyệt đối tới `bin/claude-tee`), `paseo reload`, chạy thử rồi mới ghi đè `command` của provider `claude`. Wrapper chỉ chuyển tiếp stream-json và ghi `rate_limit_event` (`seven_day`/`five_hour`) vào `$CLAUDE_CONFIG_DIR/.hh-claude-rate-limit.json`, không lưu hội thoại/`session_id`; `hh-ps`/`hh-tree` dùng mẫu mới hơn cache và không ngoại suy. Gỡ bằng cách bỏ provider/khôi phục `claude` rồi `paseo reload`; đặt `env.HH_CLAUDE_REAL` nếu cần chỉ `claude` thật. Chi tiết ở README hybrid-hands mục 8.1.
-- **Hạn mức:** mỗi `paseo run` với hand dùng hạn mức gói ChatGPT của `~/.codex-hand`; theo dõi bằng `hand-ext status`, luật như skill `ext-hand`.
+- **Hạn mức:** mỗi `paseo run` với hand dùng hạn mức gói ChatGPT của `~/.codex-hand`; Paseo 0.15.0 không có lệnh xem usage/quota, nên đọc trên `hh-ps`/`hh-tree` (USD ước tính, % 5h/tuần và giờ reset của tài khoản), luật như skill `ext-hand`.
 
 ## 5. Theo dõi và điều khiển
 

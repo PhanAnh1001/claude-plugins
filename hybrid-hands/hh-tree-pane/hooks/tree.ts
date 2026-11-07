@@ -4,16 +4,17 @@
 //   child:   `<mark> <kind>  <duration>  [<end>]  <usd>  <limit %>  <description>  [<bad status>]`
 //   side session as a child: `<mark> phụ:<name>  <quiet | duration>  [<end>]  <usd>  <limit %>  [<ai title>]`
 // Session, side-session and child rows share one column table, so the USD and
-// week-% cells line up at every depth. No token count is shown (not even
-// `ctx`); `<week %>` is the share of the weekly plan limit, one decimal, `-`
-// when hh-ps has none for the row. Only the weekly plan window is rendered. Every session lists its children
+// limit-% cells line up at every depth. No token count is shown (not even
+// `ctx`); a Codex row prints `~$USD` and `GPT 5h X% · tuần Y%` from the account
+// samples, while other rows keep the weekly plan share. Claude/Go weekly and
+// GPT 5h/weekly limit rows are rendered. Every session lists its children
 // (subagents, hand runs, side sessions) by one rule (lib/hh_ps/selection.py):
 // running first, then the RECENT_FINISHED_SHOWN newest finished or failed, then
 // `+N xong · M lỗi`. The bad status follows the description so ok rows (most of
 // them) leave no gap before the description. hh-ps already hides fully ended trees.
 import type { Row, Tone } from '../types'
 
-type Usage = { read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null; week_pct?: number | null; week_pct_estimated?: boolean }
+type Usage = { read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null; usd_estimated?: boolean; week_pct?: number | null; week_pct_estimated?: boolean; gpt_5h_pct?: number | null; gpt_week_pct?: number | null }
 type Sub = { description?: string; agent_type?: string; status?: string; context_tokens?: number | null; duration_seconds?: number | null; ended_at?: string | null; usage?: Usage | null }
 type Run = {
   label?: string; backend?: string; status?: string; state?: string
@@ -42,7 +43,7 @@ export type HhPs = {
   totals?: { live_sessions?: number; running_subagents?: number; running_hand_runs?: number }
 }
 
-export const LEGEND = '▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · $ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng'
+export const LEGEND = '▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · $ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng · % GPT = tài khoản'
 // Finished or failed children listed per session; hh-ps constants.py keeps the same.
 const RECENT_FINISHED_SHOWN = 3
 // Display-cell caps shared with hh-ps (constants.py): keep child rows within
@@ -142,13 +143,16 @@ const PERCENT_MIN_VISIBLE = 0.1
 // Three spaces separate the plan/window label from the machine split.
 const LIMIT_GAP = '   '
 const UNKNOWN_PERCENT = '?'
+const GPT_PLAN = 'GPT'
+const GPT_5H_WINDOW = '5h'
 
 const plain = (text: string, tone: Tone, indent: number): Draft => ({ lead: text, cols: [], tone, indent, group: null })
 
-export const usdText = (usd: number | null | undefined) => {
+export const usdText = (usd: number | null | undefined, estimated = false) => {
   if (usd == null) return '-'
-  if (usd <= 0) return '$0'
-  return usd < USD_MIN_VISIBLE ? '<$0.01' : `$${usd.toFixed(2)}`
+  const mark = estimated ? '~' : ''
+  if (usd <= 0) return `${mark}$0`
+  return `${mark}${usd < USD_MIN_VISIBLE ? '<$0.01' : `$${usd.toFixed(2)}`}`
 }
 
 export const percentText = (pct: number | null | undefined, estimated = false) => {
@@ -165,19 +169,35 @@ const limitPercent = (pct: number | null | undefined, estimated = false) => (
 export const limitLine = (l: Limit, now: number) => {
   const reset = endedText(l.resets_at, now)
   const mark = l.estimated === true
-  const parts = [`máy này ${limitPercent(l.this_machine_pct, mark)}`,
-    `máy khác ${limitPercent(l.other_pct, mark)}`, `tổng ${limitPercent(l.total_pct, mark)}`]
+  const parts = l.plan === GPT_PLAN
+    ? [`tổng ${limitPercent(l.total_pct, mark)}`]
+    : [`máy này ${limitPercent(l.this_machine_pct, mark)}`,
+      `máy khác ${limitPercent(l.other_pct, mark)}`,
+      `tổng ${limitPercent(l.total_pct, mark)}`]
   if (reset) parts.push(`reset ${reset}`)
   return `${l.plan ?? '?'} ${l.window ?? '?'}${LIMIT_GAP}${parts.join(' · ')}`
 }
 
 const WEEK_WINDOW = 'tuần'
 
-// USD then the weekly share, both right-aligned; same cells as hh-ps compact.py.
+/** `GPT 5h 12.3% · tuần 4.5%`; '' when the row has no account sample. */
+const gptShare = (usage: Usage | null | undefined) => {
+  const five = usage?.gpt_5h_pct
+  const week = usage?.gpt_week_pct
+  if (five == null && week == null) return ''
+  return `GPT ${GPT_5H_WINDOW} ${limitPercent(five)} · ${WEEK_WINDOW} ${limitPercent(week)}`
+}
+
+// USD then the GPT sample or weekly share, both right-aligned; same cells as hh-ps compact.py.
 function usageCols(usage: Usage | null | undefined): Col[] {
+  const gpt = gptShare(usage)
   const share = percentText(usage?.week_pct, usage?.week_pct_estimated === true)
-  return [{ text: usdText(usage?.usd), right: true },
-    { text: share ? `${share} ${WEEK_WINDOW}` : '-', right: true }]
+  const estimated = usage?.usd_estimated === true
+  const usd = estimated && usage?.usd == null
+    ? UNKNOWN_PERCENT
+    : usdText(usage?.usd, estimated)
+  return [{ text: usd, right: true },
+    { text: gpt || (share ? `${share} ${WEEK_WINDOW}` : '-'), right: true }]
 }
 
 function childRow(mark: string, tone: Tone, k: string | undefined, what: string, bad: string,
@@ -325,7 +345,8 @@ export function buildRows(data: HhPs, hereId: string): { rows: Row[]; header: st
   const rank = (s: Session) => (s.session_id === hereId ? 0 : isLive(s) ? (s.status === 'busy' ? 1 : 2) : 3)
   roots.sort((a, b) => rank(a) - rank(b))
 
-  const limits = (data.limits ?? []).filter(l => l.window === WEEK_WINDOW)
+  const limits = (data.limits ?? []).filter(
+    l => l.window === WEEK_WINDOW || (l.plan === GPT_PLAN && l.window === GPT_5H_WINDOW))
   const drafts: Draft[] = limits.length
     ? [plain('Hạn mức', 'plain', 0), ...limits.map(l => plain(limitLine(l, now), 'dim', 0))]
     : []

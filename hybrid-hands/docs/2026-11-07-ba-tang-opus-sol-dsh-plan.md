@@ -3,7 +3,7 @@
 ## Tóm tắt
 
 - **Mục tiêu:** làm theo spec `2026-11-07-ba-tang-opus-sol-dsh-spec.md`. Có 5 nhóm: phiên Sol trên Codex, backend `claude-main`, policy mới, kiểm thực tế, và (thêm 07/11) dự phòng 429 bằng Sol low cùng hạn mức GPT trên Paseo và statusline.
-- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); 4.3 xong (15:00, baseline ở mục 4.3); 4.12-4.14 xong (15:05); còn 4.15, 4.16, 5.3, 5.4, 5.6.
+- **Trạng thái (07/11/2026, 14:45):** nhóm 1-3 xong; đã sửa 4.4, 4.5, 4.6 (commit `e6cf199` trên nhánh `feat/ba-tang-opus-sol-dsh`, chưa merge main, chưa push). Đã sửa 4.7-4.10 và áp diff L0 của `sol-l0-test2`, brain đã review, 388 test xanh, đã commit. Phiên `sol-l0-test2` đã dừng, worktree và nhánh `side/sol-l0-test2` đã dọn, `~/.claude/.claude.json` lạ đã xoá. Nhóm 5 đã duyệt; 4.1, 4.2, 4.11, 5.1, 5.2, 5.5 xong (commit sau `0166451`); 4.3 xong (15:00, baseline ở mục 4.3); 4.12-4.14 xong (15:05); 5.3 xong (15:35); còn 4.15, 4.16, 5.4, 5.6.
   - Test đầy đủ: 388 test xanh (07/11, 13:50). Lỗi chập chờn có từ trước `test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo` (fail khi chạy cả bộ, chạy riêng 5/5 xanh); chưa xử lý.
   - 4.2 nhánh chặn đã thử: `.claude/hybrid-hands.json` tạm `max_day_pct` = 1 → "máy này đã dùng 2.4% Claude hôm nay (ngưỡng 1%)", thoát mã 7; đã xoá file tạm.
   - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
@@ -141,11 +141,14 @@ Người dùng yêu cầu (07/11, 14:00), duyệt 14:10. Lane L2: brain cắt th
   - Q5c (đúng như đề xuất): account GPT free cũ là `~/.codex` (model `gpt-5.6-terra`/`luna`), account mới là `~/.codex-hand`. Tạm tắt `~/.codex` nghĩa là Paseo, hh-ps, statusline không đọc hay hiện nó, và hand-ext, side-session không dùng nó. Không đăng xuất, không xoá.
 - [x] 5.1 Dự phòng 429 (Q5a): `lib/hand_ext/run_cmd.py`, logic chọn backend của `auto`. Cập nhật policy (`hooks/inject-policy.sh` dòng Dự phòng, giữ dưới 1800 ký tự), `skills/ext-hand/SKILL.md` (mục 429), README. 1 test.
 - [x] 5.2 Ghi số liệu GPT cho mỗi lượt hand codex: hand-ext đã đọc `rate_limits` (`backends/codex.py:44` `quota_from_rate_limits`). Thêm ghi vào sổ (giống `~/.hybrid-hands/go_usage.jsonl`, ví dụ `codex_usage.jsonl`): `run_id`, `ended`, `model`, `effort`, token, `cost_usd` ước tính (Q5b), `used_percent` 5h và tuần kèm `resets_at`, `codex_home` dạng tên thư mục. Không ghi hội thoại. 1 test.
-- [ ] 5.3 Panel Paseo (`hh-ps`/`hh-tree`, `lib/hh_ps/`):
+- [x] 5.3 Panel Paseo (`hh-ps`/`hh-tree`, `lib/hh_ps/`):
   - mỗi phiên hand codex và phiên Sol hiện USD ước tính và % hạn mức GPT;
   - thêm dòng hạn mức tài khoản GPT `~/.codex-hand` (5h, tuần, giờ reset), cạnh dòng Claude tuần, lấy mẫu mới nhất từ sổ 5.2 hoặc rollout `~/.codex-hand`;
   - không đọc `~/.codex` (Q5c).
   - Trước khi sửa, hand đọc `limits.py`, `week.py`, `tree.py`, `render.py` để theo cách dòng Claude tuần đang làm. 1 test.
+  - Đã làm (phiên `sol-53`, 07/11 14:40-15:30; 14 file, +760/-74): module mới `lib/hh_ps/codex.py` đọc sổ 5.2 và rollout đã ghim, USD ước tính `~$`; dòng `GPT tuần` cạnh dòng Claude tuần; `hh-ps --json` có trường tương ứng; pane `hh-tree-pane` và plugin `paseo-hh-tree` nhận schema mới; `skills/paseo/SKILL.md` mục 4 đã cập nhật. 395 test xanh ở repo chính.
+  - Chạy thật (15:35): `GPT tuần tổng 4.0% · reset 09/11 13:19`; phiên Sol hiện `~$1.02  GPT 5h ? · tuần 4.0%`.
+  - Còn lại (gộp vào 5.6): tài khoản không có cửa sổ 5h nên nên ẩn `5h ?` thay vì hiện `?`; chưa typecheck TS đủ dependency và chưa xem UI trên điện thoại.
 - [ ] 5.4 Statusline (plugin `statusline/`): thêm đoạn ngắn % tuần và 5h của tài khoản GPT `~/.codex-hand` cùng USD GPT hôm nay, từ sổ 5.2. Không có mẫu trong 24 giờ thì ẩn. 1 test.
 - [x] 5.5 Paseo app (`~/.paseo/config.json`, sửa khi người dùng đã duyệt mục 5):
   - thêm provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME=/Users/anhtp/.codex-hand`, model `gpt-6.1-sol`) theo `skills/paseo/SKILL.md` mục 4;

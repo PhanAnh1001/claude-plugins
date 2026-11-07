@@ -6,7 +6,8 @@ Session: `<mark> <name>  <quiet | end>  <status>  <usd>  <limit %>`.
 Child:   `<mark> <kind>  <duration>  [<end>]  <usd>  <limit %>  <description>  [<bad status>]`.
 Side session listed as a child: `<mark> phụ:<name>  <quiet | duration>  [<end>]  <usd>  <limit %>  [<ai title>]`.
 No token count is shown (not even `ctx`); USD and limit % are right-aligned, and a row with no
-known limit share leaves the % cell empty. The session status
+known limit share leaves the % cell empty. Codex rows print `~$USD` and an account
+sample as `GPT 5h X% · tuần Y%`, never the older Claude/Go `week_pct`. The session status
 takes the child end-time column (empty when ended). The bad status follows the
 description: it is empty on most rows, so a column before the description would
 leave a gap on every ok row. hh-tree-pane (hooks/tree.ts) mirrors these rules;
@@ -22,13 +23,17 @@ from .constants import (
     RUN_STATE_LOST, RUN_STATE_RUNNING, SESSION_NAME_MAX_LEN, SIDE_NAME_PREFIX,
     STATUS_ALIASES, SUBAGENT_RUNNING, SUBAGENT_SILENT,
 )
-from .models import HandRun, Session, Subagent, Usage
+from .models import HandRun, Limit, Session, Subagent, Usage
 from .pricing import hand_usage
 from .table import GROUP_TREE, Cell, Line
 from .textwidth import truncate_display
 from .timeutil import duration_text, ended_text, percent_text, usd_text
 
 UNKNOWN = "-"
+UNKNOWN_PCT = "?"
+GPT_PLAN = "GPT"
+WEEK_WINDOW = "tuần"
+LIMIT_GAP = "   "
 
 
 def _age(moment: Optional[float], now: float) -> Optional[float]:
@@ -54,14 +59,52 @@ def _session_mark(session: Session) -> Cell:
     return Cell(mark, key)
 
 
-def usage_cells(usage: Optional[Usage]) -> List[Cell]:
-    """The right-aligned USD cell and the weekly-% cell (empty when unknown)."""
+def _usd_cell(usage: Optional[Usage]) -> str:
     amount = usage.usd if usage is not None else None
-    share = usage.week_pct if usage is not None else None
-    estimated = usage.week_pct_estimated if usage is not None else False
-    share_text = percent_text(share, estimated)
-    return [Cell(usd_text(amount) or UNKNOWN, align_right=True),
-            Cell(f"{share_text} tuần" if share_text else "", align_right=True)]
+    text = usd_text(amount)
+    if text:
+        return f"~{text}" if usage is not None and usage.usd_estimated else text
+    # Codex knows the row but not a complete price: "?" beats inventing $0.
+    return UNKNOWN_PCT if usage is not None and usage.usd_estimated else UNKNOWN
+
+
+def _gpt_share(usage: Optional[Usage]) -> str:
+    if usage is None or (usage.gpt_5h_pct is None and usage.gpt_week_pct is None):
+        return ""
+    five = percent_text(usage.gpt_5h_pct) or UNKNOWN_PCT
+    week = percent_text(usage.gpt_week_pct) or UNKNOWN_PCT
+    return f"GPT 5h {five} · tuần {week}"
+
+
+def usage_cells(usage: Optional[Usage]) -> List[Cell]:
+    """The right-aligned USD cell and the weekly/GPT-% cell (empty when unknown)."""
+    gpt = _gpt_share(usage)
+    if gpt:
+        share_text = gpt
+    else:
+        share = usage.week_pct if usage is not None else None
+        estimated = usage.week_pct_estimated if usage is not None else False
+        week = percent_text(share, estimated)
+        share_text = f"{week} {WEEK_WINDOW}" if week else ""
+    return [Cell(_usd_cell(usage), align_right=True),
+            Cell(share_text, align_right=True)]
+
+
+def limit_line(limit: Limit, now: float) -> str:
+    """One `Hạn mức` row; GPT is account-only, Claude/Go keep the machine split."""
+    reset = ended_text(limit.resets_at, now)
+    mark = limit.estimated
+    if limit.plan == GPT_PLAN:
+        parts = [f"tổng {percent_text(limit.total_pct, mark) or UNKNOWN_PCT}"]
+    else:
+        parts = [
+            f"máy này {percent_text(limit.this_machine_pct, mark) or UNKNOWN_PCT}",
+            f"máy khác {percent_text(limit.other_pct, mark) or UNKNOWN_PCT}",
+            f"tổng {percent_text(limit.total_pct, mark) or UNKNOWN_PCT}",
+        ]
+    if reset:
+        parts.append(f"reset {reset}")
+    return f"{limit.plan} {limit.window}{LIMIT_GAP}{' · '.join(parts)}"
 
 
 def session_line(session: Session, now: float) -> Line:
@@ -145,7 +188,9 @@ def run_line(run: HandRun, now: float) -> Line:
     mark, key, status = _run_mark(run)
     end = run.ended_at if run.ended_at is not None else now
     duration = duration_text(None if run.started_at is None else end - run.started_at)
+    usage = run.usage
+    if usage is None:
+        usage = hand_usage(run.tokens, run.backend, run.week_limit_usd,
+                           run.week_pct_estimated)
     return _child_line(mark, key, run.backend, run.label or UNKNOWN, status,
-                       duration, ended_text(run.end_moment, now),
-                       hand_usage(run.tokens, run.backend, run.week_limit_usd,
-                                  run.week_pct_estimated))
+                       duration, ended_text(run.end_moment, now), usage)

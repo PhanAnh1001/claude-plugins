@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .claude_source import claude_config_dir, load_sessions, short_session_id
+from .codex import CodexData, load_codex, pinned_rollouts
 from .constants import (
-    PARENT_SESSION_ENV, PROVIDER_CLAUDE, RUN_STATUS_RUNNING, SIDE_RUN_LABEL_PREFIX,
-    SIDE_RUN_LABEL_SANITIZED_PREFIX,
+    PARENT_SESSION_ENV, PROVIDER_CLAUDE, PROVIDER_CODEX, RUN_STATUS_RUNNING,
+    SIDE_RUN_LABEL_PREFIX, SIDE_RUN_LABEL_SANITIZED_PREFIX,
 )
 from .limits import collect_limits, load_hand_ext_config
 from .models import HandRun, Session, Snapshot
@@ -186,17 +187,42 @@ def _run_in_week(run: HandRun, week: Optional[GoWeek]) -> bool:
     return run.ended_at is None or run.ended_at >= week.window_start
 
 
+def _apply_run_week(run: HandRun, week: Optional[GoWeek]) -> None:
+    run.week_limit_usd = (week.limit_usd
+                          if week is not None and _run_in_week(run, week)
+                          else None)
+    run.week_pct_estimated = bool(week and week.total_estimated)
+
+
 def _apply_weeks(sessions: List[Session], claude_week: Optional[ClaudeWeek],
                  go_week: Optional[GoWeek]) -> None:
     for session in sessions:
-        session.usage = apply_claude_week(session.usage, claude_week)
+        # Claude's weekly share only belongs to Claude rows; Codex gets GPT samples
+        # and Go hand runs get their own weekly formula.
+        if session.provider == PROVIDER_CLAUDE:
+            session.usage = apply_claude_week(session.usage, claude_week)
         for agent in session.subagents:
             agent.usage = apply_claude_week(agent.usage, claude_week)
         for run in session.hand_runs:
-            run.week_limit_usd = (go_week.limit_usd
-                                  if go_week is not None and _run_in_week(run, go_week)
-                                  else None)
-            run.week_pct_estimated = bool(go_week and go_week.total_estimated)
+            _apply_run_week(run, go_week)
+
+
+def _apply_codex(sessions: List[Session], orphans: List[HandRun],
+                 codex: CodexData, rollouts: Dict[str, str], now: float) -> None:
+    """Attach each Codex row's own usage from its ledger line or pinned rollout."""
+    for session in sessions:
+        if session.provider != PROVIDER_CODEX:
+            continue
+        usage = codex.rollout_usage(rollouts.get(session.session_id), now)
+        if usage is not None:
+            session.usage = usage
+    runs = [run for session in sessions for run in session.hand_runs] + orphans
+    for run in runs:
+        if run.backend != PROVIDER_CODEX:
+            continue
+        usage = codex.hand_usage(run.run_id, run.tokens, now)
+        if usage is not None:
+            run.usage = usage
 
 
 def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
@@ -244,12 +270,12 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     orphans.sort(key=_run_sort_key)
     _apply_weeks(sessions, claude_week, go_week)
     for run in orphans:
-        run.week_limit_usd = (go_week.limit_usd
-                              if go_week is not None and _run_in_week(run, go_week)
-                              else None)
-        run.week_pct_estimated = bool(go_week and go_week.total_estimated)
+        _apply_run_week(run, go_week)
+    codex = load_codex(cfg, moment)
+    _apply_codex(sessions, orphans, codex, pinned_rollouts(repos.roots), moment)
     return Snapshot(sessions=sessions, orphan_runs=orphans, since_seconds=since_seconds,
                     cwd=str(cwd), all_projects=all_projects,
                     main_session_id=main_session_id, generated_at=moment,
                     limits=collect_limits(root, moment, cfg=cfg,
-                                          claude_week=claude_week, go_week=go_week))
+                                          claude_week=claude_week, go_week=go_week,
+                                          codex_windows=codex.account))

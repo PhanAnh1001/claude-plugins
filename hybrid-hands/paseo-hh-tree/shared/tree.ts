@@ -5,18 +5,22 @@ export const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 // Per-row cost from `hh-ps --json`: USD estimate and share of the weekly plan
-// limit in percent. Older hh-ps builds omit it.
+// limit in percent. Codex rows add `usd_estimated` and account GPT samples;
+// older hh-ps builds omit all of them.
 const usageSchema = z
   .object({
     usd: z.number().nullable().optional(),
+    usd_estimated: z.boolean().optional(),
     week_pct: z.number().nullable().optional(),
     week_pct_estimated: z.boolean().optional(),
+    gpt_5h_pct: z.number().nullable().optional(),
+    gpt_week_pct: z.number().nullable().optional(),
   })
   .passthrough()
   .nullable()
   .optional();
 
-// Top-of-panel limit rows from `hh-ps --json` (Go + Claude when cached).
+// Top-of-panel limit rows from `hh-ps --json` (Claude/Go weekly, GPT 5h + weekly).
 const limitSchema = z
   .object({
     plan: z.string(),

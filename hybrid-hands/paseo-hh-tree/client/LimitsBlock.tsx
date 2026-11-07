@@ -1,7 +1,7 @@
 import { Text, View } from "react-native";
 
 import type { TreeLimit } from "../shared/tree";
-import { isWeekLimit, limitLine } from "./format";
+import { isShownLimit, limitLine } from "./format";
 import type { TreeThemeProps } from "./TreeRow";
 
 export function LimitsBlock({
@@ -10,8 +10,8 @@ export function LimitsBlock({
   compact,
   now,
 }: TreeThemeProps & { limits: TreeLimit[] }) {
-  const weekly = limits.filter(isWeekLimit);
-  if (!weekly.length) {
+  const shown = limits.filter(isShownLimit);
+  if (!shown.length) {
     return null;
   }
   return (
@@ -25,7 +25,7 @@ export function LimitsBlock({
       >
         Hạn mức
       </Text>
-      {weekly.map((limit, index) => (
+      {shown.map((limit, index) => (
         <Text
           key={`${limit.plan}-${limit.window}-${index}`}
           style={{

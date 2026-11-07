@@ -15,7 +15,7 @@ __all__ = ["color_enabled", "render_json", "render_text"]
 def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
     if usage is None:
         return None
-    return {
+    data: Dict[str, object] = {
         "read": usage.read,
         "cache_read": usage.cache_read,
         "cache_write": usage.cache_write,
@@ -24,6 +24,14 @@ def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
         "week_pct": usage.week_pct,
         "week_pct_estimated": usage.week_pct_estimated,
     }
+    # Codex-only keys stay absent on Claude/Go rows, whose JSON shape is unchanged.
+    if usage.usd_estimated:
+        data["usd_estimated"] = True
+    if usage.gpt_5h_pct is not None:
+        data["gpt_5h_pct"] = usage.gpt_5h_pct
+    if usage.gpt_week_pct is not None:
+        data["gpt_week_pct"] = usage.gpt_week_pct
+    return data
 
 
 def _limit_json(limit: Limit) -> Dict[str, object]:
@@ -42,6 +50,10 @@ def _limit_json(limit: Limit) -> Dict[str, object]:
 def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
     end = run.ended_at if run.ended_at is not None else now
     duration = None if run.started_at is None else max(0.0, end - run.started_at)
+    usage = run.usage
+    if usage is None:
+        usage = hand_usage(run.tokens, run.backend, run.week_limit_usd,
+                           run.week_pct_estimated)
     return {
         "run_id": run.run_id,
         "label": run.label,
@@ -50,8 +62,7 @@ def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
         "status": run.status,
         "state": run.state,
         "tokens": dict(run.tokens),
-        "usage": _usage_json(hand_usage(run.tokens, run.backend,
-                                        run.week_limit_usd, run.week_pct_estimated)),
+        "usage": _usage_json(usage),
         "started_at": iso_at(run.started_at),
         "ended_at": iso_at(run.end_moment),
         "duration_seconds": duration,

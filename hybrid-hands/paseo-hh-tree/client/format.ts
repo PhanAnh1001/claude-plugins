@@ -21,18 +21,21 @@ const PERCENT_MIN_VISIBLE = 0.1;
 const LIMIT_GAP = "   ";
 const UNKNOWN_PERCENT = "?";
 const WEEK_WINDOW = "tuần";
+const GPT_PLAN = "GPT";
+const GPT_5H_WINDOW = "5h";
 
 export const DESCRIPTION_MAX_LEN = 60;
 
 /** `$0.42`, `<$0.01` under one cent, `$0` for nothing used, "" without an estimate. */
-export function usdText(usd: number | null | undefined): string {
+export function usdText(usd: number | null | undefined, estimated = false): string {
   if (usd === null || usd === undefined || !Number.isFinite(usd)) {
     return "";
   }
+  const mark = estimated ? "~" : "";
   if (usd <= 0) {
-    return "$0";
+    return `${mark}$0`;
   }
-  return usd < USD_MIN_VISIBLE ? "<$0.01" : `$${usd.toFixed(USD_DECIMALS)}`;
+  return `${mark}${usd < USD_MIN_VISIBLE ? "<$0.01" : `$${usd.toFixed(USD_DECIMALS)}`}`;
 }
 
 /** Share of the weekly plan limit, one decimal (`12.3%`); "" when unknown. */
@@ -47,10 +50,30 @@ export function percentText(pct: number | null | undefined, estimated = false): 
   return `${mark}${Math.max(0, pct).toFixed(PERCENT_DECIMALS)}%`;
 }
 
+/** `GPT 5h 12.3% · tuần 4.5%`; "" when the row has no account sample. */
+export function gptShareText(usage: TreeUsage): string {
+  const five = usage?.gpt_5h_pct;
+  const week = usage?.gpt_week_pct;
+  if (five === null || five === undefined) {
+    if (week === null || week === undefined) {
+      return "";
+    }
+  }
+  return `GPT ${GPT_5H_WINDOW} ${percentText(five) || UNKNOWN_PERCENT} · ${WEEK_WINDOW} ${
+    percentText(week) || UNKNOWN_PERCENT
+  }`;
+}
+
 /** `$0.78 · 1.6% tuần`, only the parts the row has; "" when it has neither. */
 export function costText(usage: TreeUsage): string {
+  const gpt = gptShareText(usage);
   const share = percentText(usage?.week_pct, usage?.week_pct_estimated === true);
-  return [usdText(usage?.usd), share ? `${share} ${WEEK_WINDOW}` : ""]
+  const estimated = usage?.usd_estimated === true;
+  const usd =
+    estimated && (usage?.usd === null || usage?.usd === undefined)
+      ? UNKNOWN_PERCENT
+      : usdText(usage?.usd, estimated);
+  return [usd, gpt || (share ? `${share} ${WEEK_WINDOW}` : "")]
     .filter(Boolean)
     .join(" · ");
 }
@@ -65,20 +88,26 @@ export function limitPercentText(
     : percentText(pct, estimated);
 }
 
-/** True for the only plan window hh-ps and both panels display. */
-export function isWeekLimit(limit: TreeLimit): boolean {
-  return limit.window === WEEK_WINDOW;
+/** True for every plan window hh-ps and both panels display: weekly + GPT 5h. */
+export function isShownLimit(limit: TreeLimit): boolean {
+  return (
+    limit.window === WEEK_WINDOW ||
+    (limit.plan === GPT_PLAN && limit.window === GPT_5H_WINDOW)
+  );
 }
 
 /** `Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
 export function limitLine(limit: TreeLimit, now: number): string {
   const reset = resetText(limit.resets_at, now);
   const mark = limit.estimated === true;
-  const split = [
-    `máy này ${limitPercentText(limit.this_machine_pct, mark)}`,
-    `máy khác ${limitPercentText(limit.other_pct, mark)}`,
-    `tổng ${limitPercentText(limit.total_pct, mark)}`,
-  ];
+  const split =
+    limit.plan === GPT_PLAN
+      ? [`tổng ${limitPercentText(limit.total_pct, mark)}`]
+      : [
+          `máy này ${limitPercentText(limit.this_machine_pct, mark)}`,
+          `máy khác ${limitPercentText(limit.other_pct, mark)}`,
+          `tổng ${limitPercentText(limit.total_pct, mark)}`,
+        ];
   if (reset) {
     split.push(`reset ${reset}`);
   }

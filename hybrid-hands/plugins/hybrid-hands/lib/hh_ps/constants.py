@@ -28,6 +28,7 @@ RUNS_SUBDIR = "runs"
 RUNS_GLOB = "*.json"
 RUN_STATUS_RUNNING = "running"
 PROVIDER_CLAUDE = "claude"
+PROVIDER_CODEX = "codex"
 SIDE_RUN_LABEL_PREFIX = "side:"
 # hand-ext sanitises ":" to "-", so the registry holds side-<name>.
 SIDE_RUN_LABEL_SANITIZED_PREFIX = "side-"
@@ -70,7 +71,8 @@ CHILD_RUNNING_MARK = "▶"
 CHILD_OK_MARK = "✓"
 CHILD_BAD_MARK = "✗"
 LEGEND = ("▶ phiên này ● sống ○ đã dừng · giờ = lúc xong · "
-          "$ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng")
+          "$ ước tính theo giá niêm yết · % = phần hạn mức tuần đã dùng · "
+          "% GPT = tài khoản")
 # Two-cell tree art keeps nested rows narrow enough for a pane beside the chat.
 BRANCH = "├ "
 LAST_BRANCH = "└ "
