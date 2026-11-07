@@ -9,8 +9,9 @@
   - Lượt chạy lại 4.1 + 4.2 bằng phiên Sol `sol-l0-test2` (07/11, 12:11-12:18): L0 xong và đúng, nhưng lộ 3 lỗi mới 4.8 (`.done` không ghi được nên `ls` báo `running` mãi), 4.9 (dsh trong sandbox Sol không chạy được shell), 4.10 (`claude-main` trong sandbox Sol báo chưa đăng nhập). Chưa tick 4.1, 4.2.
   - Lượt sửa: `fix-47-48` dsh chết vì Go 429 quá tải, chạy lại `fix-47-48b` bằng `--backend codex --effort medium` (3 phút); `fix-49-410b` dsh (10 phút). Brain tự sửa thêm: 2 kỳ vọng test cũ trong `tests/test_side_session.py`; dsh từ chối `danger-full-access` khi ở ngoài seatbelt (preset mới trong template chỉ dùng cho ca lồng sandbox).
   - **Phiên brain sau làm tiếp:**
-    1. Giao 2 phiên Sol song song: `sol-412-414` (4.12-4.14, `lib/hand_ext` + template dsh) và `sol-53` (5.3, `lib/hh_ps` + `skills/paseo/SKILL.md`). Sau đó `sol-54` (5.4, `statusline/`), vì `max_parallel` = 2.
-    2. Áp diff, chạy bộ test đầy đủ một lần, commit, dọn worktree. Rồi 5.6.
+    1. **Đang chạy (từ 14:50):** phiên Sol `sol-412-414` (4.12-4.14) và `sol-53` (5.3), cả hai `--worktree` (`~/app/claude-plugins-wt/<tên>`, nhánh `side/<tên>`), prompt ở `/tmp/hh-briefs/<tên>.md`. Kiểm bằng `side-session ls`; xong khi có `docs/work-in-progress/handoffs/<tên>.done` ở repo chính (thư mục `docs/` gốc repo chưa track, không commit). Đọc `side-session handoff <tên>` và file `.md` cùng chỗ.
+    2. Mỗi phiên xong: lấy patch bằng `git -C <worktree> add -A -N . && git -C <worktree> diff --binary HEAD -- <file, trừ output/>`, `git apply` vào nhánh này; chạy `python3 -m unittest discover -s hybrid-hands/tests -q` một lần; commit; `side-session stop <tên>`; `git worktree remove --force <worktree>` và `git branch -D side/<tên>`. 4.13 có thể cần Opus quyết theo bàn giao.
+    3. Giao `sol-54` (5.4, `statusline/`, đọc sổ `~/.hybrid-hands/codex_usage.jsonl`), rồi 5.6 (kiểm thực tế USD và % trên `hh-ps` và statusline).
     4. Ghi số đo ban đầu 4.3.
     5. Hỏi người dùng có merge vào main không.
 - **Cách làm:**
