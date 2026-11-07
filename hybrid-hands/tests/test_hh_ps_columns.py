@@ -12,7 +12,7 @@ sys.path.insert(0, str(TESTS.parent / "plugins" / "hybrid-hands" / "lib"))
 
 from hh_ps.models import HandRun, Session, Snapshot, Subagent, Usage  # noqa: E402
 from hh_ps.text_render import render_text  # noqa: E402
-from hh_ps.compact import bad_status, child_kind  # noqa: E402
+from hh_ps.compact import bad_status, child_kind, usage_cells  # noqa: E402
 from hh_ps.textwidth import display_width, pad_left, pad_right  # noqa: E402
 from hh_ps.timeutil import token_text  # noqa: E402
 
@@ -51,6 +51,10 @@ def _column_start(line: str, token: str) -> int:
 
 
 class DisplayWidthTest(unittest.TestCase):
+    def test_gpt_week_without_five_hour_window(self) -> None:
+        self.assertEqual(usage_cells(Usage(gpt_week_pct=4.0))[1].text,
+                         "GPT tuần 4.0%")
+
     def test_vietnamese_nfc_and_nfd_have_same_width(self) -> None:
         nfd = unicodedata.normalize("NFD", VIETNAMESE)
         self.assertNotEqual(len(nfd), len(VIETNAMESE))

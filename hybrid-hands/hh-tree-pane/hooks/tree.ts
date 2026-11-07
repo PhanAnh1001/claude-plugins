@@ -185,7 +185,10 @@ const gptShare = (usage: Usage | null | undefined) => {
   const five = usage?.gpt_5h_pct
   const week = usage?.gpt_week_pct
   if (five == null && week == null) return ''
-  return `GPT ${GPT_5H_WINDOW} ${limitPercent(five)} · ${WEEK_WINDOW} ${limitPercent(week)}`
+  const windows: string[] = []
+  if (five != null) windows.push(`${GPT_5H_WINDOW} ${limitPercent(five)}`)
+  if (week != null) windows.push(`${WEEK_WINDOW} ${limitPercent(week)}`)
+  return `GPT ${windows.join(' · ')}`
 }
 
 // USD then the GPT sample or weekly share, both right-aligned; same cells as hh-ps compact.py.

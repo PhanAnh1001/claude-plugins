@@ -71,9 +71,12 @@ def _usd_cell(usage: Optional[Usage]) -> str:
 def _gpt_share(usage: Optional[Usage]) -> str:
     if usage is None or (usage.gpt_5h_pct is None and usage.gpt_week_pct is None):
         return ""
-    five = percent_text(usage.gpt_5h_pct) or UNKNOWN_PCT
-    week = percent_text(usage.gpt_week_pct) or UNKNOWN_PCT
-    return f"GPT 5h {five} · tuần {week}"
+    windows = []
+    if usage.gpt_5h_pct is not None:
+        windows.append(f"5h {percent_text(usage.gpt_5h_pct)}")
+    if usage.gpt_week_pct is not None:
+        windows.append(f"{WEEK_WINDOW} {percent_text(usage.gpt_week_pct)}")
+    return f"GPT {' · '.join(windows)}"
 
 
 def usage_cells(usage: Optional[Usage]) -> List[Cell]:

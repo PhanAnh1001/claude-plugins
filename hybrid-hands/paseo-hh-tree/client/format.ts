@@ -54,14 +54,11 @@ export function percentText(pct: number | null | undefined, estimated = false): 
 export function gptShareText(usage: TreeUsage): string {
   const five = usage?.gpt_5h_pct;
   const week = usage?.gpt_week_pct;
-  if (five === null || five === undefined) {
-    if (week === null || week === undefined) {
-      return "";
-    }
-  }
-  return `GPT ${GPT_5H_WINDOW} ${percentText(five) || UNKNOWN_PERCENT} · ${WEEK_WINDOW} ${
-    percentText(week) || UNKNOWN_PERCENT
-  }`;
+  if (five == null && week == null) return "";
+  const windows: string[] = [];
+  if (five != null) windows.push(`${GPT_5H_WINDOW} ${percentText(five)}`);
+  if (week != null) windows.push(`${WEEK_WINDOW} ${percentText(week)}`);
+  return `GPT ${windows.join(" · ")}`;
 }
 
 /** `$0.78 · 1.6% tuần`, only the parts the row has; "" when it has neither. */
