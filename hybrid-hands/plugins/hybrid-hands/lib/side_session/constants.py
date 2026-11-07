@@ -70,6 +70,7 @@ DEFAULT_BASE = "HEAD"
 
 STATUS_RUNNING = "running"
 STATUS_IDLE = "idle"
+STATUS_IDLE_NO_DONE = "idle_no_done"
 # Create sent a request but the outcome is unknown: keep the slot and block the name.
 STATUS_UNKNOWN = "unknown"
 STATUS_ERROR = "error"
@@ -78,7 +79,7 @@ STATUS_CAPPED = "capped"
 STATUS_DEAD = "dead"
 STATUS_DAYSTOP = "daystop"
 STATUS_DONE = "done"
-ACTIVE_STATUSES = (STATUS_RUNNING, STATUS_IDLE, STATUS_UNKNOWN)
+ACTIVE_STATUSES = (STATUS_RUNNING, STATUS_IDLE, STATUS_IDLE_NO_DONE, STATUS_UNKNOWN)
 
 # Exit codes of `side-session start`/`watch`.
 EXIT_USAGE = 2

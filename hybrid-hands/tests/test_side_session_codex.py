@@ -146,6 +146,80 @@ class CodexArgvTest(unittest.TestCase):
 
 
 class DoneContractTest(unittest.TestCase):
+    def test_watch_flags_codex_idle_without_done(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            cfg = SideConfig(tmp, tmp / "h", tmp / "wt", 2, 1000, 0,
+                             state_dir=tmp / "state", codex_home=tmp / "codex")
+            rollout = write_rollout(tmp / "rollout-idle.jsonl", tmp, time.time())
+            st = state.SessionState(
+                "idle-test", "u", C.PROVIDER_CODEX, d, "side-idle-test", "", 1000, 0,
+                C.STATUS_RUNNING, str(cfg.handoff_dir / "idle-test.md"),
+                codex_rollout=str(rollout))
+            state.save(cfg.state_dir, st)
+            with mock.patch.object(actions.screen, "is_alive", return_value=True), \
+                    mock.patch.object(actions.screen, "screen_names",
+                                      return_value={st.screen}), \
+                    mock.patch.object(actions, "_quit") as quit_session:
+                self.assertFalse(tokens.codex_turn_idle(None))
+                self.assertFalse(tokens.codex_turn_idle(rollout.with_suffix(".missing")))
+                self.assertTrue(actions.watch_tick(cfg, st.name))
+                self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_RUNNING)
+                for event, expected in (("task_complete", "idle_no_done"),
+                                        ("token_count", "idle_no_done"),
+                                        ("task_started", C.STATUS_RUNNING),
+                                        ("turn_aborted", "idle_no_done")):
+                    with rollout.open("a") as fh:
+                        fh.write(json.dumps({"type": "event_msg", "payload": {
+                            "type": event}}) + "\n")
+                    out = io.StringIO()
+                    with redirect_stdout(out):
+                        self.assertTrue(actions.watch_tick(cfg, st.name))
+                    self.assertEqual(state.load(cfg.state_dir, st.name).status, expected)
+                    if expected == "idle_no_done":
+                        self.assertIn(".done", out.getvalue())
+                        self.assertIn("warning", out.getvalue().lower())
+                    # ls must also discover idle if the watchdog has not run.
+                    saved = state.load(cfg.state_dir, st.name)
+                    saved.status = C.STATUS_RUNNING
+                    state.save(cfg.state_dir, saved)
+                    with redirect_stdout(io.StringIO()) as listing:
+                        actions.ls(cfg, None)
+                    self.assertIn(expected, listing.getvalue())
+                    self.assertIn(st.name, [s.name for s in actions._running(cfg)])
+                with mock.patch.object(Path, "open", side_effect=PermissionError):
+                    self.assertFalse(tokens.codex_turn_idle(rollout))
+                quit_session.assert_not_called()
+
+    def test_watch_done_quits_codex_screen(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            cfg = SideConfig(tmp, tmp / "h", tmp / "wt", 1, 1000, 0,
+                             state_dir=tmp / "state", codex_home=tmp / "codex")
+            work = cfg.worktree_root / "done-test"
+            work.mkdir(parents=True)
+            cfg.handoff_dir.mkdir()
+            handoff = cfg.handoff_dir / "done-test.md"
+            handoff.write_text("## Tóm tắt\n- Kết quả: xong\n")
+            handoff.with_suffix(C.DONE_SUFFIX).touch()
+            state.save(cfg.state_dir, state.SessionState(
+                "done-test", "u", C.PROVIDER_CODEX, str(work), "side-done-test", "",
+                1000, 0, C.STATUS_RUNNING, str(handoff), worktree=True))
+            with mock.patch.object(actions.screen, "quit", side_effect=[False, True]) as quit_session, \
+                    mock.patch.object(actions.screen, "is_alive", return_value=True), \
+                    mock.patch.object(actions.screen, "screen_names", return_value={"side-done-test"}), \
+                    redirect_stdout(io.StringIO()) as out:
+                self.assertTrue(actions.watch_tick(cfg, "done-test"))
+                self.assertIn(state.load(cfg.state_dir, "done-test").status, C.ACTIVE_STATUSES)
+                self.assertEqual(len(actions._running(cfg)), 1)
+                self.assertIn("warning", out.getvalue())
+                quit_session.assert_called_once_with("side-done-test")
+                self.assertFalse(actions.watch_tick(cfg, "done-test"))
+            self.assertEqual(state.load(cfg.state_dir, "done-test").status, C.STATUS_DONE)
+            self.assertTrue(work.is_dir())
+            self.assertTrue(handoff.is_file())
+            self.assertEqual(actions._running(cfg), [])
+
     def test_done_marker_sets_status_done_in_ls_and_watch(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -167,7 +241,7 @@ class DoneContractTest(unittest.TestCase):
                 started=started, status=C.STATUS_RUNNING, handoff=str(handoff)))
             out = io.StringIO()
             with mock.patch.object(actions.screen, "screen_names", return_value=set()), \
-                    redirect_stdout(out):
+                    mock.patch.object(actions, "_quit"), redirect_stdout(out):
                 # Watch first: ls also pins, so checking after ls would hide this.
                 self.assertEqual(actions.watch(
                     cfg, SimpleNamespace(name="n", interval=None, once=True)), 0)

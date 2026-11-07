@@ -161,6 +161,28 @@ def codex_rollout_for_thread(codex_home: Path, thread_id: str,
     return sorted(matches)[0].resolve() if matches else None
 
 
+def codex_turn_idle(path: Path | None) -> bool:
+    """Only the last lifecycle event of this rollout can establish an idle turn."""
+    if path is None:
+        return False
+    idle = False
+    try:
+        for rec in _iter_json(path):
+            if not isinstance(rec, dict) or rec.get("type") != "event_msg":
+                continue
+            payload = rec.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            event = payload.get("type")
+            if event == "task_started":
+                idle = False
+            elif event in ("task_complete", "turn_aborted"):
+                idle = True
+    except (OSError, UnicodeError):
+        return False
+    return idle
+
+
 def _codex_usage(path: Path | None, usage_key: str) -> dict:
     """Read the requested usage from the last token_count, ignoring other events.
 

@@ -28,7 +28,8 @@ def _running(cfg: SideConfig) -> list[state.SessionState]:
             continue
         if st.transport == C.TRANSPORT_PASEO:
             # Unknown (disconnect) still counts; only a confirmed dead agent drops out.
-            if paseo.refresh(cfg, st) != "dead":
+            if (st.provider == C.PROVIDER_CODEX and K.done_path(st.handoff).is_file()) \
+                    or paseo.refresh(cfg, st) != "dead":
                 running.append(st)
         elif st.screen in alive:
             running.append(st)
@@ -297,6 +298,50 @@ def _token_cell(cfg: SideConfig, st: state.SessionState, used: int) -> str:
     return cell
 
 
+def _codex_idle(cfg: SideConfig, st: state.SessionState) -> None:
+    if st.transport != C.TRANSPORT_PASEO:
+        st.status = (C.STATUS_IDLE_NO_DONE if tokens.codex_turn_idle(_rollout_path(cfg, st))
+                     else C.STATUS_RUNNING)
+        state.save(cfg.state_dir, st)
+    if st.status == C.STATUS_IDLE_NO_DONE:
+        print(f"{st.name}: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch")
+
+
+def _close_codex_screen(st: state.SessionState) -> bool:
+    """Confirm screen cleanup; an unavailable screen command requires a retry."""
+    try:
+        if _quit(st.screen):
+            return True
+        # A failed quit can also mean the runtime exited before the command.
+        if not screen.is_alive(st.screen):
+            return True
+    except OSError as exc:
+        print(f"{st.name}: warning: .done cleanup lỗi ({exc}); giữ active và thử lại")
+        return False
+    print(f"{st.name}: warning: .done cleanup screen còn sống; giữ active và thử lại")
+    return False
+
+
+def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
+    """Persist done only after the owning transport has closed the runtime."""
+    if st.transport == C.TRANSPORT_PASEO:
+        _capture_paseo_thread(cfg, st)
+    _pin_rollout(cfg, st)
+    st.tokens_used = count_tokens(cfg, st)
+    if st.transport == C.TRANSPORT_PASEO:
+        failure = paseo.finish(st)
+        if failure:
+            print(f"{st.name}: warning: .done cleanup lỗi ({failure}); giữ active và thử lại")
+            state.save(cfg.state_dir, st)
+            return False
+    elif st.screen and not _close_codex_screen(st):
+        state.save(cfg.state_dir, st)
+        return False
+    st.status = C.STATUS_DONE
+    state.save(cfg.state_dir, st)
+    return True
+
+
 def ls(cfg: SideConfig, _a) -> int:
     sessions = state.load_all(cfg.state_dir)
     needs_screen = any(s.transport != C.TRANSPORT_PASEO
@@ -308,11 +353,18 @@ def ls(cfg: SideConfig, _a) -> int:
             _pin_rollout(cfg, st)
         done = K.done_path(st.handoff).is_file()
         live = "alive" if st.screen in alive else "dead"
+        if done and st.provider == C.PROVIDER_CODEX and st.status in C.ACTIVE_STATUSES:
+            _finish_codex(cfg, st)
         if st.transport == C.TRANSPORT_PASEO:
-            live = paseo.refresh(cfg, st)
+            # Pending .done retains its slot even if archive partially closed the agent.
+            live = ("unknown" if done and st.provider == C.PROVIDER_CODEX
+                    and st.status in C.ACTIVE_STATUSES else paseo.refresh(cfg, st))
+        if not done and st.provider == C.PROVIDER_CODEX and st.status in C.ACTIVE_STATUSES:
+            _codex_idle(cfg, st)
         # A .done marker only advances a still-active state; it must not turn a
         # stopped/daystop session back into done in the listing.
-        status = C.STATUS_DONE if done and st.status in C.ACTIVE_STATUSES else st.status
+        status = (C.STATUS_DONE if done and st.provider != C.PROVIDER_CODEX
+                  and st.status in C.ACTIVE_STATUSES else st.status)
         used = (count_tokens(cfg, st) if status in C.ACTIVE_STATUSES
                 else st.tokens_used)
         token_cell = _token_cell(cfg, st, used)
@@ -325,8 +377,8 @@ def ls(cfg: SideConfig, _a) -> int:
     return 0
 
 
-def _quit(name: str) -> None:
-    screen.quit(name)
+def _quit(name: str) -> bool:
+    return screen.quit(name)
 
 
 def stop_session(cfg: SideConfig, st: state.SessionState, status: str, *, stop_watch: bool) -> None:
@@ -416,6 +468,7 @@ def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
             st.status = C.STATUS_DEAD
             state.save(cfg.state_dir, st)
             return False
+        _codex_idle(cfg, st)
         print(f"{st.name}: {_token_cell(cfg, st, st.tokens_used)} context tokens")
         state.save(cfg.state_dir, st)
         return True
@@ -480,7 +533,8 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
     if raw in C.PASEO_AGENT_ALIVE:
         st.status = C.STATUS_RUNNING
     elif raw == C.PASEO_AGENT_IDLE:
-        st.status = C.STATUS_IDLE
+        st.status = (C.STATUS_IDLE_NO_DONE if st.provider == C.PROVIDER_CODEX
+                     else C.STATUS_IDLE)
     elif raw in C.PASEO_AGENT_DEAD:
         st.status = C.STATUS_DEAD
         state.save(cfg.state_dir, st)
@@ -492,6 +546,7 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
     st.tokens_used = count_tokens(cfg, st)
     state.save(cfg.state_dir, st)
     if st.provider == C.PROVIDER_CODEX:
+        _codex_idle(cfg, st)
         print(f"{st.name}: {_token_cell(cfg, st, st.tokens_used)} context tokens")
     else:
         print(f"{st.name}: {st.tokens_used}/{st.max_tokens} tokens")
@@ -512,6 +567,11 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
             _capture_paseo_thread(cfg, st)
         _pin_rollout(cfg, st)
     if done:
+        if st.provider == C.PROVIDER_CODEX:
+            if not _finish_codex(cfg, st):
+                return True
+            print(f"{st.name}: done")
+            return False
         st.tokens_used = count_tokens(cfg, st)
         st.status = C.STATUS_DONE
         state.save(cfg.state_dir, st)

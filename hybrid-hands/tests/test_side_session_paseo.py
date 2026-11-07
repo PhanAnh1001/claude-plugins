@@ -105,6 +105,62 @@ def fake_app_popen(procs: list[FakeAppServer], cmd, **kwargs) -> FakeAppServer:
 
 
 class PaseoStartTest(unittest.TestCase):
+    def test_watch_flags_idle_without_done_and_closes_done_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = cfg_for(Path(d))
+            save_session(cfg, "idle-done", worktree=True)
+            st = state.load(cfg.state_dir, "idle-done")
+            work = Path(st.dir)
+            work.mkdir()
+            cfg.handoff_dir.mkdir()
+            out = io.StringIO()
+            with mock.patch.object(actions.paseo, "status",
+                                   return_value={"status": "idle"}) as agent_status, \
+                    mock.patch.object(actions.paseo, "_call", return_value={"ok": True}) as call, \
+                    mock.patch.object(actions, "_quit") as quit_session, \
+                    redirect_stdout(out):
+                self.assertTrue(actions.watch_tick(cfg, st.name))
+                self.assertEqual(state.load(cfg.state_dir, st.name).status, "idle_no_done")
+                self.assertIn(".done", out.getvalue())
+                self.assertIn("warning", out.getvalue().lower())
+                actions.ls(cfg, None)
+                self.assertIn("idle_no_done", out.getvalue())
+                self.assertEqual(len(actions._running(cfg)), 1)
+                call.assert_not_called()
+                for raw in ("initializing", "running"):
+                    agent_status.return_value = {"status": raw}
+                    self.assertTrue(actions.watch_tick(cfg, st.name))
+                    self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_RUNNING)
+                handoff = Path(st.handoff)
+                handoff.write_text("## Tóm tắt\n- Kết quả: xong\n")
+                handoff.with_suffix(C.DONE_SUFFIX).touch()
+                # A failed cleanup must retain its slot and retry on the next tick.
+                call.side_effect = actions.paseo.PaseoError("PASEO_TIMEOUT")
+                self.assertTrue(actions.watch_tick(cfg, st.name))
+                self.assertIn(state.load(cfg.state_dir, st.name).status, C.ACTIVE_STATUSES)
+                self.assertEqual(len(actions._running(cfg)), 1)
+                listing = io.StringIO()
+                with redirect_stdout(listing):
+                    actions.ls(cfg, None)
+                self.assertNotRegex(listing.getvalue(), r"(?m)^idle-done\s+codex\s+no\s+done\s+")
+                call.side_effect = actions.paseo.PaseoError(C.PASEO_AGENT_NOT_FOUND)
+                self.assertFalse(actions.watch_tick(cfg, st.name))
+                pending = state.load(cfg.state_dir, st.name)
+                pending.status = C.STATUS_RUNNING
+                state.save(cfg.state_dir, pending)
+                call.side_effect = None
+                call.reset_mock()
+                self.assertFalse(actions.watch_tick(cfg, st.name))
+                self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_DONE)
+                self.assertEqual(actions._running(cfg), [])
+                # Dedicated lifecycle operation must preserve the conversation.
+                self.assertEqual(call.call_args.args[0], "finish")
+                self.assertEqual(call.call_args.args[1]["agentId"], st.paseo_agent_id)
+                self.assertEqual(call.call_args.args[1]["expectedTargetKey"], st.paseo_target)
+                quit_session.assert_not_called()
+            self.assertTrue(work.is_dir())
+            self.assertTrue(Path(st.handoff).is_file())
+
     def test_start_creates_codex_hand_agent_and_stores_live_state(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -401,6 +457,7 @@ class PaseoStartTest(unittest.TestCase):
 
             with mock.patch.object(actions.paseo, "status", side_effect=fake_status), \
                     mock.patch.object(actions.paseo, "stop_agent") as stop_agent, \
+                    mock.patch.object(actions.paseo, "finish", return_value=None), \
                     mock.patch.object(actions.screen, "quit") as quit_screen:
                 self.assertTrue(actions.watch_tick(cfg, "n"))
                 first = state.load(cfg.state_dir, "n")
@@ -408,7 +465,7 @@ class PaseoStartTest(unittest.TestCase):
                 self.assertEqual(first.tokens_used, 50)
                 agent_live["agent-1"] = "idle"
                 self.assertTrue(actions.watch_tick(cfg, "n"))
-                self.assertEqual(state.load(cfg.state_dir, "n").status, C.STATUS_IDLE)
+                self.assertEqual(state.load(cfg.state_dir, "n").status, C.STATUS_IDLE_NO_DONE)
                 handoff.with_suffix(C.DONE_SUFFIX).write_text("")
                 self.assertFalse(actions.watch_tick(cfg, "n"))
                 done = state.load(cfg.state_dir, "n")

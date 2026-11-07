@@ -159,7 +159,7 @@ async function main() {
       return;
     }
 
-    if (request.command === "stop") {
+    if (request.command === "stop" || request.command === "finish") {
       const fetched = await client.fetchAgent({ agentId: request.agentId });
       if (!fetched || !fetched.agent) {
         fail("AGENT_NOT_FOUND", { agentId: request.agentId });
@@ -169,9 +169,13 @@ async function main() {
       if (previous === "running") {
         await client.cancelAgent(request.agentId);
       }
+      if (request.command === "finish") {
+        // Native archive snapshots history and closes runtime without deleting workspace.
+        await client.archiveAgent(request.agentId);
+      }
       emit({
         ok: true,
-        status: "stopped",
+        status: request.command === "finish" ? "archived" : "stopped",
         previousStatus: previous,
         agentId: fetched.agent.id,
         workspaceId: fetched.agent.workspaceId || "",

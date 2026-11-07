@@ -141,6 +141,20 @@ def stop_agent(agent_id: str, target_key: str) -> dict:
                  timeout=C.PASEO_STOP_TIMEOUT_S)
 
 
+def finish(st: state.SessionState) -> str | None:
+    """Archive the exact agent, preserving its conversation and workspace."""
+    if not st.paseo_agent_id:
+        return "AGENT_ID_UNKNOWN"
+    try:
+        _call("finish", {"agentId": st.paseo_agent_id,
+                         "expectedTargetKey": st.paseo_target,
+                         "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS},
+              timeout=C.PASEO_STOP_TIMEOUT_S)
+    except PaseoError as exc:
+        return None if exc.code == C.PASEO_AGENT_NOT_FOUND else exc.code
+    return None
+
+
 def plan(cfg: SideConfig, a) -> dict | None:
     """Read-only daemon check before any worktree; None means the screen fallback.
 
@@ -276,7 +290,8 @@ def refresh(cfg: SideConfig, st: state.SessionState) -> str:
     if raw in C.PASEO_AGENT_ALIVE:
         st.status = C.STATUS_RUNNING
     elif raw == C.PASEO_AGENT_IDLE:
-        st.status = C.STATUS_IDLE
+        st.status = (C.STATUS_IDLE_NO_DONE if st.provider == C.PROVIDER_CODEX
+                     else C.STATUS_IDLE)
     elif raw in C.PASEO_AGENT_DEAD:
         st.status = C.STATUS_DEAD
         state.save(cfg.state_dir, st)
