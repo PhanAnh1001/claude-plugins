@@ -34,6 +34,9 @@ CODEX_FULL_ACCESS_FLAG = "--dangerously-bypass-approvals-and-sandbox"
 CODEX_APPROVAL = "never"
 CODEX_SANDBOX = "danger-full-access"
 
+# Configurable side-session ceiling; projects without an override keep default 4.
+MAX_PARALLEL = 6
+
 DEFAULTS: dict = {
     "handoff_dir": "docs/work-in-progress/handoffs",
     "worktree_root": "../{repo}-wt",

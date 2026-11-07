@@ -10,7 +10,9 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,14 +109,30 @@ class SideSessionTest(unittest.TestCase):
         (self.repo / ".claude" / "hybrid-hands.json").write_text(
             json.dumps({"side_session": {"max_parallel": 1}}))
         self.assertEqual(load_config(self.repo).max_parallel, 1)
-        for value in (2, 3, 4, 0, 5, True, "4", 1.5):
+        for value in (1, 4, 5, 6, 0, 7, True, False, "4", 1.5):
             (self.repo / ".claude" / "hybrid-hands.json").write_text(
                 json.dumps({"side_session": {"max_parallel": value}}))
-            if type(value) is int and 1 <= value <= 4:
+            if type(value) is int and 1 <= value <= 6:
                 self.assertEqual(load_config(self.repo).max_parallel, value)
             else:
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(ValueError, r"số nguyên 1\.\.6"):
                     load_config(self.repo)
+
+    def test_six_slot_guard_retains_unknown_and_idle_no_done(self) -> None:
+        cfg = load_config(self.repo)
+        cfg = replace(cfg, max_parallel=6)
+        sessions = [SimpleNamespace(name=f"fake-{i}", role="", status=status,
+                                   transport="paseo", provider="codex", handoff="fake")
+                    for i, status in enumerate(["running"] * 4 + ["unknown", "idle_no_done"])]
+        args = SimpleNamespace(main=False, dry_run=False)
+        with mock.patch.object(actions.state, "load_all", return_value=sessions), \
+                mock.patch.object(actions.paseo, "refresh", side_effect=lambda _, st: st.status), \
+                mock.patch.object(actions.K, "done_path", return_value=self.tmp / "missing.done"), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(len(actions._running(cfg)), 6)
+            self.assertEqual(actions._preflight(cfg, args), 2)
+            sessions.pop()
+            self.assertIsNone(actions._preflight(cfg, args))
 
     def test_dry_run_prints_commands_and_creates_nothing(self) -> None:
         code, out = self.run_cli("start", "--name", "demo", "--provider", "claude",
