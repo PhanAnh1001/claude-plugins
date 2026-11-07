@@ -71,38 +71,13 @@ class CodexArgvTest(unittest.TestCase):
             argv, _ = provider_argv(self._cfg(""), C.PROVIDER_CODEX, "n", "u", "/w", "hi")
         self.assertEqual(argv[argv.index("-m") + 1], "gpt-6.1-sol")
         self.assertIn('model_reasoning_effort="high"', argv)
-        self.assertEqual(argv[argv.index("-a") + 1], "never")
-        self.assertEqual(argv[argv.index("-s") + 1], "workspace-write")
-        self.assertIn("sandbox_workspace_write.network_access=true", argv)
-        roots_arg = next(part for part in argv if part.startswith(
-            "sandbox_workspace_write.writable_roots="))
-        roots = json.loads(roots_arg.split("=", 1)[1])
-        self.assertEqual(len(roots), len(set(roots)))
-        for path in ("/repo-wt", "/repo/output/llm/hand-ext", "/repo/docs/handoffs",
-                     "/repo/output/llm", "~/.hybrid-hands", "~/.hybrid-hands/worktrees",
-                     "~/.dsh-hand", "~/.codex-hand", "~/.claude"):
-            self.assertIn(str(Path(path).expanduser()), roots)
+        self.assertIn("--dangerously-bypass-approvals-and-sandbox", argv)
+        for restricted in ("-a", "-s", "--sandbox", "--ask-for-approval", "--full-auto"):
+            self.assertNotIn(restricted, argv)
+        self.assertFalse(any("sandbox_workspace_write" in part for part in argv))
         prompt = build_codex_prompt("hi", "n", Path("/repo/docs/handoffs/n.md"))
         self.assertIn(str(HAND_EXT_BIN), prompt)
         self.assertNotIn(C.HAND_EXT_PLACEHOLDER, prompt)
-
-    def test_worktree_workdir_adds_repo_git_common_dir(self):
-        with tempfile.TemporaryDirectory() as d:
-            repo, worktree = Path(d) / "repo", Path(d) / "wt"
-            repo.mkdir()
-            subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
-            subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c",
-                            "user.email=t@e", "commit", "--allow-empty", "-qm", "i"],
-                           check=True)
-            subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q",
-                            str(worktree)], check=True)
-            cfg = self._cfg("")
-            cfg.repo = repo
-            argv = codex_argv(cfg, str(worktree), "hi")
-            roots = json.loads(next(part for part in argv if part.startswith(
-                "sandbox_workspace_write.writable_roots=")).split("=", 1)[1])
-            self.assertIn(str((repo / ".git").resolve()),
-                          [str(Path(path).resolve()) for path in roots])
 
     def test_codex_context_does_not_cap_cumulative_usage(self):
         self.assertIn("model_auto_compact_token_limit=272000", codex_argv(self._cfg(""), "/w", "hi"))

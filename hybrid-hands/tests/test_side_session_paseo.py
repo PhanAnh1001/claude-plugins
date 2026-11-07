@@ -216,10 +216,8 @@ class PaseoStartTest(unittest.TestCase):
             self.assertNotIn("modeId", payload)
             options = payload["providerOptions"]
             self.assertEqual(options["approval_policy"], "never")
-            self.assertEqual(options["sandbox_mode"], "workspace-write")
-            self.assertTrue(options["sandbox_workspace_write"]["network_access"])
-            roots = options["sandbox_workspace_write"]["writable_roots"]
-            self.assertIn(str(cfg.handoff_dir), roots)
+            self.assertEqual(options["sandbox_mode"], "danger-full-access")
+            self.assertNotIn("sandbox_workspace_write", options)
             self.assertNotIn(C.CODEX_COMPACT_KEY, json.dumps(options))
             self.assertEqual(payload["expectedTargetKey"], "home:/tmp/paseo")
             st = state.load(cfg.state_dir, "n")

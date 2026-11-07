@@ -103,16 +103,11 @@ def ready() -> dict:
 
 
 def start_agent(*, workdir: str, name: str, model: str, effort: str,
-                initial_prompt: str, codex_home: Path,
-                writable_roots: list[str], target_key: str) -> dict:
+                initial_prompt: str, codex_home: Path, target_key: str) -> dict:
     """Create the directory workspace and `codex-hand` agent in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
         "sandbox_mode": C.CODEX_SANDBOX,
-        "sandbox_workspace_write": {
-            "network_access": True,
-            "writable_roots": list(writable_roots),
-        },
     }
     return _call("start", {
         "source": {"kind": "directory", "path": workdir},
@@ -224,7 +219,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         result = start_agent(
             workdir=workdir, name=st.name, model=a.model or cfg.codex_model,
             effort=a.effort or cfg.codex_effort, initial_prompt=full_prompt,
-            codex_home=cfg.codex_home, writable_roots=K.codex_writable_roots(cfg, workdir),
+            codex_home=cfg.codex_home,
             target_key=st.paseo_target)
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")

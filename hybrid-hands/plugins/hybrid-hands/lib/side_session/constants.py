@@ -27,11 +27,11 @@ SUMMARY_HEADING = "## Tóm tắt"
 CODEX_AUTO_COMPACT_TOKEN_LIMIT = 272_000
 CODEX_MODEL_DEFAULT = "gpt-6.1-sol"
 CODEX_EFFORT_DEFAULT = "high"
+# Sol runs unconfined with no approval prompts (user decision 07/11): the screen path uses
+# the CLI flag, the Paseo path the equivalent config pair (provider options, no CLI flag).
+CODEX_FULL_ACCESS_FLAG = "--dangerously-bypass-approvals-and-sandbox"
 CODEX_APPROVAL = "never"
-CODEX_SANDBOX = "workspace-write"
-# Backend homes a hand-ext run writes to; claude-main is the brain's main plan dir.
-HAND_EXT_BACKEND_HOMES = {"dsh": "~/.dsh-hand", "codex": "~/.codex-hand"}
-CLAUDE_MAIN_HOME = "~/.claude"
+CODEX_SANDBOX = "danger-full-access"
 
 DEFAULTS: dict = {
     "handoff_dir": "docs/work-in-progress/handoffs",
