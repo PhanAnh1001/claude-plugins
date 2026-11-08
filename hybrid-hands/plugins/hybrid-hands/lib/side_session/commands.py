@@ -90,12 +90,10 @@ def codex_argv(cfg: SideConfig, workdir: str, prompt: str,
             prompt]
 
 
-def build_main_codex_prompt(user_prompt: str, handoff: Path) -> str:
-    """Bind the main Sol finish contract to this launch, never a previous marker."""
+def build_main_codex_prompt(user_prompt: str) -> str:
+    """Main Sol has its own instructions and no side-session finish contract."""
     template = (Path(__file__).resolve().parents[2] / C.MAIN_CODEX_TEMPLATE_RELPATH)
-    rules = template.read_text(encoding="utf-8").replace(
-        C.HANDOFF_PLACEHOLDER, str(handoff)).replace(C.DONE_PLACEHOLDER, str(done_path(handoff)))
-    return f"{rules.strip()}\n\n{user_prompt.rstrip()}\n"
+    return f"{template.read_text(encoding='utf-8').strip()}\n\n{user_prompt.rstrip()}\n"
 
 
 def build_codex_prompt(user_prompt: str, name: str, handoff: Path) -> str:

@@ -237,7 +237,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
               f"model={a.model or cfg.codex_model} effort={a.effort or cfg.codex_effort}")
         print(full_prompt)
         return 0
-    cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
+    if st.role != "main":
+        cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     if a.worktree:
         if subprocess.run(K.worktree_cmd(cfg, st.name, a.base or C.DEFAULT_BASE)).returncode != 0:
             print("side-session: failed: git worktree add")
@@ -290,7 +291,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     # Save once, before the watchdog can legitimately write done/tokens. No second
     # save here may overwrite what the watcher already persisted.
     state.save(cfg.state_dir, st)
-    if subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
+    if st.role != "main" and subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
         print("side-session: warning: watchdog failed to start")
     print(f"started {st.name} (Paseo agent {st.paseo_agent_id}), uuid {st.uuid}, "
           f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén); "
