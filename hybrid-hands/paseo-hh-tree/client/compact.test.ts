@@ -130,7 +130,7 @@ test("panel row list starts with machine summaries; own share and local finish e
     { plan: "GPT", window: "tuần", usd: 7, source: "fixture" },
   ], limits: [{ plan: "Claude", window: "tuần", total_pct: 33, source: "fixture",
     this_machine_pct: null, other_pct: null, resets_at: null }] });
-  assert.deepEqual(rows.map(row => row.kind), ["summary", "summary", "session"]);
+  assert.deepEqual(rows.map(row => row.kind), ["summary", "summary"]);
   assert.equal(rows[0].kind === "summary" && rows[0].text, "Claude máy này tuần ~$? · Claude 5h ? · tuần 33.0%");
   assert.equal(rows[1].kind === "summary" && rows[1].text, "GPT máy này tuần ~$7.00 · GPT 5h 11.0% · tuần 22.0%");
   assert.match(rowText(done, "root", now), /14:30.*GPT riêng 2.5% tuần/);
@@ -148,10 +148,10 @@ test("panel row list starts with machine summaries; own share and local finish e
   ]);
 });
 
-test("parent grouping precedes orphan sides and names use short descriptions", () => {
+test("running roots retain children and names use short descriptions", () => {
   const rows = panelRows({ sessions: [session("lost", { parent_session: "missing" }),
-    session("child", { parent_session: "root" }), session("root")] });
-  assert.deepEqual(rows.filter(r => r.kind === "session").map(r => r.session.session_id), ["root", "lost"]);
+    session("child", { parent_session: "root" }), session("root", { live: true, status: "busy" })] });
+  assert.deepEqual(rows.filter(r => r.kind === "session").map(r => r.session.session_id), ["root"]);
   const root = rows.find(r => r.kind === "session");
   assert.equal(root?.kind === "session" && root.session.children[0].session_id, "child");
   const description = "  Sửa sidebar\n và panel " + "x".repeat(60);
@@ -160,4 +160,33 @@ test("parent grouping precedes orphan sides and names use short descriptions", (
   assert.equal(child.description, description);
   assert.equal(agentName({ ...child, kind: "subagent", value: child }), shortName(child));
   assert.equal(shortName({ description: "  ", agent_type: "native-codex", agent_id: "id" }), "native-codex");
+});
+
+
+test("ended/error/unknown roots hide whole trees without promoting live children", () => {
+  const roots = [session("live", { live: true }), session("busy", { status: "busy" }),
+    session("done"), session("failed", { live: true, status: "failed" }),
+    session("exit", { live: true, status: "running", exit_code: 1 }),
+    session("lost", { live: true, status: "lost" }), session("unknown", { status: "mystery" })];
+  const children = roots.map(root => session(`${root.session_id}-child`, {
+    parent_session: root.session_id, live: true, status: "running" }));
+  const rows = panelRows({ sessions: [...children, ...roots,
+    session("orphan", { parent_session: "missing", live: true, status: "running" })] });
+  const visible = rows.filter(row => row.kind === "session");
+  assert.deepEqual(visible.map(row => row.session.session_id), ["live", "busy"]);
+  assert.deepEqual(visible.map(row => row.session.children.length), [1, 1]);
+  assert.equal(panelRows({ sessions: roots.slice(2) }).length, 2);
+});
+
+test("session and hand descriptions win; fallback avoids raw IDs", () => {
+  assert.equal(shortName({ session_id: "abcdef12-1234", name: "abcdef12", side_name: "Sửa panel" }), "Sửa panel");
+  assert.equal(shortName({ session_id: "abcdef12-1234", name: "abcdef12" }), "?");
+  assert.equal(shortName({ run_id: "run-42", label: "run-42" }), "?");
+  assert.equal(shortName({ run_id: "run-42", label: "Kiểm tra giao diện", description: "  Sửa\n tên phiên " }), "Sửa tên phiên");
+  assert.equal(shortName({ name: "Tiêu đề phiên", description: "Tóm tắt công việc" }), "Tóm tắt công việc");
+  assert.equal(shortName({ description: " ", name: "Tiêu đề phiên" }), "Tiêu đề phiên");
+  assert.equal(shortName({ description: "Mô tả", ai_title: "AI title", name: "Tên phiên" }), "Mô tả");
+  assert.equal(shortName({ description: " ", ai_title: "  Sửa\n panel ", name: "Tên phiên" }), "Sửa panel");
+  assert.equal(shortName({ ai_title: null, name: "Tên phiên" }), "Tên phiên");
+  assert.equal(shortName({ session_id: "abcdef12-1234", ai_title: "abcdef12", name: "Tên phiên" }), "Tên phiên");
 });

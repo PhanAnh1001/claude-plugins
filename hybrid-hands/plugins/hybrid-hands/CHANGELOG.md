@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.31.5
+
+- Panel/Cây phiên chỉ hiện root đang chạy theo live/status; root đã kết thúc hoặc unknown ẩn cả cây, phiên phụ thiếu parent không thành root. Tổng usage toàn máy vẫn giữ nguyên.
+- Tên phiên/hand ưu tiên description ngắn nếu snapshot cung cấp, rồi ai_title và tên/label có nghĩa; thiếu thì `?`, không lấy ID làm tên. Giữ giới hạn 6 phiên phụ, pool 4 và tóm tắt/màu trạng thái.
+
 ## 0.31.4
 
 - Panel agent và màn hình Cây phiên mở tối đa 6 phiên phụ mỗi cây chính, ưu tiên đang chạy rồi mới nhất; phần dư giữ tóm tắt running/done/failed/unknown và màu trạng thái hiện có. Pool subagent/hand vẫn tối đa 4.

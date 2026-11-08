@@ -7,7 +7,6 @@ import { Text, View } from "react-native";
 
 import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
 import { panelRows } from "./compact";
-import { durationText } from "./format";
 import { SessionBlock } from "./SessionBlock";
 
 const REFRESH_INTERVAL_MS = 5_000;
@@ -54,7 +53,8 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
 
   const tree = query.data.tree;
   const now = Date.now();
-  const empty = tree.sessions.length === 0;
+  const rows = panelRows(tree);
+  const empty = !rows.some(row => row.kind === "session");
 
   const toggleSession = (session: TreeSession) => {
     const fallback = true;
@@ -69,7 +69,7 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
       contentContainerStyle={{ padding: layout.compact ? 12 : 20 }}
     >
-      {panelRows(tree).map((row, i) => row.kind === "summary" ? (
+      {rows.map((row, i) => row.kind === "summary" ? (
         <Text key={`summary-${i}`} style={{ color: theme.colors.foregroundMuted, fontSize: layout.compact ? 12 : 13 }}>{row.text}</Text>
       ) : (
         <View key={row.session.session_id} style={{ marginBottom: 6 }}>
@@ -86,7 +86,7 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
       ))}
       {empty ? (
         <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>
-          Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
+          Không có phiên chính đang chạy.
         </Text>
       ) : null}
 

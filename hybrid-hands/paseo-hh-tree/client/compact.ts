@@ -244,10 +244,8 @@ export function panelRows(tree: Pick<TreeData, "sessions" | "limits" | "machine_
     return { kind: "summary" as const, text: `${plan} máy này tuần ${machine?.usd == null ? "~$?" : usdText(machine.usd, true)} · ${quota}` };
   });
   const nested = nestSessions(tree.sessions);
-  // Only explicit parents group sessions. Unresolved sides follow every root.
-  const sessions = [...nested.roots, ...nested.orphanSides.map(session => ({
-    ...session, children: [] as NestedSession[],
-  }))];
+  // Filter intact roots after nesting: children of ended/missing roots stay hidden.
+  const sessions = nested.roots.filter(session => outcome(session) === "running");
   return [...summaries, ...sessions.map(session => ({ kind: "session" as const, session }))];
 }
 
@@ -257,11 +255,17 @@ export function agentName(agent: AgentItem): string {
 
 /** A display-only label; descriptions in the snapshot stay intact. */
 export function shortName(item: {
-  description?: string; label?: string; side_name?: string | null;
+  description?: string; ai_title?: string | null; label?: string; side_name?: string | null;
   name?: string; agent_type?: string; agent_id?: string; run_id?: string;
+  session_id?: string;
 }): string {
-  const candidates = [item.description, item.label, item.side_name, item.name,
-    item.agent_type, item.agent_id, item.run_id];
-  const name = candidates.find(value => value?.trim()) || "?";
+  const ids = [item.session_id, item.agent_id, item.run_id].filter(Boolean) as string[];
+  const meaningful = (value?: string | null) => {
+    const text = value?.trim();
+    return text && !ids.some(id => text === id || (text.length >= 6 && id.startsWith(text))) &&
+      !/^[0-9a-f]{8}(?:-[0-9a-f-]+)?$/i.test(text);
+  };
+  const candidates = [item.description, item.ai_title, item.label, item.side_name, item.name, item.agent_type];
+  const name = candidates.find(meaningful) || "?";
   return truncate(name.replace(/\s+/g, " ").trim(), 32);
 }
