@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.31.2
+
+- hh-ps khám phá phiên Codex gốc chưa có side-session state từ metadata rollout cục bộ theo repo và thời gian quan sát; gắn native children theo parent thread, giữ alias pinned và không suy diễn status/model/usage. Không gọi RPC/API hay tạo state runtime.
+- Rollout fork giữ identity/parent từ session_meta đầu, không để metadata cha kế thừa ghi đè; bỏ qua activity/model/token kế thừa trước mốc child và giữ quota riêng unknown khi chưa tách được sample kế thừa.
+
 ## 0.31.1
 
 - Phiên chính Sol chỉ được archive bởi người dùng; gom phiên phụ theo project và dọn project legacy.

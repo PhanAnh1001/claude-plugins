@@ -33,6 +33,10 @@ class NativeTest(unittest.TestCase):
                             {"timestamp": iso(NOW - 10), "type": "event_msg", "payload": {"type": event, "last_agent_message": "DO_NOT_RETAIN"}}]
             if tokens:
                 records.append({"type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 100, "output_tokens": 10}}}})
+            if child == "unknown":
+                records[1:1] = [
+                    {"type": "session_meta", "payload": {"id": "sol-thread", "model": "ancestor-model", "timestamp": iso(NOW - 200)}},
+                    {"timestamp": iso(NOW - 110), "type": "event_msg", "payload": {"type": "task_complete", "exit_code": 3}}]
             (root / ("rollout-" + child + ".jsonl")).write_text("\n".join(map(json.dumps, records)) + "\n")
         return fx, pinned
 
@@ -52,6 +56,8 @@ class NativeTest(unittest.TestCase):
         self.assertEqual(children["failed"]["status"], "failed")
         self.assertEqual(children["cancelled"]["status"], "cancelled")
         self.assertEqual(children["unknown"]["status"], "unknown")
+        self.assertEqual((children["unknown"]["parent_session"], children["unknown"]["model"]), (MAIN_SESSION, ""))
+        self.assertIsNone(children["unknown"]["usage"]["usd"])
         self.assertIsNone(children["unknown"]["duration_seconds"])
         self.assertEqual(next(r for r in session["hand_runs"] if r["run_id"] == "nonzero")["exit_code"], 3)
         self.assertIn("✗", render_text(snapshot))
@@ -122,3 +128,22 @@ class NativeTest(unittest.TestCase):
         self.assertIn("~$?", render_text(snapshot))
         totals = render_json(snapshot)["machine_usage"]
         self.assertIsNone(next(row for row in totals if row["plan"] == "GPT")["usd"])
+
+
+    def test_unpinned_main_discovery_is_repo_scoped(self):
+        fx, pinned = self.fixture(tokens=False)
+        records = [{"type": "session_meta", "payload": {"id": "sol-thread",
+            "cwd": str(fx.project), "timestamp": iso(NOW - 100), "source": "cli"}},
+            {"timestamp": iso(NOW - 90), "type": "event_msg", "payload": {"type": "task_started"}}]
+        pinned.write_text("\n".join(map(json.dumps, records)) + "\n")
+        other = dict(records[0], payload=dict(records[0]["payload"], id="other-repo", cwd=str(fx.home / "other")))
+        (pinned.parent / "rollout-other.jsonl").write_text(json.dumps(other) + "\n")
+        with fx.env(), mock.patch("hh_ps.tree.pinned_rollouts", return_value={}):
+            snapshot = build_snapshot(fx.project, 3600, False, now=NOW)
+        parents = {s.session_id: s for s in snapshot.sessions}
+        self.assertNotIn("other-repo", parents)
+        parent = parents["sol-thread"]
+        self.assertEqual((parent.provider, parent.status, parent.model), ("codex", "running", ""))
+        self.assertEqual({a.agent_id for a in parent.subagents}, {"done", "failed", "cancelled", "unknown"})
+        self.assertIsNone(parent.usage.usd)
+        self.assertEqual(sum(s.session_id == "sol-thread" for s in snapshot.sessions), 1)

@@ -301,6 +301,10 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     _add_external_sessions(sessions, side, cutoff, root, all_projects)
     for session in sessions:
         _enrich(session, meta, side)
+    pinned = pinned_rollouts(repos.roots)
+    from .native_source import discover_main_sessions
+    discover_main_sessions(sessions, pinned, root, all_projects, cutoff, moment,
+                           main_session_id)
     by_id = {session.session_id: session for session in sessions}
     targets = _side_run_targets(sessions, side)
     orphans: List[HandRun] = []
@@ -321,7 +325,6 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     for run in orphans:
         _apply_run_week(run, go_week)
     codex = load_codex(cfg, moment)
-    pinned = pinned_rollouts(repos.roots)
     _apply_codex(sessions, orphans, codex, pinned, moment)
     from .native_source import attach_native
     attach_native(sessions, pinned, moment)
