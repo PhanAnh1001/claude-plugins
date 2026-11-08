@@ -12,6 +12,8 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_TIMEOUT_MS = 3000;
 const SUBAGENT_TIMELINE_LIMIT = 100;
+const DIRECTORY_PAGE_LIMIT = 200;
+const DIRECTORY_MAX_PAGES = 100;
 const TIMELINE_METADATA = [
   "provider", "direction", "epoch", "projection", "startCursor", "endCursor",
   "reset", "staleCursor", "gap", "window", "hasOlder", "hasNewer",
@@ -19,6 +21,76 @@ const TIMELINE_METADATA = [
 
 function nonemptyId(value) {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+async function archiveExactAgent(client, agentId) {
+  // The client contract acknowledges persistence with archivedAt. A resolved
+  // request alone must not release the side-session slot or stop its watchdog.
+  const result = await client.archiveAgent(agentId);
+  if (result?.error != null) {
+    fail(errorCode({ code: result.error }));
+    return false;
+  }
+  const archivedAt = result?.archivedAt;
+  if (typeof archivedAt !== "string" || !archivedAt.trim()
+      || !Number.isFinite(Date.parse(archivedAt))) {
+    fail("AGENT_ARCHIVE_UNCONFIRMED");
+    return false;
+  }
+  return true;
+}
+
+// Include archived agents: even an inactive sibling makes this workspace shared.
+async function privateWorkspace(client, request, agent) {
+  if (!nonemptyId(request.expectedWorkspaceId)
+      || agent.workspaceId !== request.expectedWorkspaceId) {
+    fail("WORKSPACE_ID_MISMATCH");
+    return false;
+  }
+  if (typeof client.archiveWorkspace !== "function" || typeof client.fetchAgents !== "function") {
+    fail("WORKSPACE_CLEANUP_UNSUPPORTED");
+    return false;
+  }
+  let cursor;
+  const seen = new Set();
+  for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
+    const payload = await client.fetchAgents({
+      filter: { includeArchived: true },
+      sort: [{ key: "created_at", direction: "desc" }],
+      page: { limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? { cursor } : {}) },
+    });
+    if (payload?.error != null || !Array.isArray(payload?.entries)
+        || !payload.pageInfo || payload.entries.some((entry) => !entry?.agent
+          || !nonemptyId(entry.agent.id) || !nonemptyId(entry.agent.workspaceId))) {
+      fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+      return false;
+    }
+    if (payload.entries.some(({ agent: other }) =>
+      other.workspaceId === request.expectedWorkspaceId && other.id !== request.agentId)) {
+      fail("WORKSPACE_SHARED");
+      return false;
+    }
+    cursor = payload.pageInfo.nextCursor;
+    if (cursor == null) return true;
+    if (!nonemptyId(cursor) || seen.has(cursor)) break;
+    seen.add(cursor);
+  }
+  fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+  return false;
+}
+
+async function archivePrivateWorkspace(client, workspaceId) {
+  const result = await client.archiveWorkspace(workspaceId);
+  if (result?.error != null) {
+    fail(errorCode({ code: result.error }));
+    return false;
+  }
+  if (typeof result?.archivedAt !== "string"
+      || !Number.isFinite(Date.parse(result.archivedAt))) {
+    fail("WORKSPACE_ARCHIVE_UNCONFIRMED");
+    return false;
+  }
+  return true;
 }
 
 function nativePayloadValid(payload, parentAgentId) {
@@ -265,13 +337,23 @@ async function main() {
         fail("AGENT_NOT_FOUND", { agentId: request.agentId });
         return;
       }
+      // Never mutate an agent resolved to a different identity in a shared project.
+      if (!nonemptyId(request.agentId) || fetched.agent.id !== request.agentId) {
+        fail("AGENT_ID_MISMATCH");
+        return;
+      }
+      if (request.command === "finish"
+          && !await privateWorkspace(client, request, fetched.agent)) return;
       const previous = fetched.agent.status;
       if (previous === "running") {
         await client.cancelAgent(request.agentId);
       }
       if (request.command === "finish") {
-        // Native archive snapshots history and closes runtime without deleting workspace.
-        await client.archiveAgent(request.agentId);
+        // Preserve history, then hide only the verified private side workspace.
+        if (!await archiveExactAgent(client, request.agentId)
+            || !await archivePrivateWorkspace(client, request.expectedWorkspaceId)) {
+          return;
+        }
       }
       emit({
         ok: true,

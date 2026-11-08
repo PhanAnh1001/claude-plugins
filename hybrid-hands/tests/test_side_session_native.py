@@ -46,6 +46,33 @@ createAgent:async(a)=>({id:"a",workspaceId:a.workspaceId}),fetchAgent:async()=>(
         self.assertEqual((result["parentAgentId"], result["subagentId"], result["rows"], result["endCursor"]), ("parent", "child", [{"seq": 1}], {"epoch": "e", "seq": 1}))
         self.assertEqual([json.loads(x) for x in self.calls.read_text().splitlines()], [["list", "parent"], ["list", "parent"], ["timeline", "parent", "child", {"limit": 100}]])
 
+    def test_private_workspace_cleanup(self):
+        client = Path(self.tmp.name) / "dist/utils/client.js"
+        for expected, other, result, code, calls in [
+            (None, False, '{}', "WORKSPACE_ID_MISMATCH", []),
+            ("main-workspace", False, '{}', "WORKSPACE_ID_MISMATCH", []),
+            ("private", True, '{}', "WORKSPACE_SHARED", []),
+            ("private", False, '{}', "WORKSPACE_ARCHIVE_UNCONFIRMED", ["cancel", "side", "private"]),
+            ("private", False, '{error:"ARCHIVE_FAILED"}', "ARCHIVE_FAILED", ["cancel", "side", "private"]),
+            ("private", False, '{archivedAt:"2026-11-08T00:00:00Z"}', None, ["cancel", "side", "private"]),
+        ]:
+            self.calls.write_text("")
+            client.write_text('''import {appendFileSync} from "node:fs";
+const record=(id)=>appendFileSync(new URL("../../calls",import.meta.url),id+"\\n");
+export const connectToDaemon=async()=>({close:async()=>{},
+fetchAgent:async()=>({agent:{id:"side",status:"running",workspaceId:"private"}}),
+fetchAgents:async()=>({entries:OTHER?[{agent:{id:"main",workspaceId:"private"}}]:[],pageInfo:{nextCursor:null}}),
+cancelAgent:async()=>{record("cancel")},archiveAgent:async(id)=>{record(id);return {archivedAt:"2026-11-08T00:00:00Z"}},
+archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", str(other).lower()).replace("RESULT", result))
+            request = {"agentId": "side", "expectedWorkspaceId": expected}
+            if code:
+                with self.assertRaises(paseo.PaseoError) as caught:
+                    paseo._call("finish", request, timeout=3)
+                self.assertEqual(caught.exception.code, code)
+            else:
+                self.assertEqual(paseo._call("finish", request, timeout=3)["status"], "archived")
+            self.assertEqual(self.calls.read_text().splitlines(), calls)
+
     def test_safe_failures(self):
         for parent, child, code in [("parent", "other", "SUBAGENT_NOT_FOUND"), ("error", "child", "PASEO_ERROR"), ("timeline-error", "child", "DAEMON_FAILED"), (" ", "child", "INVALID_AGENT_ID"), ("parent", "", "INVALID_AGENT_ID")]:
             with self.subTest(parent=parent, child=child), self.assertRaises(paseo.PaseoError) as caught:

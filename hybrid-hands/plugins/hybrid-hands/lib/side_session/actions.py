@@ -350,6 +350,8 @@ def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
         state.save(cfg.state_dir, st)
         return False
     st.status = C.STATUS_DONE
+    if st.transport == C.TRANSPORT_PASEO:
+        st.paseo_workspace_archived = True
     state.save(cfg.state_dir, st)
     return True
 
@@ -365,7 +367,9 @@ def ls(cfg: SideConfig, _a) -> int:
             _pin_rollout(cfg, st)
         done = st.role != "main" and K.done_path(st.handoff).is_file()
         live = "alive" if st.screen in alive else "dead"
-        if done and st.provider == C.PROVIDER_CODEX and st.status in C.ACTIVE_STATUSES:
+        if done and st.provider == C.PROVIDER_CODEX and (st.status in C.ACTIVE_STATUSES
+                or (st.status == C.STATUS_DONE and st.transport == C.TRANSPORT_PASEO
+                    and not st.paseo_workspace_archived)):
             _finish_codex(cfg, st)
         if st.transport == C.TRANSPORT_PASEO:
             # Pending .done retains its slot even if archive partially closed the agent.
@@ -570,6 +574,9 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
     st = state.load(cfg.state_dir, name)
     if st.role == "main":
         return False
+    if (st.status == C.STATUS_DONE and st.provider == C.PROVIDER_CODEX
+            and st.transport == C.TRANSPORT_PASEO and not st.paseo_workspace_archived):
+        return not _finish_codex(cfg, st)
     if st.status not in C.ACTIVE_STATUSES:
         return False
     done = st.role != "main" and K.done_path(st.handoff).is_file()

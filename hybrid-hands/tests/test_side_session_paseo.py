@@ -44,7 +44,7 @@ def save_session(cfg: SideConfig, name: str, **over) -> None:
         screen="", watch_screen=actions.K.watch_screen(name), max_tokens=1000,
         started=time.time() - 60, status=C.STATUS_RUNNING,
         handoff=str(cfg.handoff_dir / f"{name}.md"), transport=C.TRANSPORT_PASEO,
-        paseo_agent_id=f"agent-{name}", paseo_target="home:/tmp/paseo")
+        paseo_agent_id=f"agent-{name}", paseo_workspace_id=f"workspace-{name}", paseo_target="home:/tmp/paseo")
     values.update(over)
     state.save(cfg.state_dir, state.SessionState(**values))
 
@@ -188,7 +188,7 @@ class PaseoStartTest(unittest.TestCase):
                     actions.ls(cfg, None)
                 self.assertNotRegex(listing.getvalue(), r"(?m)^idle-done\s+codex\s+no\s+done\s+")
                 call.side_effect = actions.paseo.PaseoError(C.PASEO_AGENT_NOT_FOUND)
-                self.assertFalse(actions.watch_tick(cfg, st.name))
+                self.assertTrue(actions.watch_tick(cfg, st.name))
                 pending = state.load(cfg.state_dir, st.name)
                 pending.status = C.STATUS_RUNNING
                 state.save(cfg.state_dir, pending)
@@ -200,6 +200,15 @@ class PaseoStartTest(unittest.TestCase):
                 # Dedicated lifecycle operation must preserve the conversation.
                 self.assertEqual(call.call_args.args[0], "finish")
                 self.assertEqual(call.call_args.args[1]["agentId"], st.paseo_agent_id)
+                self.assertEqual(call.call_args.args[1]["expectedWorkspaceId"], st.paseo_workspace_id)
+                pending = state.load(cfg.state_dir, st.name)
+                pending.paseo_workspace_archived = False
+                state.save(cfg.state_dir, pending)
+                call.side_effect = actions.paseo.PaseoError("WORKSPACE_ARCHIVE_FAILED")
+                self.assertTrue(actions.watch_tick(cfg, st.name))
+                call.side_effect = None
+                actions.ls(cfg, None)
+                self.assertTrue(state.load(cfg.state_dir, st.name).paseo_workspace_archived)
                 self.assertEqual(call.call_args.args[1]["expectedTargetKey"], st.paseo_target)
                 quit_session.assert_not_called()
             self.assertTrue(work.is_dir())

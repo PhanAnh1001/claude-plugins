@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.31.6
+
+- Sửa workspace phiên phụ vẫn hiện sau khi gom chung project: xác minh workspace ID đã lưu và không có agent dùng chung trước mutation; archive agent rồi workspace riêng, yêu cầu archivedAt hợp lệ. Lỗi cleanup retry, ls/watch đối soát done cũ; không archive project hoặc workspace phiên chính.
+
 ## 0.31.5
 
 - Panel/Cây phiên chỉ hiện root đang chạy theo live/status; root đã kết thúc hoặc unknown ẩn cả cây, phiên phụ thiếu parent không thành root. Tổng usage toàn máy vẫn giữ nguyên.

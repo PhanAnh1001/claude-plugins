@@ -158,18 +158,21 @@ def stop_agent(agent_id: str, target_key: str) -> dict:
 
 
 def finish(st: state.SessionState) -> str | None:
-    """Archive the exact agent, preserving its conversation and workspace."""
+    """Archive the exact agent and private workspace, preserving history."""
     if st.role == "main":
         return "MAIN_ARCHIVE_FORBIDDEN"
     if not st.paseo_agent_id:
         return "AGENT_ID_UNKNOWN"
+    if not st.paseo_workspace_id:
+        return "WORKSPACE_ID_UNKNOWN"
     try:
         _call("finish", {"agentId": st.paseo_agent_id,
+                         "expectedWorkspaceId": st.paseo_workspace_id,
                          "expectedTargetKey": st.paseo_target,
                          "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS},
               timeout=C.PASEO_STOP_TIMEOUT_S)
     except PaseoError as exc:
-        return None if exc.code == C.PASEO_AGENT_NOT_FOUND else exc.code
+        return exc.code
     return None
 
 
