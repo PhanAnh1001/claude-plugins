@@ -1,6 +1,19 @@
 # Cây phiên hybrid-hands
 
-Plugin hiện panel cạnh agent và sidebar Paseo, lấy JSON `hh-ps` và làm mới mỗi 5 giây. Không hiện nhóm orphan hand-ext.
+Plugin hiện panel cạnh agent và màn hình “Cây phiên”, mở bằng nút trên header sidebar Paseo, lấy JSON `hh-ps` và làm mới mỗi 5 giây. Không hiện nhóm orphan hand-ext.
+
+## Phân biệt danh sách native và Cây phiên
+
+`index.client.tsx` đăng ký `addAgentPanel`, `addScreen` và `addSidebarHeaderItem`. Sidebar item chỉ là `SidebarRow` mở màn hình Cây phiên; plugin không cung cấp hay lọc các dòng agent trong danh sách native của Paseo. Panel agent và màn hình Cây phiên dùng chung `client/TreeView.tsx`. Server gọi `hh-ps --json --ended --full --since 6h` (`server/hh-ps.ts:buildHhPsArgs`), nên cây vẫn có thể hiện phiên phụ đã kết thúc sau khi agent Paseo được archive. Dữ liệu cây không có trường archive của Paseo.
+
+Đối chiếu source Paseo 0.15.0 đã cài (đường dẫn tương đối từ package `@getpaseo/cli`):
+
+- `dist/commands/agent/ls.js`: `buildAgentLsFetchOptions` chỉ bật `includeArchived` khi có `-a`; `listAgents` còn lọc `!a.archivedAt` khi không có `-a`.
+- `node_modules/@getpaseo/server/dist/server/web-ui/_expo/static/js/web/index-c26368bf062ddf91b40b9d95aae94799.js`: `useAggregatedAgents` mặc định `includeArchived=false`; vòng gom agent bỏ qua `archivedAt`. Luồng dựng membership workspace cũng chỉ thêm agent chưa archived; luồng cập nhật workspace loại agent có `archivedAt` khỏi map. Đây là bundle native, nằm ngoài plugin.
+
+Nếu `paseo ls -g` đã không có phiên phụ, `paseo ls -a -g` vẫn có và archive trả `AGENT_ALREADY_ARCHIVED`, không archive lại hay archive phiên chính để xử lý hiển thị. Cần xác định dòng nằm trong danh sách native hay màn hình Cây phiên trước khi sửa bộ lọc. Các kết quả CLI này xác nhận trạng thái archive theo brief; chưa chứng minh client đang xem cùng host hoặc đã nhận cập nhật.
+
+Kiểm tra tải thực tế đề xuất: tải lại trang/app Paseo, chọn đúng host đã dùng cho CLI, mở danh sách active và đối chiếu bốn phiên phụ RV-52/WP-53/WP-51/RV-50; đồng thời xác nhận phiên chính và phiên đang chạy còn hiện. Sau đó mở nút Cây phiên để phân biệt dữ liệu `hh-ps`. Nếu native vẫn hiện các phiên archived sau tải lại, cần chẩn đoán directory sync/cache ở Paseo; reload plugin `hh-tree` chỉ tải lại plugin. Không thay bộ lọc panel agent để chữa danh sách native. Chưa thực hiện kiểm tra UI này trong lượt chẩn đoán source.
 
 Mỗi dòng giữ icon ● chạy / ✓ xong / ✗ lỗi / ? chưa rõ, tên ngắn, model·effort, elapsed, giờ kết thúc local HH:MM (dd/mm HH:MM nếu khác ngày), USD~ và phần riêng của provider theo `usage.week_pct`; thiếu nguồn giữ ?. Phần riêng không lấy quota tài khoản thay thế. Running không hiện giờ kết thúc. Icon running/busy xanh dương, done xanh lá, lỗi/exit khác 0 đỏ, idle/silent vàng, unknown/lost xám; các số ✓/✗ trong dòng gộp cũng có màu tương ứng. Dùng token theme, riêng running dùng accent nếu xanh dương hoặc màu xanh phù hợp nền sáng/tối.
 

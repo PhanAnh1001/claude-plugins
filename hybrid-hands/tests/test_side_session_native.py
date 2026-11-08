@@ -30,6 +30,16 @@ fetchProviderSubagentTimeline:async(p,c,o)=>{record("timeline",p,c,o);return {pa
         patch.start()
         self.addCleanup(patch.stop)
         self.calls = root / "calls"
+    def test_project_grouping(self):
+        client = Path(self.tmp.name) / "dist/utils/client.js"
+        client.write_text('''export const connectToDaemon=async()=>({close:async()=>{},
+addProject:async(p)=>({project:{projectId:p==="/repo"?"repo-id":null}}),
+createWorkspace:async({source:s})=>{if(s.projectId!=="repo-id"||s.path!=="/side")throw Error();return {workspace:{id:"w"}}},
+createAgent:async(a)=>({id:"a",workspaceId:a.workspaceId}),fetchAgent:async()=>({})});''')
+        self.assertEqual(paseo._call("start", {"projectRoot": "/repo", "source": {"kind": "directory", "path": "/side"}}, timeout=3)["workspaceId"], "w")
+        with self.assertRaises(paseo.PaseoError) as caught:
+            paseo._call("start", {"projectRoot": "/invalid"}, timeout=3)
+        self.assertEqual(caught.exception.code, "PROJECT_REGISTRATION_FAILED")
     def test_success(self):
         self.assertEqual(paseo.subagents("parent", "home:/fake")["subagents"][0]["id"], "child")
         result = paseo.subagent_timeline("parent", "child", "home:/fake")

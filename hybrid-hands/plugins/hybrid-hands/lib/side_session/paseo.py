@@ -103,7 +103,8 @@ def ready() -> dict:
 
 
 def start_agent(*, workdir: str, name: str, model: str, effort: str,
-                initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str) -> dict:
+                initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str,
+                project_root: str) -> dict:
     """Create the directory workspace and `codex-hand` agent in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
@@ -111,6 +112,7 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
     }
     return _call("start", {
         "source": {"kind": "directory", "path": workdir},
+        "projectRoot": project_root,
         "workdir": workdir,
         "provider": C.PASEO_PROVIDER,
         "title": name,
@@ -157,6 +159,8 @@ def stop_agent(agent_id: str, target_key: str) -> dict:
 
 def finish(st: state.SessionState) -> str | None:
     """Archive the exact agent, preserving its conversation and workspace."""
+    if st.role == "main":
+        return "MAIN_ARCHIVE_FORBIDDEN"
     if not st.paseo_agent_id:
         return "AGENT_ID_UNKNOWN"
     try:
@@ -260,6 +264,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
             workdir=workdir, name=st.name, model=a.model or cfg.codex_model,
             effort=a.effort or cfg.codex_effort, initial_prompt=full_prompt,
             codex_home=cfg.codex_home, hand_scope=st.uuid,
+            project_root=str(cfg.repo),
             target_key=st.paseo_target)
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")

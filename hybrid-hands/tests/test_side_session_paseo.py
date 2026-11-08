@@ -130,6 +130,7 @@ class PaseoStartTest(unittest.TestCase):
             with mock.patch.object(actions.paseo, "_call", return_value={"status": "idle"}) as call, mock.patch.object(actions, "count_tokens", return_value=0), mock.patch.object(actions, "_quit"):
                 self.assertFalse(actions.watch_tick(cfg, "main"))
                 call.assert_not_called()
+                self.assertEqual(actions.paseo.finish(state.load(cfg.state_dir, "main")), "MAIN_ARCHIVE_FORBIDDEN")
                 actions.ls(cfg, None)
                 self.assertEqual(state.load(cfg.state_dir, "main").status, C.STATUS_IDLE)
                 self.assertEqual(actions.stop(cfg, SimpleNamespace(name="main")), 0)

@@ -178,7 +178,23 @@ async function main() {
     }
 
     if (request.command === "start") {
-      const workspace = await client.createWorkspace({ source: request.source });
+      // Directory allocation without projectId registers the side worktree as a
+      // persistent PROJECT. Workspace/agent archive never removes that project.
+      // Register the configured repo instead, retaining the side cwd as workspace.
+      // Fail closed before workspace creation on older/incompatible clients.
+      if (!nonemptyId(request.projectRoot) || typeof client.addProject !== "function") {
+        fail("PROJECT_REGISTRATION_UNSUPPORTED");
+        return;
+      }
+      const registered = await client.addProject(request.projectRoot);
+      const projectId = registered?.project?.projectId;
+      if (registered?.error || !nonemptyId(projectId)) {
+        fail("PROJECT_REGISTRATION_FAILED");
+        return;
+      }
+      const workspace = await client.createWorkspace({
+        source: { ...request.source, projectId },
+      });
       const workspaceId = workspace && workspace.workspace && workspace.workspace.id;
       if (!workspaceId) {
         fail("WORKSPACE_CREATE_FAILED");
