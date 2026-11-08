@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.31.4
+
+- Panel agent và màn hình Cây phiên mở tối đa 6 phiên phụ mỗi cây chính, ưu tiên đang chạy rồi mới nhất; phần dư giữ tóm tắt running/done/failed/unknown và màu trạng thái hiện có. Pool subagent/hand vẫn tối đa 4.
+
 ## 0.31.3
 
 - Panel agent và màn hình Cây phiên dùng chung thứ tự forest: parent tường minh chứa phiên phụ dù input child đến trước; phiên phụ thiếu parent đứng sau mọi root, không đoán parent từ cwd.

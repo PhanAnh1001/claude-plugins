@@ -17,14 +17,14 @@ function agent(id: string, extra: Partial<TreeSubagent> = {}): TreeSubagent {
     context_tokens: null, duration_seconds: 10, started_at: at(0), ended_at: at(10), ...extra };
 }
 function tree(sessions: TreeSession[]) { return compactTree(nestSessions(sessions).roots[0]); }
-test("six sides flatten to four, running first, overflow retains all outcomes", () => {
-  const sides = Array.from({ length: 6 }, (_, i) => session(`s${i}`, {
+test("eight sides flatten to six, running first, overflow retains all outcomes", () => {
+  const sides = Array.from({ length: 8 }, (_, i) => session(`s${i}`, {
     parent_session: i === 5 ? "s0" : "root", ended_at: at(i + 1),
     ...(i === 0 ? { live: true, status: "busy", ended_at: null } : {}),
     ...(i === 1 ? { status: "failed" } : {}),
   }));
   const view = tree([session("root"), ...sides]);
-  assert.deepEqual(view.sides.map((s: TreeSession) => s.session_id), ["s0", "s5", "s4", "s3"]);
+  assert.deepEqual(view.sides.map((s: TreeSession) => s.session_id), ["s0", "s7", "s6", "s5", "s4", "s3"]);
   assert.equal(summaryText(view.hiddenSides, "+2 cũ"), "+2 cũ: 1✓ 1✗");
   const overflow = tree([session("root"), ...sides.map(s => ({ ...s, live: true, status: "busy" })),
     session("unknown", { parent_session: "root", status: "mystery", ended_at: null })]);
@@ -38,7 +38,7 @@ test("latest per tree pools four agents; old and hidden sessions retain summarie
         state: "running", parent_session: "recent", started_at: at(110), ended_at: null,
         duration_seconds: 1, pid: null, child_pid: null, tokens: { input: 0, cached_input: 0, output: 0 } }] });
   const hidden = session("hidden", { parent_session: "root", ended_at: at(1), subagents: [agent("lost", { status: "mystery" })] });
-  const view = tree([root, recent, hidden, ...Array.from({ length: 4 }, (_, i) => session(`side${i}`, { parent_session: "root", ended_at: at(20 + i) }))]);
+  const view = tree([root, recent, hidden, ...Array.from({ length: 6 }, (_, i) => session(`side${i}`, { parent_session: "root", ended_at: at(20 + i) }))]);
   assert.equal(view.latest.session_id, "recent");
   assert.equal(view.agentsFor(root).shown.length, 0);
   assert.equal(view.agentsFor(root).hidden.length, 1);
@@ -58,11 +58,11 @@ test("latest per tree pools four agents; old and hidden sessions retain summarie
   assert.equal(outcome({ live: true, status: "finished" }), "running");
   assert.equal(outcome({ state: "running", status: "ok" }), "running");
   const hiddenLatest = tree([root, { ...recent, ended_at: at(1) },
-    ...Array.from({ length: 4 }, (_, i) => session(`running${i}`, {
+    ...Array.from({ length: 6 }, (_, i) => session(`running${i}`, {
       parent_session: "root", status: "busy", live: true, started_at: at(20), ended_at: null,
     }))]);
   assert.equal(hiddenLatest.latest.session_id, "recent");
-  assert.equal(hiddenLatest.sides.length, 4);
+  assert.equal(hiddenLatest.sides.length, 6);
   assert.equal(hiddenLatest.hiddenShownAgents.length, 4);
   assert.equal(hiddenLatest.hiddenAgents.length, 2);
   const otherRoot = session("other", { subagents: [agent("own", { ended_at: at(200) })] });

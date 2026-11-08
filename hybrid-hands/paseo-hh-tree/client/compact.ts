@@ -8,7 +8,7 @@ import { nestSessions } from "./nest.ts";
 // @ts-ignore -- Also run directly with Node strip-types.
 import { ownShareLabel, durationText, limitPercentText, truncate, usdText } from "./format.ts";
 
-export const MAX_SIDE_SESSIONS = 4;
+export const MAX_SIDE_SESSIONS = 6;
 export const MAX_SUBAGENTS = 4;
 export type Outcome = "running" | "done" | "error" | "unknown";
 
