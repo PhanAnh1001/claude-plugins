@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 // @ts-ignore -- Node strip-types requires .ts.
-import { accountQuotaText, compactTree, outcome, summaryText, rowText, finishedTime, panelRows } from "./compact.ts";
+import { accountQuotaText, compactTree, outcome, summaryText, rowText, finishedTime, panelRows, shortName, agentName } from "./compact.ts";
 // @ts-ignore
 import { nestSessions } from "./nest.ts";
 import type { TreeSession, TreeSubagent } from "../shared/tree";
@@ -146,4 +146,18 @@ test("panel row list starts with machine summaries; own share and local finish e
   assert.deepEqual(panelRows({ sessions: [] }).map(row => row.kind === "summary" && row.text), [
     "Claude máy này tuần ~$? · Claude 5h ? · tuần ?", "GPT máy này tuần ~$? · GPT 5h ? · tuần ?",
   ]);
+});
+
+test("parent grouping precedes orphan sides and names use short descriptions", () => {
+  const rows = panelRows({ sessions: [session("lost", { parent_session: "missing" }),
+    session("child", { parent_session: "root" }), session("root")] });
+  assert.deepEqual(rows.filter(r => r.kind === "session").map(r => r.session.session_id), ["root", "lost"]);
+  const root = rows.find(r => r.kind === "session");
+  assert.equal(root?.kind === "session" && root.session.children[0].session_id, "child");
+  const description = "  Sửa sidebar\n và panel " + "x".repeat(60);
+  const child = agent("id", { description });
+  assert.equal(shortName(child), "Sửa sidebar và panel xxxxxxxxxx…");
+  assert.equal(child.description, description);
+  assert.equal(agentName({ ...child, kind: "subagent", value: child }), shortName(child));
+  assert.equal(shortName({ description: "  ", agent_type: "native-codex", agent_id: "id" }), "native-codex");
 });

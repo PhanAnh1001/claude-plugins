@@ -7,10 +7,8 @@ import { Text, View } from "react-native";
 
 import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
 import { panelRows } from "./compact";
-import type { NestedSession } from "./nest";
 import { durationText } from "./format";
-import { nestSessions } from "./nest";
-import { OrphanSideBlock, SessionBlock } from "./SessionBlock";
+import { SessionBlock } from "./SessionBlock";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
@@ -57,7 +55,6 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
   const tree = query.data.tree;
   const now = Date.now();
   const empty = tree.sessions.length === 0;
-  const nested = nestSessions(tree.sessions);
 
   const toggleSession = (session: TreeSession) => {
     const fallback = true;
@@ -72,12 +69,12 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
       contentContainerStyle={{ padding: layout.compact ? 12 : 20 }}
     >
-      {panelRows(tree).filter(row => row.kind === "summary" || nested.roots.some(s => s.session_id === row.session.session_id)).map((row, i) => row.kind === "summary" ? (
+      {panelRows(tree).map((row, i) => row.kind === "summary" ? (
         <Text key={`summary-${i}`} style={{ color: theme.colors.foregroundMuted, fontSize: layout.compact ? 12 : 13 }}>{row.text}</Text>
       ) : (
         <View key={row.session.session_id} style={{ marginBottom: 6 }}>
           <SessionBlock
-            session={nested.roots.find(s => s.session_id === row.session.session_id) as NestedSession}
+            session={row.session}
             depth={0}
             theme={theme}
             compact={layout.compact}
@@ -92,14 +89,7 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
           Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
         </Text>
       ) : null}
-      <OrphanSideBlock
-        sessions={nested.orphanSides}
-        theme={theme}
-        compact={layout.compact}
-        now={now}
-        expanded={expanded}
-        onToggle={toggleSession}
-      />
+
     </ScrollView>
   );
 }

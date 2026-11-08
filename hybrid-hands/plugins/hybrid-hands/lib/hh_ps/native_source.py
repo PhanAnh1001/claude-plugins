@@ -37,12 +37,23 @@ def _records(path, token_only=False, strict=False):
                     continue
                 payload = row.get("payload")
                 if isinstance(payload, dict):
-                    keys = {"id", "parent_thread_id", "source", "cwd", "timestamp", "model", "effort", "reasoning_effort"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info", "rate_limits"}
+                    keys = {"id", "parent_thread_id", "source", "cwd", "timestamp", "model", "effort", "reasoning_effort", "description", "title", "agent_path", "agent_nickname"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info", "rate_limits"}
                     yield row["type"], {k: v for k, v in payload.items() if k in keys}, to_epoch(row.get("timestamp"))
     except OSError:
         if strict:
             raise
         return
+
+
+def _metadata_name(metadata, spawn=None):
+    """Use explicit metadata only, never infer a label from prompt/chat text."""
+    spawn = spawn or {}
+    for key in ("description", "title", "agent_path", "agent_nickname"):
+        for source in (metadata, spawn):
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return ""
 
 
 def _read(path, now):
@@ -65,7 +76,7 @@ def _read(path, now):
             spawn = sub.get("thread_spawn") if isinstance(sub, dict) else None
             spawn = spawn if isinstance(spawn, dict) else {}
             parent = str(p.get("parent_thread_id") or spawn.get("parent_thread_id") or "")
-            name = str(spawn.get("agent_nickname") or spawn.get("agent_path") or "")
+            name = _metadata_name(p, spawn)
             start = to_epoch(p.get("timestamp")) or stamp
             model = str(p.get("model") or model)
             effort = str(p.get("effort") or effort)
@@ -178,7 +189,7 @@ def discover_main_sessions(sessions: list[Session], pinned: dict[str, str],
         if activity is None or activity < cutoff:
             continue
         session = Session(
-            session_id=sid, name=short_session_id(sid), status=agent.status,
+            session_id=sid, name=agent.description or short_session_id(sid), status=agent.status,
             cwd=cwd, context_tokens=None, started_at=agent.started_at,
             last_activity=agent.last_activity, is_main=sid == main_session_id,
             live=agent.running, provider="codex", model=agent.model,

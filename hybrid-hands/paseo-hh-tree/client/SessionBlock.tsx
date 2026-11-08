@@ -5,6 +5,7 @@ import { Pressable } from "react-native";
 import type { TreeSession } from "../shared/tree";
 import {
   agentName,
+  shortName,
   compactTree,
   summaryText,
   type AgentItem,
@@ -57,7 +58,7 @@ export function SessionBlock({
         onPress={() => onToggle(session)}
       >
         <Row depth={depth}>
-          <ColoredRowText item={session} name={session.side_name || session.name} now={now} theme={theme} compact={compact} prefix={open ? "▾ " : "▸ "} />
+          <ColoredRowText item={session} name={shortName(session)} now={now} theme={theme} compact={compact} prefix={open ? "▾ " : "▸ "} />
         </Row>
       </Pressable>
       {open ? (
@@ -68,7 +69,7 @@ export function SessionBlock({
             return (
               <Fragment key={side.session_id}>
                 <Row depth={depth + 1}>
-                  <ColoredRowText item={side} name={side.side_name || side.name} now={now} theme={theme} compact={compact} />
+                  <ColoredRowText item={side} name={shortName(side)} now={now} theme={theme} compact={compact} />
                 </Row>
                 {agentRows(pool.shown, pool.hidden, depth + 2, side.session_id)}
               </Fragment>
@@ -83,7 +84,7 @@ export function SessionBlock({
             : null}
           {view.hiddenShownAgents.length
             ? summary(
-                view.latest.side_name || view.latest.name,
+                shortName(view.latest),
                 depth + 2,
                 "latest-name",
               )

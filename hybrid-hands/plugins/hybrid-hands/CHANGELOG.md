@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.31.3
+
+- Panel agent và màn hình Cây phiên dùng chung thứ tự forest: parent tường minh chứa phiên phụ dù input child đến trước; phiên phụ thiếu parent đứng sau mọi root, không đoán parent từ cwd.
+- Tên subagent ưu tiên description ngắn thay type/id; native đọc description/title/agent_path/nickname từ metadata, không đọc prompt để đặt tên. Giữ mô tả gốc, pool 4, usage/status/counts.
+- SDK Paseo 0.15.0 không có hook chỉnh hierarchy/order/label của danh sách sidebar native; nút sidebar chỉ mở Cây phiên. Không sửa bundle native hoặc archive/đổi tên agent runtime; brain cần cập nhật plugin và reload.
+
 ## 0.31.2
 
 - hh-ps khám phá phiên Codex gốc chưa có side-session state từ metadata rollout cục bộ theo repo và thời gian quan sát; gắn native children theo parent thread, giữ alias pinned và không suy diễn status/model/usage. Không gọi RPC/API hay tạo state runtime.

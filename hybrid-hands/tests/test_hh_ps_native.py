@@ -23,7 +23,7 @@ class NativeTest(unittest.TestCase):
         pinned.write_text(json.dumps({"type": "session_meta", "payload": {"id": "sol-thread"}}) + "\n")
         for child, event in (("done", "task_complete"), ("failed", "task_failed"),
                              ("cancelled", "task_cancelled"), ("unknown", None)):
-            records = [{"type": "session_meta", "payload": {"id": child,
+            records = [{"type": "session_meta", "payload": {"id": child, "description": "Sửa sidebar và panel",
                 "source": {"subagent": {"thread_spawn": {"parent_thread_id": "sol-thread"}}},
                 "timestamp": iso(NOW - 100)}},
                 {"type": "turn_context", "payload": {"model": "gpt-6.1-sol", "effort": "low"}},
@@ -51,6 +51,7 @@ class NativeTest(unittest.TestCase):
                             if a["agent_type"] != "native-codex"))
         children = {a["agent_id"]: a for a in session["subagents"] if a["agent_type"] == "native-codex"}
         self.assertEqual(children["done"]["status"], "completed")
+        self.assertEqual(children["done"]["description"], "Sửa sidebar và panel")
         self.assertEqual(children["done"]["parent_session"], MAIN_SESSION)
         self.assertEqual((children["done"]["model"], children["done"]["effort"], children["done"]["provider"]), ("gpt-6.1-sol", "low", "codex"))
         self.assertEqual(children["failed"]["status"], "failed")
@@ -133,7 +134,7 @@ class NativeTest(unittest.TestCase):
     def test_unpinned_main_discovery_is_repo_scoped(self):
         fx, pinned = self.fixture(tokens=False)
         records = [{"type": "session_meta", "payload": {"id": "sol-thread",
-            "cwd": str(fx.project), "timestamp": iso(NOW - 100), "source": "cli"}},
+            "cwd": str(fx.project), "title": "Sol chính", "timestamp": iso(NOW - 100), "source": "cli"}},
             {"timestamp": iso(NOW - 90), "type": "event_msg", "payload": {"type": "task_started"}}]
         pinned.write_text("\n".join(map(json.dumps, records)) + "\n")
         other = dict(records[0], payload=dict(records[0]["payload"], id="other-repo", cwd=str(fx.home / "other")))
@@ -145,5 +146,6 @@ class NativeTest(unittest.TestCase):
         parent = parents["sol-thread"]
         self.assertEqual((parent.provider, parent.status, parent.model), ("codex", "running", ""))
         self.assertEqual({a.agent_id for a in parent.subagents}, {"done", "failed", "cancelled", "unknown"})
+        self.assertEqual(parent.name, "Sol chính")
         self.assertIsNone(parent.usage.usd)
         self.assertEqual(sum(s.session_id == "sol-thread" for s in snapshot.sessions), 1)

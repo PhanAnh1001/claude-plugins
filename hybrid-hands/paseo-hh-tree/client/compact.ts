@@ -4,6 +4,8 @@ import type {
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { NestedSession } from "./nest";
 // @ts-ignore -- Also run directly with Node strip-types.
+import { nestSessions } from "./nest.ts";
+// @ts-ignore -- Also run directly with Node strip-types.
 import { ownShareLabel, durationText, limitPercentText, truncate, usdText } from "./format.ts";
 
 export const MAX_SIDE_SESSIONS = 4;
@@ -241,14 +243,25 @@ export function panelRows(tree: Pick<TreeData, "sessions" | "limits" | "machine_
     const machine = tree.machine_usage?.find(u => u.plan === plan && u.window === "tuần");
     return { kind: "summary" as const, text: `${plan} máy này tuần ${machine?.usd == null ? "~$?" : usdText(machine.usd, true)} · ${quota}` };
   });
-  return [...summaries, ...tree.sessions.map(session => ({ kind: "session" as const, session }))];
+  const nested = nestSessions(tree.sessions);
+  // Only explicit parents group sessions. Unresolved sides follow every root.
+  const sessions = [...nested.roots, ...nested.orphanSides.map(session => ({
+    ...session, children: [] as NestedSession[],
+  }))];
+  return [...summaries, ...sessions.map(session => ({ kind: "session" as const, session }))];
 }
 
 export function agentName(agent: AgentItem): string {
-  if (agent.kind === "hand") {
-    const run = agent.value as TreeHandRun;
-    return run.label || run.run_id;
-  }
-  const subagent = agent.value as TreeSubagent;
-  return subagent.agent_type || subagent.agent_id;
+  return shortName(agent.value);
+}
+
+/** A display-only label; descriptions in the snapshot stay intact. */
+export function shortName(item: {
+  description?: string; label?: string; side_name?: string | null;
+  name?: string; agent_type?: string; agent_id?: string; run_id?: string;
+}): string {
+  const candidates = [item.description, item.label, item.side_name, item.name,
+    item.agent_type, item.agent_id, item.run_id];
+  const name = candidates.find(value => value?.trim()) || "?";
+  return truncate(name.replace(/\s+/g, " ").trim(), 32);
 }
