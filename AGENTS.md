@@ -12,6 +12,8 @@ Ngoại lệ A (0.27.0) đã được người dùng cho phép: Sol trên Paseo 
 
 Xong một tính năng (test hẹp xanh, đã review) thì Opus/Sol điều phối commit, push nhánh rồi merge ngay vào `main` và push `main` (người dùng chốt 08/11/2026); hand executor không commit/merge. Ngoài trường hợp đó không commit/push mặc định; không chạy lệnh phá hoại. Không sửa `.claude/hybrid-hands.json`, `~/.codex-hand/config.toml`, `~/.claude/settings.json`, `installed_plugins.json`, credential/settings hay bật parallel-subagents trong công việc usage panel. Không xoá/di chuyển/dọn `output/llm/`. Shell dùng cwd/workdir hoặc đường dẫn tuyệt đối, không `cd <dir> && ...`. Không vòng chờ vô hạn; kết thúc tiến trình nền mình tạo trước báo cáo. Không tải/mua/gọi API trả phí hay tạo/dùng API key nếu brief không giao rõ và có trần chi phí.
 
+Sau mỗi lần sửa plugin, Opus/Sol phải validate, chạy test hẹp phù hợp và hoàn tất review, tăng version thích hợp cùng changelog, rồi cập nhật cài đặt plugin vừa sửa cho repo hiện tại và mọi repo khác đang dùng plugin đó qua công cụ chính thức. Không tự bật plugin ở repo chưa dùng; không sửa thủ công credential/settings hay sổ cài đặt. Kiểm chứng version và đường dẫn plugin được nạp thực tế ở các repo đã cập nhật; nếu phiên đang mở không hot load được thì báo rõ cần reload. Giữ nguyên luật commit/push/merge ở trên; hand executor chỉ làm phần được giao, không tự cập nhật runtime khi brief dành việc đó cho brain.
+
 ## Luật dữ liệu chung (chép nguyên văn vào brief hand ngoài)
 
 Không in/hiện giá trị `.env`, token, credential ở bất kỳ tầng nào; công cụ của plugin (`hand-ext doctor/run`, đọc hạn mức) được đọc file auth nội bộ, chỉ không được in giá trị. Brief giao hand ngoài chép nguyên văn luật này.

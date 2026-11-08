@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.31.1
+
+- Phiên chính Sol chỉ được archive bởi người dùng; gom phiên phụ theo project và dọn project legacy.
+- Bổ sung luật sau sửa plugin: validate/test hẹp/review, tăng version và cập nhật qua công cụ chính thức cho mọi repo đang dùng; kiểm version/path nạp thực tế và báo reload khi cần.
+
 ## 0.31.0
 
 - Thêm `side-session start --main` mở brain Sol Codex trên Paseo tại repo chính, prompt tùy chọn, effort mặc định high; không fallback screen, handoff/watchdog hay slot phiên phụ. State giữ role tương thích và stop archive lịch sử; bổ sung template và hướng dẫn phiên chính.
