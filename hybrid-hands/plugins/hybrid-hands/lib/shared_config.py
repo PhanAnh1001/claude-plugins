@@ -22,7 +22,8 @@ FILE_SOURCES = ("global", "repo")
 REGISTRY_SECTIONS = ("ext_hand.backends", "ext_hand.claude_accounts")
 # Sections which are always objects. Their own leaves are replaceable, so an explicit
 # ``price_per_mtok: null`` or ``monthly_limit_usd`` stays allowed.
-OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.go_usage", "ext_hand.paseo")
+OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.go_usage", "ext_hand.paseo",
+                                      "paseo.claude_providers")
 
 
 @dataclass
@@ -105,7 +106,8 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
     repo_path = Path(config_file) if config_file is not None else (_config_path(root) or root / PROJECT_CONFIG_RELPATH)
     if not repo_path.is_absolute():
         repo_path = root / repo_path
-    defaults = {"ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS}
+    defaults = {"ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
+                "paseo": {"claude_providers": {"v1": "claude"}}}
     effective, sources, paths, sections = {}, {}, {}, []
     _merge(effective, defaults, sources, "plugin")
     for source, path in zip(FILE_SOURCES, (global_path.resolve(), repo_path.resolve())):

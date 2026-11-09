@@ -72,8 +72,8 @@ def reload_agent(agent_id: str) -> None:
     _check(result, "agent reload")
 
 
-def import_session(session_id: str, cwd: str) -> str:
-    result = _run(["import", session_id, "--provider", "claude",
+def import_session(session_id: str, cwd: str, provider: str) -> str:
+    result = _run(["import", session_id, "--provider", provider,
                    "--cwd", cwd, "--json"], PASEO_TIMEOUT_SECONDS)
     _check(result, "import")
     data = extract_json(result.stdout, "{")
