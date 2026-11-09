@@ -78,7 +78,7 @@ def _preflight(cfg: SideConfig, a) -> int | None:
             return _refuse_budget(result)
     if getattr(a, "main", False):
         return None
-    running = _running(cfg)
+    running = [] if a.dry_run else _running(cfg)
     if not a.dry_run and len(running) >= cfg.max_parallel:
         print(f"side-session: {len(running)} running >= max_parallel {cfg.max_parallel}: "
               + ", ".join(s.name for s in running))
@@ -115,6 +115,12 @@ def _launch(cfg: SideConfig, a, st: state.SessionState, cmds: list[list[str]], *
 
 def start(cfg: SideConfig, a) -> int:
     is_main = getattr(a, "main", False)
+    settings = cfg.main_session if is_main else vars(cfg)
+    a.provider = a.provider or (C.PROVIDER_CLAUDE if a.resume else
+                                settings.get("provider", C.PROVIDER_CODEX))
+    if a.provider not in C.PROVIDERS:
+        print("side-session: provider cấu hình không hợp lệ")
+        return C.EXIT_USAGE
     if is_main and (a.provider not in (C.PROVIDER_CODEX, C.PROVIDER_CLAUDE)
                     or a.worktree or a.resume):
         print("side-session: --main chỉ dùng với provider codex/claude, "
@@ -125,11 +131,21 @@ def start(cfg: SideConfig, a) -> int:
     if not is_main and a.prompt is None and a.prompt_file is None:
         print("side-session: start cần --prompt hoặc --prompt-file")
         return C.EXIT_USAGE
-    account = getattr(a, "account", None) or "v1"
+    if a.provider not in C.EXTERNAL_PROVIDERS:
+        a.model = a.model or settings.get(f"{a.provider}_model", C.CODEX_MODEL_DEFAULT
+                                         if a.provider == C.PROVIDER_CODEX else C.CLAUDE_MODEL_DEFAULT)
+        a.effort = a.effort or settings.get(f"{a.provider}_effort", C.CODEX_EFFORT_DEFAULT
+                                           if a.provider == C.PROVIDER_CODEX else C.CLAUDE_EFFORT_DEFAULT)
+    account = getattr(a, "account", None) or settings.get("claude_account", "v1")
+    a.transport = settings.get("transport", C.TRANSPORT_PASEO)
+    if a.provider == C.PROVIDER_CLAUDE and a.transport not in (C.TRANSPORT_PASEO, C.TRANSPORT_SCREEN):
+        print("side-session: transport Claude phải là paseo hoặc screen")
+        return C.EXIT_USAGE
     config_dir = ""
     if a.provider == C.PROVIDER_CLAUDE:
         try:
             config_dir = claude_account(cfg, account)["config_dir"]
+            a.account = account
         except ValueError as exc:
             print(exc)
             return C.EXIT_USAGE
@@ -140,7 +156,7 @@ def start(cfg: SideConfig, a) -> int:
     prompt_text = Path(a.prompt_file).read_text(encoding="utf-8") if a.prompt_file else a.prompt
     handoff = cfg.handoff_dir / f"{name}.md"
     if is_main and a.provider == C.PROVIDER_CODEX:
-        full_prompt = K.build_main_codex_prompt(prompt_text or C.MAIN_DEFAULT_PROMPT)
+        full_prompt = K.build_main_codex_prompt(prompt_text or C.MAIN_DEFAULT_PROMPT, a.model, a.effort)
     elif a.provider == C.PROVIDER_CODEX:
         full_prompt = K.build_codex_prompt(prompt_text, name, handoff)
     else:
@@ -161,7 +177,7 @@ def start(cfg: SideConfig, a) -> int:
             and state.load(cfg.state_dir, name).status in C.ACTIVE_STATUSES:
         print(f"side-session: {name} already running")
         return C.EXIT_USAGE
-    paseo_plan = paseo.plan(cfg, a) if a.provider == C.PROVIDER_CODEX else None
+    paseo_plan = paseo.plan(cfg, a) if a.provider in (C.PROVIDER_CODEX, C.PROVIDER_CLAUDE) else None
     if paseo_plan is not None and paseo_plan.get("error"):
         return paseo_plan.get("exit_code", C.EXIT_USAGE)
     sid = str(uuidlib.uuid4())
@@ -234,6 +250,9 @@ def resume(cfg: SideConfig, a) -> int:
         print(f"side-session: no session named {a.name!r} ({path})")
         return C.EXIT_USAGE
     old = state.load(cfg.state_dir, a.name)
+    if old.transport == C.TRANSPORT_PASEO:
+        print("side-session: --resume Paseo chưa hỗ trợ; mở lại đúng agent trong Paseo")
+        return C.EXIT_USAGE
     if old.provider != C.PROVIDER_CLAUDE:
         print(f"side-session: --resume chỉ dùng cho phiên {C.PROVIDER_CLAUDE}, "
               f"{a.name} là {old.provider}")
@@ -317,13 +336,26 @@ def _pin_rollout(cfg: SideConfig, st: state.SessionState) -> None:
     found = _find_rollout(cfg, st)
     if found is None:
         return
+    # Store the real path: a symlinked CODEX_HOME must not re-pin a different path.
+    found = found.resolve()
     st.codex_rollout = str(found)
     state.save(cfg.state_dir, st)
 
 
+def _native_id(st: state.SessionState) -> str:
+    """Claude native session id; legacy states/namespaces may lack the field."""
+    return getattr(st, "native_session_id", "") or ""
+
+
 def count_tokens(cfg: SideConfig, st: state.SessionState) -> int:
+    native = _native_id(st)
+    if (st.provider == C.PROVIDER_CLAUDE
+            and getattr(st, "transport", C.TRANSPORT_SCREEN) == C.TRANSPORT_PASEO
+            and not native):
+        # The launcher UUID is not the daemon's native Claude session.
+        return 0
     if st.provider == C.PROVIDER_CLAUDE and cfg.token_file:
-        return tokens.token_file_tokens(cfg.token_file, st.uuid)
+        return tokens.token_file_tokens(cfg.token_file, native or st.uuid)
     if st.provider in C.EXTERNAL_PROVIDERS:
         run = external.run_for(st)
         return external.tokens_used(run) if run is not None else 0
@@ -332,7 +364,7 @@ def count_tokens(cfg: SideConfig, st: state.SessionState) -> int:
     config_dir = (getattr(st, "claude_config_dir", "")
                   or claude_account(cfg, getattr(st, "account", "v1"))["config_dir"])
     return tokens.claude_tokens(
-        tokens.claude_transcript(st.dir, st.uuid, config_dir=config_dir))
+        tokens.claude_transcript(st.dir, native or st.uuid, config_dir=config_dir))
 
 
 def _age(seconds: float) -> str:
@@ -625,7 +657,9 @@ def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
 
 def _capture_paseo_thread(cfg: SideConfig, st: state.SessionState) -> None:
     """Best-effort thread id for a done-first tick; a connection error is not fatal."""
-    if st.codex_thread_id or not st.paseo_agent_id:
+    native_id = (_native_id(st) if st.provider == C.PROVIDER_CLAUDE
+                 else st.codex_thread_id)
+    if native_id or not st.paseo_agent_id:
         return
     try:
         result = paseo.status(st.paseo_agent_id, st.paseo_target)
@@ -633,7 +667,7 @@ def _capture_paseo_thread(cfg: SideConfig, st: state.SessionState) -> None:
         return
     thread = str(result.get("threadId") or "")
     if thread:
-        st.codex_thread_id = thread
+        paseo.capture_native_id(st, thread)
         state.save(cfg.state_dir, st)
 
 
@@ -658,8 +692,7 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
         print(f"{st.name}: Paseo unknown ({exc.code}); giữ trạng thái và max_parallel")
         return True
     thread = str(result.get("threadId") or "")
-    if thread and not st.codex_thread_id:
-        st.codex_thread_id = thread
+    if thread and paseo.capture_native_id(st, thread):
         # The first tick had no thread yet: pin now that the exact id is known.
         _pin_rollout(cfg, st)
     raw = str(result.get("status") or "")
@@ -682,6 +715,20 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
         _codex_idle(cfg, st)
         print(f"{st.name}: {_token_cell(cfg, st, st.tokens_used)} context tokens")
     else:
+        if st.tokens_used >= st.max_tokens and cfg.enforce_token_cap:
+            failure = paseo.interrupt(st)
+            if failure:
+                print(f"{st.name}: Paseo interrupt lỗi ({failure}); giữ active")
+                return True
+            st.status = C.STATUS_CAPPED
+            state.save(cfg.state_dir, st)
+            print(f"{st.name}: capped at {st.tokens_used}/{st.max_tokens}")
+            return False
+        if st.tokens_used >= st.max_tokens:
+            print(C.OVER_CAP_WARNING.format(name=st.name, used=st.tokens_used,
+                                            cap=st.max_tokens))
+        elif st.tokens_used >= C.WARN_RATIO * st.max_tokens:
+            print(f"{st.name}: warning {st.tokens_used}/{st.max_tokens} (>= {C.WARN_RATIO:.0%})")
         print(f"{st.name}: {st.tokens_used}/{st.max_tokens} tokens")
     return True
 
@@ -715,6 +762,8 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
                 return True
             print(f"{st.name}: done")
             return False
+        if st.provider == C.PROVIDER_CLAUDE and st.transport == C.TRANSPORT_PASEO:
+            _capture_paseo_thread(cfg, st)
         st.tokens_used = count_tokens(cfg, st)
         st.status = C.STATUS_DONE
         state.save(cfg.state_dir, st)

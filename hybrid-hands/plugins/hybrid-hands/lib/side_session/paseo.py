@@ -14,6 +14,7 @@ import subprocess
 from pathlib import Path
 
 from . import codex_trust
+from .claude_options import process_options
 from . import commands as K
 from . import constants as C
 from . import state
@@ -104,25 +105,35 @@ def ready() -> dict:
 
 def start_agent(*, workdir: str, name: str, model: str, effort: str,
                 initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str,
-                project_root: str) -> dict:
-    """Create the directory workspace and `codex-hand` agent in one bridge call."""
+                project_root: str, provider: str = C.PROVIDER_CODEX,
+                claude_config_dir: str = "", mode_id: str = "",
+                claude_options: dict | None = None) -> dict:
+    """Create a directory workspace and the selected provider in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
         "sandbox_mode": C.CODEX_SANDBOX,
     }
+    env = {"CODEX_HOME": str(codex_home), C.HAND_SCOPE_ENV: hand_scope}
+    # Codex payload keeps the old shape: Claude-only fields are added below.
+    claude_only: dict = {}
+    if provider == C.PROVIDER_CLAUDE:
+        env = {"CLAUDE_CONFIG_DIR": claude_config_dir, C.HAND_SCOPE_ENV: hand_scope}
+        provider_options = claude_options or {}
+        claude_only = {"modeId": mode_id or None}
     return _call("start", {
         "source": {"kind": "directory", "path": workdir},
         "projectRoot": project_root,
         "workdir": workdir,
-        "provider": C.PASEO_PROVIDER,
+        "provider": "claude" if provider == C.PROVIDER_CLAUDE else C.PASEO_PROVIDER,
         "title": name,
         "model": model,
         "effort": effort,
         "initialPrompt": initial_prompt,
-        "env": {"CODEX_HOME": str(codex_home), C.HAND_SCOPE_ENV: hand_scope},
+        "env": env,
         "providerOptions": provider_options,
         "expectedTargetKey": target_key,
         "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
+        **claude_only,
     }, timeout=C.PASEO_START_TIMEOUT_S)
 
 
@@ -265,6 +276,26 @@ def plan(cfg: SideConfig, a) -> dict | None:
     ready: falling back to screen then would silently lose the phone-controlled
     agent. With no daemon (or in dry-run) the plan stays the old screen profile.
     """
+    if a.provider == C.PROVIDER_CLAUDE:
+        if getattr(a, "transport", cfg.transport) == C.TRANSPORT_SCREEN:
+            return None
+        try:
+            process_options(cfg, a.chrome)
+        except ValueError as exc:
+            print(exc)
+            return {"error": "CLAUDE_OPTIONS_INVALID", "exit_code": C.EXIT_USAGE}
+        if a.dry_run:
+            return {"target": ""}
+        try:
+            if disabled() or cli_package_root() is None:
+                raise PaseoError("PASEO_REQUIRED")
+            target = str(ready().get("targetKey") or "")
+            if not target:
+                raise PaseoError("PASEO_REQUIRED")
+            return {"target": target}
+        except PaseoError as exc:
+            print(f"side-session: Claude cần Paseo ({exc.code}); không fallback screen")
+            return {"error": exc.code, "exit_code": 1}
     if getattr(a, "main", False):
         if a.dry_run:
             return {"target": ""}
@@ -324,6 +355,15 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     if a.dry_run:
         print(f"# dry-run: Paseo role={st.role or 'side'} dir={workdir} "
               f"model={a.model or cfg.codex_model} effort={a.effort or cfg.codex_effort}")
+        env = ({"CLAUDE_CONFIG_DIR": st.claude_config_dir, C.HAND_SCOPE_ENV: st.uuid}
+               if st.provider == C.PROVIDER_CLAUDE else
+               {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: st.uuid})
+        options = process_options(cfg, st.chrome) if st.provider == C.PROVIDER_CLAUDE else {}
+        print(json.dumps({"provider": "claude" if st.provider == C.PROVIDER_CLAUDE
+                          else C.PASEO_PROVIDER, "env": env,
+                          "model": st.model, "thinkingOptionId": st.effort,
+                          **({"modeId": options["mode_id"] or None,
+                              "providerOptions": options["claude_options"]} if options else {})}, ensure_ascii=False))
         print(full_prompt)
         return 0
     if st.role != "main":
@@ -336,8 +376,9 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     st.screen = ""
     st.paseo_target = target
     try:
-        codex_trust.ensure_codex_compact_limit(
-            cfg.codex_home, C.CODEX_AUTO_COMPACT_TOKEN_LIMIT)
+        if st.provider == C.PROVIDER_CODEX:
+            codex_trust.ensure_codex_compact_limit(
+                cfg.codex_home, C.CODEX_AUTO_COMPACT_TOKEN_LIMIT)
     except (codex_trust.ConfigWriteError, OSError):
         st.status = C.STATUS_ERROR
         state.save(cfg.state_dir, st)
@@ -350,7 +391,9 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
             effort=a.effort or cfg.codex_effort, initial_prompt=full_prompt,
             codex_home=cfg.codex_home, hand_scope=st.uuid,
             project_root=str(cfg.repo),
-            target_key=st.paseo_target)
+            target_key=st.paseo_target,
+            **({"provider": st.provider, "claude_config_dir": st.claude_config_dir,
+                **process_options(cfg, st.chrome)} if st.provider == C.PROVIDER_CLAUDE else {}))
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")
         st.paseo_workspace_id = str(exc.data.get("workspaceId") or "")
@@ -370,7 +413,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     st.paseo_agent_id = str(result.get("agentId") or "")
     st.paseo_workspace_id = str(result.get("workspaceId") or "")
     st.paseo_target = str(result.get("targetKey") or st.paseo_target)
-    st.codex_thread_id = str(result.get("threadId") or "")
+    capture_native_id(st, str(result.get("threadId") or ""))
     if not st.paseo_agent_id:
         st.status = C.STATUS_UNKNOWN
         state.save(cfg.state_dir, st)
@@ -383,9 +426,10 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     state.save(cfg.state_dir, st)
     if st.role != "main" and subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
         print("side-session: warning: watchdog failed to start")
+    usage = (f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén)"
+             if st.provider == C.PROVIDER_CODEX else f"cap {st.max_tokens}")
     print(f"started {st.name} (Paseo agent {st.paseo_agent_id}), uuid {st.uuid}, "
-          f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén); "
-          "mở app Paseo hoặc `paseo attach`")
+          f"{usage}; mở app Paseo hoặc `paseo attach`")
     return 0
 
 
@@ -404,8 +448,8 @@ def refresh(cfg: SideConfig, st: state.SessionState) -> str:
             return "dead"
         return "unknown"
     thread = str(result.get("threadId") or "")
-    if thread and not st.codex_thread_id:
-        st.codex_thread_id = thread
+    if thread:
+        capture_native_id(st, thread)
         state.save(cfg.state_dir, st)
     raw = str(result.get("status") or "")
     if not active:
@@ -436,3 +480,17 @@ def interrupt(st: state.SessionState) -> str | None:
     except PaseoError as exc:
         return None if exc.code == C.PASEO_AGENT_NOT_FOUND else exc.code
     return None
+
+
+def capture_native_id(st: state.SessionState, native_id: str) -> bool:
+    """Keep Claude persistence identifiers out of Codex rollout metadata.
+
+    Returns True when this call supplied a Codex thread id that was not known yet.
+    """
+    if st.provider == C.PROVIDER_CLAUDE:
+        st.native_session_id = native_id
+        return False
+    if st.codex_thread_id or not native_id:
+        return False
+    st.codex_thread_id = native_id
+    return True

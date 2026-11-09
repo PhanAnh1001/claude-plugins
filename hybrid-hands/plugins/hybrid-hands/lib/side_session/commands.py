@@ -90,10 +90,23 @@ def codex_argv(cfg: SideConfig, workdir: str, prompt: str,
             prompt]
 
 
-def build_main_codex_prompt(user_prompt: str) -> str:
+def build_main_codex_prompt(user_prompt: str, model: str = C.CODEX_MODEL_DEFAULT,
+                            effort: str = C.CODEX_EFFORT_DEFAULT) -> str:
     """Main Sol has its own instructions and no side-session finish contract."""
     template = (Path(__file__).resolve().parents[2] / C.MAIN_CODEX_TEMPLATE_RELPATH)
-    return f"{template.read_text(encoding='utf-8').strip()}\n\n{user_prompt.rstrip()}\n"
+    root = SIDE_BIN.parent.parent
+    rules = template.read_text(encoding="utf-8")
+    replacements = {
+        "{{MODEL}}": model, "{{EFFORT}}": effort,
+        "{{HAND_EXT_BIN}}": str(HAND_EXT_BIN), "{{SIDE_SESSION_BIN}}": str(SIDE_BIN),
+        "{{HH_PS_BIN}}": str(root / "bin/hh-ps"),
+        "{{EXT_HAND_SKILL}}": str(root / "skills/ext-hand/SKILL.md"),
+        "{{SIDE_SESSION_SKILL}}": str(root / "skills/side-session/SKILL.md"),
+        "{{HAND_BRIEF}}": (root / "templates/hand-brief.md").read_text(encoding="utf-8"),
+    }
+    for key, value in replacements.items():
+        rules = rules.replace(key, value)
+    return f"{rules.strip()}\n\n{user_prompt.rstrip()}\n"
 
 
 def build_codex_prompt(user_prompt: str, name: str, handoff: Path) -> str:

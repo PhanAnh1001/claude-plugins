@@ -38,6 +38,11 @@ CODEX_SANDBOX = "danger-full-access"
 MAX_PARALLEL = 6
 
 DEFAULTS: dict = {
+    "provider": "codex",
+    "claude_model": "claude-opus-5-5",
+    "claude_effort": "high",
+    "claude_account": "v1",
+    "transport": "paseo",
     "handoff_dir": "docs/work-in-progress/handoffs",
     "worktree_root": "../{repo}-wt",
     "max_parallel": 4,

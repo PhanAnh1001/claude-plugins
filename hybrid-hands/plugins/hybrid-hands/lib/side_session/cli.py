@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--prompt-file")
     s.add_argument("--main", action="store_true",
                    help="mở phiên chính: mặc định Codex Sol high trên Paseo; "
-                        "--provider claude mở Claude Opus high trên screen")
+                        "--provider claude mở Claude Opus high trên Paseo")
     s.add_argument("--worktree", action="store_true")
     s.add_argument("--base", default=None)
     s.add_argument("--provider", choices=C.PROVIDERS, default=None,
@@ -70,13 +70,6 @@ HANDLERS = {"start": actions.start, "ls": actions.ls, "stop": actions.stop,
             "watch": actions.watch, "handoff": actions.handoff}
 
 
-def _default_provider(args: argparse.Namespace) -> str:
-    """`start` mặc định mở phiên Sol trên Codex; `--resume` vẫn là Claude."""
-    if args.resume:
-        return C.PROVIDER_CLAUDE
-    return C.PROVIDER_CODEX
-
-
 def _attach_transport_lookup():
     """Optional state lookup for `attach NAME`; Paseo terminals may run outside a repo."""
     try:
@@ -99,8 +92,6 @@ def _attach_transport_lookup():
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    if args.cmd == "start" and args.provider is None:
-        args.provider = _default_provider(args)
     try:
         if args.cmd == "attach":
             # Paseo runs terminal profiles from an arbitrary cwd with no project config.

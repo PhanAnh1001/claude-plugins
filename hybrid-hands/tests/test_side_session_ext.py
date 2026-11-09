@@ -46,6 +46,10 @@ class SideSessionExtTest(unittest.TestCase):
             (bindir / name).chmod(0o755)
         (self.tmp / "alive").write_text("")
         self._env = dict(os.environ)
+        legacy_config = self.tmp / "global.json"
+        legacy_config.write_text(json.dumps({"side_session": {"transport": "screen"},
+                                              "main_session": {"transport": "screen"}}))
+        os.environ["HYBRID_HANDS_CONFIG"] = str(legacy_config)
         os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ['PATH']}"
         os.environ["FAKE_DIR"] = str(self.tmp)
         os.environ.pop("CLAUDE_CODE_SESSION_ID", None)

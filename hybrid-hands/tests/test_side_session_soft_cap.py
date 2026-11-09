@@ -49,6 +49,10 @@ class SoftTokenCapTest(unittest.TestCase):
         self.projects = self.tmp / "projects"
         self.machine = self.tmp / "machine"
         self._env = dict(os.environ)
+        legacy_config = self.tmp / "global.json"
+        legacy_config.write_text(json.dumps({"side_session": {"transport": "screen"},
+                                              "main_session": {"transport": "screen"}}))
+        os.environ["HYBRID_HANDS_CONFIG"] = str(legacy_config)
         os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ['PATH']}"
         os.environ["FAKE_DIR"] = str(self.tmp)
         os.environ["SIDE_SESSION_CLAUDE_PROJECTS"] = str(self.projects)

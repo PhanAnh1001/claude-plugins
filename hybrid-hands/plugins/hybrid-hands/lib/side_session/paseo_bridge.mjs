@@ -411,18 +411,23 @@ async function main() {
         return;
       }
       let agent;
+      const createArgs = {
+        provider: request.provider,
+        cwd: request.workdir,
+        workspaceId,
+        title: request.title,
+        model: request.model,
+        thinkingOptionId: request.effort,
+        initialPrompt: request.initialPrompt,
+        env: request.env,
+        providerOptions: request.providerOptions,
+      };
+      // Older clients reject an explicit null; only Claude requests carry a mode.
+      if (typeof request.modeId === "string" && request.modeId) {
+        createArgs.modeId = request.modeId;
+      }
       try {
-        agent = await client.createAgent({
-          provider: request.provider,
-          cwd: request.workdir,
-          workspaceId,
-          title: request.title,
-          model: request.model,
-          thinkingOptionId: request.effort,
-          initialPrompt: request.initialPrompt,
-          env: request.env,
-          providerOptions: request.providerOptions,
-        });
+        agent = await client.createAgent(createArgs);
       } catch (error) {
         fail("AGENT_CREATE_FAILED", { workspaceId });
         return;

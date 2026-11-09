@@ -27,6 +27,12 @@ class SideConfig:
     token_file: str = ""
     enforce_token_cap: bool = True
     claude_accounts: dict = field(default_factory=lambda: default_claude_accounts())
+    provider: str = C.PROVIDER_CODEX
+    claude_model: str = C.CLAUDE_MODEL_DEFAULT
+    claude_effort: str = C.CLAUDE_EFFORT_DEFAULT
+    claude_account: str = "v1"
+    transport: str = C.TRANSPORT_PASEO
+    main_session: dict = field(default_factory=dict)
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -70,12 +76,19 @@ def _bool_setting(raw: object, key: str) -> bool:
 def load_config(cwd: Path) -> SideConfig:
     repo = git_toplevel(cwd)
     from shared_config import load_config as load_shared
-    merged = load_shared(known_root=repo).effective[C.CONFIG_SECTION]
+    effective = load_shared(known_root=repo).effective
+    merged = effective[C.CONFIG_SECTION]
     max_parallel = merged["max_parallel"]
     if type(max_parallel) is not int or not 1 <= max_parallel <= C.MAX_PARALLEL:
         raise ValueError(f"side_session.max_parallel phải là số nguyên 1..{C.MAX_PARALLEL}")
     return SideConfig(
         repo=repo,
+        provider=str(merged["provider"]),
+        claude_model=str(merged["claude_model"]),
+        claude_effort=str(merged["claude_effort"]),
+        claude_account=str(merged["claude_account"]),
+        transport=str(merged["transport"]),
+        main_session=effective["main_session"],
         handoff_dir=_resolve(repo, merged["handoff_dir"]),
         worktree_root=_resolve(repo, merged["worktree_root"]),
         max_parallel=max_parallel,
