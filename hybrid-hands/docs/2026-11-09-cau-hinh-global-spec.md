@@ -3,7 +3,7 @@
 ## Tóm tắt
 
 - **Mục đích:** cho phép chọn provider, model, effort, account của phiên chính, phiên phụ và hand/subagent ở cấp global (máy/người dùng), không chỉ cấp repo. Đồng thời vá chỗ phiên chính Sol nhận policy thiếu so với phiên Claude.
-- **Trạng thái:** mục 1-4 đã duyệt 09/11/2026, gói A đang chạy; mục 5 (bảo mật) chờ duyệt. Opus giao các gói theo plan `2026-11-09-cau-hinh-global-plan.md`.
+- **Trạng thái:** mục 1-4 đã duyệt và đã merge `main` (gói A, B, C, E) ngày 09/11/2026; S0/S0b đã xác minh; mục 5 (bảo mật) chờ duyệt 3 điểm ở 7.2. Opus giao các gói theo plan `2026-11-09-cau-hinh-global-plan.md`.
 - **Quyết định đề xuất:**
   - **File global:** `~/.hybrid-hands/config.json`, đổi đường dẫn bằng env `HYBRID_HANDS_CONFIG`. Schema giống hệt `.claude/hybrid-hands.json`.
   - **Thứ tự ưu tiên:** mặc định plugin → global → repo → cờ CLI. Dict được merge sâu, list và giá trị đơn bị thay nguyên.
@@ -12,8 +12,8 @@
   - **Phiên chính Sol:** template được điền đường dẫn tuyệt đối của bin, khuôn brief và đường dẫn các SKILL.md.
   - **Phiên Claude dưới Paseo:** thêm key `transport` (mặc định `paseo`) để side-session mở phiên Claude chính/phụ trên Paseo; truyền `CLAUDE_CONFIG_DIR` theo account; `cc-switch` giữ đúng account khi chuyển phiên.
   - **Bỏ luật cũ** "`claude_accounts` không có nguồn user config" trong AGENTS.md và các template.
-  - **Bảo mật runtime (mục 5):** mục cấu hình `security` mặc định an toàn cho mọi thứ plugin khởi chạy (sandbox phiên Sol, permission mode phiên Claude, lọc env, chặn đọc file credential); lệnh `hand-ext doctor --security` kiểm tra phần plugin không khởi chạy. Plugin không sửa file cấu hình của người dùng.
-- **Con số chính:** 7 gói giao Sol (A đang chạy; B, C, E, S0 sau A; S1 sau B và S0; S2 song song S1), 1 phần Opus tự làm. Phiên bản dự kiến hybrid-hands 0.34.0. Mức test: tối thiểu cho A/B/C/E, kỹ cho S0/S1/S2.
+  - **Bảo mật runtime (mục 5):** mục cấu hình `security` mặc định an toàn cho mọi thứ plugin khởi chạy (permission mode và sandbox phiên/hand Claude, lọc env, chặn đọc file credential, sandbox cả tiến trình dsh; phiên Sol hai bước `trusted` → `sandboxed` vì seatbelt không lồng được); lệnh `hand-ext doctor --security` kiểm tra phần plugin không khởi chạy. Plugin không sửa file cấu hình của người dùng.
+- **Con số chính:** A, B, C, E, S0 đã xong; S2 đang chạy; còn S1a/S1b/S1c (song song, khác file) và S3 (sau khi người dùng khai báo provider Paseo), 1 phần Opus tự làm. Phiên bản dự kiến hybrid-hands 0.34.0. Mức test: tối thiểu cho A/B/C/E, kỹ cho S0/S1/S2.
 - **Rủi ro lớn nhất hiện nay:** agent Sol tạo qua Paseo chạy không sandbox trong khi relay Paseo bật, nên chiếm được điện thoại đã ghép là có shell toàn quyền trên máy.
 - **Người dùng cần quyết:** mục 1-4 đã duyệt 09/11/2026; còn 3 điểm bảo mật ở mục 7.2.
 
@@ -118,25 +118,39 @@ Hand-ext Codex và Claude đã lọc biến API key (`codex.py:125`, `claude.py:
 3. **Mặc định an toàn.** Nới quyền phải bật tường minh trong cấu hình global hoặc repo; `hand-ext config --json` hiện rõ chỗ nào đang nới.
 4. **Lọc env chung** cho mọi runtime: bỏ biến có tên khớp `KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH`, trừ danh sách cho phép mà runtime cần.
 
-### 5.3 Mục cấu hình `security`
+### 5.3 Kết quả xác minh S0/S0b (09/11/2026)
+
+Ma trận và lệnh: `docs/work-in-progress/2026-11-09-s0-sandbox-matrix.md`. Phiên bản: Codex 0.166.0, Claude Code 2.1.319, dsh 0.2.1-rc.5, Paseo 0.15.0.
+
+| Phát hiện | Hệ quả thiết kế |
+|---|---|
+| **Seatbelt macOS không lồng được:** chạy `sandbox-exec` bên trong `codex sandbox` thoát 71 (`sandbox_apply`), kể cả khi mở thêm thư mục ghi | Một tiến trình đã sandbox không khởi được hand có sandbox riêng. Sol hay Claude brain đang sandbox thì không gọi hand-ext trực tiếp được |
+| Claude: `--settings` gồm sandbox, `permissions.deny`, `credentials.envVars` cùng `acceptEdits` + `allowedTools` chặn được `cat`/`python` đọc canary và lọc được biến env | Áp được ngay cho phiên và hand Claude do plugin khởi chạy |
+| Codex: `shell_environment_policy` core + exclude lọc env; permission profile `-P` chặn đọc đường dẫn chỉ định; `workspace-write` đơn lẻ không chặn đọc | Hand codex dùng profile `-P` có deny đọc credential. Phiên Sol dùng được lọc env, nhưng chưa sandbox được vì phải gọi hand |
+| dsh: runner sandbox riêng chặn Bash đọc/ghi ngoài và mạng, nhưng tool Read gốc của dsh vẫn đọc được file ngoài; chặn `go.key` thì dsh mất xác thực | Cần sandbox cả tiến trình dsh (một biên duy nhất), deny đọc credential, key Go truyền qua env do wrapper cấp, Bash con vẫn lọc env |
+| Paseo: Sol trong sandbox kết nối được daemon qua `127.0.0.1`, nhưng `hand-ext --mode paseo` báo `PASEO_PROVIDER_UNAVAILABLE` vì `~/.paseo/config.json` chưa khai báo 4 provider `hh-hand` | Đường dài hạn: Sol sandbox, hand do daemon Paseo chạy ngoài sandbox của Sol. Cần người dùng khai báo provider |
+
+### 5.4 Mục cấu hình `security` (mặc định chốt theo 5.3)
 
 | Key | Mặc định | Áp cho |
 |---|---|---|
 | `security.env_deny_patterns` / `env_allow` | Mẫu ở 5.2 / `[]` | Mọi tiến trình plugin khởi chạy |
-| `security.deny_paths` | `**/.env*`, `**/auth.json`, `~/.claude*/.credentials*`, `~/.codex*/auth.json`, `~/.paseo/**`, `~/.dsh-hand/*.key` | Claude (`--settings` deny Read/Edit và `Bash(cat/head/…)`), Codex và dsh qua sandbox đọc nếu runtime hỗ trợ |
-| `security.codex.session_sandbox` | `workspace-write`, kèm `writable_roots` gồm repo, `worktree_root`, thư mục state | Phiên Sol chính/phụ (thay cờ bypass), cả đường Paseo |
-| `security.codex.network` | `true` (Sol cần mạng để gọi hand) | Phiên Sol |
-| `security.codex.env_policy` | `inherit=core`, exclude theo mẫu 5.2 | Override `shell_environment_policy` qua `-c` |
-| `security.claude.session_permission_mode` | `acceptEdits`; `bypassPermissions` phải bật tường minh | Phiên Claude chính/phụ do side-session mở |
-| `security.claude.sandbox` | bật | Phiên và hand Claude, qua `--settings` |
+| `security.deny_paths` | `**/.env*`, `**/auth.json`, `~/.claude*/.credentials*`, `~/.codex*/auth.json`, `~/.paseo/**`, `~/.dsh-hand/*.key` | Claude qua `--settings`; hand codex qua profile `-P`; dsh qua sandbox cả tiến trình |
+| `security.codex.session_mode` | `trusted`: không sandbox OS (bắt buộc để gọi hand), có lọc env. `sandboxed`: `workspace-write` + mạng `127.0.0.1`, hand bắt buộc đi `--mode paseo` | Phiên Sol chính/phụ, cả đường Paseo |
+| `security.codex.env_policy` | `inherit=core`, exclude theo mẫu 5.2 | Phiên Sol và hand codex |
+| `security.codex.hand_profile` | profile `-P` kế thừa `:workspace`, deny đọc `deny_paths` | Hand codex |
+| `security.claude.session_permission_mode` | `acceptEdits`; `bypassPermissions` phải bật tường minh | Phiên Claude chính/phụ do side-session mở, cả `modeId` khi qua Paseo |
+| `security.claude.sandbox` | bật cho hand; bật cho phiên kèm `excludedCommands` gồm bin của plugin (S1a phải xác minh lệnh loại trừ chạy được ngoài sandbox, nếu không thì phiên tắt sandbox, giữ deny + lọc env) | Phiên và hand Claude qua `--settings` |
 | `security.claude.hand_webfetch` | `false` | Hand Claude |
-| `security.dsh.network` | `false`, trừ khi có `--browser` | Hand dsh |
-| `security.paseo.agent_sandbox` | theo `security.codex.session_sandbox` | `providerOptions` khi tạo agent, gồm cả hand-ext `--mode paseo` (merge `e077e8a`, `lib/hand_ext/paseo_transport.py`) |
+| `security.dsh.process_sandbox` | bật: `sandbox-exec` cả tiến trình, deny đọc `deny_paths`, key Go qua env | Hand dsh |
+| `security.dsh.bash_network` | `false`, trừ khi có `--browser` | Bash của hand dsh |
+| `security.paseo.agent_mode` | theo `codex.session_mode` và `claude.session_permission_mode` | `providerOptions`/`modeId` khi tạo agent, gồm cả hand-ext `--mode paseo` |
 | `security.allow_unsafe` | `false` | Công tắc duy nhất cho phép quay về chế độ bypass cũ, `hand-ext config` cảnh báo khi bật |
 
-Tên key Claude `--settings`/sandbox và khả năng chặn đọc của Codex/dsh phải được gói S0 xác minh với phiên bản đang cài trước khi chốt. Key nào runtime không hỗ trợ thì bỏ và ghi lý do, không giả lập.
+- Biện pháp nào runtime không hỗ trợ thì bỏ và ghi lý do, không giả lập.
+- **Rủi ro còn lại khi `session_mode=trusted`:** Sol vẫn đọc được mọi file trong HOME. Biến env đã được lọc. Rủi ro này hết khi chuyển sang `sandboxed` (gói S3).
 
-### 5.4 Lệnh kiểm tra bảo mật
+### 5.5 Lệnh kiểm tra bảo mật
 
 `hand-ext doctor --security` chỉ đọc, kiểm tra:
 - Claude v1/v2: `defaultMode`, `skipDangerousModePermissionPrompt`, `deny`, sandbox, hook env-guard.
@@ -146,7 +160,7 @@ Tên key Claude `--settings`/sandbox và khả năng chặn đọc của Codex/d
 
 Lệnh chỉ in tên key và trạng thái `ok`/`cảnh báo`, không in giá trị của key khác hay key có tên dạng secret. Mỗi cảnh báo kèm đoạn cấu hình đề xuất để người dùng tự áp.
 
-### 5.5 Kiểm chứng mức kỹ
+### 5.6 Kiểm chứng mức kỹ
 
 - **Thử thoát bằng canary:** tạo file `.env` giả và biến env giả (giá trị ngẫu nhiên, không phải secret thật) trong thư mục test. Với mỗi runtime (phiên Sol, phiên Claude, hand codex/claude/dsh), lệnh đọc canary bằng Read, `cat`, `python -c` và `env` phải thất bại hoặc không thấy giá trị.
 - **SAST:** `bandit` cho `lib/`, `semgrep` nếu đã có sẵn trên máy.
@@ -171,6 +185,6 @@ Lệnh chỉ in tên key và trạng thái `ok`/`cảnh báo`, không in giá tr
 
 ### 7.2 Chờ duyệt: bảo mật (mục 5)
 
-1. **Relay Paseo:** đề xuất giữ relay (cần để dùng điện thoại ngoài mạng LAN), giảm rủi ro bằng cách sandbox agent. Phương án khác là tắt relay, chỉ dùng trong LAN.
-2. **Sandbox phiên Sol:** đề xuất bật `workspace-write` làm mặc định nếu gói S0 chứng minh Sol trong sandbox vẫn gọi được mọi hand. Nếu S0 thất bại một phần thì Opus báo lại để người dùng quyết.
-3. **Phiên Opus v1 bạn tự mở** (`bypassPermissions`, `deny` rỗng): plugin không sửa. `doctor --security` in đoạn cấu hình đề xuất để người dùng tự áp.
+1. **Relay Paseo:** đề xuất giữ relay (cần để dùng điện thoại ngoài mạng LAN). Phương án khác là tắt relay, chỉ dùng trong LAN; đây là cách giảm rủi ro số 1 nhanh nhất cho tới khi có S3.
+2. **Phiên Sol theo hai bước:** S1 dùng `session_mode=trusted` (không sandbox OS, có lọc env, hand được sandbox riêng). S3 chuyển mặc định sang `sandboxed` sau khi người dùng khai báo 4 provider `hh-hand` trong `~/.paseo/config.json` (doctor in đoạn mẫu) và S3 chứng minh hand qua Paseo chạy hoàn tất. Phương án khác: dừng ở `trusted`.
+3. **Phiên Opus bạn tự mở** (v1 `bypassPermissions`, `deny` rỗng): plugin không sửa. `doctor --security` in đoạn cấu hình đề xuất để người dùng tự áp. Lưu ý từ 5.3: nếu bật sandbox Claude cho phiên brain thì phải loại trừ bin của plugin, nếu không sẽ không gọi được hand.
