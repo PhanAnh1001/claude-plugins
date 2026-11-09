@@ -24,11 +24,14 @@ def _running(cfg: SideConfig) -> list[state.SessionState]:
     alive = screen.screen_names() if needs_screen else set()
     running = []
     for st in sessions:
+        if st.paseo_send_pending:
+            running.append(st)
+            continue
         if st.role == "main" or st.status not in C.ACTIVE_STATUSES:
             continue
         if st.transport == C.TRANSPORT_PASEO:
             # Unknown (disconnect) still counts; only a confirmed dead agent drops out.
-            if (st.provider == C.PROVIDER_CODEX and K.done_path(st.handoff).is_file()) \
+            if K.done_path(st.handoff).is_file() \
                     or paseo.refresh(cfg, st) != "dead":
                 running.append(st)
         elif st.screen in alive:
@@ -425,7 +428,8 @@ def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
     """Persist done only after the owning transport has closed the runtime."""
     if st.transport == C.TRANSPORT_PASEO:
         _capture_paseo_thread(cfg, st)
-    _pin_rollout(cfg, st)
+    if st.provider == C.PROVIDER_CODEX:
+        _pin_rollout(cfg, st)
     st.tokens_used = count_tokens(cfg, st)
     if st.transport == C.TRANSPORT_PASEO:
         failure = paseo.finish(st)
@@ -437,9 +441,9 @@ def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
         state.save(cfg.state_dir, st)
         return False
     st.status = C.STATUS_DONE
-    if st.transport == C.TRANSPORT_PASEO:
-        st.paseo_workspace_archived = True
     state.save(cfg.state_dir, st)
+    if st.transport == C.TRANSPORT_PASEO and st.worktree:
+        _rearchive_revived(cfg, st)
     return True
 
 
@@ -449,6 +453,8 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
     Failed cleanup keeps status done with a one-line warning; the next ls/watch
     retries. A revived session never runs _finish_codex, even with a stale .done.
     """
+    if not st.worktree or Path(st.dir).resolve() != (cfg.worktree_root / st.name).resolve():
+        return
     revived, failure = paseo.revive(st)
     if failure:
         print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
@@ -463,6 +469,10 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
 
 def _rearchive_revived(cfg: SideConfig, st: state.SessionState) -> None:
     """Hide the private workspace once a revived agent is archived again."""
+    if (not st.worktree or st.role == "main"
+            or Path(st.dir).resolve() != (cfg.worktree_root / st.name).resolve()
+            or Path(st.dir).resolve() == cfg.repo.resolve()):
+        return
     archived, failure = paseo.rearchive(st)
     if failure:
         print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
@@ -478,7 +488,7 @@ def _rearchive_revived(cfg: SideConfig, st: state.SessionState) -> None:
 def _reconcile_done(cfg: SideConfig, st: state.SessionState) -> None:
     """Done Codex/Paseo sessions follow the user's agent archive/revive, never .done."""
     if st.role == "main" or st.status != C.STATUS_DONE \
-            or st.provider != C.PROVIDER_CODEX or st.transport != C.TRANSPORT_PASEO:
+            or st.transport != C.TRANSPORT_PASEO:
         return
     if st.paseo_revived:
         _rearchive_revived(cfg, st)
@@ -489,7 +499,7 @@ def _reconcile_done(cfg: SideConfig, st: state.SessionState) -> None:
 def ls(cfg: SideConfig, _a) -> int:
     sessions = state.load_all(cfg.state_dir)
     candidates = [st for st in sessions if st.role != "main"
-                  and st.status == C.STATUS_DONE and st.provider == C.PROVIDER_CODEX
+                  and st.status == C.STATUS_DONE and not st.paseo_send_pending
                   and st.transport == C.TRANSPORT_PASEO
                   and (st.paseo_workspace_archived or st.paseo_revived)]
     candidate_names = {st.name for st in candidates}
@@ -511,25 +521,30 @@ def ls(cfg: SideConfig, _a) -> int:
         # Finish and reconcile are exclusive per tick: a session just finished,
         # revived or rearchived here is never handled twice in the same listing.
         # A revived session never finishes again, even with a stale .done marker.
-        if done and st.provider == C.PROVIDER_CODEX and not st.paseo_revived and (
+        if st.paseo_send_pending:
+            done = False
+        if done and (st.provider == C.PROVIDER_CODEX or st.transport == C.TRANSPORT_PASEO) and not st.paseo_revived and (
                 st.status in C.ACTIVE_STATUSES
                 or (st.status == C.STATUS_DONE and st.transport == C.TRANSPORT_PASEO
                     and not st.paseo_workspace_archived)):
-            _finish_codex(cfg, st)
+            if st.status == C.STATUS_DONE:
+                _rearchive_revived(cfg, st)
+            else:
+                _finish_codex(cfg, st)
         elif st.name in candidate_names and st.paseo_agent_id in archive_states:
             archived = archive_states[st.paseo_agent_id]
             if (st.paseo_revived and archived) or (not st.paseo_revived and not archived):
                 _reconcile_done(cfg, st)
         if st.transport == C.TRANSPORT_PASEO:
             # Pending .done retains its slot even if archive partially closed the agent.
-            live = ("unknown" if done and st.provider == C.PROVIDER_CODEX
+            live = ("unknown" if done
                     and st.status in C.ACTIVE_STATUSES else paseo.refresh(cfg, st))
         if not done and st.provider == C.PROVIDER_CODEX and st.status in C.ACTIVE_STATUSES:
             _codex_idle(cfg, st)
         # A .done marker only advances a still-active state; it must not turn a
         # stopped/daystop session back into done in the listing.
         status = (C.STATUS_DONE if done and st.provider != C.PROVIDER_CODEX
-                  and st.status in C.ACTIVE_STATUSES else st.status)
+                  and st.transport != C.TRANSPORT_PASEO and st.status in C.ACTIVE_STATUSES else st.status)
         used = (count_tokens(cfg, st) if status in C.ACTIVE_STATUSES
                 else st.tokens_used)
         token_cell = _token_cell(cfg, st, used)
@@ -736,16 +751,18 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
 def watch_tick(cfg: SideConfig, name: str) -> bool:
     """One watchdog step. Returns True while the watch loop should continue."""
     st = state.load(cfg.state_dir, name)
-    if st.role == "main":
+    if st.role == "main" or st.paseo_send_pending:
         return False
     # A done Codex/Paseo session follows the agent's archive state instead of .done,
     # one step per tick; a revived one is kept watched to see its next archive.
-    if (st.status == C.STATUS_DONE and st.provider == C.PROVIDER_CODEX
+    if (st.status == C.STATUS_DONE
             and st.transport == C.TRANSPORT_PASEO):
         if st.paseo_revived or st.paseo_workspace_archived:
             _reconcile_done(cfg, st)
-            return st.paseo_revived
-        return not _finish_codex(cfg, st)
+            return False
+        if st.worktree:
+            _rearchive_revived(cfg, st)
+        return False
     if st.status not in C.ACTIVE_STATUSES:
         return False
     done = st.role != "main" and K.done_path(st.handoff).is_file()
@@ -757,7 +774,7 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
             _capture_paseo_thread(cfg, st)
         _pin_rollout(cfg, st)
     if done:
-        if st.provider == C.PROVIDER_CODEX:
+        if st.provider == C.PROVIDER_CODEX or st.transport == C.TRANSPORT_PASEO:
             if not _finish_codex(cfg, st):
                 return True
             print(f"{st.name}: done")
@@ -800,3 +817,72 @@ def handoff(cfg: SideConfig, a) -> int:
         return 1
     print(block)
     return 0
+
+
+def send(cfg: SideConfig, a) -> int:
+    """Continue one exact agent; uncertain delivery reserves the slot until resolved."""
+    import fcntl
+    lock_path = cfg.state_dir / ".send.lock"
+    cfg.state_dir.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("side-session: send đang xử lý; không gửi trùng")
+            return C.EXIT_USAGE
+        st = state.load(cfg.state_dir, a.name)
+        if (st.role == "main" or st.transport != C.TRANSPORT_PASEO
+                or st.status in C.ACTIVE_STATUSES or st.paseo_send_pending
+                or not Path(st.dir).is_dir() or not st.paseo_target
+                or not st.paseo_agent_id or not st.paseo_workspace_id):
+            print("side-session: send cần side Paseo đã dừng, cwd và identity hợp lệ; pending cần đối chiếu trước")
+            return C.EXIT_USAGE
+        try:
+            text = Path(a.prompt_file).read_text(encoding="utf-8")
+            if not text.strip():
+                raise ValueError("prompt trống")
+        except (OSError, ValueError):
+            print("side-session: không đọc được prompt hợp lệ")
+            return C.EXIT_USAGE
+        a.provider, a.account = st.provider, st.account
+        a.dry_run, a.main = False, False
+        a.budget_exempt = st.budget_exempt
+        preflight = _preflight(cfg, a)
+        if preflight is not None:
+            return preflight
+        marker = K.done_path(st.handoff)
+        # Reserve before dispatch; only definite non-delivery releases this reservation.
+        history = None
+        dispatched = False
+        st.paseo_send_pending = True
+        state.save(cfg.state_dir, st)
+        try:
+            if marker.exists():
+                history = marker.with_name(marker.name + ".history-" + uuidlib.uuid4().hex)
+                marker.rename(history)
+            dispatched = True
+            paseo.send(st, text)
+        except (OSError, paseo.PaseoError) as exc:
+            if not dispatched or (isinstance(exc, paseo.PaseoError) and exc.data.get("notSent") is True):
+                # Hard-link restoration cannot overwrite a marker created meanwhile.
+                if history is not None and history.exists():
+                    try:
+                        os.link(history, marker)
+                    except FileExistsError:
+                        pass
+                    except OSError:
+                        print("side-session: không khôi phục được tên .done; lịch sử vẫn còn")
+                st.paseo_send_pending = False
+                state.save(cfg.state_dir, st)
+                print("side-session: chưa gửi; giữ IDs và lịch sử, có thể thử lại")
+                return 1
+            print("side-session: restore/send chưa xác nhận; giữ IDs, lịch sử và slot; đối chiếu đúng agent trước khi gửi lại")
+            return 1
+        st.status = C.STATUS_RUNNING
+        st.paseo_send_pending = False
+        st.paseo_workspace_archived = False
+        st.paseo_revived = False
+        state.save(cfg.state_dir, st)
+        if subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
+            print("side-session: warning: watchdog failed to start")
+        return 0

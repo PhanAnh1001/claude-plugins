@@ -67,10 +67,10 @@ def _call(command: str, payload: dict | None = None, *, timeout: float) -> dict:
     request = {"command": command, **(payload or {})}
     node = shutil.which(C.PASEO_NODE)
     if node is None:
-        raise PaseoError("NODE_NOT_FOUND")
+        raise PaseoError("NODE_NOT_FOUND", {"notSent": True} if command == "send" else {})
     root = cli_package_root()
     if root is None:
-        raise PaseoError("PASEO_CLI_NOT_FOUND")
+        raise PaseoError("PASEO_CLI_NOT_FOUND", {"notSent": True} if command == "send" else {})
     try:
         proc = subprocess.run(
             [node, str(BRIDGE), str(root)],
@@ -79,7 +79,7 @@ def _call(command: str, payload: dict | None = None, *, timeout: float) -> dict:
     except subprocess.TimeoutExpired as exc:
         raise PaseoError("PASEO_TIMEOUT") from exc
     except OSError as exc:
-        raise PaseoError("PASEO_BRIDGE_FAILED") from exc
+        raise PaseoError("PASEO_BRIDGE_FAILED", {"notSent": True} if command == "send" else {}) from exc
     lines = [line for line in proc.stdout.splitlines() if line.strip()]
     try:
         response = json.loads(lines[-1]) if lines else {}
@@ -179,7 +179,10 @@ def _exact_agent(st: state.SessionState) -> dict | None:
     return {"agentId": st.paseo_agent_id,
             "expectedWorkspaceId": st.paseo_workspace_id,
             "expectedTargetKey": st.paseo_target,
-            "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS}
+            "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
+            "privateWorkspace": bool(st.worktree and st.role != "main"
+                                     and Path(st.dir).is_absolute()),
+            "workdir": st.dir}
 
 
 def _guard_message(st: state.SessionState) -> str:
@@ -194,7 +197,12 @@ def finish(st: state.SessionState) -> str | None:
     if payload is None:
         return _guard_message(st)
     try:
-        _call("finish", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+        result = _call("finish", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+        if (result.get("agentArchived") is not True
+                or result.get("agentId") != st.paseo_agent_id
+                or result.get("workspaceId") != st.paseo_workspace_id
+                or result.get("targetKey") != st.paseo_target):
+            return "AGENT_ARCHIVE_UNCONFIRMED"
     except PaseoError as exc:
         return exc.code
     return None
@@ -494,3 +502,15 @@ def capture_native_id(st: state.SessionState, native_id: str) -> bool:
         return False
     st.codex_thread_id = native_id
     return True
+
+
+def send(st: state.SessionState, text: str) -> None:
+    payload = _exact_agent(st)
+    if payload is None or not st.paseo_target:
+        raise PaseoError("SEND_IDENTITY_UNKNOWN", {"notSent": True})
+    result = _call("send", {**payload, "text": text}, timeout=C.PASEO_START_TIMEOUT_S)
+    if (result.get("accepted") is not True
+            or result.get("agentId") != st.paseo_agent_id
+            or result.get("workspaceId") != st.paseo_workspace_id
+            or result.get("targetKey") != st.paseo_target):
+        raise PaseoError("SEND_ACK_UNKNOWN")

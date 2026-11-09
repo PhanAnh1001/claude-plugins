@@ -14,10 +14,13 @@ const DEFAULT_TIMEOUT_MS = 3000;
 const SUBAGENT_TIMELINE_LIMIT = 100;
 const DIRECTORY_PAGE_LIMIT = 200;
 const DIRECTORY_MAX_PAGES = 100;
+const SEND_QUEUED = "queued";
 const TIMELINE_METADATA = [
   "provider", "direction", "epoch", "projection", "startCursor", "endCursor",
   "reset", "staleCursor", "gap", "window", "hasOlder", "hasNewer",
 ];
+
+let sendPreDispatch = false;
 
 function nonemptyId(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -40,8 +43,46 @@ async function archiveExactAgent(client, agentId) {
   return true;
 }
 
+// Read the complete public workspace directory, including background workspaces.
+async function exactWorkspace(client, request) {
+  if (typeof client.fetchWorkspaces !== "function") {
+    fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return null;
+  }
+  let cursor;
+  let found;
+  const ids = new Set(), cursors = new Set();
+  for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
+    const result = await client.fetchWorkspaces({includeBackground: true,
+      page: {limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? {cursor} : {})}});
+    if (result?.error != null || !Array.isArray(result?.entries)
+        || !result.pageInfo || !Object.hasOwn(result.pageInfo, "nextCursor")) break;
+    for (const entry of result.entries) {
+      if (!nonemptyId(entry?.id) || ids.has(entry.id)) {
+        fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return null;
+      }
+      ids.add(entry.id);
+      if (entry.id === request.expectedWorkspaceId) found = entry;
+    }
+    cursor = result.pageInfo.nextCursor;
+    if (cursor === null) {
+      if (!found || !nonemptyId(request.workdir)
+          || found.workspaceDirectory !== request.workdir) {
+        fail("WORKSPACE_PATH_MISMATCH"); return null;
+      }
+      return found;
+    }
+    if (!nonemptyId(cursor) || cursors.has(cursor)) break;
+    cursors.add(cursor);
+  }
+  fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return null;
+}
+
 // Include archived agents: even an inactive sibling makes this workspace shared.
 async function privateWorkspace(client, request, agent) {
+  if (request.privateWorkspace !== true) {
+    fail("WORKSPACE_NOT_PRIVATE");
+    return false;
+  }
   if (!nonemptyId(request.expectedWorkspaceId)
       || agent.workspaceId !== request.expectedWorkspaceId) {
     fail("WORKSPACE_ID_MISMATCH");
@@ -51,7 +92,14 @@ async function privateWorkspace(client, request, agent) {
     fail("WORKSPACE_CLEANUP_UNSUPPORTED");
     return false;
   }
+  const workspace = await exactWorkspace(client, request);
+  if (!workspace) return false;
+  if (workspace.workspaceKind !== "worktree" || !nonemptyId(workspace.projectRootPath)
+      || workspace.projectRootPath === request.workdir) {
+    fail("WORKSPACE_NOT_PRIVATE"); return false;
+  }
   let cursor;
+  const ids = new Set();
   const seen = new Set();
   for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
     const payload = await client.fetchAgents({
@@ -60,13 +108,18 @@ async function privateWorkspace(client, request, agent) {
       page: { limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? { cursor } : {}) },
     });
     if (payload?.error != null || !Array.isArray(payload?.entries)
-        || !payload.pageInfo || payload.entries.some((entry) => !entry?.agent
+        || !payload.pageInfo || !Object.hasOwn(payload.pageInfo, "nextCursor") || payload.entries.some((entry) => !entry?.agent
           || !nonemptyId(entry.agent.id) || !nonemptyId(entry.agent.workspaceId))) {
       fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
       return false;
     }
+    for (const {agent: other} of payload.entries) {
+      if (ids.has(other.id)) { fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return false; }
+      ids.add(other.id);
+    }
     if (payload.entries.some(({ agent: other }) =>
-      other.workspaceId === request.expectedWorkspaceId && other.id !== request.agentId)) {
+      other.workspaceId === request.expectedWorkspaceId && other.id !== request.agentId
+      && other.archivedAt == null && !["closed"].includes(other.status))) {
       fail("WORKSPACE_SHARED");
       return false;
     }
@@ -232,6 +285,18 @@ function agentArchived(agent) {
   return agent.archivedAt != null;
 }
 
+// Public client 0.15.0 sendMessage resolves {} once the daemon accepted the message;
+// only a queued delivery carries {deliveryStatus: "queued"}. Anything else is unknown.
+function sendAcknowledged(ack) {
+  if (!ack || typeof ack !== "object" || Array.isArray(ack) || ack.error != null) return false;
+  return ack.deliveryStatus == null || ack.deliveryStatus === SEND_QUEUED;
+}
+
+function workspaceUnarchivable(inspected, request) {
+  return inspected?.kind === "recoverable" && inspected.action === "unarchive"
+    && inspected.workspaceId === request.expectedWorkspaceId;
+}
+
 function workspaceActive(inspected, request) {
   return inspected?.kind === "unavailable"
     && inspected.reason === "workspace_not_archived"
@@ -254,10 +319,7 @@ async function reviveAgent(client, request, agent, key) {
   const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
   let restored = false;
   if (!workspaceActive(inspected, request)) {
-    const recoverable = inspected?.kind === "recoverable"
-      && inspected.action === "unarchive"
-      && inspected.workspaceId === request.expectedWorkspaceId;
-    if (!recoverable) {
+    if (!workspaceUnarchivable(inspected, request)) {
       fail("WORKSPACE_RECOVERY_UNSUPPORTED");
       return;
     }
@@ -281,6 +343,18 @@ async function rearchiveWorkspace(client, request, agent, key) {
       targetKey: key });
     return;
   }
+  if (request.privateWorkspace !== true) { fail("WORKSPACE_NOT_PRIVATE"); return; }
+  // An archived workspace is absent from the public directory: recognise the exact
+  // already-archived workspace first as a no-op, without any mutation.
+  if (typeof client.inspectWorkspaceRecovery === "function") {
+    const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+    if (workspaceUnarchivable(inspected, request)) {
+      emit({ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
+        targetKey: key}); return;
+    }
+    if (!workspaceActive(inspected, request)) { fail("WORKSPACE_ARCHIVE_UNCONFIRMED"); return; }
+  }
+  // Any mutation still needs the complete public worktree/path/sibling validation.
   if (!await privateWorkspace(client, request, agent)) return;
   if (!await archivePrivateWorkspace(client, request.expectedWorkspaceId)) return;
   emit({ ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
@@ -292,7 +366,7 @@ function emit(value) {
 }
 
 function fail(code, data = {}) {
-  emit({ ok: false, code, data });
+  emit({ ok: false, code, data: {...data, ...(sendPreDispatch ? {notSent: true} : {})} });
   process.exitCode = 1;
 }
 
@@ -341,6 +415,7 @@ async function main() {
     return;
   }
   const request = await readRequest();
+  sendPreDispatch = request.command === "send";
   const clientModule = await import(
     pathToFileURL(join(packageRoot, "dist", "utils", "client.js")).href);
   const targetModule = await import(
@@ -367,6 +442,37 @@ async function main() {
     }
     if (request.command === "subagents" || request.command === "subagent-timeline") {
       await readNativeSubagents(client, request, key);
+      return;
+    }
+    if (request.command === "send") {
+      const agent = await fetchExactAgent(client, request);
+      if (!agent) return;
+      if (["running", "busy", "starting", "initializing"].includes(agent.status)) {
+        fail("AGENT_ALREADY_RUNNING"); return;
+      }
+      if (typeof client.inspectWorkspaceRecovery !== "function"
+          || typeof client.restoreWorkspace !== "function") {
+        fail("WORKSPACE_RECOVERY_UNSUPPORTED"); return;
+      }
+      // The public directory lists active workspaces only: inspect and restore the
+      // exact archived workspace in place first, then verify its public ID/cwd.
+      const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+      if (!workspaceActive(inspected, request)) {
+        if (!workspaceUnarchivable(inspected, request)) {
+          fail("WORKSPACE_RECOVERY_UNSUPPORTED"); return;
+        }
+        const restored = await client.restoreWorkspace(request.expectedWorkspaceId);
+        if (restored?.error != null) { fail(errorCode({code: restored.error})); return; }
+        if (!workspaceActive(await client.inspectWorkspaceRecovery(request.expectedWorkspaceId), request)) {
+          fail("WORKSPACE_RESTORE_UNCONFIRMED"); return;
+        }
+      }
+      if (!await exactWorkspace(client, request)) return;
+      sendPreDispatch = false;
+      const ack = await client.sendMessage(request.agentId, request.text);
+      if (!sendAcknowledged(ack)) { fail("SEND_ACK_UNKNOWN"); return; }
+      emit({ok: true, accepted: true, agentId: agent.id,
+        workspaceId: agent.workspaceId, targetKey: key});
       return;
     }
     if (request.command === "revive" || request.command === "rearchive") {
@@ -486,17 +592,16 @@ async function main() {
         return;
       }
       if (request.command === "finish"
-          && !await privateWorkspace(client, request, fetched.agent)) return;
-      const previous = fetched.agent.status;
-      if (previous === "running") {
-        await client.cancelAgent(request.agentId);
+          && fetched.agent.workspaceId !== request.expectedWorkspaceId) {
+        fail("WORKSPACE_ID_MISMATCH"); return;
       }
+      const previous = fetched.agent.status;
+      if (previous === "running") await client.cancelAgent(request.agentId);
       if (request.command === "finish") {
-        // Preserve history, then hide only the verified private side workspace.
-        if (!await archiveExactAgent(client, request.agentId)
-            || !await archivePrivateWorkspace(client, request.expectedWorkspaceId)) {
-          return;
-        }
+        if (!await archiveExactAgent(client, request.agentId)) return;
+        emit({ok: true, agentArchived: true, agentId: fetched.agent.id,
+          workspaceId: fetched.agent.workspaceId, targetKey: key});
+        return;
       }
       emit({
         ok: true,

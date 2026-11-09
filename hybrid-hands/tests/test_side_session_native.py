@@ -25,6 +25,7 @@ let inspects=0;
 const entries=SHARED?[{agent:{id:"main",workspaceId:"private"}}]:[];
 export const connectToDaemon=async()=>({close:async()=>{},
 fetchAgent:async()=>({agent:{id:"side",status:"idle",workspaceId:"private"@ARCHIVED@}}),
+fetchWorkspaces:async()=>({entries:[{id:"private",workspaceKind:"worktree",workspaceDirectory:"/side",projectRootPath:"/repo"}],pageInfo:{nextCursor:null}}),
 fetchAgents:async()=>({entries,pageInfo:{nextCursor:null}}),
 inspectWorkspaceRecovery:async(w)=>{record("inspect",w);inspects++;
 return inspects===1?@RECOVERY@:@ACTIVE_STATE@},
@@ -36,6 +37,7 @@ REARCHIVE_CLIENT = '''import {appendFileSync} from "node:fs";
 const record=(id)=>appendFileSync(new URL("../../calls",import.meta.url),id+"\\n");
 export const connectToDaemon=async()=>{const entries=SHARED?[{agent:{id:"main",workspaceId:"private"}}]:[];return {close:async()=>{},
 fetchAgent:async()=>({agent:{id:"side",status:"idle",workspaceId:"@OWN@"@ARCHIVED@}}),
+fetchWorkspaces:async()=>({entries:[{id:"private",workspaceKind:"worktree",workspaceDirectory:"/side",projectRootPath:"/repo"}],pageInfo:{nextCursor:null}}),
 fetchAgents:async()=>({entries,pageInfo:{nextCursor:null}}),
 cancelAgent:async()=>record("cancel"),archiveAgent:async()=>record("archiveAgent"),
 archiveWorkspace:async(w)=>{record("archive:"+w);return {archivedAt:"2026-11-09T00:00:00Z"}}};}'''
@@ -79,30 +81,59 @@ createAgent:async(a)=>({id:"a",workspaceId:a.workspaceId}),fetchAgent:async()=>(
 
     def test_private_workspace_cleanup(self):
         client = Path(self.tmp.name) / "dist/utils/client.js"
-        for expected, other, result, code, calls in [
-            (None, False, '{}', "WORKSPACE_ID_MISMATCH", []),
-            ("main-workspace", False, '{}', "WORKSPACE_ID_MISMATCH", []),
-            ("private", True, '{}', "WORKSPACE_SHARED", []),
-            ("private", False, '{}', "WORKSPACE_ARCHIVE_UNCONFIRMED", ["cancel", "side", "private"]),
-            ("private", False, '{error:"ARCHIVE_FAILED"}', "ARCHIVE_FAILED", ["cancel", "side", "private"]),
-            ("private", False, '{archivedAt:"2026-11-08T00:00:00Z"}', None, ["cancel", "side", "private"]),
+        for expected, code, calls in [
+            (None, "WORKSPACE_ID_MISMATCH", []),
+            ("main-workspace", "WORKSPACE_ID_MISMATCH", []),
+            ("private", None, ["cancel", "side"]),
         ]:
             self.calls.write_text("")
             client.write_text('''import {appendFileSync} from "node:fs";
 const record=(id)=>appendFileSync(new URL("../../calls",import.meta.url),id+"\\n");
 export const connectToDaemon=async()=>({close:async()=>{},
 fetchAgent:async()=>({agent:{id:"side",status:"running",workspaceId:"private"}}),
-fetchAgents:async()=>({entries:OTHER?[{agent:{id:"main",workspaceId:"private"}}]:[],pageInfo:{nextCursor:null}}),
-cancelAgent:async()=>{record("cancel")},archiveAgent:async(id)=>{record(id);return {archivedAt:"2026-11-08T00:00:00Z"}},
-archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", str(other).lower()).replace("RESULT", result))
+cancelAgent:async()=>record("cancel"),archiveAgent:async(id)=>{record(id);return {archivedAt:"2026-11-08T00:00:00Z"}},
+archiveWorkspace:async()=>{throw Error("finish must retain workspace")}});''')
             request = {"agentId": "side", "expectedWorkspaceId": expected}
             if code:
                 with self.assertRaises(paseo.PaseoError) as caught:
                     paseo._call("finish", request, timeout=3)
                 self.assertEqual(caught.exception.code, code)
             else:
-                self.assertEqual(paseo._call("finish", request, timeout=3)["status"], "archived")
+                self.assertTrue(paseo._call("finish", request, timeout=3)["agentArchived"])
             self.assertEqual(self.calls.read_text().splitlines(), calls)
+
+        # Public descriptors must be complete, private worktrees; pagination is real.
+        for mode, code in [("ok", None), ("checkout", "WORKSPACE_NOT_PRIVATE"),
+                           ("local_checkout", "WORKSPACE_NOT_PRIVATE"),
+                           ("directory", "WORKSPACE_NOT_PRIVATE"),
+                           ("unknown", "WORKSPACE_NOT_PRIVATE"),
+                           ("root", "WORKSPACE_NOT_PRIVATE"),
+                           ("path", "WORKSPACE_PATH_MISMATCH"),
+                           ("cursor", "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+                           ("duplicate", "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+                           ("shared", "WORKSPACE_SHARED"), ("closed", None),
+                           ("sibling-archived", None), ("archived", None)]:
+            self.calls.write_text("")
+            client.write_text(REARCHIVE_CLIENT.replace("@OWN@", "private")
+                .replace("@ARCHIVED@", archived_field('"2026-11-09T00:00:00Z"'))
+                .replace("SHARED", str(mode in ("shared", "closed", "sibling-archived")).lower())
+                .replace('id:"main",workspaceId:"private"', 'id:"main",workspaceId:"private",status:"closed"' if mode == "closed" else 'id:"main",workspaceId:"private",archivedAt:"2026-11-09T00:00:00Z"' if mode == "sibling-archived" else 'id:"main",workspaceId:"private"')
+                .replace('fetchWorkspaces:async()=>({entries:[{id:"private",workspaceKind:"worktree",workspaceDirectory:"/side",projectRootPath:"/repo"}],pageInfo:{nextCursor:null}}),',
+                  '''fetchWorkspaces:async({includeBackground,page})=>{
+if(!includeBackground||page.limit!==200)throw Error();
+const entry={id:"private",workspaceKind:MODE,workspaceDirectory:MODE==="path"?"/other":"/side",projectRootPath:MODE==="root"?"/side":"/repo"};
+if(["ok","root","path","cursor","duplicate","shared","closed","sibling-archived","archived"].includes(MODE))entry.workspaceKind="worktree";
+return {entries:MODE==="archived"?[]:page.cursor?[entry]:MODE==="duplicate"?[entry]:[],pageInfo:MODE==="cursor"?{}:{nextCursor:page.cursor?null:"next"}};},
+inspectWorkspaceRecovery:async()=>MODE==="archived"?{kind:"recoverable",action:"unarchive",workspaceId:"private"}:{kind:"unavailable",reason:"workspace_not_archived",workspaceId:"private"},'''.replace("MODE", json.dumps(mode))))
+            request = {"agentId": "side", "expectedWorkspaceId": "private",
+                       "privateWorkspace": True, "workdir": "/side"}
+            if code:
+                with self.assertRaises(paseo.PaseoError) as caught:
+                    paseo._call("rearchive", request, timeout=3)
+                self.assertEqual(caught.exception.code, code)
+            else:
+                self.assertTrue(paseo._call("rearchive", request, timeout=3)["archived"])
+            self.assertEqual(self.calls.read_text().splitlines(), ["archive:private"] if mode in ("ok", "closed", "sibling-archived") else [])
 
     def test_revive_and_rearchive(self):
         client = Path(self.tmp.name) / "dist/utils/client.js"
@@ -124,7 +155,7 @@ archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", st
             client.write_text(REVIVE_CLIENT.replace("SHARED", "false")
                               .replace("@ARCHIVED@", archived_field(archived))
                               .replace("@RECOVERY@", recovery).replace("@ACTIVE_STATE@", ACTIVE_STATE))
-            request = {"agentId": "side", "expectedWorkspaceId": "private"}
+            request = {"agentId": "side", "expectedWorkspaceId": "private", "privateWorkspace": True, "workdir": "/side"}
             if expected[1]:
                 with self.assertRaises(paseo.PaseoError) as caught:
                     paseo._call("revive", request, timeout=5)
@@ -149,7 +180,7 @@ archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", st
             self.calls.write_text("")
             client.write_text(REARCHIVE_CLIENT.replace("@OWN@", "private").replace("SHARED", "false")
                               .replace("@ARCHIVED@", archived_field(archived)))
-            self.assertIs(paseo._call(command, {"agentId": "side", "expectedWorkspaceId": "private"},
+            self.assertIs(paseo._call(command, {"agentId": "side", "expectedWorkspaceId": "private", "privateWorkspace": True, "workdir": "/side"},
                                       timeout=5)["archived"], result[0])
             self.assertEqual(self.calls.read_text().splitlines(), calls)
         # Both commands refuse an agent whose own workspace is not the requested one.
@@ -161,7 +192,7 @@ archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", st
                 with self.subTest(own=own, command=request_command):
                     with self.assertRaises(paseo.PaseoError) as caught:
                         paseo._call(request_command,
-                                    {"agentId": "side", "expectedWorkspaceId": "private"}, timeout=5)
+                                    {"agentId": "side", "expectedWorkspaceId": "private", "privateWorkspace": True, "workdir": "/side"}, timeout=5)
                 self.assertEqual(caught.exception.code, "WORKSPACE_ID_MISMATCH")
                 self.assertEqual(self.calls.read_text(), "")
         # Shared workspace rearchive fails before any mutation, even for archived agents.
@@ -169,7 +200,7 @@ archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", st
         client.write_text(REARCHIVE_CLIENT.replace("@OWN@", "private").replace("SHARED", "true")
                           .replace("@ARCHIVED@", archived_field('"2026-11-09T00:00:00Z"')))
         with self.assertRaises(paseo.PaseoError) as caught:
-            paseo._call("rearchive", {"agentId": "side", "expectedWorkspaceId": "private"}, timeout=5)
+            paseo._call("rearchive", {"agentId": "side", "expectedWorkspaceId": "private", "privateWorkspace": True, "workdir": "/side"}, timeout=5)
         self.assertEqual(caught.exception.code, "WORKSPACE_SHARED")
         self.assertEqual(self.calls.read_text(), "")
         # Restoring is not confirmed while recovery still reports an archived workspace.
@@ -179,7 +210,7 @@ archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", st
                           .replace("@ARCHIVED@", archived_field(None))
                           .replace("@RECOVERY@", recovery).replace("@ACTIVE_STATE@", recovery))
         with self.assertRaises(paseo.PaseoError) as caught:
-            paseo._call("revive", {"agentId": "side", "expectedWorkspaceId": "private"}, timeout=5)
+            paseo._call("revive", {"agentId": "side", "expectedWorkspaceId": "private", "privateWorkspace": True, "workdir": "/side"}, timeout=5)
         self.assertEqual(caught.exception.code, "WORKSPACE_RESTORE_UNCONFIRMED")
         self.assertEqual(self.calls.read_text().splitlines(),
                          ["inspect:private", "restore:private:1", "inspect:private"])

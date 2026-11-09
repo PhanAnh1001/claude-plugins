@@ -46,6 +46,7 @@ class SessionState:
     # Workspace đã được side-session mở lại sau khi agent unarchive: watch/ls kiểm lại agent archive.
     paseo_revived: bool = False
     native_session_id: str = ""
+    paseo_send_pending: bool = False
 
 
 def _from_dict(raw: dict) -> "SessionState":
