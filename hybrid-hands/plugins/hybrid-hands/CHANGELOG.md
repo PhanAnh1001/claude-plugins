@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.5 — 2026-11-09
+
+- Giữ diagnostics containment an toàn (stage/method/loại lỗi/PID/OS start), inventory identity, bằng chứng reap và owner acknowledgment; giữ lỗi fatal đầu tiên và retry CAS có giới hạn.
+- Kiểm lại OS birth khi marker scan gặp exit race (kể cả EINVAL trên macOS), giữ fail closed với identity/scan chưa chắc; exec đổi tên tiến trình không bị nhầm là PID reuse.
+- `managed recover` bổ sung `post_hoc_reverify` cho cancelled-unresolved có đủ proof, dry-run mặc định, `--apply` qua supervisor/completion hooks/release chuẩn, khóa và revision fence. Legacy thiếu inventory/OS start/root-reaped vẫn từ chối và giữ reservation.
+
 ## 0.35.4 — 2026-11-09
 
 - Managed worker theo dõi cây con khi root sống và trước cancel, giữ PID + OS start time + comm cùng lịch sử chuỗi cha; kiểm lại identity trước từng signal. Cancel dừng root group và descendant đã setsid/reparent, TERM/KILL với thời hạn; marker invocation exact được quét cùng user qua KERN_PROCARGS2 trên macOS, không ghi/in giá trị môi trường.
