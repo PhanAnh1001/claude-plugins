@@ -39,6 +39,8 @@
 - [x] dsh: biến key có lọt vào bash của hand không; network bash có mở không.
 - [x] Bàn giao: ma trận runtime × biện pháp → được/không, kèm lệnh đã chạy. Opus chốt mặc định mục 5.4 theo ma trận. Kết quả: seatbelt không lồng được, xem spec 5.3.
 
+> **Tạm dừng (09/11/2026):** người dùng dừng mọi gói bảo mật (S1a, S1b, S1c, S2, S3 và kiểm chứng bảo mật). Phần D chỉ phát hành A, B, C, E.
+
 ## Gói S1a: Claude (Sol, sau duyệt 7.2)
 
 - [ ] Phiên Claude chính/phụ (screen và Paseo `modeId`) theo `security.claude.session_permission_mode`; `--settings` sandbox + `permissions.deny` + `credentials.envVars` cho phiên và hand Claude; hand tắt WebFetch. Xác minh `excludedCommands` cho bin plugin trong phiên có sandbox.

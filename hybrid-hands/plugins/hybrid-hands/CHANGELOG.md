@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.0 — 2026-11-09
+
+- A — Cấu hình mặc định plugin → global → repo → CLI; dict merge sâu, list/scalar thay nguyên; global hỏng báo lỗi kèm đường dẫn. `hand-ext config --json` hiện cấu hình hiệu lực và nguồn từng key; account/backend đặt được ở global.
+- B — `main_session` và các key provider/model/effort/account của `side_session`; Claude chính/phụ mặc định qua Paseo, có thể chọn screen tường minh, không tự fallback khi Paseo lỗi. Truyền `CLAUDE_CONFIG_DIR` theo account; template Sol chính có đường dẫn bin/skill, khuôn brief và model/effort thực tế.
+- C — `ext_hand.native.{claude,codex}=auto|off`; `pick --json` thêm `native`/`native_reason`, caller vẫn kiểm capability.
+- E — `paseo.claude_providers` ánh xạ account cho `cc-switch` khi import; thiếu ánh xạ dừng trước khi đóng TUI. Provider v2 do người dùng khai báo trong Paseo.
+- Đã kiểm offline; chưa kiểm live phiên Claude v2 qua Paseo, chưa chuyển phiên v2 thật.
+
 ## 0.34.0 — 2026-11-09
 
 - Hand chạy thành agent Paseo (lane A, opt-in): `ext_hand.mode` = `shell` (mặc định) / `auto` / `paseo-required`, cùng `ext_hand.paseo.{package_root,target,state_root}`. Mỗi hand một workspace riêng cùng project, gắn cha qua `PASEO_AGENT_ID`, giữ worktree/patch/report/ledger/guard, pool 4 và exit 7/8. `auto` thiếu daemon/provider/capability thì về shell trước dispatch; sau dispatch không tạo writer trùng.

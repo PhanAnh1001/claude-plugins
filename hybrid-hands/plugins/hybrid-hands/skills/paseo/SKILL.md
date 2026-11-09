@@ -3,7 +3,12 @@ name: paseo
 description: Dùng Paseo (daemon + CLI + app điện thoại) để theo dõi và điều khiển phiên brain/hand từ xa - cài đặt, khởi và dừng daemon, ghép điện thoại (người dùng tự làm), chạy hand Codex với CODEX_HOME riêng (~/.codex-hand, đăng nhập gói ChatGPT, không API key) qua provider tuỳ biến, theo dõi bằng ls/logs/wait/send, và giới hạn (phiên claude mở ngoài Paseo không tự hiện). Từ khoá kích hoạt - "paseo", "điện thoại", "theo dõi phiên", "điều khiển từ xa", "ghép điện thoại", "pair", "xem hand trên điện thoại", "daemon paseo".
 ---
 
-Mở main Sol high: `side-session start --main --name sol-main`; đường Codex cần daemon Paseo. Main Claude: `side-session start --main --provider claude --account v2` (hoặc v1/v…), chạy qua screen, không cần daemon. Cả hai không dùng `--worktree`, không handoff/watchdog, không chiếm slot phiên phụ.
+Tóm tắt cập nhật 0.35.0: cấu hình global và repo quyết định lựa chọn phiên/hand theo tài khoản.
+
+`cc-switch paseo` tra `paseo.claude_providers` theo account phiên hiện tại khi `paseo import`; mặc định `{"v1":"claude"}`. Thiếu ánh xạ thì dừng trước khi đóng TUI. Muốn chuyển phiên v2, người dùng tự khai báo provider Claude v2 trong `~/.paseo/config.json` với env `CLAUDE_CONFIG_DIR=~/.claude-hand`, rồi đặt `paseo.claude_providers.v2` bằng tên provider đó trong global hoặc repo. Ánh xạ không tự tạo provider Paseo.
+
+
+Mở main Sol high: `side-session start --main --name sol-main`; đường Codex cần daemon Paseo. Main Claude: `side-session start --main --provider claude --account v2` (hoặc v1/v…), mặc định qua Paseo; chọn `main_session.transport=screen` nếu cần screen. Cả hai không dùng `--worktree`, không handoff/watchdog, không chiếm slot phiên phụ.
 
 
 ## Chọn hand theo tài khoản
@@ -19,9 +24,9 @@ Mỗi managed hand có workspace/worktree riêng trong **cùng verified project*
 
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
 
-Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
@@ -75,7 +80,7 @@ Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens
 - **Đã cài:** `npm install -g @getpaseo/cli@0.15.0`, `paseo --version` in `0.15.0` (kiểm trên máy 04/11/2026).
 - **Daemon:** `paseo start` chạy nền, nghe `127.0.0.1:6767`, cấu hình ở `~/.paseo/config.json`; relay (để điện thoại kết nối qua internet) **tắt mặc định**. Không thấy cơ chế tự khởi động khi đăng nhập máy.
 - **Hand Codex riêng:** khai provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME`) trong config; operator kiểm catalog sau bước nạp cấu hình được xác minh, rồi `paseo run --provider codex-hand ...`; hoặc một lần bằng `paseo run --provider codex --env CODEX_HOME=...`.
-- **Giới hạn chính:** chỉ agent do Paseo tạo (hoặc `paseo import <session-id>`) mới hiện; phiên `claude` brain đang chạy trong terminal và phiên `screen` **fallback** của side-session **không tự hiện** (đã kiểm: `paseo ls -a -g` rỗng khi có phiên claude đang mở). Side-session Codex đi đường daemon thì agent do Paseo sở hữu nên hiện ngay, không cần screen.
+- **Giới hạn chính:** chỉ agent do Paseo tạo (hoặc `paseo import <session-id>`) mới hiện; phiên `claude` brain đang chạy trong terminal và phiên Claude chọn `screen` của side-session **không tự hiện** (đã kiểm: `paseo ls -a -g` rỗng khi có phiên claude đang mở). Side-session Codex đi đường daemon thì agent do Paseo sở hữu nên hiện ngay, không cần screen.
 - **Chuyển phiên terminal ↔ Paseo:** dùng `cc-switch term|paseo|status` (README hybrid-hands mục 7); trong phiên TUI đang mở thì `cc-switch paseo --self` (brain chạy ở lượt cuối); reload/import trước khi gửi tin để transcript không rẽ nhánh.
 - **Người dùng phải tự làm:** bật relay, quét QR trên điện thoại, cài app; agent không ghép điện thoại hộ, không ghi `~/.paseo/config.json` khi chưa được duyệt.
 
@@ -159,13 +164,13 @@ Theo [orchestration](https://paseo.sh/docs/orchestration) (11/2026) và `--help`
 
 - `side-session start --provider codex` (mặc định) tự thử daemon Paseo trước khi tạo worktree. Nếu daemon sẵn sàng, nó dùng client đi kèm CLI 0.15.0 (`dist/utils/client.js`, `dist/utils/daemon-target.js`) để tạo workspace directory đúng cwd rồi agent provider `codex-hand` với `CODEX_HOME` của hand, model/effort, `sandbox_mode=danger-full-access` và `approval_policy=never` (toàn quyền, không hỏi phê duyệt); không truyền `modeId`. Agent hiện trong app ngay khi tạo, nên điện thoại điều khiển được mà không cần screen.
 - Endpoint lấy từ `PASEO_HOME`/`PASEO_HOST` (mặc định home) và được ghim trong state; nếu đổi endpoint giữa chừng, `ls`/`watch` coi là unknown và `stop` không điều khiển nhầm agent. Không kế thừa `PASEO_AGENT_ID`/`PASEO_WORKSPACE_ID` của terminal đang chạy.
-- Daemon vắng hoặc CLI không tìm thấy: `side-session start` cảnh báo rồi quay lại screen cũ. `codex_profile` khác rỗng chỉ dùng screen khi daemon vắng; daemon sẵn sàng thì báo chưa hỗ trợ và thoát, không fallback. Daemon đã nhận tạo nhưng lỗi: thoát rõ, không mở screen thứ hai; timeout/protocol/không có agent id giữ trạng thái `unknown`, chặn dùng lại tên và giữ slot tới khi `stop`/reconcile. `side-session attach <tên>` với phiên Paseo chỉ hướng dẫn mở app hoặc `paseo attach <id>`; `stop` interrupt agent rồi dừng watchdog screen, giữ agent/worktree. `.done` vẫn kết thúc phiên; `ls` giữ `done`/`stopped`/`daystop`, không hồi sinh từ trạng thái daemon.
+- Daemon vắng hoặc CLI không tìm thấy: `side-session start` báo lỗi và dừng, không tự lùi về screen. `codex_profile` khác rỗng chưa được hỗ trợ qua Paseo và báo lỗi. Daemon đã nhận tạo nhưng lỗi: thoát rõ, không mở screen thứ hai; timeout/protocol/không có agent id giữ trạng thái `unknown`, chặn dùng lại tên và giữ slot tới khi `stop`/reconcile. `side-session attach <tên>` với phiên Paseo chỉ hướng dẫn mở app hoặc `paseo attach <id>`; `stop` interrupt agent rồi dừng watchdog screen, giữ agent/worktree. `.done` vẫn kết thúc phiên; `ls` giữ `done`/`stopped`/`daystop`, không hồi sinh từ trạng thái daemon.
 - Native compact của Codex nằm ở key top-level `model_auto_compact_token_limit` trong `config.toml` của `CODEX_HOME` hand (schema `providerOptions` 0.15.0 không nhận key này). Đường screen truyền bằng `-c` trong argv; đường Paseo ghi bằng RPC native `config/value/write` của `codex app-server` tạm (chỉ cấu hình, không tạo thread/turn, không đọc auth), không tự parse/format TOML, không in config hay credential.
 
 ## 6. Giới hạn: phiên nào hiện
 
 - **Hiện:** agent tạo bằng `paseo run`, app, MCP; phiên provider nhập vào bằng `paseo import <session-id> --provider claude|codex --cwd <dir>` (`paseo import --help`, 0.15.0); và side-session Codex do bridge tạo (agent `codex-hand`).
-- **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên `screen` fallback của side-session, hand chạy qua `hand-ext` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở.
+- **Không tự hiện:** phiên `claude` brain mở trong terminal, phiên Claude chọn `screen` của side-session, hand chạy qua `hand-ext` ngoài Paseo. Bằng chứng: daemon thử 04/11/2026, `paseo ls -a -g` rỗng trong khi phiên claude brain đang chạy. `import` tạo agent Paseo nối tiếp session đó, không phản chiếu trực tiếp terminal đang mở.
 - **Import Codex khi TUI còn chạy:** Codex từ chối với lỗi `thread ... already has an active writer` vì TUI đang giữ quyền ghi; import không phản chiếu hay điều khiển được TUI đó. Chỉ import sau khi TUI đã đóng và cwd/worktree vẫn tồn tại.
 - **Import lọc theo workspace cwd:** màn import chỉ thấy phiên có cwd trùng workspace directory đã đăng ký; worktree anh em hoặc thư mục khác không hiện. Vì vậy hand nhiều worktree không gom được bằng import.
 - **Giải pháp daemon-owned:** để agent hiện ngay và điều khiển được từ app, tạo agent do Paseo sở hữu (`paseo run`/app/MCP, hoặc `side-session start --provider codex` qua bridge) thay vì import một TUI đang mở.

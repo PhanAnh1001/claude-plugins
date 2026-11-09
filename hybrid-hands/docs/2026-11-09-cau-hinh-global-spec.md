@@ -3,7 +3,7 @@
 ## Tóm tắt
 
 - **Mục đích:** cho phép chọn provider, model, effort, account của phiên chính, phiên phụ và hand/subagent ở cấp global (máy/người dùng), không chỉ cấp repo. Đồng thời vá chỗ phiên chính Sol nhận policy thiếu so với phiên Claude.
-- **Trạng thái:** mục 1-4 đã duyệt và đã merge `main` (gói A, B, C, E) ngày 09/11/2026; S0/S0b đã xác minh; mục 5 (bảo mật) chờ duyệt 3 điểm ở 7.2. Opus giao các gói theo plan `2026-11-09-cau-hinh-global-plan.md`.
+- **Trạng thái:** mục 1-4 đã duyệt và đã merge `main` (gói A, B, C, E) ngày 09/11/2026; S0/S0b đã xác minh; mục 5 (bảo mật) **tạm dừng theo yêu cầu người dùng ngày 09/11/2026** (S2 dừng giữa chừng, nhánh `side/cfg-goi-s2` giữ phần đang làm), 3 điểm ở 7.2 chưa duyệt. Opus giao các gói theo plan `2026-11-09-cau-hinh-global-plan.md`.
 - **Quyết định đề xuất:**
   - **File global:** `~/.hybrid-hands/config.json`, đổi đường dẫn bằng env `HYBRID_HANDS_CONFIG`. Schema giống hệt `.claude/hybrid-hands.json`.
   - **Thứ tự ưu tiên:** mặc định plugin → global → repo → cờ CLI. Dict được merge sâu, list và giá trị đơn bị thay nguyên.
