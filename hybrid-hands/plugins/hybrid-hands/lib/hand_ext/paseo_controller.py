@@ -262,7 +262,10 @@ class PaseoController:
             record = self.store.get(key)
             if records_for(self.store, record.invocation.invocation_id)[-1].key != key:
                 raise StateConflict('archive requires latest exact execution')
-            if record.reservation or record.state != 'awaiting_review':
+            if (record.reservation or record.state != 'awaiting_review' or
+                not terminal_evidence(record) or
+                (record.artifacts.get('review') or {}).get('approved') is not True or
+                record.artifacts['review'].get('epoch') != key.epoch):
                 raise StateConflict('exact child not ready for archive')
             result = self.transport.archive_child(key)
             if not result.get('ok'):
@@ -279,6 +282,7 @@ class PaseoController:
                 raise StateConflict('followup requires latest exact execution')
             if (old.reservation or old.state not in ('archived', 'awaiting_review') or
                 (old.artifacts.get('review') or {}).get('approved') is not True or
+                (old.artifacts.get('review') or {}).get('epoch') != key.epoch or
                 not terminal_evidence(old)):
                 raise StateConflict('review and quiescence required')
             if not isinstance(brief, str) or not brief.strip():
