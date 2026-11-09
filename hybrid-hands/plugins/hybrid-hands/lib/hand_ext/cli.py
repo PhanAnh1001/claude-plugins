@@ -15,6 +15,7 @@ from . import go_live, go_usage, measure, quota_state, render, report
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
+from .native import native_selection
 from .constants import (
     ALL_BACKENDS, AUTO_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_OK, EXIT_USAGE, GO_LIVE_MISSING, ISOLATIONS,
     SANDBOXES,
@@ -113,7 +114,8 @@ def _names(cfg: ExtConfig, choice: str) -> List[str]:
 
 
 def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
-    result = {"backend": None, "model": None, "effort": None, "account": None, "skipped": []}
+    result = {"backend": None, "model": None, "effort": None, "account": None, "skipped": [],
+              "native": False, "native_reason": "no backend available"}
     for backend, name, reason in auto_preflight(cfg):
         if backend is None:
             result["skipped"].append({"backend": name, "reason": reason})
@@ -122,6 +124,8 @@ def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
         account = {"codex": "gpt", "claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
         result.update(backend=name, model=options.get("model", ""),
                       effort=options.get("effort", options.get("variant", "")), account=account)
+        native, reason = native_selection(cfg, name)
+        result.update(native=native, native_reason=reason)
         break
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))

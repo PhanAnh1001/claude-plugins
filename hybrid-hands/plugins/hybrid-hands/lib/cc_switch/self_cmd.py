@@ -29,7 +29,9 @@ from .detach import (
 )
 from .errors import CcSwitchError
 from .models import Transcript
-from .paths import short_id
+from .paths import short_id, resolve_project
+from .providers import preflight_provider
+from .agents import by_session, load_agents
 from .paseo_cmd import run_paseo
 from .proc import process_alive, select_tui_pid
 from .sessions import find_transcript, live_session_cwd, tui_pids
@@ -133,6 +135,8 @@ def run_paseo_self(opts) -> int:
             f"Thư mục làm việc của phiên không còn tồn tại: {cwd}",
             EXIT_NOT_FOUND)
 
+    preflight_provider(resolve_project(Path(cwd)),
+                       by_session(load_agents(), session_id))
     plan = SelfPlan(
         session_id=session_id, pid=pid, cwd=cwd,
         log_path=self_log_path(session_id),

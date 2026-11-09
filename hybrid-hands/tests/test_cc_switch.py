@@ -172,6 +172,36 @@ class CcSwitchTest(unittest.TestCase):
         self.assertIn(["wait", AGENT_B], paseo_calls)
 
     # ---- paseo ---------------------------------------------------------
+    def test_paseo_v2_provider_dry_run_and_import(self) -> None:
+        account = self.fx.home / ".claude-hand"
+        self.fx.claude.rename(account)
+        global_config = self.fx.home / "global.json"
+        global_config.write_text(json.dumps({"paseo": {"claude_providers": {"v2": "wrong"}}}))
+        repo_config = self.fx.project / ".claude" / "hybrid-hands.json"
+        repo_config.parent.mkdir()
+        repo_config.write_text(json.dumps({"paseo": {"claude_providers": {"v2": "claude-hand"}}}))
+        env = {"CLAUDE_CONFIG_DIR": str(account), "HYBRID_HANDS_CONFIG": str(global_config)}
+        dry = self.run_cli("paseo", "--session", SID_IMPORT, "--dry-run", **env)
+        self.assertEqual(dry.returncode, EXIT_OK, dry.stderr)
+        self.assertIn("--provider claude-hand", dry.stdout)
+        self.assertEqual(self.fx.calls(), [])
+        result = self.run_cli("paseo", "--session", SID_IMPORT, **env)
+        self.assertEqual(result.returncode, EXIT_OK, result.stderr)
+        argv = self.calls("paseo")[0]["argv"]
+        self.assertEqual(argv[:4], ["import", SID_IMPORT, "--provider", "claude-hand"])
+        self.assertEqual(Path(argv[5]).resolve(), self.fx.project.resolve())
+        mismatch = self.run_cli("paseo", "--session", SID_A, **env)
+        self.assertNotEqual(mismatch.returncode, EXIT_OK)
+        self.assertEqual(len(self.fx.calls()), 1)
+    def test_paseo_v2_missing_provider_blocks_import(self) -> None:
+        for extra in ((), ("--dry-run",)):
+            result = self.run_cli("paseo", "--session", SID_IMPORT, *extra,
+                                  CLAUDE_CONFIG_DIR=str(self.fx.home / ".claude-hand"))
+            self.assertNotEqual(result.returncode, EXIT_OK)
+            for message in ("v2", "paseo.claude_providers", "cấu hình Paseo"):
+                self.assertIn(message, result.stderr)
+        self.assertEqual(self.fx.calls(), [])
+
     def test_paseo_reloads_existing_agent_without_import(self) -> None:
         result = self.run_cli("paseo", "--session", SID_A)
         self.assertEqual(result.returncode, EXIT_OK, result.stderr)
