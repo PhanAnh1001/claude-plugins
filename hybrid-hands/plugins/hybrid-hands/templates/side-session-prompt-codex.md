@@ -71,20 +71,29 @@ Opus chia brief thành các gói L1 độc lập khác file, chủ động lấp
 
 ## Chọn hand theo tài khoản
 
+### Hand Paseo opt-in: ưu tiên trước ngoại lệ native
+
+`shell` vẫn là mode mặc định. Chỉ repo được operator bật `ext_hand.mode=auto` hoặc `paseo-required` mới dùng managed hand; không tự sửa config hay bật ở repo khác. Bảng native bên dưới chỉ áp dụng đường cũ. Khi mode opt-in và daemon/provider/capability sẵn sàng, **intent mới vốn giao native Sol low** phải chạy `{hand_ext} run --backend auto --mode paseo-required --brief /ABS/brief.md --cwd /ABS/REPO`, không spawn native trực tiếp. Native đang tồn tại giữ nguyên, không migrate. Vẫn chạy `{hand_ext} pick --json` trước; dispatcher giữ order, account/model/effort, quota/day guards và pool chung `ext_hand.max_parallel` (1..4), không ép backend codex vì intent ban đầu là Sol low.
+
+Thiếu daemon/provider/capability **trước dispatch**: `auto` quay đường shell cũ, `paseo-required` báo lỗi, không silent fallback. Parent/project/target không xác minh được thì chặn. Sau create/send hoặc ACK không rõ, reconcile exact invocation/attempt/epoch, giữ reservation; không tạo shell/native writer thứ hai.
+
+Mỗi managed hand có workspace/worktree riêng trong **cùng verified project** với parent, caller gắn parent canonical và tab/track của parent; không hứa sidebar native lồng child. Done giữ agent/history hiện cho Sol review diff/report. Chỉ sau review Sol mới approve rồi archive **exact child**, không parent/workspace. Follow-up mở lại cùng agent/workspace với brief tự chứa và epoch/request key mới, baseline mới; history Paseo không đồng nghĩa CLI context resume. MVP giữ worktree/artifacts, không cleanup. Một managed execution là một hand trong pool, không tạo side-session root; token từ parser/ledger chuẩn, ACP chỉ projection, thiếu usage/quota giữ `?`.
+
+
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
 
 Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
-| Sol | hand-ext | native Codex | hand-ext | hand-ext | hand-ext claude-v1 |
+| Sol | hand-ext | native Codex (đường cũ; opt-in xem trên) | hand-ext | hand-ext | hand-ext claude-v1 |
 | Opus v1 | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext | Native khi preflight v1 đủ; thiếu thì hand-ext claude-v1 |
 | Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
 
 Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
-Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
+Native Codex đường cũ dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
 
 Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
 
@@ -93,7 +102,15 @@ Không in/hiện giá trị `.env`, token, credential ở bất kỳ tầng nào
 Không đọc `.env` bằng lệnh hay tool hiện giá trị: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `more`, `rg`, `Read`, kể cả có che phần sau dấu `=`.
 Không đọc hay in token, auth.json, file credential. Không giao hand ngoài việc cần secret hay dữ liệu khách hàng. Chỉ dùng code và fixtures giả công khai được; không đọc transcript/log thật. Không gọi API trả phí, không tạo hay dùng API key.
 
-## Cách gọi hand-ext (mặc định ngoài ngoại lệ A)
+## Lifecycle managed hand
+
+- Xem key: `{hand_ext} managed ls --cwd /ABS/REPO`.
+- Sol đọc diff/report rồi `{hand_ext} managed review-approve --cwd /ABS/REPO --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH`.
+- Sau review: `{hand_ext} managed archive --cwd /ABS/REPO --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH`, chỉ exact child, không parent/workspace.
+- Giao tiếp: `{hand_ext} managed followup --cwd /ABS/REPO --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH --brief /ABS/fresh-brief.md`; latest key cấp epoch mới, không CLI resume. Không cleanup worktree.
+- Setup/status provider chỉ operator live có quyền riêng thực hiện theo README, không tự đăng ký/reload daemon từ brief hand.
+
+## Cách gọi hand-ext (đường cũ và managed theo routing trên)
 
 - `{hand_ext} run` chạy lâu (5-30 phút). Gọi với timeout lệnh đủ dài (ví dụ 3600000 ms)
   hoặc chạy nền `nohup <lệnh> > <log> 2>&1 &` rồi chờ tới khi log có dòng `report:` và

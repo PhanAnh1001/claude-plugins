@@ -8,23 +8,38 @@ Mở main Sol high: `side-session start --main --name sol-main`; đường Codex
 
 ## Chọn hand theo tài khoản
 
+### Hand Paseo opt-in: ưu tiên trước ngoại lệ native
+
+`shell` vẫn là mode mặc định. Chỉ repo được operator bật `ext_hand.mode=auto` hoặc `paseo-required` mới dùng managed hand; không tự sửa config hay bật ở repo khác. Bảng native bên dưới chỉ áp dụng đường cũ. Khi mode opt-in và daemon/provider/capability sẵn sàng, **intent mới vốn giao native Sol low** phải chạy `hand-ext run --backend auto --mode paseo-required --brief /ABS/brief.md --cwd /ABS/REPO`, không spawn native trực tiếp. Native đang tồn tại giữ nguyên, không migrate. Vẫn chạy `hand-ext pick --json` trước; dispatcher giữ order, account/model/effort, quota/day guards và pool chung `ext_hand.max_parallel` (1..4), không ép backend codex vì intent ban đầu là Sol low.
+
+Thiếu daemon/provider/capability **trước dispatch**: `auto` quay đường shell cũ, `paseo-required` báo lỗi, không silent fallback. Parent/project/target không xác minh được thì chặn. Sau create/send hoặc ACK không rõ, reconcile exact invocation/attempt/epoch, giữ reservation; không tạo shell/native writer thứ hai.
+
+Mỗi managed hand có workspace/worktree riêng trong **cùng verified project** với parent, caller gắn parent canonical và tab/track của parent; không hứa sidebar native lồng child. Done giữ agent/history hiện cho Sol review diff/report. Chỉ sau review Sol mới approve rồi archive **exact child**, không parent/workspace. Follow-up mở lại cùng agent/workspace với brief tự chứa và epoch/request key mới, baseline mới; history Paseo không đồng nghĩa CLI context resume. MVP giữ worktree/artifacts, không cleanup. Một managed execution là một hand trong pool, không tạo side-session root; token từ parser/ledger chuẩn, ACP chỉ projection, thiếu usage/quota giữ `?`.
+
+
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
 
 Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
-| Sol | hand-ext | native Codex | hand-ext | hand-ext | hand-ext claude-v1 |
+| Sol | hand-ext | native Codex (đường cũ; opt-in xem trên) | hand-ext | hand-ext | hand-ext claude-v1 |
 | Opus v1 | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext | Native khi preflight v1 đủ; thiếu thì hand-ext claude-v1 |
 | Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
 
 Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
-Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
+Native Codex đường cũ dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
 
 Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
 
+
+### Setup và lifecycle managed
+
+Operator live đã có quyền dùng `hand-ext provider setup --home /ABS/DAEMON_HOME --package-root /ABS/PASEO_CLI_ROOT --dry-run` trước `--apply`; setup mặc định dry-run, chỉ thêm bốn `hh-hand-*`, giữ provider khác. Sau apply dùng public `paseo daemon reload --home /ABS/DAEMON_HOME`, kiểm `appliedPaths`/`restartRequiredPaths`/`overrideControlledPaths`, rồi `hand-ext provider status --cwd /ABS/REPO` xác nhận catalog runtime. Source 0.15.0 hỗ trợ reload providers, không bắt buộc restart cho thêm provider và không hứa auto-watch; reload có thể áp delta reloadable khác đang chờ. Chưa chạy recipe live trong gói docs.
+
+Managed task dùng `hand-ext managed ls|review-approve|archive|followup`; `ls` chỉ cần `--cwd`, ba lệnh sau cần `--cwd` và `--key INVOCATION_UUID:ATTEMPT_UUID:EPOCH`, riêng followup bắt buộc `--brief /ABS/fresh-brief.md`. Sol review trước approve/archive, giữ done hiện; followup latest epoch cùng child/workspace với brief mới. Không dùng direct `paseo send/archive` để bỏ lifecycle gate. [Recipe và giới hạn live](../../../../README.md#vận-hành-managed-hand-paseo).
 
 ### Kiểm chứng bridge read-only
 
@@ -48,7 +63,7 @@ Giá chỉ từ [`config/model-prices.json`](../../config/model-prices.json), ov
 
 Quota tài khoản lấy từ cache/sample sẵn có của đúng gói; thiếu 5h/tuần hiện `?`, tuyệt đối không suy token hay USD thành quota GPT. Phần riêng hand tuần chỉ thêm khi có nguồn và gắn nhãn riêng. Cả hai giao diện cây `hh-tree-pane` và `paseo-hh-tree` không hiện nhóm orphan hand-ext; `hh-ps` text/JSON vẫn giữ orphan.
 
-Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn đúng cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Hand nhận brief trực tiếp là executor: làm trong phạm vi được giao, không gọi hand-ext, không mở side-session hay giao tiếp phiên khác. Luật Sol bắt buộc delegate chỉ áp dụng vai trò Sol; dùng `hand-ext run --backend auto` trừ ngoại lệ native trên Paseo nêu trên.
+Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn đúng cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Hand nhận brief trực tiếp là executor: làm trong phạm vi được giao, không gọi hand-ext, không mở side-session hay giao tiếp phiên khác. Luật Sol bắt buộc delegate chỉ áp dụng vai trò Sol; dùng `hand-ext run --backend auto` theo routing opt-in/ngoại lệ native đường cũ nêu trên.
 
 
 
@@ -59,7 +74,7 @@ Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens
 - **Là gì:** Paseo là daemon cục bộ + CLI + app (điện thoại, desktop, web) để chạy và điều khiển agent Claude Code, Codex... dùng lại đăng nhập sẵn có của từng CLI; Apache-2.0, bản dùng ở đây **0.15.0** (npm `latest` 04/11/2026) ([repo](https://github.com/getpaseo/paseo), 11/2026; [docs](https://paseo.sh/docs), 11/2026).
 - **Đã cài:** `npm install -g @getpaseo/cli@0.15.0`, `paseo --version` in `0.15.0` (kiểm trên máy 04/11/2026).
 - **Daemon:** `paseo start` chạy nền, nghe `127.0.0.1:6767`, cấu hình ở `~/.paseo/config.json`; relay (để điện thoại kết nối qua internet) **tắt mặc định**. Không thấy cơ chế tự khởi động khi đăng nhập máy.
-- **Hand Codex riêng:** khai provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME`) trong config, `paseo reload`, rồi `paseo run --provider codex-hand ...`; hoặc một lần bằng `paseo run --provider codex --env CODEX_HOME=...`.
+- **Hand Codex riêng:** khai provider tuỳ biến `codex-hand` (`extends: "codex"`, `env.CODEX_HOME`) trong config; operator kiểm catalog sau bước nạp cấu hình được xác minh, rồi `paseo run --provider codex-hand ...`; hoặc một lần bằng `paseo run --provider codex --env CODEX_HOME=...`.
 - **Giới hạn chính:** chỉ agent do Paseo tạo (hoặc `paseo import <session-id>`) mới hiện; phiên `claude` brain đang chạy trong terminal và phiên `screen` **fallback** của side-session **không tự hiện** (đã kiểm: `paseo ls -a -g` rỗng khi có phiên claude đang mở). Side-session Codex đi đường daemon thì agent do Paseo sở hữu nên hiện ngay, không cần screen.
 - **Chuyển phiên terminal ↔ Paseo:** dùng `cc-switch term|paseo|status` (README hybrid-hands mục 7); trong phiên TUI đang mở thì `cc-switch paseo --self` (brain chạy ở lượt cuối); reload/import trước khi gửi tin để transcript không rẽ nhánh.
 - **Người dùng phải tự làm:** bật relay, quét QR trên điện thoại, cài app; agent không ghép điện thoại hộ, không ghi `~/.paseo/config.json` khi chưa được duyệt.
@@ -73,7 +88,7 @@ Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens
 ## 2. Daemon
 
 - **Khởi:** `paseo start` (đọc `~/.paseo/config.json`, tự tạo nếu chưa có), in PID, địa chỉ nghe và đường log. `paseo onboard` = cài đặt lần đầu + khởi daemon + in hướng dẫn ghép (`--port` mặc định 6767, `--relay`/`--no-relay`, `--no-mcp`) (`paseo onboard --help`, 0.15.0).
-- **Xem/dừng:** `paseo status` (dòng `localDaemon: running|stopped`), `paseo daemon stop`, `paseo daemon restart` (cần sau khi đổi `daemon.listen`), `paseo reload` (đọc lại config, đủ cho đổi provider) ([connectivity](https://paseo.sh/docs/connectivity), 11/2026; [custom providers](https://paseo.sh/docs/custom-providers), 11/2026).
+- **Xem/dừng:** `paseo status` (dòng `localDaemon: running|stopped`), `paseo daemon stop`, `paseo daemon restart` (cần sau khi đổi `daemon.listen`), `paseo daemon reload --home <home>` (public reload config; kiểm kết quả và catalog, không hứa auto-watch) ([connectivity](https://paseo.sh/docs/connectivity), 11/2026; [custom providers](https://paseo.sh/docs/custom-providers), 11/2026).
 - **Cổng:** `127.0.0.1:6767`; config mặc định sinh ra có `daemon.relay.enabled: false`, CORS cho `https://app.paseo.sh` (đã kiểm với `--home` tạm 04/11/2026).
 - **Thử không đụng config thật:** mọi lệnh nhận `--home <dir>`; dùng thư mục tạm để thử rồi `paseo daemon stop --home <dir>`.
 - **Tự khởi động:** docs không nói daemon CLI tự chạy khi đăng nhập; app desktop thì tự khởi daemon kèm theo ([docs](https://paseo.sh/docs), 11/2026). Muốn luôn chạy thì người dùng tự thêm (ví dụ launchd) — chưa làm.
@@ -91,7 +106,7 @@ Agent chỉ được nhắc các bước, không chạy hộ (bật relay mở �
 
 Paseo dùng lại đăng nhập gói của CLI, không cần API key. Tình trạng từ 07/11/2026: `~/.codex` là tài khoản free cũ đã tạm tắt; `~/.paseo/config.json` đã có `agents.providers.codex={enabled:false}`; hand Codex dùng `~/.codex-hand` (gói ChatGPT riêng cho hand, cùng thư mục với backend `codex` của `hand-ext`).
 
-- **Cách đang dùng — provider tuỳ biến** (`~/.paseo/config.json` đã có `agents.providers.codex={enabled:false}` từ 07/11/2026; provider `codex-hand` dùng `~/.codex-hand`, đổi config thì `paseo reload`) ([custom providers](https://paseo.sh/docs/custom-providers), 11/2026):
+- **Cách đang dùng — provider tuỳ biến** (`~/.paseo/config.json` đã có `agents.providers.codex={enabled:false}` từ 07/11/2026; provider `codex-hand` dùng `~/.codex-hand`, đổi config cần operator xác minh cách nạp và catalog) ([custom providers](https://paseo.sh/docs/custom-providers), 11/2026):
 
 ```json
 {
