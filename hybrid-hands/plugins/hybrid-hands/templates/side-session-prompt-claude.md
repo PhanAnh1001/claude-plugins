@@ -120,3 +120,9 @@ Không đọc hay in token, auth.json, file credential. Không giao hand ngoài 
 2. Ghi xong thì tạo marker sibling của `{handoff}`: giữ nguyên thư mục và tên, đổi suffix `.md` thành `.done`. File này là tín hiệu xong việc;
    `watch` và `ls` của side-session sẽ báo trạng thái `done`.
 3. Làm xong hoặc bị chặn đều phải làm đủ 2 bước trên; câu trả lời cuối trong phiên là khối tóm tắt. Hợp đồng hoàn thành dựa trên file bàn giao và marker.
+
+## Lifecycle Paseo được duyệt 09/11/2026
+
+Thay Q4, side-session qua Paseo ở mọi provider ghi report/handoff rồi `.done`: archive exact agent, sau đó chỉ archive workspace worktree riêng của chính phiên khi mọi agent trong workspace đã archived/closed; không archive parent, workspace local hay workspace đang dùng chung. Cảnh báo archive workspace không chặn trạng thái `done`; `ls`/`watch` retry có giới hạn. Giữ handoff, state, history, worktree, patch và report, không cleanup. Archive chỉ ẩn ở sidebar Paseo; các dòng done của hh-ps/panel giữ nguyên.
+
+Giao lại bằng `side-session send --name NAME --prompt-file /ABS/FILE` cho mọi provider Paseo. Trình tự: restore workspace → unarchive cùng exact agent qua public send → gửi prompt, đặt state `running`, đổi tên `.done` cũ sang tên duy nhất để giữ lịch sử và khởi động lại watchdog. Không create agent trùng; thiếu cwd/worktree thì chặn. Khi ACK chưa rõ, trạng thái pending chặn gửi lại để tránh prompt trùng; lỗi xác định xảy ra trước khi gửi có thể retry. `start --resume` giữ tương thích hiện có.
