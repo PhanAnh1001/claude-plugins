@@ -133,14 +133,19 @@ def quota(home, now):
 
 def costs(home, start, end):
     """Reuse ledger's streaming-message dedup and cache-duration token parsing."""
-    from .week import _locate_usage_ledger, _ledger_module
+    from .week import _locate_usage_ledger, _ledger_module, STATUSLINE_LEDGER_ENV
     projects = home / 'projects'
     if not projects.is_dir() or not os.access(projects, os.R_OK | os.X_OK):
         return None, None
-    path = _locate_usage_ledger(home)
-    if path is None:
-        return None, None
     try:
+        path = _locate_usage_ledger(home)
+        # Resolve installed helper CODE through the main plugin registry when the
+        # isolated account has no statusline install. Token data stays in home.
+        # An explicit override remains authoritative, including an invalid path.
+        if path is None and not os.environ.get(STATUSLINE_LEDGER_ENV):
+            path = _locate_usage_ledger(Path.home() / '.claude')
+        if path is None:
+            return None, None
         module = _ledger_module(str(path), path.stat().st_mtime_ns)
         module.refresh_prices()
         messages = module.window_messages([home], math.nextafter(start, math.inf), end)
@@ -160,7 +165,7 @@ def costs(home, start, end):
             if price is not None and not unpriced:
                 usd += sum(module.token_costs(price, msg.tokens).values())
         return (None if unpriced else usd), tokens
-    except (OSError, ValueError, TypeError, AttributeError):
+    except (OSError, ValueError, TypeError, AttributeError, ImportError, SyntaxError, RuntimeError):
         return None, None
 
 

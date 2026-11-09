@@ -190,3 +190,52 @@ class CalibrationTests(unittest.TestCase):
             self.assertEqual(quota.call_count, 1)
             c.collect(1000 + c.FAILED_POLL)
             self.assertEqual(quota.call_count, 2)
+
+    def test_installed_helper_fallback_scans_only_external_home(self):
+        from hh_ps import week
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        external = root/'.claude-hand'
+        (external/'projects').mkdir(parents=True)
+        helper = root/'installed-statusline'/'scripts'/'usage_ledger.py'
+        helper.parent.mkdir(parents=True)
+        helper.touch()
+        scans = []
+        module = SimpleNamespace(refresh_prices=lambda: None,
+            window_messages=lambda homes, start, end: scans.append(homes) or {})
+        def installed(home):
+            return helper if home == root/'.claude' else None
+        with patch.dict(c.os.environ, {}, clear=True), patch.object(c.Path, 'home', return_value=root), patch.object(week, '_repo_ledger', return_value=None), patch.object(week, '_installed_ledger', side_effect=installed), patch.object(week, '_ledger_module', return_value=module) as load:
+            self.assertEqual(c.costs(external, 10, 20), (0, dict.fromkeys(c.KEYS, 0)))
+            self.assertEqual(scans, [[external]])
+            self.assertEqual(load.call_args.args[0], str(helper))
+
+    def test_existing_helper_precedes_main_and_invalid_override_fails_closed(self):
+        from hh_ps import week
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        external = root/'.claude-hand'
+        (external/'projects').mkdir(parents=True)
+        helper = root/'external-helper.py'
+        helper.touch()
+        module = SimpleNamespace(refresh_prices=lambda: None, window_messages=lambda *args: {})
+        with patch.dict(c.os.environ, {}, clear=True), patch.object(week, '_repo_ledger', return_value=None), patch.object(week, '_installed_ledger', return_value=helper) as installed, patch.object(week, '_ledger_module', return_value=module):
+            self.assertEqual(c.costs(external, 10, 20)[0], 0)
+            installed.assert_called_once_with(external)
+        with patch.dict(c.os.environ, {week.STATUSLINE_LEDGER_ENV:str(root/'missing.py')}), patch.object(week, '_installed_ledger') as installed, patch.object(week, '_repo_ledger') as repo:
+            self.assertEqual(c.costs(external, 10, 20), (None, None))
+            installed.assert_not_called()
+            repo.assert_not_called()
+
+    def test_helper_import_failure_is_unknown(self):
+        from hh_ps import week
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        (root/'projects').mkdir()
+        helper = root/'helper.py'
+        helper.touch()
+        with patch.object(week, '_locate_usage_ledger', return_value=helper), patch.object(week, '_ledger_module', side_effect=ImportError('fake missing dependency')):
+            self.assertEqual(c.costs(root, 10, 20), (None, None))

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.1 — 2026-11-09
+
+- Sửa nguồn token/USD Claude ngoài khi chạy plugin từ bản cài đặt: cho phép tìm mã helper statusline qua cài đặt tài khoản chính nếu tài khoản ngoài chưa cài statusline, vẫn chỉ quét transcript `~/.claude-hand`. Giữ ưu tiên helper hiện có và override tường minh; helper thiếu/hỏng trả unknown.
+
 ## 0.32.0 — 2026-11-09
 
 - Thêm hiệu chỉnh Claude ngoài (`~/.claude-hand`): ưu tiên live `rate_limit_event`/cache trực tiếp còn mới, dự phòng usage report Paseo khớp metadata auth Claude chính thức (kể cả Pi đăng nhập); chỉ lưu identity đã hash, không lưu email thô/credential, không cần đổi settings cho nguồn trực tiếp. USD~ chỉ từ token transcript Claude hand và giá canonical, tách input/output/cache đọc/cache ghi 5m/1h.
