@@ -111,7 +111,8 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
                   workdir: str, prompt: str, chrome: bool | None = None,
                   prompt_path: Path | None = None, hours: float | None = None,
                   resume: bool = False, model: str | None = None,
-                  effort: str | None = None) -> tuple[list[str], dict[str, str]]:
+                  effort: str | None = None, account: str = "v1",
+                  config_dir: str = "") -> tuple[list[str], dict[str, str]]:
     if provider == C.PROVIDER_CODEX:
         return (codex_argv(cfg, workdir, prompt, model, effort),
                 {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: uuid})
@@ -124,16 +125,22 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
         line = {"statusLine": {"type": "command", "command": cfg.status_line_cmd}}
         argv = [*argv, "--settings", json.dumps(line, separators=(",", ":"))]
     session_flag = ["--resume", uuid] if resume else ["--session-id", uuid]
-    return (["claude", *session_flag, "-n", name, *argv, prompt], {})
+    from .config import claude_account
+    config_dir = config_dir or claude_account(cfg, account)["config_dir"]
+    return (["claude", *session_flag, "-n", name, *argv,
+             "--model", model or C.CLAUDE_MODEL_DEFAULT,
+             "--effort", effort or C.CLAUDE_EFFORT_DEFAULT, prompt],
+            {"CLAUDE_CONFIG_DIR": config_dir})
 
 
 def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
                 workdir: str, prompt: str, chrome: bool | None = None,
                 prompt_path: Path | None = None, hours: float | None = None,
                 resume: bool = False, model: str | None = None,
-                effort: str | None = None) -> list[str]:
+                effort: str | None = None, account: str = "v1",
+                config_dir: str = "") -> list[str]:
     argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
-                              prompt_path, hours, resume, model, effort)
+                              prompt_path, hours, resume, model, effort, account, config_dir)
     prelude = ""
     if provider == C.PROVIDER_CODEX:
         prelude = f"{shlex.join(codex_trust.prelude_argv(cfg.codex_home, workdir))} && "

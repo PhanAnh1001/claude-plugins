@@ -77,6 +77,40 @@ class SideSessionTest(unittest.TestCase):
     def state(self, name: str) -> dict:
         return json.loads((self.repo / "output/llm/side-sessions" / f"{name}.json").read_text())
 
+    def test_claude_account_v2_config_and_resume(self):
+        from side_session import handoff
+        from side_session.commands import provider_argv
+        template_root = self.tmp / "templates-fixture"
+        (template_root / "templates").mkdir(parents=True)
+        (template_root / "templates/side-session-prompt-claude.md").write_text("account={account}")
+        (template_root / "templates/main-session-prompt-claude.md").write_text("main account={account}")
+        with mock.patch.object(handoff, "PLUGIN_ROOT", template_root):
+            args = ["start", "--name", "v2", "--provider", "claude", "--account", "v2", "--prompt", "task"]
+            self.assertEqual(self.run_cli(*args)[0], 0)
+            st = self.state("v2")
+            self.assertEqual(st["claude_config_dir"], str(Path("~/.claude-hand").expanduser()))
+            self.assertIn("account=v2", self.screen_log())
+            self.assertEqual(self.run_cli("stop", "v2")[0], 0)
+            self.assertEqual(self.run_cli("start", "--name", "v2", "--resume")[0], 0)
+            self.assertEqual(self.state("v2")["account"], "v2")
+            self.assertEqual(self.run_cli("start", "--name", "main-v2", "--main", "--provider", "claude", "--account", "v2")[0], 0)
+            main = self.state("main-v2")
+            self.assertEqual((main["role"], main["handoff"], main["watch_screen"]), ("main", "", ""))
+        argv, env = provider_argv(load_config(self.repo), "claude", "x", "id", str(self.repo), "hi", account="v2")
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], st["claude_config_dir"])
+        self.assertEqual(argv[-5:], ["--model", "claude-opus-5-5", "--effort", "high", "hi"])
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(tokens.claude_transcript("/repo", "id", config_dir=st["claude_config_dir"]).parent.parent, Path(st["claude_config_dir"]) / "projects")
+
+    def test_unknown_claude_account_rejected_before_mutation(self):
+        with mock.patch.object(actions.K, "worktree_cmd") as worktree, mock.patch.object(actions, "_preflight") as preflight:
+            code, out = self.run_cli("start", "--name", "bad", "--provider", "claude", "--account", "v99", "--worktree", "--prompt", "task")
+        self.assertEqual(code, 2)
+        self.assertIn("account", out)
+        worktree.assert_not_called()
+        preflight.assert_not_called()
+        self.assertFalse((self.repo / "output").exists())
+
     def start_ext(self, name: str) -> int:
         with mock.patch.object(actions.K, "worktree_cmd", return_value=["true"]):
             code, _ = self.run_cli("start", "--name", name, "--provider", "dsh",

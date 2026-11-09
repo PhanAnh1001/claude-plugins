@@ -137,7 +137,7 @@ class PaseoStartTest(unittest.TestCase):
                 self.assertEqual([c.args[0] for c in call.call_args_list], ["status", "stop"])
 
     def test_main_invalid_options(self):
-        for over in ({"worktree": True}, {"worktree": False, "provider": "claude"}, {"worktree": False, "provider": "dsh"}):
+        for over in ({"worktree": True}, {"worktree": False, "provider": "dsh"}):
             self.assertEqual(actions.start(cfg_for(Path("/fake")), start_args("bad", main=True, **over)), 2)
 
     def test_main_requires_daemon(self):
