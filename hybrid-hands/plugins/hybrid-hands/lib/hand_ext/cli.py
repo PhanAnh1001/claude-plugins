@@ -272,7 +272,7 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
                 if args.managed_cmd == "recover":
                     from .paseo_recovery import recover
                     record = recover(store, args.key, source, cfg.paseo.get('package_root'),
-                                     apply=args.apply)
+                                     apply=args.apply, target=cfg.paseo.get('target'))
                     print(json.dumps({"ok": True, "applied": args.apply,
                                       "execution": _managed_summary(record)}))
                     return EXIT_OK

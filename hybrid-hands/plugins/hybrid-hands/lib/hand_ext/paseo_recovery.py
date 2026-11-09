@@ -43,7 +43,8 @@ def untouched(record, *, recovery=False):
             or record.finished_at is not None or record.artifacts):
         raise StateConflict('dispatch authority uncertain')
     forbidden = ('cancelPending', 'cancelConfirmed', 'archiveConfirmed', 'reopenConfirmed')
-    if any(k in t for k in forbidden) or t.get('sendConfirmed') or t.get('pending') not in (None, 'workspace'):
+    allowed_pending = (None, 'workspace', 'create') if recovery else (None, 'workspace')
+    if any(k in t for k in forbidden) or t.get('sendConfirmed') or t.get('pending') not in allowed_pending:
         raise StateConflict('dispatch evidence present')
     known = {'pending', 'workspaceConfirmed', 'agentKey', 'createConfirmed', 'targetKey',
              'projectId', 'workspaceId', 'agentId', 'workspaceKey', 'parentAgentId', 'cwd',
@@ -53,10 +54,23 @@ def untouched(record, *, recovery=False):
         raise StateConflict('unknown transport evidence')
     if recovery:
         consistent_bindings(record, t)
-        dispatched = ('sendConfirmed', 'messageId', 'briefDigest', 'agentKey',
-                      'createConfirmed', 'providerId')
+        creating = t.get('pending') == 'create'
+        dispatched = ('sendConfirmed', 'messageId', 'briefDigest',
+                      'createConfirmed')
+        if not creating:
+            dispatched += ('agentKey', 'providerId')
         if any(field in t for field in dispatched):
             raise StateConflict('dispatch evidence present')
+    if recovery and t.get('pending') == 'create':
+        if t.get('workspaceConfirmed') is not True or not isinstance(t.get('agentKey'), str) or not t['agentKey']:
+            raise StateConflict('create recovery not applicable')
+        for public, field in {'targetKey': 'target_key', 'workspaceId': 'workspace_id',
+                              'projectId': 'project_id', 'agentId': 'agent_id'}.items():
+            if not getattr(record.attempt, field) or t.get(public) != getattr(record.attempt, field):
+                raise StateConflict('exact create binding required')
+        if t.get('parentAgentId') != record.invocation.parent_paseo_agent_id:
+            raise StateConflict('parent binding mismatch')
+        return t
     if recovery and (t.get('messageId') or t.get('briefDigest') or t.get('pending') != 'workspace' or t.get('workspaceConfirmed')
                      or t.get('agentKey') or t.get('createConfirmed')):
         raise StateConflict('workspace recovery not applicable')
@@ -97,8 +111,10 @@ class PreDispatchAdmission(AdmissionController):
             if not (r.receipt or {}).get('pre_dispatch_failure'):
                 r.receipt = dict(r.receipt or {}, pre_dispatch_failure=evidence)
                 r.outcome = {'status': 'failed', 'backend_exit_code': 1, 'quiescent': True,
-                             'provenance': 'pre_dispatch_schema', 'reason': reason}
-                r.quiescence = {'confirmed': True, 'evidence': 'schema rejected before network dispatch',
+                             'provenance': ('creation_lifecycle' if reason == 'failed_child_creation'
+                                            else 'pre_dispatch_schema'), 'reason': reason}
+                r.quiescence = {'confirmed': True, 'evidence': (reason if reason == 'failed_child_creation'
+                                else 'schema rejected before network dispatch'),
                                 'observed_at': time.time()}
                 r.state = 'failed'; r.finished_at = time.time(); r.reservation = None
                 r.revision += 1
@@ -113,7 +129,7 @@ class PreDispatchAdmission(AdmissionController):
             return r
 
 
-def recover(store, key, source, package_root, *, apply=False, validator=None):
+def recover(store, key, source, package_root, *, apply=False, validator=None, target=None):
     from .paseo_controller import lifecycle_lock, records_for
     with lifecycle_lock(store):
         r = store.get(key)
@@ -123,9 +139,21 @@ def recover(store, key, source, package_root, *, apply=False, validator=None):
             raise StateConflict('latest exact epoch required')
         admission = PreDispatchAdmission(store, None, None)
         prior = (r.receipt or {}).get('pre_dispatch_failure')
-        if prior and prior.get('reason') == 'invalid_bound_workspace_id':
+        if prior and prior.get('reason') in ('invalid_bound_workspace_id', 'failed_child_creation'):
             return admission.fail(key, prior['proof'], prior['reason']) if apply else r
-        untouched(r, recovery=True)
+        transport = untouched(r, recovery=True)
+        if transport.get('pending') == 'create':
+            request = dict(transport, command='creation-failure', target=target)
+            proof = creation_proof(request, package_root, validator)
+            expected = {'ok': True, 'targetKey': r.attempt.target_key,
+                        'agentId': r.attempt.agent_id, 'agentKey': transport['agentKey'],
+                        'workspaceId': r.attempt.workspace_id, 'phase': 'failed',
+                        'outcomeUnknown': False, 'inFlight': None,
+                        'absence': 'AGENT_NOT_FOUND'}
+            if proof != expected:
+                raise StateConflict('failed exact creation not proved')
+            return admission.fail(key, proof, 'failed_child_creation', recovery=True,
+                                  expected_revision=r.revision) if apply else r
         if not isinstance(r.attempt.workspace_id, str):
             raise StateConflict('bound workspace required')
         request = {'command': 'validate-workspace-id', 'workspaceId': r.attempt.workspace_id}
@@ -144,3 +172,16 @@ def recover(store, key, source, package_root, *, apply=False, validator=None):
             raise StateConflict('invalid bound workspace not proved')
         return admission.fail(key, proof, 'invalid_bound_workspace_id', recovery=True,
                               expected_revision=r.revision) if apply else r
+
+
+def creation_proof(request, package_root, validator):
+    """Read-only public lifecycle observation; never fall back after API failure."""
+    if validator is not None:
+        return validator(request)
+    try:
+        process = subprocess.run(['node', str(Path(__file__).with_name('paseo_bridge.mjs')),
+                                  str(package_root)], input=json.dumps(request),
+                                 capture_output=True, text=True, timeout=10, check=False)
+        return json.loads(process.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        raise StateConflict('creation proof unavailable') from None

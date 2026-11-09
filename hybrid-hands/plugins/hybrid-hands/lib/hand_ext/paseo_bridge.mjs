@@ -92,6 +92,55 @@ async function exact(client, r) {
   check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
   return a;
 }
+// Public CreationClient uses this same observation API (daemon-client.js:452).
+// Failed + outcomeUnknown=false implies inFlight=null in pinned CreationService
+// catch path (creation/index.js:145-164); the public snapshot omits inFlight.
+async function creationFailure(client, r, target) {
+  check(typeof r.agentKey === 'string' && r.agentKey.length > 0, 'CREATION_UNCONFIRMED');
+  const info = client.getLastServerInfoMessage();
+  check(info && info.features && typeof info.features === 'object', 'CAPABILITY_UNCONFIRMED');
+  check(info.features.creationLifecycle === undefined || typeof info.features.creationLifecycle === 'boolean',
+    'CAPABILITY_UNCONFIRMED');
+  let snapshot, inFlight;
+  if (info.features.creationLifecycle === true) {
+    const observation = client.observe('creation.subscribe.response', {
+      type:'creation.subscribe.request', kind:'agent', idempotencyKey:r.agentKey});
+    let timer;
+    try {
+      snapshot = await new Promise((done, fail) => {
+        timer = setTimeout(() => fail(new Error('timeout')), 3000);
+        observation.subscribe({snapshot(result) {
+          if (result?.error !== null || !result?.snapshot) return fail(new Error('unavailable'));
+          done(result.snapshot);
+        }, error:fail});
+      });
+    } finally {
+      clearTimeout(timer);
+      await observation.release();
+    }
+    check(snapshot?.phase === 'failed' && snapshot.outcomeUnknown === false
+      && snapshot.failedStage === 'agent', 'CREATION_UNCONFIRMED');
+    inFlight = null; // Proven by the pinned lifecycle transition, not UI idle.
+  } else {
+    // Fixed instance-only receipt; never scan config, auth, logs or other files.
+    check(target.kind === 'instance' && typeof target.home === 'string'
+      && resolve(target.home) === target.home, 'CREATION_UNCONFIRMED');
+    const identity = createHash('sha256').update(JSON.stringify(['agent', r.agentKey])).digest('hex');
+    const receipt = JSON.parse(await readFile(join(target.home, 'creations', identity+'.json'), 'utf8'));
+    snapshot = receipt.snapshot;
+    inFlight = receipt.inFlight;
+  }
+  check(snapshot?.kind === 'agent' && snapshot.idempotencyKey === r.agentKey
+    && snapshot.agentId === r.agentId && snapshot.workspaceId === r.workspaceId
+    && snapshot.phase === 'failed' && snapshot.outcomeUnknown === false
+    && snapshot.failedStage === 'agent' && inFlight === null && !snapshot.agent, 'CREATION_UNCONFIRMED');
+  // CLI agent inspect maps exactly this successful null return to AGENT_NOT_FOUND.
+  // fetchAgent throws on errors; undefined/malformed responses are never absence.
+  check(await client.fetchAgent({agentId:r.agentId, timeout:3000}) === null, 'CHILD_ABSENCE_UNCONFIRMED');
+  return {ok:true, targetKey:r.targetKey, agentId:r.agentId, agentKey:r.agentKey,
+    workspaceId:r.workspaceId, phase:'failed', outcomeUnknown:false, inFlight:null,
+    absence:'AGENT_NOT_FOUND'};
+}
 const methods = ['fetchAgent','fetchWorkspaces','listAvailableProviders','createWorkspace','createAgent',
   'sendMessage','fetchAgentTimeline','cancelAgent','archiveAgent','inspectWorkspaceRecovery','restoreWorkspace','refreshAgent'];
 // Injectable entry exercises the same request shapes and identity gates as production.
@@ -112,7 +161,11 @@ export async function handleRequest(client, r, target, schemas) {
     if (r.command === 'parent') return {ok: true, targetKey: fingerprint, ...await parent(client, r)};
     await directory(r.cwd);
     await parent(client, r);
-    if (r.command === 'verify-workspace') {
+    if (r.command === 'creation-failure') {
+      const w = await workspace(client, r.workspaceId);
+      check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
+      return await creationFailure(client, r, target);
+    } else if (r.command === 'verify-workspace') {
       const w = await workspace(client, r.workspaceId);
       check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
     } else if (r.command === 'workspace') {

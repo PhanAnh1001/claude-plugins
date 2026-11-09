@@ -100,6 +100,27 @@ class GatewayTests(unittest.TestCase):
     def session(self):
         return dict(sessionId=self.invocation.invocation_id,cwd=str(self.root),mcpServers=[])
 
+    def test_unbound_discovery_and_partial_binding(self):
+        from hand_ext.paseo_gateway import main
+        requests = [('initialize', {'protocolVersion': 1}), ('session/new', {})]
+        requests += [(method, {}) for method in ('session/prompt', 'session/cancel', 'session/close', 'session/load', 'session/set_model')]
+        source = io.StringIO(''.join(json.dumps(dict(jsonrpc='2.0', id=i, method=m, params=p))+'\n' for i,(m,p) in enumerate(requests)))
+        sink = io.StringIO()
+        with patch.dict('os.environ', {}, clear=True), patch('sys.stdin', source), patch('sys.stdout', sink), patch('hand_ext.paseo_gateway.ExecutionStore', side_effect=AssertionError('store constructed')):
+            self.assertEqual(main([]), 0)
+            with patch('sys.stderr', io.StringIO()):
+                for root, invocation in (('/fake', None), (None, 'fake'), ('', None), (None, ''), ('', '')):
+                    bindings = {key: value for key, value in zip(('HYBRID_HANDS_EXECUTION_ROOT', 'HYBRID_HANDS_INVOCATION_ID'), (root, invocation)) if value is not None}
+                    for argv, env in (([], bindings), ([arg for flag, value in zip(('--state-root', '--invocation-id'), (root, invocation)) if value is not None for arg in (flag, value)], {})):
+                        with patch.dict('os.environ', env, clear=True), patch('sys.stdout', io.StringIO()) as rejected:
+                            with self.assertRaises(SystemExit) as error: main(argv)
+                            self.assertEqual(error.exception.code, 2)
+                            self.assertEqual(rejected.getvalue(), '')
+        rows = [json.loads(line) for line in sink.getvalue().splitlines()]
+        self.assertEqual(rows[0]['result']['agentCapabilities'], {})
+        self.assertEqual(rows[1]['result']['models']['currentModelId'], 'default')
+        self.assertEqual([r['error'] for r in rows[2:]], [{'code': -32003, 'message': 'discovery only; execution binding required'}]*5)
+
     def test_initialize_new_prompt_and_authoritative_outcome(self):
         response = self.gateway.handle('initialize',{'protocolVersion':1})
         self.assertTrue(response['agentCapabilities']['loadSession'])

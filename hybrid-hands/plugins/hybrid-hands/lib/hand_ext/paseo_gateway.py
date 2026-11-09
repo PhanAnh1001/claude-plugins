@@ -307,11 +307,61 @@ class Gateway:
                 task.join(max(0, deadline - time.monotonic()))
 
 
+
+class DiscoveryGateway(Gateway):
+    """Static provider-neutral catalog; deliberately has no execution dependencies.
+
+    Paseo 0.15.0 initialize supplies client identity/capabilities, not provider ID.
+    `default` defers model selection to the bound execution and never overrides it.
+    No close capability is advertised, so fetchCatalog cleanup closes transport.
+    """
+    def __init__(self):
+        super().__init__(None, None, None)
+
+    def handle(self, method, params):
+        if method not in ('initialize', 'session/new'):
+            raise ProtocolError(-32003, 'discovery only; execution binding required')
+        if not isinstance(params, dict):
+            raise ProtocolError(-32602, 'invalid parameters')
+        if method == 'initialize':
+            if params.get('protocolVersion') != 1:
+                raise ProtocolError(-32602, 'unsupported protocol version')
+            return {'protocolVersion': 1, 'agentCapabilities': {},
+                    'agentInfo': {'name': 'hand-paseo-acp', 'version': 'stage1'}}
+        return {'sessionId': 'hand-paseo-discovery',
+                'models': {'currentModelId': 'default', 'availableModels': [
+                    {'modelId': 'default', 'name': 'Bound execution default'}]},
+                'modes': {'currentModeId': 'default', 'availableModes': [
+                    {'id': 'default', 'name': 'Bound execution policy'}]}}
+
+    def serve(self, source, sink):
+        # Synchronous metadata dispatch: even prompt floods receive the same error.
+        for line in source:
+            request = None
+            try:
+                request = json.loads(line)
+                if not isinstance(request, dict) or request.get('jsonrpc') != '2.0':
+                    request = None
+                    raise ValueError()
+                response = {'result': self.handle(request.get('method'), request.get('params', {}))}
+            except (ValueError, TypeError):
+                response = {'error': {'code': -32700, 'message': 'invalid JSON-RPC'}}
+            except ProtocolError as error:
+                response = {'error': {'code': error.code, 'message': error.message}}
+            if request is None or 'id' in request:
+                sink.write(json.dumps(dict(response, jsonrpc='2.0',
+                                           id=request.get('id') if request else None)) + '\n')
+                sink.flush()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--state-root', default=os.environ.get('HYBRID_HANDS_EXECUTION_ROOT'))
     parser.add_argument('--invocation-id', default=os.environ.get('HYBRID_HANDS_INVOCATION_ID'))
     args = parser.parse_args(argv)
+    if args.state_root is None and args.invocation_id is None:
+        DiscoveryGateway().serve(sys.stdin, sys.stdout)
+        return 0
     if not args.state_root or not args.invocation_id:
         parser.error('explicit state root and invocation id required')
     store = ExecutionStore(args.state_root)
