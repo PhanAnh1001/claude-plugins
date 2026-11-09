@@ -114,13 +114,42 @@ def persist_prompt(record, prompt, brief=None):
     run_dir = Path(record.invocation.fixed_options['run_dir']) / suffix
     run_dir.mkdir(parents=True, exist_ok=True)
     path = run_dir / 'prompt.md'
-    if path.exists() and path.read_text(encoding='utf-8') != prompt:
+    if path.exists() and path.read_bytes().decode('utf-8') != prompt:
         raise StateConflict('execution prompt immutable')
     if not path.exists():
-        path.write_text(prompt, encoding='utf-8')
+        with path.open('x', encoding='utf-8', newline='') as stream:
+            stream.write(prompt)
+            stream.flush()
+            os.fsync(stream.fileno())
+        fd = os.open(run_dir, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
     path = run_dir / 'brief.md'
     if not path.exists():
         path.write_text(prompt if brief is None else brief, encoding='utf-8')
+
+
+def pin_prompt(store, record, brief):
+    from .paseo_prompt import prompt_path, trim
+    path = prompt_path(record)
+    if path.exists():
+        pinned = path.read_bytes().decode('utf-8')
+        if trim(pinned) != trim(brief):
+            raise StateConflict('execution prompt immutable')
+        brief = pinned
+    else:
+        brief = trim(brief)
+        persist_prompt(record, brief)
+    digest = hashlib.sha256(brief.encode()).hexdigest()
+    record = store.get(record.key)
+    if (record.receipt or {}).get('brief_digest', digest) != digest:
+        raise StateConflict('pinned digest mismatch')
+    if 'brief_digest' not in (record.receipt or {}):
+        record.receipt = dict(record.receipt or {}, brief_digest=digest)
+        store.compare_and_swap(record.key, record.revision, record)
+    return brief
 
 
 def emit_managed_result(record):
@@ -203,6 +232,7 @@ class PaseoController:
             evidence = existing.receipt['pre_dispatch_failure']
             return PreDispatchAdmission(self.store, None, None).fail(
                 attempt.key, evidence['proof'], evidence['reason'])
+        brief = pin_prompt(self.store, existing, brief)
         self.admission.admit(invocation, attempt, max_parallel=self.cfg.max_parallel)
         # First mutation marks a one-way boundary. Any exception retains durable intent.
         try:
@@ -231,6 +261,8 @@ class PaseoController:
         if wait.get('state') != 'completed':
             raise ExecutionUnresolved('EXECUTION_UNRESOLVED')
         record = self.store.get(attempt.key)
+        if (record.receipt or {}).get('pre_dispatch_failure') and record.state == 'failed' and not record.reservation:
+            return record
         if record.reservation or record.state not in ('awaiting_review', 'archived'):
             raise ExecutionUnresolved('SETTLEMENT_UNRESOLVED')
         return record
@@ -266,6 +298,7 @@ class PaseoController:
             record.receipt = {'controller': dict(old.receipt['controller'], capacity_continuation=count + 1),
                               'completion': dict(old.receipt['completion'])}
             self.store.compare_and_swap(record.key, record.revision, record)
+            brief = pin_prompt(self.store, self.store.get(attempt.key), brief)
             self.admission.admit(old.invocation, attempt, max_parallel=self.cfg.max_parallel)
         parent = self.transport.verify_parent(old.invocation.parent_paseo_agent_id)
         return self.dispatch(old.invocation, attempt, brief, parent)
@@ -317,6 +350,7 @@ class PaseoController:
             record = self.store.create_intent(old.invocation, attempt)
             bind_followup(self.store, old, record)
             # Admission fresh before reopen; existing IDs are verified by transport, never recreated.
+            brief = pin_prompt(self.store, self.store.get(attempt.key), brief)
             self.admission.admit(old.invocation, attempt, max_parallel=self.cfg.max_parallel)
         if old.state == 'archived':
             result = self.transport.reopen_child(key)
@@ -448,6 +482,8 @@ def cmd_managed_run(cfg, args, *, mode):
             raise ValueError('finite timeout required')
         if not valid_completion_binding(store.get(attempt.key)):
             raise ValueError('invalid completion binding')
+        from .paseo_prompt import trim
+        prompt = trim(prompt)
         persist_prompt(store.get(attempt.key), prompt, brief)
         result = controller.dispatch(invocation, attempt, prompt, parent)
         emit_managed_result(result)

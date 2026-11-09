@@ -260,6 +260,11 @@ class PaseoTransport:
         while True:
             record = self._read(key)
             source = self.store.get(key)
+            if (source.receipt or {}).get('prompt_rejection'):
+                from .paseo_recovery import recover
+                recover(self.store, key, source.invocation.source_cwd, self.package_root,
+                        apply=True, target=self.target)
+                return {'ok': True, 'state': 'completed', 'outcome': self.store.get(key).outcome}
             q = source.quiescence or {}
             if (source.outcome is not None and source.outcome.get('quiescent') is True
                     and q.get('confirmed') is True and q.get('evidence')

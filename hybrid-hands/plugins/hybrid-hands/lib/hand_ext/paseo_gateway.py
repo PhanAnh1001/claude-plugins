@@ -136,7 +136,8 @@ class Gateway:
             uuid.UUID(key)
         except (ValueError, TypeError, AttributeError):
             raise ProtocolError(-32602, 'UUID messageId required')
-        digest = hashlib.sha256('\n'.join(b['text'] for b in blocks).encode()).hexdigest()
+        plaintext = '\n'.join(b['text'] for b in blocks)
+        digest = hashlib.sha256(plaintext.encode()).hexdigest()
         claimed = False
         with self._locked():
             rows = self._records()
@@ -144,9 +145,28 @@ class Gateway:
             if existing:
                 record = existing
                 receipt = record.receipt or {}
+                if receipt.get('prompt_rejection'):
+                    raise ProtocolError(-32602, 'prompt fence rejected')
+                if self.completion is not None:
+                    from .paseo_prompt import project
+                    try:
+                        plaintext = project(record, plaintext, key)
+                    except (StateConflict, OSError, ValueError, KeyError):
+                        # No existing claimant can still be on its way to start().
+                        if (not any(k in receipt for k in ('gateway_claim', 'worker_owner', 'worker_run_dir'))
+                                and record.writer is None and record.process is None
+                                and record.outcome is None and record.pending_outcome is None):
+                            record.receipt = dict(receipt, prompt_rejection={
+                                'reason': 'gateway_prompt_fence_rejected', 'epoch': record.attempt.epoch,
+                                'request_key': key})
+                            self.store.compare_and_swap(record.key, record.revision, record)
+                        raise ProtocolError(-32602, 'prompt fence rejected') from None
+                    digest = hashlib.sha256(plaintext.encode()).hexdigest()
                 if receipt.get('brief_digest', digest) != digest:
                     raise ProtocolError(-32602, 'request key content mismatch')
             else:
+                if self.completion is not None:
+                    raise ProtocolError(-32602, 'dispatcher prompt binding required')
                 latest = rows[-1]
                 if latest.reservation or latest.writer and not latest.outcome:
                     raise ProtocolError(-32009, 'previous writer unresolved')
@@ -194,8 +214,8 @@ class Gateway:
             try:
                 if self.completion is not None:
                     from .paseo_controller import persist_prompt
-                    persist_prompt(record, '\n'.join(b['text'] for b in blocks))
-                self.worker.start(record.invocation, record.attempt, '\n'.join(b['text'] for b in blocks))
+                    persist_prompt(record, plaintext)
+                self.worker.start(record.invocation, record.attempt, plaintext)
             except Exception:
                 # A failed start may have dispatched a writer. Never retry it.
                 raise ProtocolError(-32010, 'worker start unresolved; execution retained')
