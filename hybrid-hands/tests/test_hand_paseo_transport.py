@@ -159,8 +159,18 @@ class PaseoTransportTests(unittest.TestCase):
         state['agents']['sibling']={'id':'sibling','workspaceId':wid,'archivedAt':None}
         self.write(state)
         self.assertEqual(self.bridge('archive')['code'],'WORKSPACE_ACTIVE_MEMBER')
+        self.assertFalse(any(x['name']=='archiveWorkspace' for x in self.read()['calls']))
         state=self.read(); state['agents']['sibling']['archivedAt']=state['agents'][aid]['archivedAt']
         state['agents']['unrelated']={'id':'unrelated','workspaceId':'other','cwd':str(self.cwd)}
+        for metadata in ({}, {'provider':'hh-hand-codex','labels':{'paseo.parent-agent-id':'parent'}},
+                {'main_session':True}):
+            state['agents']['sibling'].update(metadata)
+            state['memberPages']=[[{'agent':a}] for a in state['agents'].values()]
+            self.write(state)
+            for command in ('archive','reconcile'):
+                self.assertEqual(self.bridge(command,pending='archive')['code'],'WORKSPACE_UNOWNED_MEMBER')
+                self.assertFalse(any(x['name']=='archiveWorkspace' for x in self.read()['calls']))
+        del state['agents']['sibling']
         state['memberPages']=[[{'agent':a}] for a in state['agents'].values()]
         self.write(state)
         for field,value in [('memberCycle',True),('memberError',True),('memberPages',[[{'agent':{'id':''}}]])]:

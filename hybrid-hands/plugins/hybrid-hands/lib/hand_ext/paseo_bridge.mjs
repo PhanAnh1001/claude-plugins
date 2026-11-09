@@ -127,7 +127,10 @@ async function archivedMembers(client, r) {
       ids.add(a.id);
       if (a.workspaceId !== r.workspaceId) continue;
       check(archived(a), 'WORKSPACE_ACTIVE_MEMBER');
-      if (a.id === r.agentId) found = true;
+      // This private workspace belongs only to the verified child. Archived
+      // siblings still have unknown ownership, regardless of labels/provider.
+      check(a.id === r.agentId, 'WORKSPACE_UNOWNED_MEMBER');
+      found = true;
     }
     cursor = result.pageInfo?.nextCursor;
     if (cursor === null) { check(found, 'MEMBERSHIP_UNCONFIRMED'); return; }
