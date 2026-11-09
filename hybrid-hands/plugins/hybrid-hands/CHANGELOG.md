@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.1 — 2026-11-09
+
+- Sinh workspace ID đúng schema Paseo 0.15.0 (`wks_` + 16 ký tự hex); kiểm official schema workspace/create/send trước kết nối, chỉ trả issue path/code và bằng chứng notSent, giữ reservation khi network/ACK chưa rõ.
+- Thêm `managed recover` dry-run mặc định: recovery workspace ID không hợp lệ hoặc exact child creation được daemon xác nhận failed/known outcome và inspect không tồn tại; `--apply` mới terminal failed và nhả đúng reservation, lặp an toàn. Ưu tiên lifecycle API public, receipt local chỉ khi thiếu capability; không sửa immutable IDs hay suy từ UI idle.
+- ACP unbound chỉ phục vụ initialize/session/new với catalog metadata tĩnh `default` chung (Paseo probe không truyền provider identity); mọi prompt/side effect bị từ chối cố định trước state/worker/auth, binding một phần hoặc rỗng vẫn fail. Bound execution giữ policy/model của invocation.
+- Kiểm offline: 502 tests pass, probe binary unbound không spawn/ghi state/đọc auth; G7 live đang được kiểm riêng, chưa quảng bá backend supported end-to-end.
+
 ## 0.35.0 — 2026-11-09
 
 - A — Cấu hình mặc định plugin → global → repo → CLI; dict merge sâu, list/scalar thay nguyên; global hỏng báo lỗi kèm đường dẫn. `hand-ext config --json` hiện cấu hình hiệu lực và nguồn từng key; account/backend đặt được ở global.
