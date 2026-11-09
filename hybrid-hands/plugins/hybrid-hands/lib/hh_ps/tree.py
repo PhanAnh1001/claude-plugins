@@ -340,5 +340,5 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     from .usage_enrichment import enrich_snapshot
     enrich_snapshot(snapshot, cfg, moment)
     from .claude_calibration import enrich
-    enrich(snapshot, moment)
+    enrich(snapshot, time.time() if now is None else moment)
     return snapshot

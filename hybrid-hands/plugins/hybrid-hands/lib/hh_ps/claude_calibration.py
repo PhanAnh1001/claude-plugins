@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import time
 import fcntl
 import os
 import subprocess
@@ -16,6 +17,7 @@ POLL = 120
 FAILED_POLL = 15
 AUTH_TIMEOUT = 3
 PASEO_TIMEOUT = 6
+RESET_TOLERANCE = 2
 WEEK = 604800
 KEYS = ('input', 'output', 'cache_read', 'cache_write_5m', 'cache_write_1h')
 
@@ -65,6 +67,9 @@ def command(args, home):
 
 
 def quota(home, now):
+    began = time.monotonic()
+    def moment():
+        return now + max(0, time.monotonic() - began)
     try:
         auth = command(['claude', 'auth', 'status', '--json'], home)
         if not isinstance(auth, dict) or auth.get('loggedIn') is not True:
@@ -78,15 +83,15 @@ def quota(home, now):
         return None
     # Local caches belong to the isolated config directory, never the brain cache.
     from .live_rate import read_live_window
-    weekly = read_live_window(home, 'seven_day', now)
-    five = read_live_window(home, 'five_hour', now)
+    weekly = read_live_window(home, 'seven_day', moment())
+    five = read_live_window(home, 'five_hour', moment())
     if weekly is not None:
         sample = dict(at=weekly.ts, reset=weekly.resets_at, pct=weekly.pct,
                       five=five.pct if five else None, source='claude_hand_live')
-        if valid(sample, now):
+        if valid(sample, moment()):
             sample['five_reset'] = five.resets_at if five else None
             sample['identity'] = digest
-            sample['reset'] = int(sample['reset'])
+            sample['reset'] = int(round(sample['reset']))
             return sample
     cache_path = home / '.statusline-cache.json'
     cache = read(cache_path)
@@ -97,9 +102,9 @@ def quota(home, now):
         if five_reset is not None and now < five_reset <= now + 18000:
             sample['five'] = cache.get('five')
             sample['five_reset'] = five_reset
-        if valid(sample, now):
+        if valid(sample, moment()):
             sample['identity'] = digest
-            sample['reset'] = int(sample['reset'])
+            sample['reset'] = int(round(sample['reset']))
             return sample
     try:
         rows = command(['paseo', 'usage', '--json'], home)
@@ -123,9 +128,9 @@ def quota(home, now):
         if reset is not None and now < reset <= now + 18000:
             sample['five'] = five.get('usedPct')
             sample['five_reset'] = reset
-        if not valid(sample, now):
+        if not valid(sample, moment()):
             return None
-        sample['reset'] = int(sample['reset'])
+        sample['reset'] = int(round(sample['reset']))
         return sample
     except (OSError, ValueError, TypeError, subprocess.SubprocessError, AttributeError):
         return None
@@ -169,11 +174,26 @@ def costs(home, start, end):
         return None, None
 
 
+def normalize_reset(samples, current, now):
+    """Keep one observed reset anchor despite small source-clock jitter."""
+    reset = number(current.get("reset"))
+    if reset is None or reset <= now:
+        return
+    anchors = [s for s in samples if s.get("identity") == current.get("identity")
+               and number(s.get("reset")) is not None and s["reset"] > now
+               and abs(s["reset"] - reset) <= RESET_TOLERANCE
+               and number(s.get("at")) is not None and reset-WEEK <= s["at"] <= current["at"]]
+    if anchors:
+        current["reset"] = min(anchors, key=lambda s: s["at"])["reset"]
+
+
 def rate(samples, current, home, now, price=costs):
+    normalize_reset(samples, current, now)
     if not valid(current, now):
         return None
     same = [s for s in samples if s.get('identity') == current.get('identity')
-            and s.get('reset') == current.get('reset') and number(s.get('at')) is not None
+            and number(s.get('reset')) is not None and s['reset'] > now
+            and abs(s['reset'] - current['reset']) <= RESET_TOLERANCE and number(s.get('at')) is not None
             and current['reset'] - WEEK <= s['at'] < current['at']]
     ordered = sorted(same + [current], key=lambda s: s['at'])
     if any(number(s.get('pct')) is None for s in ordered):
@@ -234,9 +254,11 @@ def cached(now):
 
 
 def retain(samples, sample):
-    rows = [s for s in samples if s.get("identity") == sample["identity"]
-            and s.get("reset") == sample["reset"] and number(s.get("at")) is not None
-            and s["at"] < sample["at"] and number(s.get("pct")) is not None]
+    normalize_reset(samples, sample, sample["at"])
+    rows = [dict(s, reset=sample["reset"]) for s in samples if s.get("identity") == sample["identity"]
+            and number(s.get("reset")) is not None and s["reset"] > sample["at"]
+            and abs(s["reset"] - sample["reset"]) <= RESET_TOLERANCE and number(s.get("at")) is not None
+            and sample["reset"] - WEEK <= s["at"] < sample["at"] and number(s.get("pct")) is not None]
     rows.sort(key=lambda s: s["at"])
     if rows and sample["pct"] < rows[-1]["pct"]:
         return [sample]
@@ -246,6 +268,9 @@ def retain(samples, sample):
 
 
 def _collect(now):
+    began = time.monotonic()
+    def moment():
+        return now + max(0, time.monotonic() - began)
     path = cache_path()
     state = read(path)
     if state.get('pricing') != pricing_fingerprint():
@@ -254,26 +279,31 @@ def _collect(now):
     poll = (POLL if isinstance(previous_header, dict) and previous_header.get('sampled_at') is not None
             else FAILED_POLL)
     if number(state.get('polled_at')) is not None and 0 <= now-state['polled_at'] < poll:
-        return cached(now)
+        previous = cached(moment())
+        # A successful cache expiring early may poll once before the normal interval.
+        if previous['sampled_at'] is not None or poll == FAILED_POLL:
+            return previous
     home = Path.home() / '.claude-hand'
-    sample = quota(home, now) if home.is_dir() else None
+    sample = quota(home, moment()) if home.is_dir() else None
     header = empty()
     samples = state.get('samples', [])
     samples = [s for s in samples if isinstance(s, dict)] if isinstance(samples, list) else []
-    if sample is not None:
+    if sample is not None and valid(sample, moment()):
+        normalize_reset(samples, sample, moment())
         usd, tokens = costs(home, sample['reset'] - WEEK, sample['at'])
-        value = rate(samples, sample, home, now)
+        value = rate(samples, sample, home, moment())
         header.update(account_source=sample['source'], account_week_pct=sample['pct'],
                       account_5h_pct=sample['five'], account_5h_resets_at=sample.get('five_reset'), sampled_at=sample['at'], resets_at=sample['reset'],
                       usd=usd, tokens=tokens, usd_per_pct=value,
                       precision='fractional' if float(sample['pct']) % 1 else 'integer',
                       status='ready' if value is not None else 'collecting')
         samples = retain(samples, sample)
-    write(path, dict(polled_at=now, pricing=pricing_fingerprint(), header=header, samples=samples))
-    return cached(now)
+    write(path, dict(polled_at=moment(), pricing=pricing_fingerprint(), header=header, samples=samples))
+    return cached(moment())
 
 
 def collect(now):
+    began = time.monotonic()
     if os.environ.get("HYBRID_HANDS_CALIBRATION_CACHE_ONLY") == "1":
         return cached(now)
     path = cache_path()
@@ -282,8 +312,8 @@ def collect(now):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return cached(now)
-        return _collect(now)
+            return cached(now + max(0, time.monotonic() - began))
+        return _collect(now + max(0, time.monotonic() - began))
 
 
 def enrich(snapshot, now):

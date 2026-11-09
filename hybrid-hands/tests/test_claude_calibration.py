@@ -188,7 +188,7 @@ class CalibrationTests(unittest.TestCase):
             c.collect(1000)
             c.collect(1001)
             self.assertEqual(quota.call_count, 1)
-            c.collect(1000 + c.FAILED_POLL)
+            c.collect(1000 + c.FAILED_POLL + 1)
             self.assertEqual(quota.call_count, 2)
 
     def test_installed_helper_fallback_scans_only_external_home(self):
@@ -239,3 +239,72 @@ class CalibrationTests(unittest.TestCase):
         helper.touch()
         with patch.object(week, '_locate_usage_ledger', return_value=helper), patch.object(week, '_ledger_module', side_effect=ImportError('fake missing dependency')):
             self.assertEqual(c.costs(root, 10, 20), (None, None))
+
+    def test_quota_fetched_during_request_uses_completion_time(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        clock = [0.0]
+        def command(args, home):
+            clock[0] += 1
+            if args[0] == 'claude':
+                return dict(loggedIn=True, email='fake@example.test')
+            return [dict(sourceId='claude', account=dict(label='fake@example.test'), fetchedAt=1001.5,
+                report=dict(status='available', windows=[dict(id='weekly', usedPct=2, resetsAt=10000)]))]
+        with patch.object(c.time, 'monotonic', side_effect=lambda: clock[0]), patch.object(c, 'command', side_effect=command):
+            result = c.quota(Path(directory.name), 1000)
+            self.assertEqual(result['at'], 1001.5)
+        clock[0] = 0
+        with patch.object(c.time, 'monotonic', side_effect=lambda: clock[0]), patch.object(c, 'command', side_effect=lambda args, home: dict(loggedIn=True, email='fake@example.test') if args[0]=='claude' else [dict(sourceId='claude', account=dict(label='fake@example.test'), fetchedAt=2000, report=dict(status='available', windows=[dict(id='weekly', usedPct=2, resetsAt=10000)]))]):
+            self.assertIsNone(c.quota(Path(directory.name), 1000))
+
+    def test_collect_returns_source_observed_during_request(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        (root/'.claude-hand').mkdir()
+        clock = [0.0]
+        def quota(home, now):
+            clock[0] = 2
+            return sample(2, 1001.5) | dict(source='paseo_claude_account', five=3)
+        with patch.object(c.Path, 'home', return_value=root), patch.object(c.time, 'monotonic', side_effect=lambda: clock[0]), patch.object(c, 'quota', side_effect=quota), patch.object(c, 'costs', return_value=(1, dict.fromkeys(c.KEYS, 0))):
+            result = c.collect(1000)
+        self.assertEqual(result['sampled_at'], 1001.5)
+        self.assertEqual(result['account_week_pct'], 2)
+
+    def test_reset_jitter_preserves_observed_anchors(self):
+        anchors = [sample(0, 1000, reset=10000), sample(1, 1100, reset=9999)]
+        current = sample(2, 1200, reset=9999.8)
+        value = c.rate(anchors, current, Path('/fake'), 1200, lambda *args: (8, {}))
+        self.assertEqual(value, 4)
+        self.assertEqual(current['reset'], 10000)
+        retained = c.retain(anchors, current)
+        self.assertEqual([s['pct'] for s in retained], [0, 1, 2])
+        self.assertTrue(all(s['reset'] == 10000 for s in retained))
+        self.assertIsNone(c.rate(anchors, sample(4, 1300, reset=20000), Path('/fake'), 1300, lambda *args: (8, {})))
+
+    def test_expired_success_cache_polls_before_interval(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        root = Path(directory.name)
+        (root/'.claude-hand').mkdir()
+        path = root/'.hybrid-hands'/'claude-calibration.json'
+        header = c.empty() | dict(sampled_at=700, resets_at=10000, account_source='paseo_claude_account')
+        c.write(path, dict(pricing=c.pricing_fingerprint(), polled_at=990, header=header, samples=[]))
+        with patch.object(c.Path, 'home', return_value=root), patch.object(c, 'quota', return_value=None) as quota:
+            c.collect(1001)
+            c.collect(1002)
+            self.assertEqual(quota.call_count, 1)
+
+    def test_tree_calibration_clock_after_scan_and_explicit_time(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent/'fixtures'/'hh_ps'))
+        from fixture import HhFixture, NOW
+        from hh_ps.tree import build_snapshot
+        fx = HhFixture()
+        self.addCleanup(fx.close)
+        with fx.env(), patch('hh_ps.tree.time.time', side_effect=[NOW, NOW+4]), patch.object(c, 'enrich') as enrich:
+            snapshot = build_snapshot(fx.project, 3600, False)
+            self.assertEqual(snapshot.generated_at, NOW)
+            self.assertEqual(enrich.call_args.args[1], NOW+4)
+        with fx.env(), patch('hh_ps.tree.time.time', side_effect=AssertionError('explicit time must stay deterministic')), patch.object(c, 'enrich') as enrich:
+            build_snapshot(fx.project, 3600, False, now=NOW)
+            self.assertEqual(enrich.call_args.args[1], NOW)

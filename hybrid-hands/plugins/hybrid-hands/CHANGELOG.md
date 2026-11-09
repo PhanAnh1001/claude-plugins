@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.2 — 2026-11-09
+
+- Kiểm freshness quota theo thời điểm hoàn tất đọc nguồn, giữ timestamp quan sát gốc; không loại nhầm mẫu Paseo được tạo trong lúc lệnh đang chạy. Cho phép poll sớm một lần khi cache thành công đã hết hạn.
+- Giữ baseline hiệu chỉnh cùng account/reset khi mốc reset chỉ jitter tối đa 2 giây; không nối các cửa sổ tuần khác nhau.
+
 ## 0.32.1 — 2026-11-09
 
 - Sửa nguồn token/USD Claude ngoài khi chạy plugin từ bản cài đặt: cho phép tìm mã helper statusline qua cài đặt tài khoản chính nếu tài khoản ngoài chưa cài statusline, vẫn chỉ quét transcript `~/.claude-hand`. Giữ ưu tiên helper hiện có và override tường minh; helper thiếu/hỏng trả unknown.
