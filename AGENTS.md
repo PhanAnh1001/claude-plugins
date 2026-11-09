@@ -12,9 +12,9 @@ Ngoại lệ A mở rộng — chọn hand theo tài khoản:
 
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
 
-Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
@@ -31,6 +31,10 @@ Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ ha
 Xong một tính năng (test hẹp xanh, đã review) thì Opus/Sol điều phối commit, push nhánh rồi merge ngay vào `main` và push `main` (người dùng chốt 08/11/2026); hand executor không commit/merge. Ngoài trường hợp đó không commit/push mặc định; không chạy lệnh phá hoại. Không sửa `.claude/hybrid-hands.json`, `~/.codex-hand/config.toml`, `~/.claude/settings.json`, `installed_plugins.json`, credential/settings hay bật parallel-subagents trong công việc usage panel. Không xoá/di chuyển/dọn `output/llm/`. Shell dùng cwd/workdir hoặc đường dẫn tuyệt đối, không `cd <dir> && ...`. Không vòng chờ vô hạn; kết thúc tiến trình nền mình tạo trước báo cáo. Không tải/mua/gọi API trả phí hay tạo/dùng API key nếu brief không giao rõ và có trần chi phí.
 
 Sau mỗi lần sửa plugin, Opus/Sol phải validate, chạy test hẹp phù hợp và hoàn tất review, tăng version thích hợp cùng changelog, rồi cập nhật cài đặt plugin vừa sửa cho repo hiện tại và mọi repo khác đang dùng plugin đó qua công cụ chính thức. Không tự bật plugin ở repo chưa dùng; không sửa thủ công credential/settings hay sổ cài đặt. Kiểm chứng version và đường dẫn plugin được nạp thực tế ở các repo đã cập nhật; nếu phiên đang mở không hot load được thì báo rõ cần reload. Giữ nguyên luật commit/push/merge ở trên; hand executor chỉ làm phần được giao, không tự cập nhật runtime khi brief dành việc đó cho brain.
+
+Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi bằng `HYBRID_HANDS_CONFIG`) → repo → cờ CLI. Dict merge sâu; list/scalar thay nguyên.
+`hand-ext config --json` in cấu hình hiệu lực và nguồn từng key; global hỏng báo lỗi kèm đường dẫn.
+`ext_hand.native.{claude,codex}=auto|off`; `pick --json` trả `native`/`native_reason`, caller vẫn kiểm capability. Claude chính/phụ mặc định transport Paseo; có thể chọn `screen` qua cấu hình.
 
 ## Luật dữ liệu chung (chép nguyên văn vào brief hand ngoài)
 

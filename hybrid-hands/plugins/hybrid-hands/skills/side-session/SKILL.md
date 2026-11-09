@@ -3,16 +3,25 @@ name: side-session
 description: Mở và quản lý phiên phụ (phiên Sol Codex mặc định, hoặc Claude Code/dsh chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, cờ --model/--effort, hợp đồng bàn giao .done, đọc tóm tắt bàn giao, account v1/v2/v… và guard v1 5%/ngày, hand ngoài dsh trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage khi provider claude. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
 ---
 
-Mở main Sol high: `side-session start --main --name sol-main`; đường Codex cần daemon Paseo. Main Claude: `side-session start --main --provider claude --account v2` (hoặc v1/v…), chạy qua screen, không cần daemon. Cả hai không dùng `--worktree`, không handoff/watchdog, không chiếm slot phiên phụ.
+Tóm tắt cập nhật 0.35.0: cấu hình global và repo quyết định lựa chọn phiên/hand theo tài khoản.
+
+Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi đường dẫn bằng `HYBRID_HANDS_CONFIG`) → repo `.claude/hybrid-hands.json` → cờ CLI. Dict merge sâu; list/scalar thay nguyên. Global thiếu thì bỏ qua; global hỏng báo lỗi kèm đường dẫn và dừng. `hand-ext config --json` in cấu hình hiệu lực, nguồn từng key và đường dẫn file đã đọc. `ext_hand.claude_accounts` và `ext_hand.backends.*` đặt được ở global. Dưới Paseo, biến `HYBRID_HANDS_CONFIG` phải có trong môi trường daemon mới có tác dụng.
+
+`main_session` áp cho `side-session start --main`: `provider` mặc định `codex`, `codex_model`/`codex_effort` mặc định `gpt-6.1-sol`/`high`, `claude_model`/`claude_effort`/`claude_account` mặc định `claude-opus-5-5`/`high`/`v1`. `side_session` có các key tương ứng, gồm `provider`, `codex_model`, `codex_effort` và các key `claude_*`. Cờ `--provider`, `--model`, `--effort`, `--account` ghi đè cấu hình; `--resume` mặc định provider Claude và giữ account của state. `main_session` không áp cho phiên người dùng tự mở bằng `claude`.
+
+Cả hai mục có `transport` cho Claude: mặc định `paseo`, chọn `screen` tường minh trong cấu hình (không có cờ `--transport`). Paseo lỗi thì báo lỗi, không tự lùi về screen. Phiên Claude qua Paseo nhận `CLAUDE_CONFIG_DIR` theo account. Template Sol chính nhận model/effort thực tế, đường dẫn tuyệt đối tới bin/skill và khuôn brief.
+
+
+Mở main Sol high: `side-session start --main --name sol-main`; đường Codex cần daemon Paseo. Main Claude: `side-session start --main --provider claude --account v2` (hoặc v1/v…), mặc định qua Paseo; chọn `main_session.transport=screen` nếu cần screen. Cả hai không dùng `--worktree`, không handoff/watchdog, không chiếm slot phiên phụ.
 
 
 ## Chọn hand theo tài khoản
 
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
 
-Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
@@ -115,7 +124,7 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 - **Khi nào:** `side-session start --provider codex` (mặc định) thử daemon Paseo trước khi tạo worktree. Endpoint lấy từ `PASEO_HOME`/`PASEO_HOST`, mặc định home; mọi bước sau dùng đúng endpoint đã lưu trong state (đổi endpoint thì `ls`/`watch` báo unknown và `stop` từ chối, không điều khiển nhầm agent).
 - **Daemon sẵn sàng:** tạo workspace directory cho đúng cwd/worktree, rồi agent provider `codex-hand` với `CODEX_HOME=side_session.codex_home`, model/effort của phiên, `approval_policy=never`, `sandbox_mode=danger-full-access` (toàn quyền như đường screen); không truyền `modeId`. State lưu `transport=paseo`, agent id, workspace id, thread id (nếu daemon trả) và endpoint. Agent hiện trong app Paseo ngay khi tạo; điện thoại chỉ thấy sau khi app kết nối daemon đó (người dùng xác nhận trên UI).
-- **Fallback:** daemon không kết nối được hoặc không tìm thấy `@getpaseo/cli` thì in cảnh báo và mở screen như cũ. `codex_profile` khác rỗng: daemon vắng thì vẫn screen profile; daemon đã sẵn sàng thì báo chưa hỗ trợ và thoát 2, **không fallback screen** vì mất chức năng điện thoại dù daemon đang chạy. Dry-run chỉ in kế hoạch screen fallback vì chưa probe daemon.
+- **Paseo không sẵn sàng:** daemon không kết nối được hoặc không tìm thấy `@getpaseo/cli` thì báo lỗi và dừng; không tự lùi về screen. `codex_profile` khác rỗng chưa hỗ trợ qua Paseo và báo lỗi. `--dry-run` chỉ in kế hoạch, không gọi daemon.
 - **Tạo lỗi:** sau khi daemon đã nhận tạo workspace/agent mà lỗi thì thoát 1, tuyệt đối không mở screen để tránh hai writer; state vẫn ghi agent/workspace id nhận được. Timeout/protocol/không có agent id là `unknown`: giữ slot `max_parallel`, chặn dùng lại tên tới khi `stop`/reconcile, không tự retry và không mở watchdog. Chỉ lỗi daemon từ chối chắc chắn (ví dụ `AGENT_CREATE_FAILED`) mới là `error` không chiếm slot.
 - **Theo dõi:** `ls`/`watch` đọc trạng thái agent khi `transport=paseo`: `running`/`initializing` là đang chạy, `idle` của Codex thành `idle_no_done` với warning thiếu `.done`, giữ slot/watch và chặn trùng tên (không tự gửi prompt); turn mới trở lại `running`, `error`/`closed` là dead; mất kết nối là unknown, không kết luận dead và không bỏ qua `max_parallel`. `ls` giữ nguyên `done`/`stopped`/`daystop` đã ghi, không hồi sinh thành `idle`/`running`; agent đã mất không còn chiếm slot. Screen dùng lifecycle rollout đã pin để nhận `idle_no_done`; metadata/token_count sau turn không đổi trạng thái. `.done` đóng screen hoặc cancel nếu đang chạy rồi archive agent Paseo bằng API native, giữ hội thoại/worktree và giải phóng slot; cleanup lỗi/timeout giữ active/watch để thử lại. Chỉ sau cleanup thành công mới ghi `done` và dừng watchdog.
 - **Điều khiển:** `attach <tên>` với phiên Paseo chỉ in hướng dẫn mở app hoặc `paseo attach <agent-id>` (không đụng screen). `stop` interrupt đúng agent đã lưu rồi dừng watchdog screen, giữ worktree và agent để xem lại.
@@ -123,4 +132,4 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 ## Chọn account Claude
 
-`side-session start --provider claude --account v1|v2|v…` mở lead tech/QA đúng account (mặc định v1). `side-session start --main --provider claude --account v2` mở main Opus v2; `--main` riêng vẫn mở Sol high. Claude accounts lấy defaults plugin + repo, không user config. Đổi model/account mở phiên mới từ bàn giao, không `/model`. Main báo trực tiếp người dùng, không bắt handoff/.done.
+`side-session start --provider claude --account v1|v2|v…` mở lead tech/QA đúng account (mặc định v1). `side-session start --main --provider claude --account v2` mở main Opus v2; `--main` riêng vẫn mở Sol high. Claude accounts lấy mặc định plugin → global `~/.hybrid-hands/config.json` → repo. Đổi model/account mở phiên mới từ bàn giao, không `/model`. Main báo trực tiếp người dùng, không bắt handoff/.done.

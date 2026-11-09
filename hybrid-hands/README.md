@@ -1,8 +1,10 @@
 # hybrid-hands
 
+Tóm tắt: phối hợp phiên chính, phiên phụ và hand theo tài khoản; cấu hình dùng chung toàn máy, có thể ghi đè ở repo và CLI.
+
 ## Phiên chính Sol trên Paseo
 
-Mở brain Sol Codex (mặc định `gpt-6.1-sol`, effort high) tại repo chính bằng `side-session start --main --name sol-main [--prompt ...]`, rồi xem và trao đổi trên điện thoại qua Paseo. Cần daemon Paseo; không dùng `--worktree` hay provider khác. Bỏ prompt để Sol đọc luật repo và chờ việc; `--effort` ghi đè mặc định. Phiên chính không có handoff/watchdog và không chiếm slot phiên phụ; marker hay idle không tự archive phiên chính. Chỉ người dùng tự archive trên Paseo; dùng `side-session ls` để xem, `side-session stop sol-main` để interrupt, giữ phiên và lịch sử. `--dry-run` chỉ in kế hoạch, không gọi daemon.
+Mở brain Sol Codex (mặc định `gpt-6.1-sol`, effort high) tại repo chính bằng `side-session start --main --name sol-main [--prompt ...]`, rồi xem và trao đổi trên điện thoại qua Paseo. Cần daemon Paseo; không dùng `--worktree`. Bỏ prompt để Sol đọc luật repo và chờ việc; `--effort` ghi đè mặc định. Phiên chính không có handoff/watchdog và không chiếm slot phiên phụ; marker hay idle không tự archive phiên chính. Chỉ người dùng tự archive trên Paseo; dùng `side-session ls` để xem, `side-session stop sol-main` để interrupt, giữ phiên và lịch sử. `--dry-run` chỉ in kế hoạch, không gọi daemon.
 
 
 
@@ -23,9 +25,9 @@ Mỗi managed hand có workspace/worktree riêng trong **cùng verified project*
 
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
 
-Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
@@ -147,7 +149,29 @@ claude plugin enable parallel-subagents@parallel-subagents-local --scope project
 
 Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). Cơ sở: `enabledPlugins` đặt được ở mọi file settings ([settings reference](https://code.claude.com/docs/en/settings-reference.md#enabledplugins), 11/2026) và khoá cùng tên ở scope cao hơn ghi đè scope thấp hơn, thứ tự managed > dòng lệnh > project local > project > user ([settings precedence](https://code.claude.com/docs/en/settings.md#settings-precedence), 11/2026). Scope project ghi vào `.claude/settings.json` (commit, áp cho cả nhóm); muốn chỉ áp cho máy mình thì dùng `--scope local`.
 
-## 4. Cấu hình dự án `.claude/hybrid-hands.json`
+## 4. Cấu hình global và dự án
+
+Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi đường dẫn bằng `HYBRID_HANDS_CONFIG`) → repo `.claude/hybrid-hands.json` → cờ CLI. Dict merge sâu; list/scalar thay nguyên. Global thiếu thì bỏ qua; global hỏng báo lỗi kèm đường dẫn và dừng. `hand-ext config --json` in cấu hình hiệu lực, nguồn từng key và đường dẫn file đã đọc. `ext_hand.claude_accounts` và `ext_hand.backends.*` đặt được ở global. Dưới Paseo, biến `HYBRID_HANDS_CONFIG` phải có trong môi trường daemon mới có tác dụng.
+
+`main_session` áp cho `side-session start --main`: `provider` mặc định `codex`, `codex_model`/`codex_effort` mặc định `gpt-6.1-sol`/`high`, `claude_model`/`claude_effort`/`claude_account` mặc định `claude-opus-5-5`/`high`/`v1`. `side_session` có các key tương ứng, gồm `provider`, `codex_model`, `codex_effort` và các key `claude_*`. Cờ `--provider`, `--model`, `--effort`, `--account` ghi đè cấu hình; `--resume` mặc định provider Claude và giữ account của state. `main_session` không áp cho phiên người dùng tự mở bằng `claude`.
+
+Cả hai mục có `transport` cho Claude: mặc định `paseo`, chọn `screen` tường minh trong cấu hình (không có cờ `--transport`). Paseo lỗi thì báo lỗi, không tự lùi về screen. Phiên Claude qua Paseo nhận `CLAUDE_CONFIG_DIR` theo account. Template Sol chính nhận model/effort thực tế, đường dẫn tuyệt đối tới bin/skill và khuôn brief.
+
+`ext_hand.native.{claude,codex}` nhận `auto` (mặc định) hoặc `off`. `hand-ext pick --json` trả `native` và `native_reason` theo cấu hình, account, model/effort; caller vẫn phải kiểm capability. `off` dùng hand-ext. Claude native phải khớp frontmatter agent (Opus 5.5 low); model/effort khác chạy qua wrapper.
+
+Ví dụ global ngắn (các key còn lại giữ mặc định):
+
+```json
+{
+  "main_session": {"provider": "claude", "claude_account": "v2"},
+  "side_session": {"provider": "codex", "transport": "paseo"},
+  "ext_hand": {"native": {"claude": "off", "codex": "auto"}},
+  "paseo": {"claude_providers": {"v2": "claude-v2"}}
+}
+```
+
+Cấu hình repo `.claude/hybrid-hands.json`:
+
 
 ```json
 {
@@ -316,6 +340,9 @@ Token chỉ lấy từ nguồn native, USD~ dùng giá canonical; thiếu token 
 `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn hand vào đúng cha. `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Metadata mới lưu parent canonical, `started`, `ended`, `status`, `exit_code`, `tokens`, `effort`, `duration` cùng backend/model. Legacy thiếu dữ liệu giữ unknown. Contract dataclass và bước enrichment được ghi tại [AGENTS.md](../AGENTS.md); `tree.py` tạo Snapshot rồi gọi `enrich_snapshot(snapshot, cfg, now)` trước khi return.
 
 ## 7. Chuyển phiên giữa terminal và Paseo: `cc-switch`
+
+`cc-switch paseo` tra `paseo.claude_providers` theo account phiên hiện tại khi `paseo import`; mặc định `{"v1":"claude"}`. Thiếu ánh xạ thì dừng trước khi đóng TUI. Muốn chuyển phiên v2, người dùng tự khai báo provider Claude v2 trong `~/.paseo/config.json` với env `CLAUDE_CONFIG_DIR=~/.claude-hand`, rồi đặt `paseo.claude_providers.v2` bằng tên provider đó trong global hoặc repo. Ánh xạ không tự tạo provider Paseo.
+
 
 `cc-switch term [--agent ID|--session SID] [--dry-run] [-- <đối số thêm cho claude>]` lấy agent Paseo provider `claude` của project hiện tại (hoặc chọn theo id/tiền tố/session), chờ `paseo wait` nếu agent đang chạy, từ chối nếu đã có TUI `claude` sống cùng session, rồi `chdir` vào cwd agent và `exec claude --resume <sid> [--model <model>]`. Sau đó đừng gửi tin cho agent từ Paseo cho tới khi chuyển lại.
 
