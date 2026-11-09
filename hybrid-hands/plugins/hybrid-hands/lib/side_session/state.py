@@ -43,6 +43,8 @@ class SessionState:
     claude_config_dir: str = ""
     model: str = ""
     effort: str = ""
+    # Workspace đã được side-session mở lại sau khi agent unarchive: watch/ls kiểm lại agent archive.
+    paseo_revived: bool = False
 
 
 def _from_dict(raw: dict) -> "SessionState":
