@@ -55,7 +55,7 @@ def _limit_json(limit: Limit) -> Dict[str, object]:
 def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
     duration = elapsed_seconds(run.started_at, run.ended_at, run.running, now)
     usage = run.usage
-    return {
+    data = {
         "run_id": run.run_id,
         "label": run.label,
         "backend": run.backend,
@@ -73,6 +73,14 @@ def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
         "pid": run.pid,
         "child_pid": run.child_pid,
     }
+    if run.execution_key:
+        data.update(execution_key=dict(run.execution_key), target_key=run.target_key,
+                    agent_id=run.agent_id, thread_id=run.thread_id,
+                    workspace_id=run.workspace_id, project_id=run.project_id,
+                    request_key=run.request_key, worker_run_dir=run.worker_run_dir,
+                    patch_path=run.patch_path, report_path=run.report_path,
+                    isolated_cwd=run.isolated_cwd)
+    return data
 
 
 def _subagent_json(agent: Subagent, now: float, parent_session: Optional[str] = None) -> Dict[str, object]:

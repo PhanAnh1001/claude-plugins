@@ -268,6 +268,12 @@ def _apply_codex(sessions: List[Session], orphans: List[HandRun],
     for run in runs:
         if run.backend != PROVIDER_CODEX:
             continue
+        if run.execution_key:
+            # A run-id-only historical ledger must not fill an unknown parser
+            # result or lend another epoch's quota samples to this execution.
+            entry = codex.ledger.get(run.run_id) or {}
+            if not run.tokens or entry.get("execution_key") != run.execution_key:
+                continue
         usage = codex.hand_usage(run.run_id, run.tokens, now)
         if usage is not None:
             run.usage = usage
@@ -302,16 +308,19 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     for session in sessions:
         _enrich(session, meta, side)
     pinned = pinned_rollouts(repos.roots)
+    runs = load_hand_runs(state_root(), cutoff, repos.roots,
+                         known_configs={root: cfg}, config_files=repos.config_files())
     from .native_source import discover_main_sessions
     discover_main_sessions(sessions, pinned, root, all_projects, cutoff, moment,
-                           main_session_id)
+                           main_session_id, managed_runs=runs)
+    from .paseo_source import dedup_native
+    dedup_native(sessions, runs)
     by_id = {session.session_id: session for session in sessions}
     targets = _side_run_targets(sessions, side)
     orphans: List[HandRun] = []
-    for run in load_hand_runs(state_root(), cutoff, repos.roots,
-                              known_configs={root: cfg}, config_files=repos.config_files()):
-        target = _label_target(run, targets)
-        side_label = run.label in targets or run.label.startswith(SIDE_RUN_LABEL_PREFIX)
+    for run in runs:
+        target = by_id.get(run.parent_session) if run.execution_key else _label_target(run, targets)
+        side_label = not run.execution_key and (run.label in targets or run.label.startswith(SIDE_RUN_LABEL_PREFIX))
         if target is None and run.parent_session and not side_label:
             target = by_id.get(run.parent_session)
         if target is not None:
@@ -327,7 +336,8 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     codex = load_codex(cfg, moment)
     _apply_codex(sessions, orphans, codex, pinned, moment)
     from .native_source import attach_native
-    attach_native(sessions, pinned, moment)
+    attach_native(sessions, pinned, moment, managed_runs=runs)
+    dedup_native(sessions, runs)
     snapshot = Snapshot(sessions=sessions, orphan_runs=orphans, since_seconds=since_seconds,
                     cwd=str(cwd), all_projects=all_projects,
                     main_session_id=main_session_id, generated_at=moment,

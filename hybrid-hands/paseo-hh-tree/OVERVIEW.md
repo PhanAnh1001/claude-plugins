@@ -2,6 +2,12 @@
 
 Plugin hiện panel cạnh agent và màn hình “Cây phiên”, mở bằng nút trên header sidebar Paseo, lấy JSON `hh-ps` và làm mới mỗi 5 giây. Không hiện nhóm orphan hand-ext.
 
+## Managed hand Paseo opt-in
+
+`shell` vẫn default; chỉ repo operator bật `auto`/`paseo-required` mới dùng managed hand. Intent mới vốn native Sol low phải đi `hand-ext run --backend auto --mode paseo-required` khi daemon/provider/capability sẵn sàng; native hiện có không migrate. Thiếu capability trước dispatch: auto fallback shell, required fail; ACK mơ hồ sau dispatch giữ exact execution, không writer thứ hai. Pick/account/model/effort guards và pool chung 1..4 giữ nguyên.
+
+Managed hand là agent thật có workspace/worktree riêng cùng verified project và caller parent canonical; tab/track parent không bảo đảm sidebar native lồng child. Một execution chỉ là một hand, không thêm side-session root; parser/ledger là nguồn usage, ACP chỉ projection. Done giữ hiện để Sol review; Sol dùng `hand-ext managed ls`, rồi `review-approve`, `archive` exact child đã settled/review. Followup dùng latest key và brief mới để reopen cùng agent/workspace, epoch mới, không CLI resume. Không archive parent/workspace hay cleanup worktree. [Lệnh đầy đủ và recipe operator](../README.md#vận-hành-managed-hand-paseo); gói docs chưa kiểm placement/stop/reopen live.
+
 ## Phân biệt danh sách native và Cây phiên
 
 `index.client.tsx` đăng ký `addAgentPanel`, `addScreen` và `addSidebarHeaderItem`. Sidebar item chỉ là `SidebarRow` mở màn hình Cây phiên; plugin không cung cấp hay lọc các dòng agent trong danh sách native của Paseo. Panel agent và màn hình Cây phiên dùng chung `client/TreeView.tsx`. Server gọi `hh-ps --json --ended --full --since 6h` (`server/hh-ps.ts:buildHhPsArgs`), nên cây vẫn có thể hiện phiên phụ đã kết thúc sau khi agent Paseo được archive. Dữ liệu cây không có trường archive của Paseo.

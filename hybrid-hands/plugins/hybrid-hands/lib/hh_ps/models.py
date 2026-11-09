@@ -109,6 +109,17 @@ class HandRun:
     usage: Optional[Usage] = None
     effort: str = ""
     exit_code: Optional[int] = None
+    execution_key: Optional[dict] = None
+    target_key: Optional[str] = None
+    agent_id: Optional[str] = None
+    thread_id: Optional[str] = None
+    workspace_id: Optional[str] = None
+    project_id: Optional[str] = None
+    request_key: str = ""
+    worker_run_dir: str = ""
+    patch_path: str = ""
+    report_path: str = ""
+    isolated_cwd: str = ""
 
     @property
     def running(self) -> bool:
@@ -116,6 +127,8 @@ class HandRun:
 
     @property
     def state(self) -> str:
+        if self.execution_key and self.status == "unknown":
+            return "unknown"
         if self.lost:
             return RUN_STATE_LOST
         if self.status == RUN_STATUS_RUNNING:

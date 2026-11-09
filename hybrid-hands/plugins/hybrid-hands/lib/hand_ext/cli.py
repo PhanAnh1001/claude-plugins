@@ -20,6 +20,16 @@ from .constants import (
 from .run_cmd import auto_preflight, backend_ready, cmd_run, last_run, with_sandbox
 
 
+def _execution_key(value):
+    from .execution_state import ExecutionKey
+    parts = value.split(":")
+    if (len(parts) != 3 or not all(parts) or not parts[2].isascii()
+            or not parts[2].isdigit() or int(parts[2]) < 1
+            or any(c.isspace() for c in parts[0] + parts[1])):
+        raise argparse.ArgumentTypeError("key must be invocation:attempt:epoch (epoch >= 1)")
+    return ExecutionKey(parts[0], parts[1], int(parts[2]))
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="hand-ext",
@@ -30,12 +40,34 @@ def _parser() -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=text)
         s.add_argument("--backend", default=ALL_BACKENDS)
         s.add_argument("--cwd")
+    provider = sub.add_parser("provider", help="cấu hình ACP provider bằng schema Paseo chính thức")
+    provider_sub = provider.add_subparsers(dest="provider_cmd", required=True)
+    provider_setup = provider_sub.add_parser("setup")
+    provider_setup.add_argument("--home", required=True)
+    provider_setup.add_argument("--package-root")
+    provider_setup.add_argument("--cwd")
+    provider_mode = provider_setup.add_mutually_exclusive_group()
+    provider_mode.add_argument("--dry-run", action="store_true")
+    provider_mode.add_argument("--apply", action="store_true")
+    provider_status = provider_sub.add_parser("status")
+    provider_status.add_argument("--cwd")
+    managed = sub.add_parser("managed", help="quản lý exact managed execution")
+    managed_sub = managed.add_subparsers(dest="managed_cmd", required=True)
+    for action in ("ls", "review-approve", "archive", "followup"):
+        command = managed_sub.add_parser(action)
+        command.add_argument("--cwd", required=True)
+        if action != "ls":
+            command.add_argument("--key", required=True, type=_execution_key,
+                                 help="invocation:attempt:epoch (epoch >= 1)")
+        if action == "followup":
+            command.add_argument("--brief", required=True, help="fresh self-contained brief file")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
     pick.add_argument("--cwd")
     r = sub.add_parser("run", help="chạy một brief")
     r.add_argument("--brief", required=True, help="file brief hoặc - cho stdin")
     r.add_argument("--backend", default=AUTO_BACKEND)
+    r.add_argument("--mode", choices=("shell", "auto", "paseo-required"))
     for flag in ("--label", "--cwd", "--model", "--effort"):
         r.add_argument(flag)
     r.add_argument("--timeout-min", type=float)
@@ -176,7 +208,84 @@ def cmd_measure(cfg: ExtConfig, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-COMMANDS = {"pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
+def cmd_provider(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    from .paseo_provider import setup_provider, status_provider, ProviderError
+    from .paseo_controller import transport_from_config, PaseoUnavailable
+    from .paseo_transport import TransportError
+    try:
+        if args.provider_cmd == 'setup':
+            result = setup_provider(Path(args.home), apply=args.apply,
+                package_root=args.package_root or cfg.paseo.get('package_root'))
+        else:
+            result = status_provider(transport_from_config(cfg, None))
+    except (ProviderError, PaseoUnavailable, TransportError) as exc:
+        result = {'ok': False, 'code': str(exc)}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return EXIT_OK if result.get('ok') else EXIT_FAIL
+
+
+def _managed_summary(record):
+    key = record.key
+    return dict(key=f"{key.invocation_id}:{key.attempt_id}:{key.epoch}",
+                state=record.state, backend=record.invocation.backend,
+                model=record.invocation.model, effort=record.invocation.effort,
+                parent_session=record.invocation.parent_session,
+                agent_id=record.attempt.agent_id, workspace_id=record.attempt.workspace_id,
+                review_approved=(record.artifacts.get("review") or {}).get("approved") is True)
+
+
+def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    from .execution_state import ExecutionStore, StateConflict, StateCorrupt
+    from .execution_admission import AdmissionDenied, AdmissionFull
+    from .paseo_controller import (PaseoController, transport_from_config,
+        PaseoUnavailable, ExecutionUnresolved, _completion_service)
+    from .paseo_transport import TransportError
+    root = Path(cfg.paseo.get("state_root") or cfg.machine_state_dir / "executions")
+    source = Path(args.cwd).resolve()
+    try:
+        if not root.exists():
+            if args.managed_cmd != "ls":
+                raise StateConflict("execution not found")
+            result = {"ok": True, "executions": []}
+        else:
+            store = ExecutionStore(root)
+            if args.managed_cmd == "ls":
+                with store.locked():
+                    rows = [store._read(p) for p in sorted(store.root.glob("*.json"))]
+                result = {"ok": True, "executions": [_managed_summary(r) for r in rows
+                          if Path(r.invocation.source_cwd).resolve() == source]}
+            else:
+                record = store.get(args.key)
+                if Path(record.invocation.source_cwd).resolve() != source:
+                    raise StateConflict("execution belongs to another repo")
+                brief = None
+                if args.managed_cmd == "followup":
+                    brief = Path(args.brief).read_text()
+                    if not brief.strip():
+                        raise ValueError("fresh self-contained brief required")
+                transport = (None if args.managed_cmd == "review-approve"
+                             else transport_from_config(cfg, store))
+                controller = PaseoController(cfg, store, transport)
+                if args.managed_cmd == "review-approve":
+                    record = controller.approve_review(args.key)
+                elif args.managed_cmd == "archive":
+                    record = controller.archive(args.key)
+                else:
+                    controller.completion = _completion_service(store, controller.supervisor,
+                                                                controller.admission)
+                    record = controller.followup(args.key, brief)
+                result = {"ok": True, "execution": _managed_summary(record)}
+    except (StateConflict, StateCorrupt, FileNotFoundError, AdmissionDenied,
+            AdmissionFull, PaseoUnavailable, ExecutionUnresolved, TransportError) as exc:
+        # Never echo arbitrary transport/backend text, briefs, or persisted options.
+        result = {"ok": False, "code": type(exc).__name__}
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 8 if isinstance(exc, AdmissionFull) else EXIT_FAIL
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return EXIT_OK
+
+
+COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
             "status": cmd_status, "usage": cmd_usage, "report": cmd_report,
             "measure": cmd_measure}
 

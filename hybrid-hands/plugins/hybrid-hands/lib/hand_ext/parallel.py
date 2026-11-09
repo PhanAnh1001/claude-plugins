@@ -4,6 +4,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import os
+import json
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -37,33 +38,70 @@ def scope_digest(root: Path) -> str:
     return hashlib.sha256(scope.encode("utf-8")).hexdigest()
 
 
+def pool_root() -> Path:
+    return Path(tempfile.gettempdir()) / f"{SLOTS_DIR_PREFIX}{os.getuid()}"
+
+
+def canonical_scope(scope_id: str) -> str:
+    """Explicit scope IDs use the same HAND_SCOPE_ENV namespace as shell.
+
+    scope_digest(root) results are accepted unchanged for compatibility. Raw
+    IDs are hashed; empty IDs and path-shaped IDs are rejected, never paths.
+    """
+    import re
+    if not isinstance(scope_id, str) or not scope_id or scope_id in ('.', '..') or '/' in scope_id or '\\' in scope_id:
+        raise ValueError('invalid scope identifier; use scope_digest(root) for path scopes')
+    if re.fullmatch(r'[0-9a-f]{64}', scope_id): return scope_id
+    return hashlib.sha256(f'{HAND_SCOPE_ENV}:{scope_id}'.encode()).hexdigest()
+
+
+def pool_scope(scope_id: str) -> Path:
+    return pool_root() / canonical_scope(scope_id)
+
+
+@contextmanager
+def pool_lock():
+    root = pool_root()
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with (root / '.admission.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def durable_reservations():
+    # Corrupt reservation data fails closed for shell and managed callers alike.
+    for path in pool_root().glob('*/reservation-*.json'):
+        yield path, json.loads(path.read_text())
+
+
+def shell_count(directory):
+    count = 0
+    for path in directory.glob('*.lock'):
+        with path.open('a') as stream:
+            try: fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError: count += 1
+    return count
+
+
 @contextmanager
 def reserve_slot(root: Path, limit: int) -> Iterator[None]:
-    """Keep one descriptor through retries; close/OS process exit releases it.
-
-    The per-user OS temp directory deliberately does not follow registry state:
-    an unwritable registry must still only warn. Never unlink lock files, since
-    replacing an inode would let another caller bypass its existing lock.
-    Python opens descriptors non-inheritable, so backend execs cannot retain one.
-    """
+    """Kernel-owned shell slot, sharing admission with durable managed writers."""
     limit = validate_limit(limit)
-    directory = (Path(tempfile.gettempdir()) / f"{SLOTS_DIR_PREFIX}{os.getuid()}"
-                 / scope_digest(root))
-    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    for index in range(limit):
-        slot = (directory / f"{index}.lock").open("a")
-        try:
-            fcntl.flock(slot.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            slot.close()
-            continue
-        except BaseException:
-            slot.close()
-            raise
-        try:
-            yield
-        finally:
-            slot.close()
-        return
-    raise ParallelFull(f"đã đủ {limit} hand-ext run đồng thời trong phiên Sol này; "
-                       "hãy chờ một lượt kết thúc rồi thử lại (exit 8)")
+    directory = pool_scope(scope_digest(root))
+    slot = None
+    with pool_lock():
+        directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+        durable = sum(1 for _, r in durable_reservations()
+                      if canonical_scope(r['scope_id']) == directory.name)
+        if shell_count(directory) + durable < limit:
+            for index in range(limit):
+                candidate = (directory / f"{index}.lock").open('a')
+                try: fcntl.flock(candidate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    candidate.close(); continue
+                slot = candidate; break
+    if slot is None:
+        raise ParallelFull(f"đã đủ {limit} hand-ext run đồng thời trong phiên Sol này; "
+                           "hãy chờ một lượt kết thúc rồi thử lại (exit 8)")
+    try: yield
+    finally: slot.close()
