@@ -39,6 +39,10 @@ class SessionState:
     codex_thread_id: str = ""
     role: str = ""
     paseo_workspace_archived: bool = False
+    account: str = "v1"
+    claude_config_dir: str = ""
+    model: str = ""
+    effort: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

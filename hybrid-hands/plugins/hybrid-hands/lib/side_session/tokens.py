@@ -24,8 +24,10 @@ def project_slug(directory: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", directory)
 
 
-def claude_transcript(directory: str, uuid: str, projects_dir: Path | None = None) -> Path:
-    base = projects_dir or Path(os.environ.get(C.CLAUDE_PROJECTS_ENV, C.CLAUDE_PROJECTS_DIR)).expanduser()
+def claude_transcript(directory: str, uuid: str, projects_dir: Path | None = None,
+                      config_dir: str = "") -> Path:
+    default = str(Path(config_dir) / "projects") if config_dir else C.CLAUDE_PROJECTS_DIR
+    base = projects_dir or Path(os.environ.get(C.CLAUDE_PROJECTS_ENV, default)).expanduser()
     return base / project_slug(directory) / f"{uuid}.jsonl"
 
 

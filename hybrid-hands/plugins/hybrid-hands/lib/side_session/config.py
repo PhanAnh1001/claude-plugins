@@ -27,6 +27,7 @@ class SideConfig:
     status_line_cmd: str = ""
     token_file: str = ""
     enforce_token_cap: bool = True
+    claude_accounts: dict = field(default_factory=lambda: default_claude_accounts())
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -94,5 +95,37 @@ def load_config(cwd: Path) -> SideConfig:
         status_line_cmd=(str(_resolve(repo, merged["status_line_cmd"]))
                          if merged["status_line_cmd"] else ""),
         token_file=_relpath(repo, merged["token_file"], "token_file"),
+        claude_accounts=load_claude_accounts(repo),
         enforce_token_cap=_bool_setting(merged["enforce_token_cap"], "enforce_token_cap"),
     )
+
+
+def default_claude_accounts() -> dict:
+    # Adapter until hand_ext exports the registry: prefer its canonical defaults.
+    from hand_ext.constants import DEFAULTS
+    import copy
+    return copy.deepcopy(DEFAULTS.get("claude_accounts", {
+        "v1": {"config_dir": "~/.claude", "max_day_pct": 5},
+        "v2": {"config_dir": "~/.claude-hand"},
+    }))
+
+
+def load_claude_accounts(repo: Path) -> dict:
+    """Adapter for ext_hand.claude_accounts, using hand_ext's config resolution."""
+    from hand_ext.config import _read_section
+    accounts = default_claude_accounts()
+    overrides = _read_section(repo).get("claude_accounts", {})
+    if not isinstance(overrides, dict):
+        raise ValueError("ext_hand.claude_accounts phải là object")
+    for name, opts in overrides.items():
+        if not isinstance(opts, dict):
+            raise ValueError(f"claude_accounts.{name} phải là object")
+        accounts.setdefault(name, {}).update(opts)
+    return accounts
+
+
+def claude_account(cfg: SideConfig, account: str) -> dict:
+    opts = cfg.claude_accounts.get(account)
+    if not isinstance(opts, dict) or not isinstance(opts.get("config_dir"), str) or not opts["config_dir"]:
+        raise ValueError(f"side-session: unknown/invalid Claude account {account!r}")
+    return {**opts, "config_dir": str(_resolve(cfg.repo, opts["config_dir"]))}

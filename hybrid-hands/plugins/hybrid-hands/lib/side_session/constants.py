@@ -172,3 +172,9 @@ DONE_SUFFIX = ".done"
 TOKEN_FILE_PLACEHOLDER = "{uuid}"
 RESUME_PROMPT = ("Phiên này được mở lại sau khi bị dừng. Đọc lại việc đang dở, "
                  "không làm lại bước đã xong, rồi làm tiếp đến hết theo yêu cầu ban đầu.")
+
+CLAUDE_MODEL_DEFAULT = "claude-opus-5-5"
+CLAUDE_EFFORT_DEFAULT = "high"
+CLAUDE_ACCOUNT_PLACEHOLDER = "{account}"
+MAIN_CLAUDE_TEMPLATE_RELPATH = "templates/main-session-prompt-claude.md"
+CLAUDE_ACCOUNT_TEMPLATE_RELPATH = "templates/side-session-prompt-claude.md"

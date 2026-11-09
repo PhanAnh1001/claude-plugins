@@ -22,15 +22,18 @@ def build_parser() -> argparse.ArgumentParser:
     g = s.add_mutually_exclusive_group()
     g.add_argument("--prompt")
     g.add_argument("--prompt-file")
-    s.add_argument("--main", action="store_true", help="mở phiên chính Sol trên Paseo")
+    s.add_argument("--main", action="store_true",
+                   help="mở phiên chính: mặc định Codex Sol high trên Paseo; "
+                        "--provider claude mở Claude Opus high trên screen")
     s.add_argument("--worktree", action="store_true")
     s.add_argument("--base", default=None)
     s.add_argument("--provider", choices=C.PROVIDERS, default=None,
                    help="codex (mặc định cho start), claude (mặc định cho --resume) hoặc dsh")
+    s.add_argument("--account", default=None, help="tài khoản Claude v1/v2/v… (mặc định v1; resume giữ state)")
     s.add_argument("--model", default=None,
-                   help="model cho provider codex, hoặc chuyển --model cho hand-ext")
+                   help="model cho Codex/Claude, hoặc chuyển --model cho hand-ext")
     s.add_argument("--effort", default=None,
-                   help="effort cho provider codex, hoặc chuyển --effort cho hand-ext")
+                   help="effort cho Codex/Claude, hoặc chuyển --effort cho hand-ext")
     s.add_argument("--max-tokens", type=int)
     s.add_argument("--hours", type=float)
     s.add_argument("--brain", default="", help="brain session name for SendMessage")
