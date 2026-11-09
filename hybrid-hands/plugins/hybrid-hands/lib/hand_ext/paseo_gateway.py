@@ -167,16 +167,24 @@ class Gateway:
                 # A failed start may have dispatched a writer. Never retry it.
                 raise ProtocolError(-32010, 'worker start unresolved; execution retained')
         deadline = time.monotonic() + self.wait_seconds
+        settlement_pending = False
         while time.monotonic() < deadline and not self.stopping.is_set():
             record = self.store.get(record.key)
             if record.outcome and record.outcome.get('quiescent') is True:
-                return self._result(record, key)
+                status = record.outcome.get('status')
+                successful = status in ('ok', 'completed', 'success', 'succeeded') and record.outcome.get('backend_exit_code') in (None, 0)
+                settlement_pending = successful and (
+                    record.state not in ('awaiting_review', 'archived') or bool(record.reservation))
+                if not settlement_pending:
+                    return self._result(record, key)
             with self.mutex:
                 cancelled = record.key in self.cancelled
             if cancelled:
                 return {'stopReason': 'cancelled', 'userMessageId': key,
                         '_meta': {'status': 'unresolved', 'quiescent': False}}
             self.stopping.wait(.02)
+        if settlement_pending:
+            raise ProtocolError(-32010, 'outcome pending settlement or release', {'kind': 'settlement_pending'})
         raise ProtocolError(-32010, 'execution unresolved; reservation retained', {'kind': 'unresolved'})
 
     def _result(self, record, message_id):

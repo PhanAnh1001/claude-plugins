@@ -41,9 +41,13 @@ class Worker:
         if self.complete:
             self.finish(attempt.key)
     def finish(self, key):
+        self.publish(key)
+        self.settle(key)
+    def publish(self, key):
         self.supervisor.process_ops.stopped = True
         self.supervisor.record_outcome_once(key, dict(status='ok', backend_exit_code=0,
             provenance='fixture', final_text='Synthetic answer', usage={'input':2,'cached_input':1,'output':1}))
+    def settle(self, key):
         record = self.store.get(key)
         record.settle_keys = {'report': {'state':'completed','key':'synthetic'}}
         record.artifacts = {'report':'synthetic-report'}
@@ -101,7 +105,28 @@ class GatewayTests(unittest.TestCase):
         self.assertTrue(response['agentCapabilities']['loadSession'])
         self.assertEqual(self.gateway.handle('session/new',self.session())['sessionId'],self.invocation.invocation_id)
         emitted = []; self.gateway.emit = emitted.append
-        result = self.gateway.handle('session/prompt', self.prompt())
+        self.worker.complete = False
+        results, errors = [], []
+        finished = threading.Event()
+        def prompt():
+            try:
+                results.append(self.gateway.handle('session/prompt', self.prompt()))
+            except Exception as exc:
+                errors.append(exc)
+            finally:
+                finished.set()
+        pending = threading.Thread(target=prompt)
+        pending.start()
+        self.assertTrue(self.worker.started.wait(1))
+        self.worker.publish(self.attempt.key)
+        try:
+            self.assertFalse(finished.wait(.1), 'prompt must wait for settlement/release')
+        finally:
+            self.worker.settle(self.attempt.key)
+            pending.join(1)
+        self.assertFalse(pending.is_alive())
+        self.assertEqual(errors, [])
+        result = results[0]
         self.assertEqual(result['stopReason'],'end_turn')
         self.assertEqual(result['usage'],{'totalTokens':3,'inputTokens':2,'outputTokens':1,'cachedReadTokens':1})
         self.assertEqual(emitted[0]['params']['update']['content']['text'],'Synthetic answer')
@@ -117,6 +142,20 @@ class GatewayTests(unittest.TestCase):
         record.state='settling'
         record.outcome = dict(record.outcome,status='ok',backend_exit_code=0)
         with self.assertRaises(ProtocolError): self.gateway._result(record,self.key)
+        # A settled backend can still have pending artifacts. Deadline expiry
+        # preserves its reservation; attaching again never launches a second writer.
+        self.worker.complete = True
+        waiting = self.new_gateway(); waiting.wait_seconds = .05
+        next_key = str(uuid.uuid4())
+        with patch.object(self.worker, 'finish', side_effect=self.worker.publish):
+            for _ in range(2):
+                with self.assertRaises(ProtocolError) as error:
+                    waiting.handle('session/prompt', self.prompt(next_key))
+                self.assertEqual(error.exception.data['kind'], 'settlement_pending')
+        retained = waiting._records()[-1]
+        self.assertTrue(retained.reservation)
+        self.assertEqual(self.worker.calls, 2)
+        self.worker.settle(retained.key)
 
     def test_stdio_cancel_and_eof_keep_live_writer_reserved(self):
         self.worker.complete = False
