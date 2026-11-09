@@ -47,6 +47,8 @@ class ExtConfig:
     mode: str = "shell"
     paseo: Dict[str, Any] = field(default_factory=dict)
 
+    native: Dict[str, str] = field(default_factory=lambda: copy.deepcopy(DEFAULTS["native"]))
+
     def options(self, name: str) -> Dict[str, Any]:
         account = {"claude-main": "v1", "claude": "v2"}.get(name)
         if name.startswith("claude-v"):
@@ -202,6 +204,12 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
                 path = Path(value)
                 if not path.is_absolute():
                     options[key] = str(root / path)
+    native = section.pop("native")
+    if not isinstance(native, dict):
+        raise ValueError("ext_hand.native phải là object")
+    if set(native) - set(DEFAULTS["native"]) or any(
+            value not in ("auto", "off") for value in native.values()):
+        raise ValueError("ext_hand.native chỉ nhận claude/codex với auto hoặc off")
     mode = section.pop("mode")
     if mode not in ("shell", "auto", "paseo-required"):
         raise ValueError("ext_hand.mode phải là shell, auto hoặc paseo-required")
@@ -238,5 +246,5 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         go_monthly_limit_usd=go_limit,
         go_usage_live=go_live,
         machine_state_dir=_state_dir(),
-        max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo,
+        max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo, native=native,
     )
