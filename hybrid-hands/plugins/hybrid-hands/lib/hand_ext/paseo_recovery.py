@@ -100,7 +100,7 @@ def prompt_untouched(record):
             or record.finished_at is not None or record.artifacts or record.settle_keys
             or 'worker_owner' in receipt or 'worker_run_dir' in receipt
             or set(receipt) - {'controller', 'completion', 'transport', 'brief_digest',
-                              'gateway_claim', 'prompt_rejection'}):
+                              'gateway_claim', 'prompt_rejection', 'naming'}):
         raise StateConflict('worker start authority uncertain')
     for public, field in {'targetKey': 'target_key', 'projectId': 'project_id',
                           'workspaceId': 'workspace_id', 'agentId': 'agent_id'}.items():

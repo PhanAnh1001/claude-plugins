@@ -11,10 +11,12 @@ const save=async()=>writeFile(file,JSON.stringify(state));
 const mutate=async(name,args,fn)=>{
   state.calls.push({name,args});
   if(state.fail===name){await save();throw new Error('PRIVATE ERROR MUST NOT ESCAPE');}
-  fn(); await save();
+  if(state.unconfirmed!==name) fn(); await save();
   if(state.lose===name){state.lose=null;await save();throw new Error('PRIVATE ERROR MUST NOT ESCAPE');}
 };
 const client={
+  async updateAgent(agentId, updates){await mutate('updateAgent',{agentId,updates},()=>{state.agents[agentId].title=updates.name;});},
+  async setWorkspaceTitle(workspaceId,title){await mutate('setWorkspaceTitle',{workspaceId,title},()=>{state.workspaces[workspaceId].title=title;});return state.unconfirmed==='setWorkspaceTitle' ? {title:'unchanged'} : {title};},
   async fetchAgent({agentId}) {return {agent:state.agents[agentId]??null};},
   async fetchWorkspaces(options){
     if('includeArchived' in options.filter) throw new Error('invented option');
@@ -38,7 +40,7 @@ const client={
   async createAgent(wire){
     const options={...wire,...wire.config};await mutate('createAgent',options,()=>{
     state.agents[options.agentId]={id:options.agentId,provider:options.provider,cwd:options.cwd,
-      workspaceId:options.workspaceId,model:options.model,thinkingOptionId:options.thinkingOptionId,labels:{'paseo.parent-agent-id':options.callerAgentId},archivedAt:null};
+      title:options.title,workspaceId:options.workspaceId,model:options.model,thinkingOptionId:options.thinkingOptionId,labels:{'paseo.parent-agent-id':options.callerAgentId},archivedAt:null};
   });return state.agents[options.agentId];},
   async sendMessage(agentId,text,options){await mutate('sendMessage',{agentId,text,options},()=>{
     state.entries.push({item:{type:'user_message',messageId:options.messageId}});

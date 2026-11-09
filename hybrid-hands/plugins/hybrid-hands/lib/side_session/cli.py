@@ -57,6 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     send.add_argument("--force-budget", action="store_true")
     tidy = sub.add_parser("tidy", help="inspect plugin workspaces; --apply archives eligible IDs")
     tidy.add_argument("--name")
+    tidy.add_argument("--names", action="store_true", help="inspect/rename titles only")
     tidy.add_argument("--apply", action="store_true")
     sub.add_parser("ls", help="list sessions")
     st = sub.add_parser("stop", help="stop a session and its watchdog")

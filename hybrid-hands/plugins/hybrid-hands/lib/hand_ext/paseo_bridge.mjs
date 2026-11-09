@@ -36,7 +36,7 @@ export function payload(r) {
     callerAgentId:r.parentAgentId, idempotencyKey:r.workspaceKey};
   if (r.command === 'create') return {type:'agent.create.request', requestId,
     agentId:r.agentId, workspaceId:r.workspaceId, callerAgentId:r.parentAgentId,
-    idempotencyKey:r.agentKey, env:r.gatewayEnv, config:{provider:r.providerId, cwd:r.cwd,
+    idempotencyKey:r.agentKey, env:r.gatewayEnv, config:{...(r.title ? {title:r.title} : {}), provider:r.providerId, cwd:r.cwd,
       ...(r.model ? {model:r.model} : {}), ...(r.effort ? {thinkingOptionId:r.effort} : {})}};
   if (r.command === 'send') return {type:'send_agent_message_request', requestId,
     agentId:r.agentId, text:r.brief, messageId:r.messageId, sourceAgentId:r.parentAgentId,
@@ -138,6 +138,52 @@ async function archivedMembers(client, r) {
     seen.add(cursor);
   }
   die('MEMBERSHIP_UNCONFIRMED');
+}
+async function names(client, r) {
+  check(typeof r.title === 'string' && [...r.title].length <= 60 && !/[\x00-\x1f\x7f/\\]/.test(r.title), 'NAME_INVALID');
+  const owner = await parent(client, r), a = await childIdentity(client, r);
+  const main = a => a.main_session || a.role === 'main' || a.labels?.main_session || a.labels?.role === 'main';
+  check(!main(a), 'NAME_MAIN_BLOCKED');
+  if (r.apply && a.title !== r.title) {
+    const updated = await client.updateAgent(r.agentId, {name:r.title});
+    check(!updated?.error && (await childIdentity(client, r)).title === r.title, 'NAME_AGENT_UNCONFIRMED');
+  }
+  let eligible = false;
+  try {
+    check(r.workspaceOwned === true && r.workspaceId !== owner.parentWorkspaceId, 'NAME_WORKSPACE_UNOWNED');
+    const expected = new Map((r.ownedChildren ?? []).filter(x => x.workspaceId === r.workspaceId).map(x => [x.agentId, x]));
+    check(expected.size === 1 && expected.has(r.agentId), 'NAME_WORKSPACE_UNOWNED');
+    let cursor, complete = false; const seen = new Set(), ids = new Set(); let members = 0;
+    for (let page = 0; page < 20; page++) {
+      const result = await client.fetchAgents({filter:{includeArchived:true}, page:{limit:200, ...(cursor ? {cursor} : {})}});
+      check(!result?.error && Array.isArray(result?.entries), 'MEMBERSHIP_UNCONFIRMED');
+      for (const entry of result.entries) {
+        const m = entry?.agent;
+        check(typeof m?.id === 'string' && m.id && typeof m.workspaceId === 'string' && m.workspaceId && !ids.has(m.id), 'MEMBERSHIP_UNCONFIRMED');
+        ids.add(m.id);
+        if (m.workspaceId !== r.workspaceId) continue;
+        const known = expected.get(m.id);
+        check(known && !main(m) && m.id !== r.parentAgentId && m.provider === known.providerId
+          && m.cwd === known.cwd && m.labels?.['paseo.parent-agent-id'] === known.parentAgentId, 'NAME_WORKSPACE_UNOWNED');
+        members++;
+        check(members === 1 && m.id === r.agentId, 'NAME_WORKSPACE_SHARED');
+      }
+      cursor = result.pageInfo?.nextCursor;
+      if (cursor === null) {complete = true; break;}
+      check(typeof cursor === 'string' && cursor && !seen.has(cursor), 'MEMBERSHIP_UNCONFIRMED');
+      seen.add(cursor);
+    }
+    check(complete && members === 1, 'MEMBERSHIP_UNCONFIRMED');
+    const w = await workspace(client, r.workspaceId);
+    check(w?.projectId === r.projectId, 'WORKSPACE_UNCONFIRMED');
+    if (r.apply && w.title !== r.title) {
+      const updated = await client.setWorkspaceTitle(r.workspaceId, r.title);
+      check(!updated?.error && updated?.title === r.title, 'NAME_WORKSPACE_UNCONFIRMED');
+    }
+    eligible = true;
+  } catch { /* Workspace refusal never blocks the separately owned agent. */ }
+  return {ok:true, targetKey:r.targetKey, agentId:r.agentId, workspaceId:r.workspaceId,
+    title:r.title, applied:r.apply === true, workspace:{eligible}, ...(eligible ? {} : {warning:'NAME_WORKSPACE_BLOCKED'})};
 }
 async function lifecycle(client, r, observe = false) {
   const a = await childIdentity(client, r);
@@ -258,6 +304,7 @@ export async function handleRequest(client, r, target, schemas) {
       if (w) check(w.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
       return await creationFailure(client, r, target);
     }
+    if (r.command === 'names') return await names(client, r);
     await directory(r.cwd);
     await parent(client, r);
     if (r.command === 'prompt-failure') {

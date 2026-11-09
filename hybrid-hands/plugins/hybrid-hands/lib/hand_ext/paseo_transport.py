@@ -90,6 +90,8 @@ class PaseoTransport:
         if backend in ('claude', 'claude-main'):
             backend = 'claude-v2' if backend == 'claude' else 'claude-v1'
         record['expectedProviderId'] = 'hh-hand-' + backend
+        from .paseo_names import title_for
+        record['title'] = title_for(source)
         record['model'] = source.invocation.model
         record['effort'] = source.invocation.effort
         record['gatewayEnv'] = {'HYBRID_HANDS_EXECUTION_ROOT': str(self.store.root),
@@ -234,6 +236,8 @@ class PaseoTransport:
         return self._mutate(key, 'create')
 
     def send_prompt(self, key, brief):
+        from .paseo_names import retry_names
+        retry_names(self, key)
         record = self._read(key)
         if record.get('briefDigest') and record['briefDigest'] != hashlib.sha256(brief.encode()).hexdigest():
             raise TransportError('PROMPT_MISMATCH')
@@ -251,6 +255,8 @@ class PaseoTransport:
         return self._mutate(key, 'send', brief=brief)
 
     def reconcile(self, key, *, capacity=False):
+        from .paseo_names import retry_names
+        retry_names(self, key)
         record = self._read(key)
         request = dict(record)
         if capacity and record.get('pending') == 'reopen':
@@ -275,6 +281,8 @@ class PaseoTransport:
             raise TransportError('WAIT_INVALID')
         deadline = time.monotonic() + timeout_s
         observation = None
+        from .paseo_names import retry_names
+        retry_names(self, key)
         while True:
             record = self._read(key)
             source = self.store.get(key)

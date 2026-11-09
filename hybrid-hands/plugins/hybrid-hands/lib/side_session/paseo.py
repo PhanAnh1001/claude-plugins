@@ -13,7 +13,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import codex_trust
+from . import codex_trust, names
 from .claude_options import process_options
 from . import commands as K
 from . import constants as C
@@ -425,7 +425,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         return 1
     try:
         result = start_agent(
-            workdir=workdir, name=st.name, model=a.model or cfg.codex_model,
+            workdir=workdir, name=st.name if st.role in names.MAIN_ROLES else names.title(st),
+            model=a.model or cfg.codex_model,
             effort=a.effort or cfg.codex_effort, initial_prompt=full_prompt,
             codex_home=cfg.codex_home, hand_scope=st.uuid,
             project_root=str(cfg.repo),
@@ -463,6 +464,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     # Save once, before the watchdog can legitimately write done/tokens. No second
     # save here may overwrite what the watcher already persisted.
     state.save(cfg.state_dir, st)
+    names.retry(cfg, st)
     if st.role != "main" and subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
         print("side-session: warning: watchdog failed to start")
     usage = (f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén)"

@@ -59,12 +59,14 @@ def _parser() -> argparse.ArgumentParser:
     provider_status.add_argument("--cwd")
     managed = sub.add_parser("managed", help="quản lý exact managed execution")
     managed_sub = managed.add_subparsers(dest="managed_cmd", required=True)
-    for action in ("ls", "review-approve", "archive", "followup", "recover"):
+    for action in ("ls", "review-approve", "archive", "followup", "recover", "names"):
         command = managed_sub.add_parser(action)
         command.add_argument("--cwd", required=True)
-        if action != "ls":
+        if action not in ("ls", "names"):
             command.add_argument("--key", required=True, type=_execution_key,
                                  help="invocation:attempt:epoch (epoch >= 1)")
+        if action == "names":
+            command.add_argument("--apply", action="store_true")
         if action == "recover":
             command.add_argument("--apply", action="store_true")
             command.add_argument("--legacy-attest", action="store_true",
@@ -246,6 +248,7 @@ def _managed_summary(record):
                 state=record.state, backend=record.invocation.backend,
                 model=record.invocation.model, effort=record.invocation.effort,
                 parent_session=record.invocation.parent_session,
+                naming_warning=("NAME_UNRESOLVED" if (record.receipt or {}).get("naming", {}).get("warning") else None),
                 agent_id=record.attempt.agent_id, workspace_id=record.attempt.workspace_id,
                 review_approved=(record.artifacts.get("review") or {}).get("approved") is True)
 
@@ -260,16 +263,37 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
     source = Path(args.cwd).resolve()
     try:
         if not root.exists():
-            if args.managed_cmd != "ls":
+            if args.managed_cmd not in ("ls", "names"):
                 raise StateConflict("execution not found")
             result = {"ok": True, "executions": []}
         else:
             store = ExecutionStore(root)
-            if args.managed_cmd == "ls":
+            if args.managed_cmd == "names":
+                from .paseo_names import latest_records, names_request
+                transport = transport_from_config(cfg, store)
+                result = {"ok": True, "applied": args.apply, "names": [
+                    names_request(transport, row.key, apply=args.apply)
+                    for row in latest_records(store, source)]}
+            elif args.managed_cmd == "ls":
                 with store.locked():
                     rows = [store._read(p) for p in sorted(store.root.glob("*.json"))]
-                result = {"ok": True, "executions": [_managed_summary(r) for r in rows
-                          if Path(r.invocation.source_cwd).resolve() == source]}
+                from .paseo_names import latest_records, retry_names
+                naming_failed = False
+                if cfg.paseo.get('package_root') and cfg.paseo.get('target'):
+                    try:
+                        transport = transport_from_config(cfg, store)
+                        for row in latest_records(store, source):
+                            retry_names(transport, row.key)
+                    except Exception:
+                        naming_failed = True
+                        print('warning: NAME_UNRESOLVED', file=sys.stderr)
+                    rows = [store.get(row.key) for row in rows]
+                summaries = [_managed_summary(r) for r in rows
+                             if Path(r.invocation.source_cwd).resolve() == source]
+                if naming_failed:
+                    for summary in summaries:
+                        summary["naming_warning"] = "NAME_UNRESOLVED"
+                result = {"ok": True, "executions": summaries}
             else:
                 record = store.get(args.key)
                 if Path(record.invocation.source_cwd).resolve() != source:

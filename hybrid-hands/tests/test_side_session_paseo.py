@@ -105,6 +105,11 @@ def fake_app_popen(procs: list[FakeAppServer], cmd, **kwargs) -> FakeAppServer:
 
 
 class PaseoStartTest(unittest.TestCase):
+    def setUp(self):
+        naming = mock.patch.object(actions.names, "retry")
+        naming.start()
+        self.addCleanup(naming.stop)
+
     def test_send_history_and_unknown_delivery(self):
         for provider in (C.PROVIDER_CODEX, C.PROVIDER_CLAUDE):
             for error in (False, True, "notSent"):
@@ -351,6 +356,7 @@ export async function connectToDaemon(){let active=false; const log=x=>appendFil
             session_cmd.assert_not_called()
             payload = call.call_args.args[1]
             self.assertEqual(payload["provider"], C.PASEO_PROVIDER)
+            self.assertEqual(payload["title"], "n · Sol phụ")
             self.assertEqual(payload["source"], {"kind": "directory", "path": str(tmp / "wt" / "n")})
             self.assertEqual(payload["workdir"], str(tmp / "wt" / "n"))
             self.assertEqual(payload["model"], C.CODEX_MODEL_DEFAULT)

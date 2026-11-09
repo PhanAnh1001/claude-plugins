@@ -6,6 +6,7 @@
 //
 // argv[2] is the resolved package root (parent of the CLI's `bin/`). We never print
 // config, credentials or an endpoint containing one; errors are reduced to a code.
+import { nameSession } from "./paseo_names.mjs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -453,6 +454,10 @@ async function main() {
     timeout: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   });
   try {
+    if (request.command === "names") {
+      emit({ok: true, ...await nameSession(client, request), targetKey: key});
+      return;
+    }
     if (request.command === "tidy") {
       const checked = await privateWorkspace(client, request, null, request.apply === true);
       if (!checked) return;

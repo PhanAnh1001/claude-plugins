@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+
+from . import names
 import shlex
 import subprocess
 import time
@@ -478,6 +480,7 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
         return
     st.paseo_workspace_archived = False
     st.paseo_revived = True
+    names.retry(cfg, st, reset=True)
     state.save(cfg.state_dir, st)
     print(f"{st.name}: đã revive workspace riêng; bỏ qua .done cũ cho tới khi agent archive lại")
 
@@ -532,6 +535,7 @@ def ls(cfg: SideConfig, _a) -> int:
     alive = screen.screen_names() if needs_screen else set()
     rows = [("NAME", "PROVIDER", "CHROME", "STATUS", "LIVE", "TOKENS/CAP", "AGE", "HANDOFF")]
     for st in sessions:
+        names.retry(cfg, st)
         if st.provider == C.PROVIDER_CODEX:
             _pin_rollout(cfg, st)
         done = st.role != "main" and K.done_path(st.handoff).is_file()
@@ -769,6 +773,7 @@ def _paseo_tick(cfg: SideConfig, st: state.SessionState) -> bool:
 def watch_tick(cfg: SideConfig, name: str) -> bool:
     """One watchdog step. Returns True while the watch loop should continue."""
     st = state.load(cfg.state_dir, name)
+    names.retry(cfg, st)
     if st.role == "main" or st.paseo_send_pending:
         return False
     # A done Codex/Paseo session follows the agent's archive state instead of .done,
@@ -895,6 +900,7 @@ def send(cfg: SideConfig, a) -> int:
                 return 1
             print("side-session: restore/send chưa xác nhận; giữ IDs, lịch sử và slot; đối chiếu đúng agent trước khi gửi lại")
             return 1
+        names.retry(cfg, st, reset=True)
         st.status = C.STATUS_RUNNING
         st.paseo_send_pending = False
         st.paseo_workspace_archived = False
@@ -912,6 +918,8 @@ def tidy(cfg: SideConfig, args) -> int:
     except (OSError, ValueError, TypeError):
         print("side-session: warning: state không đầy đủ; giữ nguyên")
         return 1
+    if getattr(args, "names", False):
+        return names.tidy(cfg, args, records)
     selected = [st for st in records if not args.name or st.name == args.name]
     seen = set()
     failed = False

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.36.1 — 2026-11-09
+
+- Đặt tên agent và workspace phiên phụ theo `<tên> · <loại> phụ` (Sol, Opus theo account, dsh); managed hand theo `<tên cha> › hand <backend> · <label>`, cha main xác minh dùng `chính`, unknown dùng `?`. Tối đa 60 ký tự, cắt label giữ tiền tố cha/backend; không đưa path/brief/secret vào tên, giữ title main/shared.
+- Naming khi create/send/followup dùng API public Paseo 0.15.0 `updateAgent(..., {name: title})` và `setWorkspaceTitle(...)`; lỗi chỉ cảnh báo, không chặn lifecycle, retry hữu hạn qua `ls`/`watch`, idempotent; không thêm rename vào required capabilities preflight.
+- Thêm `side-session tidy --names [--name NAME] [--apply]` và `hand-ext managed names --cwd /ABS [--apply]`: dry-run mặc định không ghi, apply chỉ plugin-owned, chặn main/shared/foreign/unknown members; không archive. Giữ contract tidy archive, review gate và lifecycle hiện có.
+
 ## 0.36.0 — 2026-11-09
 
 - Claude main: thêm `main_session.claude_auto_compact_window` mặc định `272000` cho mọi account; nhận số nguyên `100000..1000000`, `null`/`"auto"` bỏ override, giá trị khác báo lỗi kèm nguồn; công khai helper chuẩn hóa và provenance qua `hand-ext config --json`. `side-session start --main --provider claude` qua Paseo/screen truyền `CLAUDE_CODE_AUTO_COMPACT_WINDOW` khi có window; `ls` dùng window đã áp dụng, lưu lúc launch kèm `(tự nén)`. Main cũ chưa lưu window giữ hiển thị cũ; mở main MỚI để nhận env/window mới, không sửa settings hay restart/dừng main đang chạy. Phiên phụ/hand giữ nguyên; hand Claude lọc biến compact kế thừa.

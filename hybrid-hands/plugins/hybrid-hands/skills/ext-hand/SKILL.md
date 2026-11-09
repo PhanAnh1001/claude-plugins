@@ -149,3 +149,22 @@ Cấu hình dự án ở `.claude/hybrid-hands.json`, mục `ext_hand`: `order`,
 - **Trình duyệt (`--browser`):** chỉ backend `dsh`, MCP server stdio `@deepseek-ai/dsh-mcp-client` tên `playwright` chạy `node <browser_dir>/node_modules/@playwright/mcp/cli.js --headless --isolated --browser chromium --blocked-origins "<5 origin TikTok>" --output-dir <run>/browser`, env chỉ `PLAYWRIGHT_BROWSERS_PATH=<browser_dir>/ms-playwright`. Chỉ duyệt trang công khai; không đăng nhập, không tạo tài khoản, không điền form, không mua, không vượt captcha; không mở TikTok; không tải hay chạy file tải về. `--blocked-origins` không phải ranh giới bảo mật và không chặn redirect, nên luật prompt là lớp chính. Không dùng API key hay key Go cho MCP; dsh lọc biến dạng key/token khỏi env con.
 - **`claude-v1` (sáng tạo):** dùng code backend `claude` nhưng trỏ gói chính `~/.claude`, mặc định `claude-opus-5-5` effort `low`, hạn mức ghi theo khoá riêng và nằm trong `order`. Trước khi chạy, `hand-ext` tính % hạn mức tuần Claude máy này đã dùng từ 0h hôm nay (USD từ ledger statusline chia USD/1% ghim); từ `claude_accounts.v1.max_day_pct` (mặc định 5%) trở lên hoặc không tính được thì thoát 7, ghi yêu cầu vào bàn giao để Opus quyết. Mặc định dùng cho việc sáng tạo (UI design, mockup, design token, câu chữ); code hoá giao hand theo `ext_hand.order`.
 - **Gemini (dự kiến):** Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI. `backends.gemini` giữ khai báo nhưng không nằm trong `order`.
+
+## Tên agent và workspace Paseo — 0.36.1
+
+Tên agent và workspace của phiên phụ có dạng `<tên> · <loại> phụ`: ví dụ `qa · Sol phụ` (Codex), `qa · Opus v1 phụ`, `qa · Opus v2 phụ` (Claude theo account) hoặc `qa · dsh phụ`. Main và workspace shared giữ title hiện có.
+
+Managed agent và workspace có dạng `<tên cha> › hand <backend> · <label>`, ví dụ `qa › hand codex · docs`. Cha được xác minh là main dùng `chính`, cha chưa xác định dùng `?` (ví dụ `? › hand dsh · docs`); không suy main từ cwd hay tên. Tên tối đa 60 ký tự; cắt label để giữ tiền tố cha và backend. Không đưa path, nội dung brief hay secret vào tên.
+
+Naming áp dụng khi create, `side-session send` và managed followup; lặp lại cùng tên là idempotent, không tạo agent/workspace mới. Dùng API public Paseo 0.15.0: `createAgent` nhận `title`, đổi tên agent bằng `client.updateAgent(agentId, {name: title})` (đọc lại ở `.title`), đổi tên workspace bằng `client.setWorkspaceTitle(workspaceId, title)` (trả `{title}`). Workspace create chưa có title option nên đặt tên sau create. Hai method đổi tên không nằm trong required capabilities preflight: naming là best effort, lỗi chỉ cảnh báo, không chặn lifecycle; `ls`/`watch` retry hữu hạn, không chờ vô hạn hay tạo writer trùng.
+
+Sửa tên cũ bằng các lệnh sau; mặc định dry-run, thêm `--apply` mới ghi:
+
+```bash
+side-session tidy --names --name qa
+side-session tidy --names --name qa --apply
+hand-ext managed names --cwd /ABS/REPO
+hand-ext managed names --cwd /ABS/REPO --apply
+```
+
+`side-session tidy --names [--name NAME] [--apply]` chỉ sửa tên side-session do plugin sở hữu; bỏ `--name` để xét các phiên trong phạm vi state. `hand-ext managed names --cwd /ABS [--apply]` là thao tác tương đương cho managed hand. Dry-run không ghi; apply chỉ đổi tên agent/workspace plugin-owned được xác minh, chặn main, shared, foreign và workspace có member chưa rõ ownership. Không suy ownership từ title/cwd. Cả hai lặp an toàn và không archive. `side-session tidy` không có `--names` vẫn giữ contract archive hiện có; naming không đổi review gate, restore/send, IDs, history, worktree hay artifacts.

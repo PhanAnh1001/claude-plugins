@@ -48,6 +48,8 @@ class SessionState:
     native_session_id: str = ""
     paseo_send_pending: bool = False
     claude_auto_compact_window: int | None = None
+    paseo_name_attempts: int = 0
+    paseo_name_done: bool = False
 
 
 def _from_dict(raw: dict) -> "SessionState":
