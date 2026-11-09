@@ -673,6 +673,27 @@ class PaseoStartTest(unittest.TestCase):
                         run_step()
                     self.assertEqual(fake["events"], [("revive", "a")])
 
+    def test_ls_skips_missing_and_mismatched_done_agents(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = cfg_for(Path(d))
+            for name in ("valid", "missing", "mismatch"):
+                save_session(cfg, name, status=C.STATUS_DONE, paseo_workspace_archived=True)
+            response = {"targetKey": "home:/tmp/paseo", "agents": [
+                {"agentId": "agent-valid", "workspaceId": "workspace-valid", "archivedAt": None},
+                {"agentId": "agent-mismatch", "workspaceId": "other", "archivedAt": None}]}
+            out = io.StringIO()
+            with mock.patch.object(actions.paseo, "_call", return_value=response), \
+                    mock.patch.object(actions.paseo, "revive", return_value=(True, None)) as revive, \
+                    mock.patch.object(actions.paseo, "refresh", return_value="alive"), \
+                    redirect_stdout(out):
+                self.assertEqual(actions.paseo.agent_archive_states(state.load_all(cfg.state_dir)),
+                                 {"agent-valid": False})
+                self.assertEqual(actions.ls(cfg, None), 0)
+            self.assertEqual([c.args[0].name for c in revive.call_args_list], ["valid"])
+            self.assertEqual([state.load(cfg.state_dir, name).paseo_revived
+                              for name in ("valid", "missing", "mismatch")], [True, False, False])
+            self.assertNotIn("warning", out.getvalue())
+
     def test_ls_batches_done_agent_archive_states(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             cfg = cfg_for(Path(d))
@@ -698,7 +719,6 @@ class PaseoStartTest(unittest.TestCase):
             before = [(st.name, st.status, st.paseo_workspace_archived, st.paseo_revived)
                       for st in state.load_all(cfg.state_dir)]
             for result in (actions.paseo.PaseoError("DAEMON_FAILED"),
-                           {**response, "agents": entries[:-1]},
                            {**response, "targetKey": "home:/other"},
                            {**response, "agents": [{**entries[0], "archivedAt": True}]}):
                 out = io.StringIO()

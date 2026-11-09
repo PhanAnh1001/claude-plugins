@@ -190,7 +190,7 @@ def finish(st: state.SessionState) -> str | None:
 
 
 def agent_archive_states(candidates: list[state.SessionState]) -> dict[str, bool]:
-    """Validate one complete directory snapshot before selecting any reconciliation."""
+    """Validate the snapshot and return archive states only for matching candidates."""
     targets = {st.paseo_target for st in candidates if st.paseo_target}
     if len(targets) > 1:
         raise PaseoError("TARGET_CHANGED")
@@ -214,13 +214,14 @@ def agent_archive_states(candidates: list[state.SessionState]) -> dict[str, bool
                 or aid in directory:
             raise PaseoError("PASEO_BRIDGE_PROTOCOL")
         directory[aid] = entry
+    archive_states = {}
     for st in candidates:
         entry = directory.get(st.paseo_agent_id)
-        if entry is None:
-            raise PaseoError("AGENT_NOT_FOUND")
-        if not st.paseo_workspace_id or entry["workspaceId"] != st.paseo_workspace_id:
-            raise PaseoError("WORKSPACE_ID_MISMATCH")
-    return {aid: entry["archivedAt"] is not None for aid, entry in directory.items()}
+        if entry is None or not st.paseo_workspace_id \
+                or entry["workspaceId"] != st.paseo_workspace_id:
+            continue
+        archive_states[st.paseo_agent_id] = entry["archivedAt"] is not None
+    return archive_states
 
 
 def revive(st: state.SessionState) -> tuple[bool | None, str | None]:
