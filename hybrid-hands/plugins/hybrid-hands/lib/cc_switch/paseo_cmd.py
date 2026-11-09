@@ -17,6 +17,7 @@ from .handoff import forget as forget_handoff, lookup as lookup_handoff
 from .models import Agent, Transcript
 from .paseo_cli import command_line, import_session, reload_agent
 from .paths import resolve_project, short_id
+from .providers import preflight_provider
 from .sessions import (
     find_transcript, live_session_cwd, newest_project_transcript,
     read_custom_title, tui_pids,
@@ -133,6 +134,7 @@ def _forget(root: Path, explicit_session: Optional[str],
 
 def run_paseo(opts) -> int:
     root = resolve_project()
+    provider = preflight_provider(root)
     picked = _pick_session(opts, root)
     session_id = picked.session_id
     pids = tui_pids(session_id)
@@ -142,6 +144,7 @@ def run_paseo(opts) -> int:
     agent: Optional[Agent] = None
     matches = by_session(load_agents(), session_id)
     if matches:
+        preflight_provider(root, matches)
         agent = preferred_agent(matches)
         args = ["agent", "reload", agent.id]
     else:
@@ -151,7 +154,7 @@ def run_paseo(opts) -> int:
                 "Gợi ý: kiểm tra `cc-switch status` hoặc mở phiên đó một lần "
                 "trong terminal.",
                 EXIT_NOT_FOUND)
-        args = ["import", session_id, "--provider", "claude",
+        args = ["import", session_id, "--provider", provider,
                 "--cwd", picked.cwd, "--json"]
 
     print(_session_line(session_id, picked.transcript, agent), flush=True)
@@ -166,7 +169,7 @@ def run_paseo(opts) -> int:
         print(f"agent {agent.id}")
         print(f"đã nạp lại agent Paseo (session {short_id(session_id)})")
     else:
-        agent_id = import_session(session_id, picked.cwd)
+        agent_id = import_session(session_id, picked.cwd, provider)
         print(f"agent {agent_id}")
         print(f"đã import phiên {short_id(session_id)} vào Paseo")
     _forget(root, opts.session, session_id)

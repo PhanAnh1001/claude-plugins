@@ -112,7 +112,7 @@ class CcFixture:
         self.base = Path(tempfile.mkdtemp(prefix="cc-switch-"))
         self.home = self.base / "home"
         self.state = self.base / "state"
-        self.claude = self.base / "claude"
+        self.claude = self.home / ".claude"
         self.paseo = self.base / "paseo"
         self.project = self.base / "project"
         self.solo = self.base / "solo"
@@ -298,6 +298,7 @@ class CcFixture:
         env = dict(os.environ)
         env.update({
             "HOME": str(self.home),
+            "HYBRID_HANDS_CONFIG": str(self.home / "absent-config.json"),
             "CLAUDE_CONFIG_DIR": str(self.claude),
             "PASEO_HOME": str(self.paseo),
             "HYBRID_HANDS_STATE_DIR": str(self.state),

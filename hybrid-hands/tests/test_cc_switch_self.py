@@ -116,6 +116,8 @@ class CcSwitchSelfTest(unittest.TestCase):
 
     def test_self_spawns_detached_worker_with_expected_argv(self) -> None:
         env = {
+            "HOME": str(self.fx.home),
+            "HYBRID_HANDS_CONFIG": str(self.fx.home / "absent-config.json"),
             "CLAUDE_CODE_SESSION_ID": SID_TUI,
             "CLAUDE_CONFIG_DIR": str(self.fx.claude),
             "HYBRID_HANDS_STATE_DIR": str(self.fx.state),
@@ -127,6 +129,8 @@ class CcSwitchSelfTest(unittest.TestCase):
         worker = mock.Mock(pid=4242)
         output = io.StringIO()
         with mock.patch.dict(os.environ, env), \
+                mock.patch("hand_ext.config.main_repo_root", return_value=None), \
+                mock.patch.object(self_cmd, "resolve_project", return_value=self.fx.project), \
                 mock.patch.object(self_cmd, "process_alive", return_value=True), \
                 mock.patch("cc_switch.sessions.process_alive",
                            return_value=True), \
