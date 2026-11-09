@@ -26,6 +26,7 @@ from .execution_state import ExecutionKey, StateConflict, as_key, _plain
 from .execution_supervisor import ProcessIdentity, Quiescence, ConservativeProcessOps
 from .parallel import canonical_scope
 from .runner import run_backend
+from .process_containment import Descendants, METHOD, SNAPSHOT_INTERVAL, TERM_WAIT, VERIFY_WAIT
 
 
 @dataclass(frozen=True)
@@ -57,74 +58,72 @@ class WorkerObservation:
 
 
 class OwnedProcessOps:
-    """Authority is retained Popen ownership, never a recovered numeric PID.
-
-    Absence of the entire owned group AND a reaped leader certify quiescence.
-    A surviving/escaped descendant cannot be certified by leader exit alone.
-    Backends must keep descendants in the session/group created by the runner.
-    """
-    def __init__(self, fallback=None):
+    """Retained Popen authorizes root group; OS identities authorize descendants."""
+    def __init__(self, fallback=None, table=None):
         self.fallback = fallback or ConservativeProcessOps()
+        self.table = table
         self.owned = {}
         self.lock = threading.RLock()
 
-    def add(self, proc):
+    def add(self, proc, invocation=None):
         identity = ProcessIdentity(proc.pid, proc.pid, uuid.uuid4().hex)
         with self.lock:
-            self.owned[identity] = [proc, False]
+            self.owned[identity] = (proc, Descendants(proc, invocation, self.table))
         return identity
+
+    def capture(self, identity):
+        with self.lock:
+            if identity in self.owned:
+                self.owned[identity][1].capture()
 
     def reconcile(self, identity):
         with self.lock:
             entry = self.owned.get(identity)
             if entry is None:
                 return self.fallback.reconcile(identity)
-            proc, stopped = entry
-            if not stopped:
-                proc.poll()
-                try:
-                    os.killpg(identity.pgid, 0)
-                except ProcessLookupError:
-                    stopped = proc.returncode is not None
-                    entry[1] = stopped
-                except PermissionError:
-                    pass
-            return Quiescence(stopped, 'owned group absent and leader reaped' if stopped
-                              else 'owned group not quiescent', time.time())
+            proc, tree = entry
+            tree.capture()
+            proc.poll()
+            absent = False
+            try:
+                os.killpg(identity.pgid, 0)
+            except ProcessLookupError:
+                absent = True
+            except PermissionError:
+                pass
+            clear = tree.verify()
+            confirmed = proc.returncode is not None and absent and clear
+            return Quiescence(confirmed, METHOD if confirmed else 'containment unknown', time.time())
 
     def cancel(self, identity, reason):
         with self.lock:
             entry = self.owned.get(identity)
             if entry is None:
                 return self.fallback.cancel(identity, reason)
-            proc, stopped = entry
-            if stopped or proc.returncode is not None:
-                # Reaped leader: its numeric group may have been reused. Never
-                # signal without a retained live/unreaped ownership identity.
-                return self.reconcile(identity)
+            proc, tree = entry
+            tree.capture()
+            # Keep root unreaped through group escalation, preventing PGID reuse.
+            for sig, delay in ((signal.SIGTERM, TERM_WAIT), (signal.SIGKILL, VERIFY_WAIT)):
+                if proc.returncode is None:
+                    try:
+                        current = tree.table.snapshot().get(proc.pid)
+                        if tree.root and tree.root.matches(current) and os.getpgid(proc.pid) == identity.pgid:
+                            os.killpg(identity.pgid, sig)
+                        elif current is not None:
+                            tree.authoritative = False
+                    except ProcessLookupError:
+                        pass
+                    except Exception:
+                        tree.authoritative = False
+                tree.signal_live(sig)
+                until = time.monotonic() + delay
+                while time.monotonic() < until:
+                    tree.capture()
+                    time.sleep(SNAPSHOT_INTERVAL)
             try:
-                if os.getpgid(proc.pid) != identity.pgid:
-                    return Quiescence(False, 'owned leader changed group', time.time())
-                os.killpg(identity.pgid, signal.SIGTERM)
-                # Keep the leader UNREAPED through escalation. Its reserved PID
-                # prevents PGID reuse, even if TERM already killed the leader.
-                # Runner poll/wait operations share this ownership lock.
-                time.sleep(.3)
-                os.killpg(identity.pgid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):
-                # macOS may reject signalling a group containing only the
-                # unreaped zombie leader. Reap, then verify group absence.
-                pass
-            try:
-                proc.wait(timeout=.5)
+                proc.wait(timeout=VERIFY_WAIT)
             except subprocess.TimeoutExpired:
                 pass
-            until = time.monotonic() + .5
-            while time.monotonic() < until:
-                q = self.reconcile(identity)
-                if q.confirmed:
-                    return q
-                time.sleep(.01)
             return self.reconcile(identity)
 
 
@@ -136,7 +135,7 @@ class _Control:
         self.reason = ''
 
     def spawned(self, proc):
-        self.identity = self.worker.process_ops.add(proc)
+        self.identity = self.worker.process_ops.add(proc, self.key.invocation_id)
         with self.worker.lock:
             self.worker.supervisor.register_writer(self.key, self.identity, self.owner)
         if self.cancelled.is_set():
@@ -144,10 +143,12 @@ class _Control:
 
     def poll(self, proc):
         with self.worker.process_ops.lock:
+            self.worker.process_ops.capture(self.identity)
             return proc.poll()
 
     def wait(self, proc, timeout):
         with self.worker.process_ops.lock:
+            self.worker.process_ops.capture(self.identity)
             return proc.wait(timeout=timeout)
 
     def stop(self, proc):

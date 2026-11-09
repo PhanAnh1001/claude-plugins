@@ -34,6 +34,9 @@ class FakeBackend:
 
 class ExecutionTests(unittest.TestCase):
     def setUp(self):
+        # Synthetic fixture runs never inspect environments of other processes.
+        scan = patch('hand_ext.process_containment.ProcessTable.marker_matches', return_value=False)
+        scan.start(); self.addCleanup(scan.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.source = self.root / 'source'; self.source.mkdir()
