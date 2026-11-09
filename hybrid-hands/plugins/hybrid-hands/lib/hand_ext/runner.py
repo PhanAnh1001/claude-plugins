@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, IO, List, Optional, Tuple, TYPE_CHECKING
 
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
+from .process_containment import MARKER, SNAPSHOT_INTERVAL
 from .constants import EVENTS_FILE, POLL_SECONDS, REPORT_FILE, STDERR_FILE, TERM_GRACE_SECONDS
 
 if TYPE_CHECKING:
@@ -96,7 +97,9 @@ def _watch(backend: Backend, proc: subprocess.Popen, lines: "queue.Queue[Optiona
     closed = False
     poll = (lambda: control.poll(proc)) if control is not None else proc.poll
     while not closed or poll() is None:
-        closed = _drain(backend, lines, state, POLL_SECONDS) or closed
+        if control is not None:
+            control.poll(proc)  # snapshot even while stdout remains open
+        closed = _drain(backend, lines, state, SNAPSHOT_INTERVAL if control is not None else POLL_SECONDS) or closed
         backend.poll(spec, state)
         if registry is not None:
             registry.tick(state.usage)
@@ -166,6 +169,8 @@ def run_backend(backend: Backend, spec: RunSpec,
     spec.run_dir.mkdir(parents=True, exist_ok=True)
     run_dir_identity = _dir_identity(spec.run_dir)
     argv, extra_env, stdin_text = backend.build_command(spec)
+    if control is not None:
+        extra_env = dict(extra_env, **{MARKER: control.key.invocation_id})
     state = RunState(usage=Usage())
     started = time.monotonic()
     lines: "queue.Queue[Optional[str]]" = queue.Queue()
