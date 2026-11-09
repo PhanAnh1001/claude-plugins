@@ -288,6 +288,115 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(ProtocolError): gateway.handle('session/prompt',params)
         self.assertEqual(worker.calls,0)
 
+    def test_cancelled_post_hoc_proof_dry_run_refusal_and_settlement(self):
+        from dataclasses import asdict
+        import copy
+        from hand_ext.paseo_recovery import recover
+        from hand_ext.post_hoc_reverify import bindings
+        from hand_ext.process_containment import OSIdentity
+        inv, a, sup, admission, completion = self.intent()
+        admission.admit(inv, a, max_parallel=1)
+        r = self.store.get(a.key)
+        r = self.store.bind_placement(a.key, r.revision, dict(target_key='target',
+                 project_id='project', workspace_id='workspace', agent_id='agent'))
+        sup.register_writer(a.key, ProcessIdentity(91001, 91001, 'opaque'), 'worker')
+        r = self.store.get(a.key)
+        root = OSIdentity(91001, '100', 'root', 1, os.getuid())
+        owner = OSIdentity(91002, '90', 'owner', 1, os.getuid())
+        r.process['supervisor_id'] = str(owner.pid)
+        r.state = 'unresolved'
+        r.pending_outcome = dict(status='cancelled', backend_exit_code=143,
+                                provenance='runner', usage=None, final_text='')
+        r.receipt.update(worker_owner='worker', worker_run_dir=str(self.root/'worker-run'))
+        proof = dict(inventory_complete=True, root=asdict(root), root_reaped=True,
+                     owner=asdict(owner), protected=[asdict(owner)], inventory=[asdict(root)])
+        proof['binding'] = bindings(r)
+        r.receipt['containment'] = proof
+        self.store.compare_and_swap(a.key, r.revision, r)
+        class Table:
+            rows = {}
+            dirty = False
+            def snapshot(self): return self.rows.copy()
+            def identity(self, pid): return self.rows.get(pid)
+            def marker_matches(self, pid, invocation): return self.dirty
+        table = Table()
+        def run(apply=False):
+            return recover(self.store, a.key, self.repo, None, apply=apply, process_table=table)
+        state_path = self.store._path(a.key)
+        original = state_path.read_bytes()
+        run(); self.assertEqual(state_path.read_bytes(), original)
+        # Each negative proof must retain byte-identical state and reservation.
+        for bad in ('legacy', 'root-live', 'owner-live', 'marker', 'scan-error', 'binding', 'revision'):
+            r = self.store.get(a.key); saved = copy.deepcopy(r.receipt['containment'])
+            if bad == 'legacy': r.receipt['containment'].pop('inventory')
+            if bad == 'binding': r.receipt['containment']['binding']['attempt']['request_key'] = 'wrong'
+            if bad in ('legacy', 'binding'): self.store.compare_and_swap(a.key, r.revision, r)
+            table.rows = {root.pid:root} if bad == 'root-live' else {owner.pid:owner} if bad == 'owner-live' else {}
+            if bad == 'marker': table.rows = {91003:OSIdentity(91003, '101', 'child', 1, os.getuid())}
+            table.dirty = bad == 'marker'
+            before = state_path.read_bytes()
+            if bad == 'scan-error':
+                context = patch.object(table, 'snapshot', side_effect=PermissionError('SECRET_SENTINEL'))
+            elif bad == 'revision':
+                from hand_ext.post_hoc_reverify import ReverifyOps
+                old = ReverifyOps.reconcile
+                def race(ops, process):
+                    ops.first_revision = -1
+                    return old(ops, process)
+                context = patch.object(ReverifyOps, 'reconcile', race)
+            else: context = patch.object(table, 'dirty', table.dirty)
+            with context, self.assertRaises(StateConflict): run(True)
+            self.assertEqual(state_path.read_bytes(), before, bad)
+            self.assertTrue(self.store.get(a.key).reservation)
+            if bad in ('legacy', 'binding'):
+                r = self.store.get(a.key); r.receipt['containment'] = saved
+                self.store.compare_and_swap(a.key, r.revision, r)
+        newer = Attempt(inv.invocation_id, 'newer', 2, 'newer-request')
+        self.store.create_intent(inv, newer)
+        before = state_path.read_bytes()
+        with self.assertRaises(StateConflict): run(True)
+        self.assertEqual(state_path.read_bytes(), before)
+        self.assertTrue(self.store.get(a.key).reservation)
+        self.store._path(newer.key).unlink()  # Remove only this synthetic epoch fixture.
+        r = self.store.get(a.key)
+        r.receipt['containment']['owner_done'] = dict(worker_owner='worker', key=_plain(a.key))
+        self.store.compare_and_swap(a.key, r.revision, r)
+        table.rows = {owner.pid:owner}; table.dirty = False
+        # A revision that changes during the proof scan, on the still-unsettled
+        # fixture, is fenced in dry run and apply: the external CAS is the only
+        # state change; nothing settles and the reservation is retained.
+        for apply in (False, True):
+            calls = []
+            def racing_snapshot():
+                if not calls:  # One external CAS bumps the revision mid-scan.
+                    r = self.store.get(a.key)
+                    r.quiescence = dict(qa_revision_race=True)
+                    self.store.compare_and_swap(a.key, r.revision, r)
+                calls.append(1)
+                return {}
+            before = self.store.get(a.key)
+            with patch.object(table, 'snapshot', racing_snapshot), self.assertRaises(StateConflict):
+                run(apply)
+            self.assertEqual((len(calls), apply), (1, apply))
+            after = self.store.get(a.key)
+            self.assertEqual(after.revision, before.revision + 1, apply)
+            self.assertEqual((after.state, after.outcome, after.pending_outcome, after.quiescence,
+                              after.settle_keys, after.artifacts, bool(after.reservation)),
+                             (before.state, before.outcome, before.pending_outcome,
+                              dict(qa_revision_race=True), before.settle_keys, before.artifacts, True), apply)
+            r = self.store.get(a.key); r.quiescence = None  # Drop the synthetic marker.
+            self.store.compare_and_swap(a.key, r.revision, r)
+        before = state_path.read_bytes(); run()
+        self.assertEqual(state_path.read_bytes(), before)
+        result = run(True)
+        self.assertEqual(result.outcome['status'], 'cancelled')
+        self.assertEqual(result.outcome['backend_exit_code'], 143)
+        self.assertIsNone(result.reservation)
+        self.assertEqual(len(result.settle_keys), 5)
+        self.assertTrue(all(m['state'] == 'completed' for m in result.settle_keys.values()))
+        settled = state_path.read_bytes(); run(True)
+        self.assertEqual(state_path.read_bytes(), settled)
+
     def test_prompt_rejection_recovery(self):
         from hand_ext.paseo_recovery import recover
         inv,a,_,admission,_ = self.intent(); admission.admit(inv,a,max_parallel=1)

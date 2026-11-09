@@ -83,7 +83,16 @@ class ExecutionTests(unittest.TestCase):
         r = self.store.get(attempt.key)
         self.store.bind_placement(attempt.key, r.revision, {'agent_id': 'latest-agent'})
         code = "from pathlib import Path; import json,os; assert 'FAKE_SECRET' not in os.environ; Path('written').open('a').write('patch'); print(json.dumps({'input':4,'output':2,'final':'assistant answer'}))"
-        with patch('hand_ext.execution_worker.get_backend', return_value=FakeBackend(code)), patch.dict('os.environ', {'FAKE_SECRET':'fake', parallel.HAND_SCOPE_ENV:'different-daemon-scope'}):
+        original_cas = self.store.compare_and_swap
+        conflicts = []
+        def contended(key, revision, record):
+            evidence = (record.receipt or {}).get('containment', {})
+            if evidence.get('owner_done') and not conflicts:
+                conflicts.append(revision)
+                fresh = self.store.get(key)
+                original_cas(key, fresh.revision, fresh)  # genuine revision advance
+            return original_cas(key, revision, record)
+        with patch.object(self.store, 'compare_and_swap', side_effect=contended), patch('hand_ext.execution_worker.get_backend', return_value=FakeBackend(code)), patch.dict('os.environ', {'FAKE_SECRET':'fake', parallel.HAND_SCOPE_ENV:'different-daemon-scope'}):
             self.assertNotEqual(inv.scope_id, parallel.scope_digest(self.source))
             starts = []; gate = threading.Barrier(2)
             def start():
@@ -101,6 +110,18 @@ class ExecutionTests(unittest.TestCase):
         out = worker.outcome(attempt.key)
         self.assertEqual((out.status, out.backend_exit_code, out.usage['input']), ('ok', 0, 4))
         self.assertEqual(out.final_text, 'assistant answer')
+        from hand_ext.post_hoc_reverify import bindings
+        record = self.store.get(attempt.key)
+        evidence = record.receipt['containment']
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(evidence['binding'], bindings(record))
+        self.assertEqual(evidence['owner_done']['worker_owner'], first.owner_id)
+        self.assertEqual(evidence['owner_done']['key']['invocation_id'], inv.invocation_id)
+        self.assertTrue(evidence['root_reaped'])
+        self.assertTrue(evidence['root']['start'])
+        retained = worker.process_ops.details(next(iter(worker.process_ops.owned)))
+        self.assertEqual(evidence['inventory'], retained['inventory'])
+        self.assertIn(evidence['root'], evidence['inventory'])
         self.assertEqual([x[0] for x in calls], ['patch','report','ledger'])
         self.assertTrue(all(x[2] == 'latest-agent' for x in calls))
         self.assertEqual(len(set(x[1] for x in calls)), 3)
@@ -136,6 +157,10 @@ class ExecutionTests(unittest.TestCase):
                     self.wait(lambda: worker.outcome(att.key) is not None)
                 self.assertEqual(worker.outcome(att.key).status, expected)
                 self.assertTrue(worker.outcome(att.key).quiescent)
+                evidence = self.store.get(att.key).receipt['containment']
+                self.assertTrue(evidence['owner_done'])
+                self.assertTrue(evidence['root_reaped'])
+                if name == 'tokens': self.assertGreaterEqual(len(evidence['inventory']), 2)
 
     def test_cancel_restart_lost_ack_and_ambiguous_hook_never_replay(self):
         inv, attempt = self.intent()

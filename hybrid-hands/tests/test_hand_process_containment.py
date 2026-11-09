@@ -54,7 +54,7 @@ class ContainmentTests(unittest.TestCase):
         table.error = True; self.assertFalse(tree.verify())
         table.error = False
         # Real signal boundary must reject a reused PID, independent of tracker.
-        with patch.object(ProcessTable, 'snapshot', return_value=table.rows), patch('os.kill') as kill:
+        with patch.object(ProcessTable, 'identity', return_value=table.rows.get(child.pid)), patch('os.kill') as kill:
             ProcessTable().signal(child, signal.SIGKILL)
             kill.assert_not_called()
         # Bounded cancellation keeps unknown for an unkillable marked child.
@@ -82,6 +82,52 @@ class ContainmentTests(unittest.TestCase):
         with patch('hand_ext.process_containment.Path.read_bytes', side_effect=PermissionError('SECRET_SENTINEL')), patch('hand_ext.process_containment.sys.platform', 'linux'):
             with self.assertRaisesRegex(RuntimeError, '^marker scan unavailable$'):
                 ProcessTable().marker_matches(123, 'fixture')
+
+    def test_raced_marker_exit_exec_and_unreadable_diagnostics(self):
+        uid = os.getuid()
+        root = OSIdentity(80001, '10', 'before-exec', 1, uid)
+        raced = OSIdentity(80002, '11', 'raced', 1, uid)
+        child = OSIdentity(80003, '12', 'escaped', 1, uid)
+        class Table:
+            rows = {i.pid: i for i in (root, raced, child)}
+            mode = 'gone'
+            def snapshot(self): return self.rows.copy()
+            def identity(self, pid):
+                if pid == raced.pid and self.mode == 'gone': return None
+                if pid == raced.pid and self.mode == 'reused':
+                    return dataclasses.replace(raced, start='99')
+                return self.rows.get(pid)
+            def marker_matches(self, pid, invocation):
+                if pid == raced.pid:
+                    if self.mode == 'gone': raise OSError(22, 'SECRET_SENTINEL')
+                    raise PermissionError('SECRET_SENTINEL')
+                return pid == child.pid
+        table = Table()
+        proc = type('Proc', (), {'pid': root.pid, 'returncode': None})()
+        tree = Descendants(proc, 'fixture', table)
+        self.assertEqual({i.pid for i in tree.live()}, {child.pid})
+        self.assertTrue(tree.authoritative)
+        self.assertEqual(tree.details()['diagnostics'][-1]['error'], 'einval')
+        self.assertEqual(tree.details()['diagnostics'][-1]['resolution'], 'gone_or_reused')
+        for _ in range(70): tree.live()
+        table.mode = 'reused'; tree.live(); self.assertTrue(tree.authoritative)
+        table.rows[root.pid] = dataclasses.replace(root, comm='after-exec')
+        tree.capture(); self.assertTrue(tree.authoritative)
+        with patch.object(ProcessTable, 'identity', return_value=table.rows[root.pid]), patch('os.kill') as kill:
+            ProcessTable().signal(root, signal.SIGTERM)
+            kill.assert_called_once_with(root.pid, signal.SIGTERM)
+        table.mode = 'unreadable'; tree.live(); self.assertFalse(tree.authoritative)
+        details = tree.details()
+        self.assertEqual(details['first_fatal']['pid'], raced.pid)
+        self.assertEqual(details['first_fatal']['start'], raced.start)
+        self.assertEqual(details['first_fatal']['stage'], 'marker')
+        self.assertEqual(details['method'], METHOD)
+        self.assertNotIn('SECRET_SENTINEL', repr(details))
+        from hand_ext.process_containment import merge_evidence
+        merged = merge_evidence(details, dict(diagnostics=[], first_fatal=None, inventory_complete=True))
+        self.assertEqual(merged['first_fatal'], details['first_fatal'])
+        self.assertFalse(merged['inventory_complete'])
+        table.rows.pop(raced.pid); tree.live(); self.assertFalse(tree.authoritative)
 
     def test_owned_setsid_descendant_after_root_exit(self):
         with tempfile.TemporaryDirectory() as directory:

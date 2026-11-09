@@ -23,10 +23,10 @@ from .backends import get_backend
 from .backends.base import RunSpec
 from .constants import DEFAULTS, SANDBOXES
 from .execution_state import ExecutionKey, StateConflict, as_key, _plain
-from .execution_supervisor import ProcessIdentity, Quiescence, ConservativeProcessOps
+from .execution_supervisor import ProcessIdentity, Quiescence, ConservativeProcessOps, STATE_CAS_ATTEMPTS
 from .parallel import canonical_scope
 from .runner import run_backend
-from .process_containment import Descendants, METHOD, SNAPSHOT_INTERVAL, TERM_WAIT, VERIFY_WAIT
+from .process_containment import Descendants, METHOD, SNAPSHOT_INTERVAL, TERM_WAIT, VERIFY_WAIT, merge_evidence
 
 
 @dataclass(frozen=True)
@@ -68,13 +68,20 @@ class OwnedProcessOps:
     def add(self, proc, invocation=None):
         identity = ProcessIdentity(proc.pid, proc.pid, uuid.uuid4().hex)
         with self.lock:
-            self.owned[identity] = (proc, Descendants(proc, invocation, self.table))
+            tree = Descendants(proc, invocation, self.table)
+            tree.live()  # Close the spawn observation window with a complete marker scan.
+            self.owned[identity] = (proc, tree)
         return identity
 
     def capture(self, identity):
         with self.lock:
             if identity in self.owned:
                 self.owned[identity][1].capture()
+
+    def details(self, identity):
+        with self.lock:
+            entry = self.owned.get(identity)
+            return entry[1].details() if entry else {}
 
     def reconcile(self, identity):
         with self.lock:
@@ -89,11 +96,11 @@ class OwnedProcessOps:
                 os.killpg(identity.pgid, 0)
             except ProcessLookupError:
                 absent = True
-            except PermissionError:
-                pass
+            except Exception as exc:
+                tree.failure('group_probe', exc, tree.root)
             clear = tree.verify()
             confirmed = proc.returncode is not None and absent and clear
-            return Quiescence(confirmed, METHOD if confirmed else 'containment unknown', time.time())
+            return Quiescence(confirmed, METHOD if confirmed else 'containment unknown', time.time(), tree.details())
 
     def cancel(self, identity, reason):
         with self.lock:
@@ -106,15 +113,15 @@ class OwnedProcessOps:
             for sig, delay in ((signal.SIGTERM, TERM_WAIT), (signal.SIGKILL, VERIFY_WAIT)):
                 if proc.returncode is None:
                     try:
-                        current = tree.table.snapshot().get(proc.pid)
+                        current = tree.fresh(proc.pid)
                         if tree.root and tree.root.matches(current) and os.getpgid(proc.pid) == identity.pgid:
                             os.killpg(identity.pgid, sig)
                         elif current is not None:
-                            tree.authoritative = False
-                    except ProcessLookupError:
-                        pass
-                    except Exception:
-                        tree.authoritative = False
+                            tree.failure('group_signal', item=current, code='identity_mismatch')
+                    except ProcessLookupError as exc:
+                        tree.failure('group_signal', exc, tree.root, fatal=False)
+                    except Exception as exc:
+                        tree.failure('group_signal', exc, tree.root)
                 tree.signal_live(sig)
                 until = time.monotonic() + delay
                 while time.monotonic() < until:
@@ -138,18 +145,23 @@ class _Control:
         self.identity = self.worker.process_ops.add(proc, self.key.invocation_id)
         with self.worker.lock:
             self.worker.supervisor.register_writer(self.key, self.identity, self.owner)
+            self.worker._save_evidence(self.key, self.identity)
         if self.cancelled.is_set():
             self.stop(proc)
 
     def poll(self, proc):
         with self.worker.process_ops.lock:
             self.worker.process_ops.capture(self.identity)
-            return proc.poll()
+            result = proc.poll()
+            self.worker._save_evidence(self.key, self.identity)
+            return result
 
     def wait(self, proc, timeout):
         with self.worker.process_ops.lock:
             self.worker.process_ops.capture(self.identity)
-            return proc.wait(timeout=timeout)
+            result = proc.wait(timeout=timeout)
+            self.worker._save_evidence(self.key, self.identity)
+            return result
 
     def stop(self, proc):
         if self.identity is not None:
@@ -166,6 +178,43 @@ class ExecutionWorker:
         self.controls = {}
         self.process_ops = OwnedProcessOps(supervisor.process_ops)
         supervisor.process_ops = self.process_ops
+
+    def _save_evidence(self, key, identity, *, owner_done=False):
+        from .post_hoc_reverify import bindings
+        # Snapshot under process_ops.lock, then CAS fresh records. Never acquire
+        # worker.lock here: poll owns process_ops.lock while cancel takes the
+        # worker lock first. No lock inversion, and no stale-record retry.
+        details = self.process_ops.details(identity) if identity else {}
+        control = self.controls.get(key)
+        for _ in range(STATE_CAS_ATTEMPTS):
+            r = self.store.get(key)
+            bound = bindings(r)
+            previous = (r.receipt or {}).get('containment', {})
+            if (control is None or bound['worker_owner'] != control.owner
+                    or (identity is not None and
+                        (not r.process or any(r.process.get(k) != v
+                                             for k, v in asdict(identity).items())))
+                    or (previous.get('binding') and previous['binding'] != bound)):
+                raise StateConflict('containment binding mismatch')
+            merged = merge_evidence(previous, details)
+            merged['binding'] = bound
+            if owner_done:
+                merged['owner_done'] = dict(worker_owner=control.owner, key=_plain(key))
+            r.receipt = dict(r.receipt or {}, containment=merged)
+            try:
+                self.store.compare_and_swap(key, r.revision, r)
+                return True
+            except StateConflict:
+                continue
+        # A lost durable observation cannot certify success. The final supervisor
+        # observation holds the outcome pending and retains this uncertainty.
+        with self.process_ops.lock:
+            entry = self.process_ops.owned.get(identity)
+            if entry:
+                tree = entry[1]
+                tree.inventory_complete = False
+                tree.failure('evidence_persist', code='cas_exhausted')
+        return False
 
     def _spec(self, invocation, attempt, brief):
         if invocation.backend not in ('codex', 'dsh', 'claude-v1', 'claude-v2'):
@@ -269,6 +318,7 @@ class ExecutionWorker:
                 registry.start()
                 kwargs['registry'] = registry
             result = self.runner(get_backend(record.invocation.backend), spec, **kwargs)
+            self._save_evidence(key, control.identity, owner_done=True)
             # Persist only canonical usage observations, never arbitrary backend
             # extras/errors which may contain subprocess output or credentials.
             from .codex_usage import normalize_windows
@@ -282,7 +332,7 @@ class ExecutionWorker:
             }
             observation_saved = False
             with self.lock:
-                for _ in range(8):
+                for _ in range(STATE_CAS_ATTEMPTS):
                     observed = self.store.get(key)
                     observed.receipt = dict(observed.receipt or {}, usage_observation=observation)
                     try:
@@ -308,6 +358,10 @@ class ExecutionWorker:
         except Exception:
             if control.identity is not None:
                 self.process_ops.cancel(control.identity, 'runner exception')
+            try:
+                self._save_evidence(key, control.identity, owner_done=True)
+            except StateConflict:
+                pass  # Binding loss must not prevent recording a pending failure.
             outcome = dict(status='failed', reason='runner exception', backend_exit_code=None,
                            provenance='worker_exception', usage=None)
         with self.lock:
