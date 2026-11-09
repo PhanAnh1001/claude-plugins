@@ -491,6 +491,14 @@ def _record_go(cfg: ExtConfig, entry: dict,
 
 
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    mode = getattr(args, "mode", None) or getattr(cfg, "mode", "shell")
+    if mode != "shell":
+        from .paseo_controller import cmd_managed_run
+        return cmd_managed_run(cfg, args, mode=mode)
+    return _cmd_shell_run(cfg, args)
+
+
+def _cmd_shell_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
     with ExitStack() as slots:
         try:
             slots.enter_context(reserve_slot(cfg.root, cfg.max_parallel))

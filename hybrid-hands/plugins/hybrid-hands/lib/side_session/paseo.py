@@ -157,23 +157,105 @@ def stop_agent(agent_id: str, target_key: str) -> dict:
                  timeout=C.PASEO_STOP_TIMEOUT_S)
 
 
-def finish(st: state.SessionState) -> str | None:
-    """Archive the exact agent and private workspace, preserving history."""
+def _exact_agent(st: state.SessionState) -> dict | None:
+    """Payload for an exact-agent bridge operation; None after the main/ID guards fail."""
+    if st.role == "main":
+        return None
+    if not st.paseo_agent_id:
+        return None
+    if not st.paseo_workspace_id:
+        return None
+    return {"agentId": st.paseo_agent_id,
+            "expectedWorkspaceId": st.paseo_workspace_id,
+            "expectedTargetKey": st.paseo_target,
+            "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS}
+
+
+def _guard_message(st: state.SessionState) -> str:
     if st.role == "main":
         return "MAIN_ARCHIVE_FORBIDDEN"
-    if not st.paseo_agent_id:
-        return "AGENT_ID_UNKNOWN"
-    if not st.paseo_workspace_id:
-        return "WORKSPACE_ID_UNKNOWN"
+    return "WORKSPACE_ID_UNKNOWN" if st.paseo_agent_id else "AGENT_ID_UNKNOWN"
+
+
+def finish(st: state.SessionState) -> str | None:
+    """Archive the exact agent and private workspace, preserving history."""
+    payload = _exact_agent(st)
+    if payload is None:
+        return _guard_message(st)
     try:
-        _call("finish", {"agentId": st.paseo_agent_id,
-                         "expectedWorkspaceId": st.paseo_workspace_id,
-                         "expectedTargetKey": st.paseo_target,
-                         "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS},
-              timeout=C.PASEO_STOP_TIMEOUT_S)
+        _call("finish", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
     except PaseoError as exc:
         return exc.code
     return None
+
+
+def agent_archive_states(candidates: list[state.SessionState]) -> dict[str, bool]:
+    """Validate the snapshot and return archive states only for matching candidates."""
+    targets = {st.paseo_target for st in candidates if st.paseo_target}
+    if len(targets) > 1:
+        raise PaseoError("TARGET_CHANGED")
+    result = _call("agent-archive-states", {"expectedTargetKey": next(iter(targets), "")},
+                   timeout=C.PASEO_STOP_TIMEOUT_S)
+    target = result.get("targetKey")
+    entries = result.get("agents")
+    if not isinstance(target, str) or not target.strip() or not isinstance(entries, list):
+        raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+    if targets and target not in targets:
+        raise PaseoError("TARGET_CHANGED")
+    directory = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+        aid, wid = entry.get("agentId"), entry.get("workspaceId")
+        if not isinstance(aid, str) or not aid.strip() \
+                or not isinstance(wid, str) or not wid.strip() \
+                or "archivedAt" not in entry \
+                or (entry["archivedAt"] is not None and not isinstance(entry["archivedAt"], str)) \
+                or aid in directory:
+            raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+        directory[aid] = entry
+    archive_states = {}
+    for st in candidates:
+        entry = directory.get(st.paseo_agent_id)
+        if entry is None or not st.paseo_workspace_id \
+                or entry["workspaceId"] != st.paseo_workspace_id:
+            continue
+        archive_states[st.paseo_agent_id] = entry["archivedAt"] is not None
+    return archive_states
+
+
+def revive(st: state.SessionState) -> tuple[bool | None, str | None]:
+    """Reopen the private workspace of an agent the user already unarchived.
+
+    Returns (revived, error): the bridge reports the agent still archived as
+    (False, None); every case without a confirmed mutation is (None, code).
+    """
+    payload = _exact_agent(st)
+    if payload is None:
+        return None, _guard_message(st)
+    try:
+        result = _call("revive", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+    except PaseoError as exc:
+        return None, exc.code
+    revived = result.get("revived")
+    if revived is True or revived is False:
+        return revived, None
+    return None, "PASEO_BRIDGE_PROTOCOL"
+
+
+def rearchive(st: state.SessionState) -> tuple[bool | None, str | None]:
+    """Archive only the private workspace once the revived agent is archived again."""
+    payload = _exact_agent(st)
+    if payload is None:
+        return None, _guard_message(st)
+    try:
+        result = _call("rearchive", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+    except PaseoError as exc:
+        return None, exc.code
+    archived = result.get("archived")
+    if archived is True or archived is False:
+        return archived, None
+    return None, "PASEO_BRIDGE_PROTOCOL"
 
 
 def plan(cfg: SideConfig, a) -> dict | None:

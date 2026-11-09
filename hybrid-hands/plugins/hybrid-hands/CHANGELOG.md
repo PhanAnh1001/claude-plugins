@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.33.1 — 2026-11-09
+
+- `ls` bỏ qua riêng phiên có agent đã xoá hoặc workspace lệch, vẫn reconcile các phiên hợp lệ khác.
+- Phiên phụ Codex/Paseo vẫn archive workspace riêng khi done. Khi người dùng unarchive agent, `ls`/watch mở lại workspace nếu recovery có `action:"unarchive"`; `action:"restore"` không mutation.
+- Guard `paseo_revived` giữ status `done`, ngăn `.done` cũ tự finish lại phiên vừa mở; lỗi giữ nguyên state để vòng sau retry.
+- `ls` đọc archive state theo lô một lần, chỉ reconcile agent đổi archive state; snapshot lỗi/thiếu thì giữ state và warning một dòng. Watch giữ flow một phiên; rearchive chỉ tác động workspace riêng sau private check.
+
 ## 0.33.0 — 2026-11-09
 
 - Thêm sổ tài khoản Claude `v1`/`v2`/`v…`, alias backend cũ và `hand-ext pick`; auto chọn theo order dsh → Codex low → Claude v1 low → Claude v2 low, giữ chặn ngày theo tài khoản.

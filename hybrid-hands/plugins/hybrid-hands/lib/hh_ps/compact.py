@@ -165,6 +165,8 @@ def subagent_line(agent: Subagent, now: float) -> Line:
 def _run_mark(run: HandRun) -> tuple:
     if run.exit_code not in (None, 0):
         return CHILD_BAD_MARK, "lost", f"exit {run.exit_code}"
+    if run.execution_key and run.status == "unknown":
+        return "?", "unknown", "unknown"
     if run.state == RUN_STATE_LOST:
         return CHILD_BAD_MARK, "lost", RUN_LOST_TEXT
     if run.state == RUN_STATE_RUNNING:

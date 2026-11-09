@@ -95,6 +95,8 @@ MAX_PARALLEL = 4
 HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
 
 DEFAULTS = {
+    "mode": "shell",
+    "paseo": {},
     "max_parallel": MAX_PARALLEL,
     "order": ["dsh", "codex", "claude-v1", "claude-v2"],
     "claude_accounts": {

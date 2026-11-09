@@ -92,18 +92,28 @@ def _drain(backend: Backend, lines: "queue.Queue[Optional[str]]", state: RunStat
 
 def _watch(backend: Backend, proc: subprocess.Popen, lines: "queue.Queue[Optional[str]]",
            spec: RunSpec, state: RunState, started: float,
-           registry: Optional["RunRegistry"] = None) -> Optional[Status]:
+           registry: Optional["RunRegistry"] = None, control=None) -> Optional[Status]:
     closed = False
-    while not closed or proc.poll() is None:
+    poll = (lambda: control.poll(proc)) if control is not None else proc.poll
+    while not closed or poll() is None:
         closed = _drain(backend, lines, state, POLL_SECONDS) or closed
         backend.poll(spec, state)
         if registry is not None:
             registry.tick(state.usage)
+        if control is not None and control.cancelled.is_set():
+            control.stop(proc)
+            return Status.FAILED
+        if closed and control is not None and poll() is None:
+            try:
+                control.wait(proc, timeout=.1)
+            except subprocess.TimeoutExpired:
+                control.stop(proc)
+                return Status.FAILED
         if _over_tokens(spec, state):
-            _stop(proc)
+            control.stop(proc) if control is not None else _stop(proc)
             return Status.CAPPED
         if time.monotonic() - started > spec.timeout_s:
-            _stop(proc)
+            control.stop(proc) if control is not None else _stop(proc)
             return Status.TIMEOUT
     return None
 
@@ -146,7 +156,13 @@ def _restore_run_dir(run_dir: Path, identity: Optional[Tuple[int, int]]) -> None
 
 
 def run_backend(backend: Backend, spec: RunSpec,
-                registry: Optional["RunRegistry"] = None) -> RunOutcome:
+                registry: Optional["RunRegistry"] = None, control=None) -> RunOutcome:
+    """Optional owned control supplies spawned/poll/wait/stop and cancelled Event.
+
+    Controlled runs create a session/process group, clean up even on parser/EOF
+    failure, and delegate final report settlement to the worker's hooks.
+    Legacy callers retain their report behavior and process launch contract.
+    """
     spec.run_dir.mkdir(parents=True, exist_ok=True)
     run_dir_identity = _dir_identity(spec.run_dir)
     argv, extra_env, stdin_text = backend.build_command(spec)
@@ -158,18 +174,30 @@ def run_backend(backend: Backend, spec: RunSpec,
             open(stderr_path, "w+", encoding="utf-8", errors="replace") as err:
         proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                 stderr=err, text=True, cwd=str(spec.cwd),
-                                env=child_env(backend, extra_env))
-        if registry is not None:
-            registry.child(proc.pid)
-        assert proc.stdout is not None
-        pump = threading.Thread(target=_pump, args=(proc.stdout, sink, lines), daemon=True)
-        pump.start()
-        _write_stdin(proc, stdin_text)
-        cap = _watch(backend, proc, lines, spec, state, started, registry)
-        pump.join()
+                                env=child_env(backend, extra_env),
+                                start_new_session=control is not None)
+        pump = None
+        try:
+            if control is not None:
+                control.spawned(proc)
+            if registry is not None:
+                registry.child(proc.pid)
+            assert proc.stdout is not None
+            pump = threading.Thread(target=_pump, args=(proc.stdout, sink, lines), daemon=True)
+            pump.start()
+            _write_stdin(proc, stdin_text)
+            cap = _watch(backend, proc, lines, spec, state, started, registry, control)
+        finally:
+            if control is not None:
+                control.stop(proc)
+            elif proc.poll() is None:
+                _stop(proc)
+            if pump is not None:
+                pump.join(timeout=TERM_GRACE_SECONDS if control is not None else None)
+            if pump is None or not pump.is_alive():
+                proc.stdout.close()
         _drain(backend, lines, state, 0)
         stderr_text = _read_stderr(err)
-        proc.stdout.close()
     _restore_run_dir(spec.run_dir, run_dir_identity)
     backend.poll(spec, state)
     exit_code = proc.returncode
@@ -179,6 +207,6 @@ def run_backend(backend: Backend, spec: RunSpec,
     elif status is Status.OK and _over_tokens(spec, state):
         status = Status.CAPPED
     report = spec.run_dir / REPORT_FILE
-    if not report.is_file() and state.final_text:
+    if control is None and not report.is_file() and state.final_text:
         report.write_text(state.final_text, encoding="utf-8")
     return RunOutcome(status, exit_code, state, time.monotonic() - started, list(state.errors))

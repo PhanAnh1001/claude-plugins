@@ -194,6 +194,7 @@ def load_hand_runs(root: Path, cutoff: float,
     paths = list((root / RUNS_SUBDIR).glob(RUNS_GLOB))
     ledger_entries: Dict[str, dict] = {}
     configs = dict(known_configs or {})
+    execution_roots = [root / "executions"]
     for repo in repo_roots:
         if repo not in configs:
             from hand_ext.config import load_config
@@ -204,6 +205,8 @@ def load_hand_runs(root: Path, cutoff: float,
                 configs[repo] = None
         cfg = configs[repo]
         if cfg is not None:
+            execution_roots.append(Path((getattr(cfg, "paseo", {}) or {}).get("state_root")
+                                        or cfg.machine_state_dir / "executions"))
             paths.extend(cfg.runs_dir.glob("*/meta.json"))
             try:
                 entries = json.loads(cfg.ledger.read_text(encoding="utf-8"))
@@ -213,6 +216,11 @@ def load_hand_runs(root: Path, cutoff: float,
                 ledger_entries.update({str(entry["run_id"]): entry for entry in entries
                                        if isinstance(entry, dict) and entry.get("run_id")})
         paths.extend((repo / "sessions/hybrid-hands/hand-ext").glob("*/meta.json"))
+    from .paseo_source import execution_id, load_executions
+    managed = load_executions(execution_roots, cutoff)
+    managed_keys = {execution_id(run.execution_key) for run in managed}
+    managed_ids = {run.run_id for run in managed}
+    managed_dirs = {Path(run.worker_run_dir).resolve() for run in managed if run.worker_run_dir}
     merged: Dict[str, Tuple[Path, dict]] = {}
     for path in sorted(set(paths)):
         try:
@@ -222,6 +230,11 @@ def load_hand_runs(root: Path, cutoff: float,
         if not isinstance(data, dict):
             continue
         run_id = str(data.get("run_id") or (path.parent.name if path.name == "meta.json" else path.stem))
+        execution_key = data.get("execution_key")
+        if ((isinstance(execution_key, dict) and execution_id(execution_key) in managed_keys)
+                or (not execution_key and (run_id in managed_ids or
+                    (path.name == "meta.json" and path.parent.resolve() in managed_dirs)))):
+            continue
         previous = merged.get(run_id)
         if previous is not None:
             old = previous[1]
@@ -278,5 +291,6 @@ def load_hand_runs(root: Path, cutoff: float,
             child_pid=_pid(data.get("child_pid")),
             lost=running and pid is not None and not pid_alive(pid),
         ))
+    runs.extend(managed)
     runs.sort(key=lambda run: (-(run.started_at or 0.0), run.run_id))
     return runs

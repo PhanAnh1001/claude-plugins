@@ -44,6 +44,9 @@ class ExtConfig:
     claude_accounts: Dict[str, Dict[str, Any]] = field(
         default_factory=lambda: copy.deepcopy(DEFAULTS["claude_accounts"]))
 
+    mode: str = "shell"
+    paseo: Dict[str, Any] = field(default_factory=dict)
+
     def options(self, name: str) -> Dict[str, Any]:
         account = {"claude-main": "v1", "claude": "v2"}.get(name)
         if name.startswith("claude-v"):
@@ -199,6 +202,18 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
                 path = Path(value)
                 if not path.is_absolute():
                     options[key] = str(root / path)
+    mode = section.pop("mode")
+    if mode not in ("shell", "auto", "paseo-required"):
+        raise ValueError("ext_hand.mode phải là shell, auto hoặc paseo-required")
+    paseo = section.pop("paseo")
+    if not isinstance(paseo, dict):
+        raise ValueError("ext_hand.paseo phải là object")
+    if set(paseo) - {"package_root", "target", "state_root"}:
+        raise ValueError("ext_hand.paseo chứa option không hỗ trợ")
+    for key in ("package_root", "state_root"):
+        value = paseo.get(key)
+        if value:
+            paseo[key] = str(_resolve(root, value))
     merged.update(section)
     go_ledger, go_summary, go_limit, go_live = _go_usage(root, go_section)
     max_parallel = validate_limit(merged["max_parallel"])
@@ -223,5 +238,5 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         go_monthly_limit_usd=go_limit,
         go_usage_live=go_live,
         machine_state_dir=_state_dir(),
-        max_parallel=max_parallel, claude_accounts=accounts,
+        max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo,
     )

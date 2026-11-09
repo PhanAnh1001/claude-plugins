@@ -22,7 +22,7 @@ FILE_SOURCES = ("global", "repo")
 REGISTRY_SECTIONS = ("ext_hand.backends", "ext_hand.claude_accounts")
 # Sections which are always objects. Their own leaves are replaceable, so an explicit
 # ``price_per_mtok: null`` or ``monthly_limit_usd`` stays allowed.
-OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.go_usage",)
+OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.go_usage", "ext_hand.paseo")
 
 
 @dataclass

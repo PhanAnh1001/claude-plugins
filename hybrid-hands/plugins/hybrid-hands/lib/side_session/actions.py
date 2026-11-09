@@ -411,8 +411,62 @@ def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
     return True
 
 
+def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
+    """Reopen the private workspace of a done agent the user unarchived.
+
+    Failed cleanup keeps status done with a one-line warning; the next ls/watch
+    retries. A revived session never runs _finish_codex, even with a stale .done.
+    """
+    revived, failure = paseo.revive(st)
+    if failure:
+        print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
+        return
+    if not revived:
+        return
+    st.paseo_workspace_archived = False
+    st.paseo_revived = True
+    state.save(cfg.state_dir, st)
+    print(f"{st.name}: đã revive workspace riêng; bỏ qua .done cũ cho tới khi agent archive lại")
+
+
+def _rearchive_revived(cfg: SideConfig, st: state.SessionState) -> None:
+    """Hide the private workspace once a revived agent is archived again."""
+    archived, failure = paseo.rearchive(st)
+    if failure:
+        print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
+        return
+    if not archived:
+        return
+    st.paseo_workspace_archived = True
+    st.paseo_revived = False
+    state.save(cfg.state_dir, st)
+    print(f"{st.name}: đã archive lại workspace riêng sau khi agent archive")
+
+
+def _reconcile_done(cfg: SideConfig, st: state.SessionState) -> None:
+    """Done Codex/Paseo sessions follow the user's agent archive/revive, never .done."""
+    if st.role == "main" or st.status != C.STATUS_DONE \
+            or st.provider != C.PROVIDER_CODEX or st.transport != C.TRANSPORT_PASEO:
+        return
+    if st.paseo_revived:
+        _rearchive_revived(cfg, st)
+    elif st.paseo_workspace_archived:
+        _revive_done(cfg, st)
+
+
 def ls(cfg: SideConfig, _a) -> int:
     sessions = state.load_all(cfg.state_dir)
+    candidates = [st for st in sessions if st.role != "main"
+                  and st.status == C.STATUS_DONE and st.provider == C.PROVIDER_CODEX
+                  and st.transport == C.TRANSPORT_PASEO
+                  and (st.paseo_workspace_archived or st.paseo_revived)]
+    candidate_names = {st.name for st in candidates}
+    archive_states = {}
+    if candidates:
+        try:
+            archive_states = paseo.agent_archive_states(candidates)
+        except paseo.PaseoError as exc:
+            print(f"side-session: warning: workspace reconcile lỗi ({exc.code}); giữ state và thử lại")
     needs_screen = any(s.transport != C.TRANSPORT_PASEO
                        and s.status in C.ACTIVE_STATUSES for s in sessions)
     alive = screen.screen_names() if needs_screen else set()
@@ -422,10 +476,18 @@ def ls(cfg: SideConfig, _a) -> int:
             _pin_rollout(cfg, st)
         done = st.role != "main" and K.done_path(st.handoff).is_file()
         live = "alive" if st.screen in alive else "dead"
-        if done and st.provider == C.PROVIDER_CODEX and (st.status in C.ACTIVE_STATUSES
+        # Finish and reconcile are exclusive per tick: a session just finished,
+        # revived or rearchived here is never handled twice in the same listing.
+        # A revived session never finishes again, even with a stale .done marker.
+        if done and st.provider == C.PROVIDER_CODEX and not st.paseo_revived and (
+                st.status in C.ACTIVE_STATUSES
                 or (st.status == C.STATUS_DONE and st.transport == C.TRANSPORT_PASEO
                     and not st.paseo_workspace_archived)):
             _finish_codex(cfg, st)
+        elif st.name in candidate_names and st.paseo_agent_id in archive_states:
+            archived = archive_states[st.paseo_agent_id]
+            if (st.paseo_revived and archived) or (not st.paseo_revived and not archived):
+                _reconcile_done(cfg, st)
         if st.transport == C.TRANSPORT_PASEO:
             # Pending .done retains its slot even if archive partially closed the agent.
             live = ("unknown" if done and st.provider == C.PROVIDER_CODEX
@@ -629,8 +691,13 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
     st = state.load(cfg.state_dir, name)
     if st.role == "main":
         return False
+    # A done Codex/Paseo session follows the agent's archive state instead of .done,
+    # one step per tick; a revived one is kept watched to see its next archive.
     if (st.status == C.STATUS_DONE and st.provider == C.PROVIDER_CODEX
-            and st.transport == C.TRANSPORT_PASEO and not st.paseo_workspace_archived):
+            and st.transport == C.TRANSPORT_PASEO):
+        if st.paseo_revived or st.paseo_workspace_archived:
+            _reconcile_done(cfg, st)
+            return st.paseo_revived
         return not _finish_codex(cfg, st)
     if st.status not in C.ACTIVE_STATUSES:
         return False

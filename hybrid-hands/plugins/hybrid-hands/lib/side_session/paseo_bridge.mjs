@@ -79,6 +79,47 @@ async function privateWorkspace(client, request, agent) {
   return false;
 }
 
+// Read-only complete directory snapshot; never expose provider details.
+async function readAgentArchiveStates(client, key) {
+  if (typeof client.fetchAgents !== "function") {
+    fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+    return;
+  }
+  const agents = [];
+  const ids = new Set();
+  const cursors = new Set();
+  let cursor;
+  for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
+    const payload = await client.fetchAgents({
+      filter: { includeArchived: true },
+      sort: [{ key: "created_at", direction: "desc" }],
+      page: { limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? { cursor } : {}) },
+    });
+    if (payload?.error != null || !Array.isArray(payload?.entries)
+        || !payload.pageInfo || !Object.hasOwn(payload.pageInfo, "nextCursor")) break;
+    for (const entry of payload.entries) {
+      const agent = entry?.agent;
+      if (!agent || !nonemptyId(agent.id) || !nonemptyId(agent.workspaceId)
+          || (agent.archivedAt != null && typeof agent.archivedAt !== "string")
+          || ids.has(agent.id)) {
+        fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+        return;
+      }
+      ids.add(agent.id);
+      agents.push({ agentId: agent.id, workspaceId: agent.workspaceId,
+        archivedAt: agent.archivedAt ?? null });
+    }
+    cursor = payload.pageInfo.nextCursor;
+    if (cursor === null) {
+      emit({ ok: true, agents, targetKey: key });
+      return;
+    }
+    if (!nonemptyId(cursor) || cursors.has(cursor)) break;
+    cursors.add(cursor);
+  }
+  fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+}
+
 async function archivePrivateWorkspace(client, workspaceId) {
   const result = await client.archiveWorkspace(workspaceId);
   if (result?.error != null) {
@@ -164,6 +205,88 @@ async function readNativeSubagents(client, request, key) {
     rows: fetched.rows, ...metadata, targetKey: key });
 }
 
+// Exact agent identity, before any mutation: id echo, stored workspace and target.
+async function fetchExactAgent(client, request) {
+  const fetched = await client.fetchAgent({ agentId: request.agentId });
+  if (!nonemptyId(request.agentId) || !nonemptyId(request.expectedWorkspaceId)) {
+    fail("INVALID_AGENT_ID");
+    return null;
+  }
+  if (!fetched || !fetched.agent) {
+    fail("AGENT_NOT_FOUND", { agentId: request.agentId });
+    return null;
+  }
+  if (fetched.agent.id !== request.agentId) {
+    fail("AGENT_ID_MISMATCH");
+    return null;
+  }
+  if (fetched.agent.workspaceId !== request.expectedWorkspaceId) {
+    fail("WORKSPACE_ID_MISMATCH");
+    return null;
+  }
+  return fetched.agent;
+}
+
+// archivedAt != null means archived; null or undefined means unarchived.
+function agentArchived(agent) {
+  return agent.archivedAt != null;
+}
+
+function workspaceActive(inspected, request) {
+  return inspected?.kind === "unavailable"
+    && inspected.reason === "workspace_not_archived"
+    && inspected.workspaceId === request.expectedWorkspaceId;
+}
+
+// Revive only an agent the user already unarchived whose own workspace is still
+// archived and can be unarchived in place (no worktree recreate, no restore).
+async function reviveAgent(client, request, agent, key) {
+  if (agentArchived(agent)) {
+    emit({ ok: true, revived: false, archived: true, agentId: agent.id,
+      workspaceId: agent.workspaceId, targetKey: key });
+    return;
+  }
+  if (typeof client.inspectWorkspaceRecovery !== "function"
+      || typeof client.restoreWorkspace !== "function") {
+    fail("WORKSPACE_RECOVERY_UNSUPPORTED");
+    return;
+  }
+  const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+  let restored = false;
+  if (!workspaceActive(inspected, request)) {
+    const recoverable = inspected?.kind === "recoverable"
+      && inspected.action === "unarchive"
+      && inspected.workspaceId === request.expectedWorkspaceId;
+    if (!recoverable) {
+      fail("WORKSPACE_RECOVERY_UNSUPPORTED");
+      return;
+    }
+    await client.restoreWorkspace(request.expectedWorkspaceId);
+    restored = true;
+    const after = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+    if (!workspaceActive(after, request)) {
+      fail("WORKSPACE_RESTORE_UNCONFIRMED");
+      return;
+    }
+  }
+  emit({ ok: true, revived: true, restored, agentId: agent.id,
+    workspaceId: agent.workspaceId, targetKey: key });
+}
+
+// A revived session ended again: hide its private workspace only. The agent keeps
+// its archive (or stays active); this never cancels or archives the agent again.
+async function rearchiveWorkspace(client, request, agent, key) {
+  if (!agentArchived(agent)) {
+    emit({ ok: true, archived: false, agentId: agent.id, workspaceId: agent.workspaceId,
+      targetKey: key });
+    return;
+  }
+  if (!await privateWorkspace(client, request, agent)) return;
+  if (!await archivePrivateWorkspace(client, request.expectedWorkspaceId)) return;
+  emit({ ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
+    targetKey: key });
+}
+
 function emit(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
@@ -238,8 +361,23 @@ async function main() {
     timeout: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   });
   try {
+    if (request.command === "agent-archive-states") {
+      await readAgentArchiveStates(client, key);
+      return;
+    }
     if (request.command === "subagents" || request.command === "subagent-timeline") {
       await readNativeSubagents(client, request, key);
+      return;
+    }
+    if (request.command === "revive" || request.command === "rearchive") {
+      // Every identity check fails closed before any mutation.
+      const agent = await fetchExactAgent(client, request);
+      if (agent === null) return;
+      if (request.command === "revive") {
+        await reviveAgent(client, request, agent, key);
+      } else {
+        await rearchiveWorkspace(client, request, agent, key);
+      }
       return;
     }
     if (request.command === "ready") {
