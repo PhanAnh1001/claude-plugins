@@ -72,7 +72,11 @@ class AdmissionController:
     def admit(self, invocation, attempt, *, max_parallel):
         limit = parallel.validate_limit(max_parallel)
         scope = parallel.canonical_scope(invocation.scope_id)
-        if self.policy_checker(invocation, attempt) is not True: raise AdmissionDenied('explicit policy allow required')
+        if not callable(self.policy_checker) or self.policy_checker(invocation, attempt) is not True:
+            raise AdmissionDenied('explicit policy allow required')
+        limit_reader = getattr(self.policy_checker, 'max_parallel', None)
+        if callable(limit_reader):
+            limit = min(limit, parallel.validate_limit(limit_reader(invocation)))
         self.store.create_intent(invocation, attempt) # intent precedes every network operation
         claims = canonical_claims(invocation)
         rid = hashlib.sha256(json.dumps(asdict(attempt.key), sort_keys=True).encode()).hexdigest()

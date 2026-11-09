@@ -30,12 +30,24 @@ def _parser() -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=text)
         s.add_argument("--backend", default=ALL_BACKENDS)
         s.add_argument("--cwd")
+    provider = sub.add_parser("provider", help="cấu hình ACP provider bằng schema Paseo chính thức")
+    provider_sub = provider.add_subparsers(dest="provider_cmd", required=True)
+    provider_setup = provider_sub.add_parser("setup")
+    provider_setup.add_argument("--home", required=True)
+    provider_setup.add_argument("--package-root")
+    provider_setup.add_argument("--cwd")
+    provider_mode = provider_setup.add_mutually_exclusive_group()
+    provider_mode.add_argument("--dry-run", action="store_true")
+    provider_mode.add_argument("--apply", action="store_true")
+    provider_status = provider_sub.add_parser("status")
+    provider_status.add_argument("--cwd")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
     pick.add_argument("--cwd")
     r = sub.add_parser("run", help="chạy một brief")
     r.add_argument("--brief", required=True, help="file brief hoặc - cho stdin")
     r.add_argument("--backend", default=AUTO_BACKEND)
+    r.add_argument("--mode", choices=("shell", "auto", "paseo-required"))
     for flag in ("--label", "--cwd", "--model", "--effort"):
         r.add_argument(flag)
     r.add_argument("--timeout-min", type=float)
@@ -176,7 +188,23 @@ def cmd_measure(cfg: ExtConfig, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-COMMANDS = {"pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
+def cmd_provider(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    from .paseo_provider import setup_provider, status_provider, ProviderError
+    from .paseo_controller import transport_from_config, PaseoUnavailable
+    from .paseo_transport import TransportError
+    try:
+        if args.provider_cmd == 'setup':
+            result = setup_provider(Path(args.home), apply=args.apply,
+                package_root=args.package_root or cfg.paseo.get('package_root'))
+        else:
+            result = status_provider(transport_from_config(cfg, None))
+    except (ProviderError, PaseoUnavailable, TransportError) as exc:
+        result = {'ok': False, 'code': str(exc)}
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return EXIT_OK if result.get('ok') else EXIT_FAIL
+
+
+COMMANDS = {"provider": cmd_provider, "pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
             "status": cmd_status, "usage": cmd_usage, "report": cmd_report,
             "measure": cmd_measure}
 

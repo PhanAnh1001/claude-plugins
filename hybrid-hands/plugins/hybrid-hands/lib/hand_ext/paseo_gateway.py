@@ -13,7 +13,7 @@ import sys
 import threading
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import replace
 from pathlib import Path
 
@@ -28,8 +28,9 @@ class ProtocolError(Exception):
 
 class Gateway:
     def __init__(self, store, admission, worker, *, invocation_id=None,
-                 max_parallel=1, wait_seconds=30):
+                 max_parallel=1, wait_seconds=30, completion=None):
         self.store, self.admission, self.worker = store, admission, worker
+        self.completion = completion
         self.invocation_id = invocation_id
         self.max_parallel, self.wait_seconds = max_parallel, wait_seconds
         self.owner = str(uuid.uuid4())
@@ -131,7 +132,13 @@ class Gateway:
                 attempt = replace(latest.attempt, attempt_id=str(uuid.uuid4()),
                                   epoch=latest.attempt.epoch + 1, request_key=key,
                                   run_id=None, thread_id=None)
+                if self.completion is not None:
+                    if (latest.artifacts.get('review') or {}).get('approved') is not True:
+                        raise ProtocolError(-32009, 'previous attempt requires review')
                 record = self.store.create_intent(latest.invocation, attempt)
+                if self.completion is not None:
+                    from .paseo_controller import bind_followup
+                    record = bind_followup(self.store, latest, record)
             # Fresh policy on every request, including duplicate attachment.
             # Admission uses the latest placement-bound Attempt, never a stale
             # pre-create Attempt with null placement fields.
@@ -147,10 +154,10 @@ class Gateway:
             except AdmissionFull:
                 raise ProtocolError(-32008, 'execution pool full', {'kind': 'admission_full', 'exit_code': 8})
             except AdmissionDenied:
-                raise ProtocolError(-32003, 'policy denied or unavailable', {'kind': 'policy_denied'})
+                raise ProtocolError(-32003, 'policy denied or unavailable', {'kind': 'policy_denied', 'exit_code': 7})
             except AdmissionConflict:
                 if not record.outcome:
-                    raise ProtocolError(-32009, 'execution conflict')
+                    raise ProtocolError(-32009, 'execution conflict', {'kind': 'execution_conflict', 'exit_code': 8})
             record = self.store.get(record.key)
             if not record.outcome and not (record.receipt or {}).get('gateway_claim'):
                 record.receipt = dict(record.receipt or {}, gateway_claim=self.owner, brief_digest=digest)
@@ -162,6 +169,9 @@ class Gateway:
             if self.stopping.is_set():
                 raise ProtocolError(-32010, 'gateway stopping; execution retained')
             try:
+                if self.completion is not None:
+                    from .paseo_controller import persist_prompt
+                    persist_prompt(record, '\n'.join(b['text'] for b in blocks))
                 self.worker.start(record.invocation, record.attempt, '\n'.join(b['text'] for b in blocks))
             except Exception:
                 # A failed start may have dispatched a writer. Never retry it.
@@ -169,6 +179,13 @@ class Gateway:
         deadline = time.monotonic() + self.wait_seconds
         settlement_pending = False
         while time.monotonic() < deadline and not self.stopping.is_set():
+            if self.completion is not None:
+                observed = self.store.get(record.key)
+                if (observed.outcome is not None or observed.pending_outcome is not None) and observed.reservation:
+                    # The worker serializes live hooks with this same lock.
+                    # Never race an in_progress hook or churn running writer CAS.
+                    with getattr(self.worker, 'lock', nullcontext()):
+                        self.completion.reconcile(record.key)
             record = self.store.get(record.key)
             if record.outcome and record.outcome.get('quiescent') is True:
                 status = record.outcome.get('status')
@@ -297,12 +314,16 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not args.state_root or not args.invocation_id:
         parser.error('explicit state root and invocation id required')
-    from .execution_admission import AdmissionController
-    from .execution_supervisor import ExecutionSupervisor
     store = ExecutionStore(args.state_root)
-    supervisor = ExecutionSupervisor(store)
-    admission = AdmissionController(store, supervisor, lambda invocation, attempt: False)
-    # No worker can launch without trusted G3 policy/runner integration.
-    gateway = Gateway(store, admission, None, invocation_id=args.invocation_id)
+    try:
+        from .paseo_controller import build_gateway
+        gateway = build_gateway(store, args.invocation_id)
+    except Exception:
+        # Invalid/missing durable binding has no worker and cannot execute prompts.
+        from .execution_admission import AdmissionController
+        from .execution_supervisor import ExecutionSupervisor
+        supervisor = ExecutionSupervisor(store)
+        admission = AdmissionController(store, supervisor, lambda invocation, attempt: False)
+        gateway = Gateway(store, admission, None, invocation_id=args.invocation_id)
     gateway.serve(sys.stdin, sys.stdout)
     return 0

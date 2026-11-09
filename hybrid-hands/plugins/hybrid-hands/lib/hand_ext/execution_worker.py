@@ -159,6 +159,7 @@ class ExecutionWorker:
     def __init__(self, store, supervisor, runner=None, settlement_hooks=None):
         self.store, self.supervisor = store, supervisor
         self.runner = runner or run_backend
+        self.default_runner = runner is None
         self.hooks = dict(settlement_hooks or {})
         self.lock = threading.RLock()
         self.controls = {}
@@ -252,7 +253,52 @@ class ExecutionWorker:
 
     def _run(self, key, spec, control):
         try:
-            result = self.runner(get_backend(self.store.get(key).invocation.backend), spec, control=control)
+            record = self.store.get(key)
+            kwargs = {'control': control}
+            completion = (record.receipt or {}).get('completion')
+            if self.default_runner and completion:
+                from .run_registry import RunRegistry
+                run_id = record.attempt.run_id or hashlib.sha256(json.dumps(_plain(key), sort_keys=True).encode()).hexdigest()
+                if Path(run_id).name != run_id or run_id in ('.', '..') or '\\' in run_id:
+                    raise ValueError('invalid run id')
+                registry = RunRegistry(Path(completion['registry']), run_id,
+                                       completion.get('label', ''), record.invocation.backend,
+                                       spec.model, Path(record.invocation.source_cwd), spec.run_dir,
+                                       parent_session=record.invocation.parent_session, effort=spec.effort)
+                registry.start()
+                kwargs['registry'] = registry
+            result = self.runner(get_backend(record.invocation.backend), spec, **kwargs)
+            # Persist only canonical usage observations, never arbitrary backend
+            # extras/errors which may contain subprocess output or credentials.
+            from .codex_usage import normalize_windows
+            from .go_usage import _number
+            from .capacity import is_capacity_failure
+            observation = {
+                'quota': asdict(result.state.quota) if result.state.quota else None,
+                'windows': normalize_windows(result.state.extra.get('windows')),
+                'go_allowance_usd': _number(result.state.extra.get('go_allowance_usd')),
+                'capacity_failure': is_capacity_failure(result),
+            }
+            observation_saved = False
+            with self.lock:
+                for _ in range(8):
+                    observed = self.store.get(key)
+                    observed.receipt = dict(observed.receipt or {}, usage_observation=observation)
+                    try:
+                        self.store.compare_and_swap(key, observed.revision, observed)
+                        observation_saved = True
+                        break
+                    except StateConflict:
+                        continue
+            # A successful backend remains successful even under repeated CAS
+            # contention. Missing observation is explicit and settlement holds.
+            if not observation_saved:
+                outcome = dict(status='cancelled' if control.cancelled.is_set() else result.status.value,
+                               reason='usage observation unresolved', backend_exit_code=result.exit_code,
+                               provenance='runner', usage=None, final_text=result.state.final_text)
+                with self.lock:
+                    self.supervisor.record_outcome_once(key, outcome)
+                return
             # Default Usage() is not evidence of observed token usage.
             usage = asdict(result.state.usage) if result.state.usage.total() or result.state.usage.cached_input else None
             outcome = dict(status='cancelled' if control.cancelled.is_set() else result.status.value,
@@ -289,7 +335,10 @@ class ExecutionWorker:
             record.artifacts[kind] = refs
             record.settle_keys[kind] = dict(key=token, state='completed')
             self.store.compare_and_swap(key, record.revision, record)
-        # Deliberately keep reservation + settling. G3 owns admission.release.
+        callback = getattr(self, "settlement_callback", None)
+        if callback is not None:
+            callback(key)
+        # Completion service verifies all required artifacts before release.
 
     def cancel(self, key, reason):
         key = as_key(key)

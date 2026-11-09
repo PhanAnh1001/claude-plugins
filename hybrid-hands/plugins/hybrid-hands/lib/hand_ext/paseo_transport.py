@@ -69,6 +69,7 @@ class PaseoTransport:
             raise TransportError('DURABLE_STORE_REQUIRED')
         source = self.store.get(key)
         record = deepcopy((source.receipt or {}).get('transport', {}))
+        record['_source_transport'] = deepcopy((source.receipt or {}).get('transport', {}))
         record['revision'] = source.revision
         record['requestKey'] = source.attempt.request_key
         fields = {'targetKey':'target_key','projectId':'project_id',
@@ -101,23 +102,32 @@ class PaseoTransport:
         return record
 
     def _save(self, key, record, **changes):
-        source = self.store.get(key)
-        if source.revision != record['revision']:
-            raise TransportError('STATE_CONFLICT')
-        updated = dict(record, **changes)
-        fields = {'targetKey':'target_key','projectId':'project_id',
-                  'workspaceId':'workspace_id','agentId':'agent_id'}
-        bindings = {}
-        for public, field in fields.items():
-            if public in updated:
-                before = getattr(source.attempt, field)
-                if before is not None and before != updated[public]:
-                    raise TransportError('PLACEMENT_MISMATCH')
-                bindings[field] = updated[public]
-        source.attempt = replace(source.attempt, **bindings)
-        source.receipt = dict(source.receipt or {}, transport=updated)
-        self.store.compare_and_swap(key, record['revision'], source)
-        return self._read(key)
+        # Gateway/worker may publish receipts during sendMessage. Merge only
+        # their independent fields; a competing transport operation still fences us.
+        from .execution_state import StateConflict
+        for _ in range(8):
+            source = self.store.get(key)
+            if (source.receipt or {}).get('transport', {}) != record['_source_transport']:
+                raise TransportError('STATE_CONFLICT')
+            updated = dict(record, **changes)
+            updated.pop('_source_transport', None)
+            fields = {'targetKey':'target_key','projectId':'project_id',
+                      'workspaceId':'workspace_id','agentId':'agent_id'}
+            bindings = {}
+            for public, field in fields.items():
+                if public in updated:
+                    before = getattr(source.attempt, field)
+                    if before is not None and before != updated[public]:
+                        raise TransportError('PLACEMENT_MISMATCH')
+                    bindings[field] = updated[public]
+            source.attempt = replace(source.attempt, **bindings)
+            source.receipt = dict(source.receipt or {}, transport=updated)
+            try:
+                self.store.compare_and_swap(key, source.revision, source)
+                return self._read(key)
+            except StateConflict:
+                continue
+        raise TransportError('STATE_CONFLICT')
 
     def _mutate(self, key, command, **extra):
         record = self._read(key)
@@ -127,7 +137,7 @@ class PaseoTransport:
             if not Path(record['cwd']).is_dir():
                 raise TransportError('CWD_MISSING')
             record = self._save(key, record, cancelPending=True)
-            result = self._call(command, record)
+            result = self._call(command, {k: v for k, v in record.items() if k != '_source_transport'})
             if result.get('ok'):
                 self._save(key, record, cancelPending=False, cancelConfirmed=True)
                 result['state'] = 'cancel_requested'  # Not process quiescence.
@@ -145,7 +155,7 @@ class PaseoTransport:
         record = self._save(key, record, pending=command)
         if command == 'send' and record.get('freshDispatch'):
             record['quiescent'] = True
-        result = self._call(command, dict(record, **extra))
+        result = self._call(command, dict({k: v for k, v in record.items() if k != '_source_transport'}, **extra))
         if result.get('ok'):
             record = self._save(key, record, pending=None, **{command + 'Confirmed': True})
         return dict(result, placement={k: record.get(k) for k in
@@ -229,7 +239,7 @@ class PaseoTransport:
             self._save(key, record, pending=None, **{pending+'Confirmed':True})
         return result
 
-    def wait_child(self, key, timeout_s, poll_interval=0.1):
+    def wait_child(self, key, timeout_s, poll_interval=0.1, *, require_settlement=False):
         """Bounded read-only wait; public idle/receipt never proves completion.
 
         Completion means a terminal outcome AND supervisor evidence for this exact
@@ -247,7 +257,8 @@ class PaseoTransport:
             source = self.store.get(key)
             q = source.quiescence or {}
             if (source.outcome is not None and source.outcome.get('quiescent') is True
-                    and q.get('confirmed') is True and q.get('evidence')):
+                    and q.get('confirmed') is True and q.get('evidence')
+                    and (not require_settlement or (not source.reservation and source.state in ('awaiting_review', 'archived')))):
                 return {'ok': True, 'state': 'completed', 'outcome': deepcopy(source.outcome)}
             remaining = deadline - time.monotonic()
             if remaining <= 0:
