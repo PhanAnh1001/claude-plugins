@@ -24,7 +24,7 @@ from .backends.base import RunSpec
 from .constants import DEFAULTS, SANDBOXES
 from .execution_state import ExecutionKey, StateConflict, as_key, _plain
 from .execution_supervisor import ProcessIdentity, Quiescence, ConservativeProcessOps
-from .parallel import scope_digest
+from .parallel import canonical_scope
 from .runner import run_backend
 
 
@@ -168,11 +168,13 @@ class ExecutionWorker:
     def _spec(self, invocation, attempt, brief):
         if invocation.backend not in ('codex', 'dsh', 'claude-v1', 'claude-v2'):
             raise ValueError('fixed supported backend required')
-        if invocation.scope_id != scope_digest(Path(invocation.source_cwd)):
-            raise ValueError('scope must be source root digest')
+        # Scope was pinned by the dispatcher. The daemon can have a different
+        # HAND_SCOPE_ENV/CODEX_THREAD_ID; the durable reservation binds scope.
+        canonical_scope(invocation.scope_id)
         if not invocation.model or not invocation.effort:
             raise ValueError('fixed model and effort required')
-        if invocation.backend in ('codex', 'dsh') and invocation.account_alias not in ('', invocation.backend):
+        accounts = {'codex': ('', 'gpt', 'codex'), 'dsh': ('', 'dsh')}
+        if invocation.backend in accounts and invocation.account_alias not in accounts[invocation.backend]:
             raise ValueError('fixed account must match backend')
         if invocation.backend.startswith('claude-') and invocation.account_alias not in (invocation.backend, invocation.backend.removeprefix('claude-')):
             raise ValueError('fixed Claude account must match backend')

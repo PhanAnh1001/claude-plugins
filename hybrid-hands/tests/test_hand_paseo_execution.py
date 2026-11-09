@@ -45,11 +45,11 @@ class ExecutionTests(unittest.TestCase):
         self.supervisor = ExecutionSupervisor(self.store)
         self.admission = AdmissionController(self.store, self.supervisor, lambda *_: True)
 
-    def intent(self, name='one', **options):
+    def intent(self, name='one', account_alias='gpt', **options):
         fixed = dict(run_dir=str(self.root / ('run-'+name)), sandbox='workspace-write', timeout_s=3, max_tokens=100)
         fixed.update(options)
         invocation = Invocation(name, parallel.scope_digest(self.source), 'parent', backend='codex',
-                                account_alias='codex', model='fake-fixed', effort='low', source_cwd=str(self.source),
+                                account_alias=account_alias, model='fake-fixed', effort='low', source_cwd=str(self.source),
                                 isolated_cwd=str(self.isolated), fixed_options=fixed)
         attempt = Attempt(name, 'attempt', 1, 'request-'+name)
         self.store.create_intent(invocation, attempt)
@@ -80,7 +80,8 @@ class ExecutionTests(unittest.TestCase):
         r = self.store.get(attempt.key)
         self.store.bind_placement(attempt.key, r.revision, {'agent_id': 'latest-agent'})
         code = "from pathlib import Path; import json,os; assert 'FAKE_SECRET' not in os.environ; Path('written').open('a').write('patch'); print(json.dumps({'input':4,'output':2,'final':'assistant answer'}))"
-        with patch('hand_ext.execution_worker.get_backend', return_value=FakeBackend(code)), patch.dict('os.environ', {'FAKE_SECRET':'fake'}):
+        with patch('hand_ext.execution_worker.get_backend', return_value=FakeBackend(code)), patch.dict('os.environ', {'FAKE_SECRET':'fake', parallel.HAND_SCOPE_ENV:'different-daemon-scope'}):
+            self.assertNotEqual(inv.scope_id, parallel.scope_digest(self.source))
             starts = []; gate = threading.Barrier(2)
             def start():
                 gate.wait(2)
@@ -103,11 +104,16 @@ class ExecutionTests(unittest.TestCase):
         self.assertEqual((self.isolated / 'written').read_text(), 'patch')
         self.assertEqual(self.store.get(attempt.key).state, 'settling')
         self.assertIsNotNone(self.store.get(attempt.key).reservation)
+        self.assertEqual(self.store.get(attempt.key).invocation.scope_id, inv.scope_id)
+        self.assertEqual(self.store.get(attempt.key).reservation['scope_id'], inv.scope_id)
 
     def test_admission_fixed_options_and_runtime_caps(self):
         inv, attempt = self.intent('blocked')
         worker = ExecutionWorker(self.store, self.supervisor)
         with self.assertRaises(StateConflict): worker.start(inv, attempt, '')
+        mismatched, mismatched_attempt = self.intent('account-mismatch', account_alias='dsh')
+        with self.assertRaisesRegex(ValueError, 'fixed account must match backend'):
+            worker.start(mismatched, mismatched_attempt, '')
         with self.assertRaises(AdmissionDenied):
             AdmissionController(self.store, self.supervisor, lambda *_: False).admit(inv, attempt, max_parallel=1)
         self.admission.admit(inv, attempt, max_parallel=1)
