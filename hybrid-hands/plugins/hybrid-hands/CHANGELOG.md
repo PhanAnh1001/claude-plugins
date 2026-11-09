@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.34.0 — 2026-11-09
+
+- Hand chạy thành agent Paseo (lane A, opt-in): `ext_hand.mode` = `shell` (mặc định) / `auto` / `paseo-required`, cùng `ext_hand.paseo.{package_root,target,state_root}`. Mỗi hand một workspace riêng cùng project, gắn cha qua `PASEO_AGENT_ID`, giữ worktree/patch/report/ledger/guard, pool 4 và exit 7/8. `auto` thiếu daemon/provider/capability thì về shell trước dispatch; sau dispatch không tạo writer trùng.
+- Gateway ACP `bin/hand-paseo-acp` cho 4 provider `hh-hand-codex`, `hh-hand-dsh`, `hh-hand-claude-v1`, `hh-hand-claude-v2`; `hand-ext provider setup --dry-run|--apply` (backup trước khi ghi, giữ khoá khác) và `provider status`. Nạp provider bằng `paseo daemon reload`, không cần restart.
+- Lệnh `hand-ext managed ls|review-approve|archive|followup`: Sol duyệt rồi archive đúng hand, follow-up mở epoch mới cùng agent/workspace (không resume context CLI).
+- hh-ps hiện mỗi managed execution/epoch đúng một dòng dưới cha canonical, khử trùng với registry meta và rollout native, không cộng token hai lần.
+- Skill ext-hand/paseo và template Sol: khi mode bật và provider sẵn sàng, việc mới trước đây giao native Sol low chuyển sang `hand-ext run --mode paseo-required`; native đang chạy giữ nguyên.
+- Đã kiểm offline (487 test). Live trên daemon thật (placement, stop/reap, recovery ACK, smoke từng backend) chưa kiểm chứng.
+
 ## 0.33.1 — 2026-11-09
 
 - `ls` bỏ qua riêng phiên có agent đã xoá hoặc workspace lệch, vẫn reconcile các phiên hợp lệ khác.
