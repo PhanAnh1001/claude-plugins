@@ -9,10 +9,13 @@ from dataclasses import replace
 import hashlib
 import json
 import math
+import secrets
 import time
 from pathlib import Path
 import subprocess
 import uuid
+
+WORKSPACE_ID_RANDOM_BYTES = 8
 
 
 class TransportError(RuntimeError):
@@ -184,7 +187,7 @@ class PaseoTransport:
                 return result
             return self._save(key, record, workspaceConfirmed=True)
         if not record.get('workspaceId'):
-            record = self._save(key, record, **proposed, workspaceId=str(uuid.uuid4()),
+            record = self._save(key, record, **proposed, workspaceId='wks_' + secrets.token_hex(WORKSPACE_ID_RANDOM_BYTES),
                 agentId=str(uuid.uuid4()), workspaceKey=str(uuid.uuid4()))
         return self._mutate(key, 'workspace')
 

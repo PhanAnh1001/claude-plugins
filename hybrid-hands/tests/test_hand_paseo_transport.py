@@ -75,6 +75,7 @@ class PaseoTransportTests(unittest.TestCase):
         self.assertIn('hh-hand-codex',self.transport.probe_capabilities()['providers'])
         self.assertTrue(self.child()['ok'])
         before=self.store.get(self.key).attempt
+        self.assertRegex(before.workspace_id, r'^wks_[a-f0-9]{16}$')
         r=self.store.get(self.key); r.quiescence=None
         self.store.compare_and_swap(self.key,r.revision,r)
         self.assertTrue(self.transport.send_prompt(self.key,'fresh brief')['ok'])
