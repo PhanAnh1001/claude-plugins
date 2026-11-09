@@ -25,6 +25,7 @@ SUMMARY_HEADING = "## Tóm tắt"
 # Codex provider defaults for the Sol side session.
 # Context threshold for native Codex compaction; not a cumulative spending cap.
 CODEX_AUTO_COMPACT_TOKEN_LIMIT = 272_000
+CLAUDE_AUTO_COMPACT_ENV = "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
 HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
 CODEX_MODEL_DEFAULT = "gpt-6.1-sol"
 CODEX_EFFORT_DEFAULT = "high"

@@ -9,7 +9,9 @@ let input=''; for await (const x of process.stdin) input+=x;
 const request=JSON.parse(input);
 const save=async()=>writeFile(file,JSON.stringify(state));
 const mutate=async(name,args,fn)=>{
-  state.calls.push({name,args}); fn(); await save();
+  state.calls.push({name,args});
+  if(state.fail===name){await save();throw new Error('PRIVATE ERROR MUST NOT ESCAPE');}
+  fn(); await save();
   if(state.lose===name){state.lose=null;await save();throw new Error('PRIVATE ERROR MUST NOT ESCAPE');}
 };
 const client={
@@ -18,6 +20,16 @@ const client={
     if('includeArchived' in options.filter) throw new Error('invented option');
     return {entries:Object.values(state.workspaces).filter(x=>!x.archivedAt),pageInfo:{nextCursor:null}};
   },
+  async fetchAgents(options){
+    if(options.filter.includeArchived!==true || options.page.limit!==200) throw Error('invalid directory request');
+    if(state.memberError) throw Error('PRIVATE ERROR MUST NOT ESCAPE');
+    const pages=state.memberPages??[Object.values(state.agents).map(agent=>({agent}))];
+    const index=Number(options.page.cursor??0);
+    return {entries:pages[index],pageInfo:{nextCursor:state.memberCycle?'0':index+1<pages.length?String(index+1):null}};
+  },
+  async archiveWorkspace(workspaceId){await mutate('archiveWorkspace',{workspaceId},()=>{
+    state.workspaces[workspaceId].archivedAt='2026-11-09T00:00:00Z';
+  });return {archivedAt:state.workspaces[workspaceId].archivedAt};},
   async listAvailableProviders(){return {providers:[{provider:'hh-hand-codex',available:true}]};},
   async createWorkspace(options){await mutate('createWorkspace',options,()=>{
     state.workspaces[options.workspaceId]={id:options.workspaceId,projectId:options.source.projectId,
@@ -36,7 +48,11 @@ const client={
   async archiveAgent(agentId){await mutate('archiveAgent',{agentId},()=>{
     state.agents[agentId].archivedAt='2026-11-09T00:00:00Z';
   });return {archivedAt:state.agents[agentId].archivedAt};},
-  async inspectWorkspaceRecovery(workspaceId){return state.recovery??{workspaceId,kind:'unavailable',reason:'workspace_not_archived'};},
+  async inspectWorkspaceRecovery(workspaceId){return state.recovery??(!state.workspaces[workspaceId]
+    ? {workspaceId,kind:'unavailable',reason:'workspace_not_found'}
+    : state.workspaces[workspaceId].archivedAt
+      ? {workspaceId,kind:'recoverable',action:'unarchive'}
+      : {workspaceId,kind:'unavailable',reason:'workspace_not_archived'});},
   async restoreWorkspace(workspaceId){await mutate('restoreWorkspace',{workspaceId},()=>{state.workspaces[workspaceId].archivedAt=null;});},
   async refreshAgent(agentId){await mutate('refreshAgent',{agentId},()=>{state.agents[agentId].archivedAt=null;});},
 };

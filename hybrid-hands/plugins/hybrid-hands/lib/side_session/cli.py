@@ -51,6 +51,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--force-budget", action="store_true",
                    help="start dù budget_check_cmd từ chối (watch vẫn kiểm)")
     s.add_argument("--dry-run", action="store_true")
+    send = sub.add_parser("send", help="continue the exact Paseo side agent")
+    send.add_argument("--name", required=True)
+    send.add_argument("--prompt-file", required=True)
+    send.add_argument("--force-budget", action="store_true")
+    tidy = sub.add_parser("tidy", help="inspect plugin workspaces; --apply archives eligible IDs")
+    tidy.add_argument("--name")
+    tidy.add_argument("--apply", action="store_true")
     sub.add_parser("ls", help="list sessions")
     st = sub.add_parser("stop", help="stop a session and its watchdog")
     st.add_argument("name")
@@ -66,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-HANDLERS = {"start": actions.start, "ls": actions.ls, "stop": actions.stop,
+HANDLERS = {"tidy": actions.tidy,"send": actions.send,"start": actions.start, "ls": actions.ls, "stop": actions.stop,
             "watch": actions.watch, "handoff": actions.handoff}
 
 

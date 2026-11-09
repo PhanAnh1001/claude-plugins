@@ -79,18 +79,102 @@ async function parent(client, r) {
   if (r.projectId) check(w.projectId === r.projectId, 'PROJECT_MISMATCH');
   return {projectId: w.projectId, parentAgentId: a.id, parentWorkspaceId: a.workspaceId};
 }
-async function exact(client, r) {
-  await parent(client, r);
-  check(r.agentId && r.agentId !== r.parentAgentId && r.workspaceId, 'CHILD_ID_INVALID');
+async function childIdentity(client, r) {
+  const owner = await parent(client, r);
+  check(typeof r.agentId === 'string' && r.agentId.trim().length > 0
+    && r.agentId !== r.parentAgentId && typeof r.workspaceId === 'string'
+    && r.workspaceId.trim().length > 0 && r.workspaceId !== owner.parentWorkspaceId, 'CHILD_ID_INVALID');
   const a = (await client.fetchAgent({agentId: r.agentId}))?.agent;
   check(a?.id === r.agentId && a.workspaceId === r.workspaceId, 'CHILD_MISMATCH');
   check(a.provider === r.providerId && a.cwd === r.cwd
     && a.labels?.['paseo.parent-agent-id'] === r.parentAgentId, 'PLACEMENT_MISMATCH');
   if (r.model) check(a.model === r.model, 'MODEL_MISMATCH');
   if (r.effort) check(a.thinkingOptionId === r.effort, 'EFFORT_MISMATCH');
+  return a;
+}
+async function exact(client, r) {
+  const a = await childIdentity(client, r);
+  await activeWorkspace(client, r);
+  return a;
+}
+const archived = a => typeof a?.archivedAt === 'string' && Number.isFinite(Date.parse(a.archivedAt));
+async function activeWorkspace(client, r) {
   const w = await workspace(client, r.workspaceId);
   check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
-  return a;
+  return w;
+}
+async function recoveryPlan(client, r) {
+  const plan = await client.inspectWorkspaceRecovery(r.workspaceId);
+  check(plan?.workspaceId === r.workspaceId, 'RECOVERY_BLOCKED');
+  if (plan.kind === 'recoverable' && plan.action === 'unarchive') return 'archived';
+  check(plan.kind === 'unavailable' && plan.reason === 'workspace_not_archived', 'RECOVERY_BLOCKED');
+  await activeWorkspace(client, r);
+  return 'active';
+}
+async function archivedMembers(client, r) {
+  let cursor;
+  const seen = new Set(), ids = new Set();
+  let found = false;
+  for (let page = 0; page < 20; page++) {
+    const result = await client.fetchAgents({filter:{includeArchived:true},
+      page:{limit:200, ...(cursor ? {cursor} : {})}});
+    check(!result?.error && Array.isArray(result?.entries), 'MEMBERSHIP_UNCONFIRMED');
+    for (const entry of result.entries) {
+      const a = entry?.agent;
+      check(typeof a?.id === 'string' && a.id.trim().length > 0
+        && typeof a.workspaceId === 'string' && a.workspaceId.trim().length > 0 && !ids.has(a.id),
+        'MEMBERSHIP_UNCONFIRMED');
+      ids.add(a.id);
+      if (a.workspaceId !== r.workspaceId) continue;
+      check(archived(a), 'WORKSPACE_ACTIVE_MEMBER');
+      // This private workspace belongs only to the verified child. Archived
+      // siblings still have unknown ownership, regardless of labels/provider.
+      check(a.id === r.agentId, 'WORKSPACE_UNOWNED_MEMBER');
+      found = true;
+    }
+    cursor = result.pageInfo?.nextCursor;
+    if (cursor === null) { check(found, 'MEMBERSHIP_UNCONFIRMED'); return; }
+    check(typeof cursor === 'string' && cursor.length > 0 && !seen.has(cursor), 'MEMBERSHIP_UNCONFIRMED');
+    seen.add(cursor);
+  }
+  die('MEMBERSHIP_UNCONFIRMED');
+}
+async function lifecycle(client, r, observe = false) {
+  const a = await childIdentity(client, r);
+  const state = await recoveryPlan(client, r);
+  const archive = (r.pending ?? r.command) === 'archive';
+  if (archive) {
+    check(r.settled === true && r.quiescent === true, 'SETTLEMENT_REQUIRED');
+    if (!archived(a)) {
+      if (observe) return 'unresolved';
+      check(state === 'active', 'ARCHIVE_UNCONFIRMED');
+      const result = await client.archiveAgent(r.agentId);
+      check(!result?.error && archived(result), 'ARCHIVE_UNCONFIRMED');
+      check(archived(await childIdentity(client, r)), 'ARCHIVE_UNCONFIRMED');
+    }
+    await archivedMembers(client, r);
+    if (state === 'active') {
+      if (observe) return 'unresolved';
+      const result = await client.archiveWorkspace(r.workspaceId);
+      check(!result?.error && archived(result), 'ARCHIVE_UNCONFIRMED');
+    }
+    check(await recoveryPlan(client, r) === 'archived', 'ARCHIVE_UNCONFIRMED');
+    return 'archived';
+  }
+  check(r.reviewed === true && r.quiescent === true, 'REVIEW_REQUIRED');
+  if (!a.archivedAt) {
+    check(state === 'active', 'REOPEN_UNCONFIRMED');
+    await exact(client, r);
+    return 'reopened'; // Includes reconciliation after refresh ACK loss; never refresh twice.
+  }
+  check(archived(a), 'REOPEN_UNCONFIRMED');
+  if (observe) return 'unresolved';
+  if (state === 'archived') await client.restoreWorkspace(r.workspaceId);
+  await directory(r.cwd);
+  await exact(client, r); // Full active placement must be restored before refresh.
+  await client.refreshAgent(r.agentId);
+  check(!(await exact(client, r)).archivedAt, 'REOPEN_UNCONFIRMED');
+  return 'reopened';
 }
 // Public CreationClient uses this same observation API (daemon-client.js:452).
 // Failed + outcomeUnknown=false implies inFlight=null in pinned CreationService
@@ -143,7 +227,7 @@ async function creationFailure(client, r, target) {
     workspaceId:r.workspaceId, phase:'failed', outcomeUnknown:false, inFlight:null,
     absence:'AGENT_NOT_FOUND'};
 }
-const methods = ['fetchAgent','fetchWorkspaces','listAvailableProviders','createWorkspace','createAgent',
+const methods = ['fetchAgent','fetchAgents','archiveWorkspace','fetchWorkspaces','listAvailableProviders','createWorkspace','createAgent',
   'sendMessage','fetchAgentTimeline','cancelAgent','archiveAgent','inspectWorkspaceRecovery','restoreWorkspace','refreshAgent'];
 // Injectable entry exercises the same request shapes and identity gates as production.
 export async function handleRequest(client, r, target, schemas) {
@@ -194,12 +278,17 @@ export async function handleRequest(client, r, target, schemas) {
     } else if (r.command === 'create') {
       const w = await workspace(client, r.workspaceId);
       check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
-      check(r.agentId !== r.parentAgentId, 'CHILD_ID_INVALID');
+      const owner = await parent(client, r);
+      check(typeof r.agentId === 'string' && r.agentId.trim().length > 0
+        && r.agentId !== r.parentAgentId && r.workspaceId !== owner.parentWorkspaceId, 'CHILD_ID_INVALID');
       const providers = await client.listAvailableProviders();
       check(providers?.providers?.some(p => p.provider === r.providerId && p.available && !p.error), 'PROVIDER_UNAVAILABLE');
       const {type, ...options} = wire;
       await client.createAgent(options);
       await exact(client, r);
+    } else if (['archive','reopen'].includes(r.command)
+        || (r.command === 'reconcile' && ['archive','reopen'].includes(r.pending))) {
+      return {ok:true, state:await lifecycle(client, r, r.command === 'reconcile'), targetKey:fingerprint};
     } else if (r.command === 'reconcile') {
       const w = await workspace(client, r.workspaceId);
       if (!w) return {ok:true, state:'unresolved', targetKey:fingerprint};
@@ -209,12 +298,7 @@ export async function handleRequest(client, r, target, schemas) {
       const fetched = await client.fetchAgent({agentId:r.agentId});
       if (!fetched?.agent) return {ok:true, state:'unresolved', targetKey:fingerprint};
       const observed = await exact(client, r);
-      if (r.pending === 'archive' && Number.isFinite(Date.parse(observed.archivedAt)))
-        return {ok:true,state:'archived',targetKey:fingerprint};
-      // Cancel ACK loss cannot prove process/group quiescence from public idle.
       if (r.cancelPending) return {ok:true,state:'unresolved',targetKey:fingerprint};
-      if (r.pending === 'reopen')
-        return {ok:true,state:'unresolved',targetKey:fingerprint}; // no refresh receipt API
       let delivered = false;
       if (r.messageId) {
         const t = await client.fetchAgentTimeline(r.agentId, {limit:200});
@@ -230,28 +314,7 @@ export async function handleRequest(client, r, target, schemas) {
         check(typeof r.messageId === 'string' && r.messageId.length > 0, 'MESSAGE_ID_REQUIRED');
         await client.sendMessage(wire.agentId, wire.text, wire);
       } else if (r.command === 'cancel') await client.cancelAgent(r.agentId);
-      else if (r.command === 'archive') {
-        check(r.reviewed === true && r.quiescent === true, 'REVIEW_REQUIRED');
-        const result = await client.archiveAgent(r.agentId);
-        check(!result?.error && Number.isFinite(Date.parse(result?.archivedAt)), 'ARCHIVE_UNCONFIRMED');
-      } else if (r.command === 'reopen') {
-        check(r.quiescent === true && a.archivedAt, 'QUIESCENCE_REQUIRED');
-        const recovery = await client.inspectWorkspaceRecovery(r.workspaceId);
-        const active = recovery?.kind === 'unavailable' && recovery.reason === 'workspace_not_archived';
-        const unarchive = recovery?.kind === 'recoverable' && recovery.action === 'unarchive';
-        check(recovery?.workspaceId === r.workspaceId && (active || unarchive), 'RECOVERY_BLOCKED');
-        await directory(r.cwd);
-        if (unarchive) {
-          await client.restoreWorkspace(r.workspaceId);
-          const restored = await client.inspectWorkspaceRecovery(r.workspaceId);
-          check(restored?.workspaceId === r.workspaceId && restored.kind === 'unavailable'
-            && restored.reason === 'workspace_not_archived', 'RESTORE_UNCONFIRMED');
-          await exact(client, r);
-        }
-        await client.refreshAgent(r.agentId);
-        const after = await exact(client, r);
-        check(!after.archivedAt, 'REOPEN_UNCONFIRMED');
-      } else die('COMMAND_INVALID');
+      else die('COMMAND_INVALID');
     }
     return {ok:true, state:'confirmed', targetKey:fingerprint};
   } catch (error) {

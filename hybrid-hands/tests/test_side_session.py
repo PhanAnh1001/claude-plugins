@@ -182,7 +182,7 @@ class SideSessionTest(unittest.TestCase):
         cfg = load_config(self.repo)
         cfg = replace(cfg, max_parallel=6)
         sessions = [SimpleNamespace(name=f"fake-{i}", role="", status=status,
-                                   transport="paseo", provider="codex", handoff="fake")
+                                   transport="paseo", provider="codex", handoff="fake", paseo_send_pending=False)
                     for i, status in enumerate(["running"] * 4 + ["unknown", "idle_no_done"])]
         args = SimpleNamespace(main=False, dry_run=False)
         with mock.patch.object(actions.state, "load_all", return_value=sessions), \

@@ -77,7 +77,7 @@ class ArgvTest(HandExtTestCase):
         with mock.patch.dict(os.environ, blocked):
             env = ClaudeBackend()._base_env({"config_dir": self.tmp})
         for key in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
-                    "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK"):
+                    "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_AUTO_COMPACT_WINDOW"):
             self.assertNotIn(key, env)
         self.assertEqual(env["CLAUDE_CONFIG_DIR"], self.tmp)
 

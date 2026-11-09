@@ -95,11 +95,14 @@ class PaseoTransport:
         record['gatewayEnv'] = {'HYBRID_HANDS_EXECUTION_ROOT': str(self.store.root),
             'HYBRID_HANDS_INVOCATION_ID': source.invocation.invocation_id}
         q = source.quiescence or {}
-        record['quiescent'] = (q.get('confirmed') is True and bool(q.get('evidence')))
+        from .paseo_controller import terminal_evidence
+        record['settled'] = terminal_evidence(source)
+        record['quiescent'] = record['settled'] or (q.get('confirmed') is True and bool(q.get('evidence')))
         record['freshDispatch'] = (bool(source.reservation) and source.writer is None
             and source.process is None and source.outcome is None
             and not record.get('sendConfirmed') and source.state == 'admitted')
-        record['reviewed'] = (source.artifacts.get('review') or {}).get('approved') is True
+        review = source.artifacts.get('review') or {}
+        record['reviewed'] = review.get('approved') is True and review.get('epoch') == source.attempt.epoch
         if record.get('targetKey', self.target_key) != self.target_key:
             raise TransportError('TARGET_MISMATCH')
         return record
@@ -133,6 +136,14 @@ class PaseoTransport:
         raise TransportError('STATE_CONFLICT')
 
     def _mutate(self, key, command, **extra):
+        if command == 'send':
+            # Archive must not close the gateway before send ACK is durable.
+            from .paseo_controller import lifecycle_lock
+            with lifecycle_lock(self.store, '.send-lock'):
+                return self._mutate_once(key, command, **extra)
+        return self._mutate_once(key, command, **extra)
+
+    def _mutate_once(self, key, command, **extra):
         record = self._read(key)
         if command == 'cancel':
             if record.get('cancelPending'):
@@ -178,6 +189,10 @@ class PaseoTransport:
             parentAgentId=verified['parentAgentId'], cwd=cwd)
         if any(k in record and record[k] != v for k, v in proposed.items()):
             raise TransportError('PLACEMENT_MISMATCH')
+        if not record.get('lifecycle'):
+            record = self._save(key, record, lifecycle=dict(package_root=str(self.package_root),
+                target={k: self.target[k] for k in ('kind', 'home' if self.target['kind'] == 'instance' else 'host')},
+                node=self.node))
         if record.get('workspaceConfirmed'):
             return record
         capability = self.probe_capabilities()
@@ -235,9 +250,12 @@ class PaseoTransport:
             raise TransportError('PROMPT_MISMATCH')
         return self._mutate(key, 'send', brief=brief)
 
-    def reconcile(self, key):
+    def reconcile(self, key, *, capacity=False):
         record = self._read(key)
-        result = self._call('reconcile', record)
+        request = dict(record)
+        if capacity and record.get('pending') == 'reopen':
+            request['reviewed'] = True
+        result = self._call('reconcile', request)
         expected = {'workspace':'workspace_verified', 'create':'child_verified', 'send':'delivered', 'archive':'archived', 'reopen':'reopened'}
         pending = record.get('pending')
         if result.get('ok') and pending in expected and result.get('state') == expected[pending]:
@@ -284,16 +302,45 @@ class PaseoTransport:
     def cancel_child(self, key):
         return self._mutate(key, 'cancel')
 
-    def archive_child(self, key):
+    def _lifecycle(self, key, command, *, capacity=False):
+        from .paseo_controller import records_for
+        source = self.store.get(key)
+        key = source.key  # tuple keys stay accepted; compare canonical ExecutionKey
+        if records_for(self.store, source.invocation.invocation_id)[-1].key != key:
+            raise TransportError('LATEST_EXECUTION_REQUIRED')
         record = self._read(key)
-        if not record.get('reviewed') or not record.get('quiescent'):
-            raise TransportError('REVIEW_REQUIRED')
-        return self._mutate(key, 'archive')
+        if not record.get('quiescent') or not record.get('settled'):
+            raise TransportError('SETTLEMENT_REQUIRED')
+        if command == 'reopen' and not record.get('reviewed'):
+            from .constants import DSH_CAPACITY_MAX_CONTINUATIONS
+            source = self.store.get(key)
+            count = source.receipt.get('controller', {}).get('capacity_continuation', 0)
+            if not (capacity and source.invocation.backend == 'dsh' and type(count) is int
+                    and 0 <= count < DSH_CAPACITY_MAX_CONTINUATIONS
+                    and source.receipt.get('usage_observation', {}).get('capacity_failure') is True):
+                raise TransportError('REVIEW_REQUIRED')
+        pending = record.get('pending')
+        if pending:
+            result = self.reconcile(key, capacity=capacity)
+            if pending != command:
+                return dict(ok=False, state='unresolved', code='RECONCILE_REQUIRED')
+            if result.get('ok') and result.get('state') == {'archive':'archived', 'reopen':'reopened'}[command]:
+                return result
+            # First call only observes an unknown ACK. A later call may reissue
+            # these idempotent helpers, which observe both exact objects first.
+            current = self._read(key)
+            if current.get('lifecycleRetry') == command:
+                self._save(key, current, pending=None, lifecycleRetry=None)
+            else:
+                self._save(key, current, lifecycleRetry=command)
+                return dict(ok=False, state='unresolved', code='RECONCILE_REQUIRED')
+        return self._mutate(key, command, **({'reviewed': True} if capacity else {}))
 
-    def reopen_child(self, key):
-        if not self._read(key).get('quiescent'):
-            raise TransportError('QUIESCENCE_REQUIRED')
-        return self._mutate(key, 'reopen')
+    def archive_child(self, key):
+        return self._lifecycle(key, 'archive')
+
+    def reopen_child(self, key, *, capacity=False):
+        return self._lifecycle(key, 'reopen', capacity=capacity)
 
 
 def trusted_schema_rejection(result, command):

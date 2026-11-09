@@ -75,6 +75,8 @@ class ManagedIntegrationTests(unittest.TestCase):
         def client(request):
             calls.append(request)
             result = dict(ok=True, targetKey=transport.target_key)
+            if request['command'] in ('archive', 'reopen'):
+                result['state'] = {'archive': 'archived', 'reopen': 'reopened'}[request['command']]
             if request['command'] == 'probe': result['providers'] = ['hh-hand-codex']
             if request['command'] == 'parent':
                 result.update(parentAgentId='parent-agent', projectId='project')
@@ -92,6 +94,8 @@ class ManagedIntegrationTests(unittest.TestCase):
                                     controller.preflight('codex', 'parent-agent'))
         join_workers()
         self.assertTrue(terminal_evidence(first))
+        self.assertEqual(first.state, 'archived')
+        self.assertNotIn('review', first.artifacts)
         self.assertEqual(first.outcome['provenance'], 'runner')
         self.assertIsNone(first.reservation)
         self.assertEqual(set(first.settle_keys), {'finalize','report','ledger','go_ledger','usage_state'})
@@ -144,11 +148,13 @@ class ManagedIntegrationTests(unittest.TestCase):
             return json.loads(out.getvalue())
         command('review-approve', attempt.key)
         command('archive', attempt.key)
+        self.assertEqual(f.store.get(attempt.key).state, 'archived')
         result = command('followup', attempt.key, brief)
         join_workers()
         second = f.store.get(cli._execution_key(result['execution']['key']))
         self.assertEqual(second.key.epoch, 2)
         self.assertTrue(terminal_evidence(second))
+        self.assertEqual(second.state, 'archived')
         self.assertEqual(second.attempt.agent_id, first.attempt.agent_id)
         self.assertEqual(second.attempt.workspace_id, first.attempt.workspace_id)
         self.assertNotEqual(second.attempt.request_key, first.attempt.request_key)
@@ -173,8 +179,9 @@ class ManagedIntegrationTests(unittest.TestCase):
         self.assertEqual(len(launches), 2)
         self.assertEqual(sum(r['command']=='create' for r in calls), 1)
         archive = [r for r in calls if r['command']=='archive']
-        self.assertEqual(len(archive), 1)
-        self.assertEqual(archive[0]['agentId'], first.attempt.agent_id)
+        self.assertEqual(len(archive), 3)
+        self.assertTrue(all(r['agentId'] == first.attempt.agent_id and
+                            r['workspaceId'] == first.attempt.workspace_id for r in archive))
 
 if __name__ == '__main__':
     unittest.main()

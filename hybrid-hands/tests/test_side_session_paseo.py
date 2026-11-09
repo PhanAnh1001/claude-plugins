@@ -40,7 +40,7 @@ def start_args(name: str, **over) -> SimpleNamespace:
 
 def save_session(cfg: SideConfig, name: str, **over) -> None:
     values = dict(
-        name=name, uuid="u", provider=C.PROVIDER_CODEX, dir=str(cfg.repo / "work"),
+        name=name, uuid="u", provider=C.PROVIDER_CODEX, dir=str(cfg.worktree_root / name), worktree=True,
         screen="", watch_screen=actions.K.watch_screen(name), max_tokens=1000,
         started=time.time() - 60, status=C.STATUS_RUNNING,
         handoff=str(cfg.handoff_dir / f"{name}.md"), transport=C.TRANSPORT_PASEO,
@@ -105,6 +105,92 @@ def fake_app_popen(procs: list[FakeAppServer], cmd, **kwargs) -> FakeAppServer:
 
 
 class PaseoStartTest(unittest.TestCase):
+    def test_send_history_and_unknown_delivery(self):
+        for provider in (C.PROVIDER_CODEX, C.PROVIDER_CLAUDE):
+            for error in (False, True, "notSent"):
+                with self.subTest(provider=provider, error=error), tempfile.TemporaryDirectory() as d:
+                    cfg = cfg_for(Path(d))
+                    save_session(cfg, "a", provider=provider, status=C.STATUS_DONE, worktree=False, dir=str(cfg.repo))
+                    st = state.load(cfg.state_dir, "a")
+                    Path(st.dir).mkdir(parents=True, exist_ok=True)
+                    save_session(cfg, "main", role="main", dir=str(cfg.repo), worktree=False)
+                    ack = {"agentArchived": True, "agentId": st.paseo_agent_id,
+                           "workspaceId": st.paseo_workspace_id, "targetKey": st.paseo_target, "archived": True}
+                    with mock.patch.object(actions.paseo, "_call", return_value=ack) as call, mock.patch.object(actions, "count_tokens", return_value=0), mock.patch.object(actions, "_pin_rollout"), mock.patch.object(actions, "_capture_paseo_thread"):
+                        self.assertTrue(actions._finish_codex(cfg, st))
+                        self.assertEqual([o["agentId"] for o in call.call_args.args[1]["workspaceOwners"]], [st.paseo_agent_id])
+                        self.assertTrue(state.load(cfg.state_dir, "a").paseo_workspace_archived)
+                    cfg.handoff_dir.mkdir()
+                    marker = actions.K.done_path(st.handoff)
+                    marker.write_text("old")
+                    prompt = cfg.repo / "prompt.txt"
+                    prompt.write_text("next task")
+                    args = build_parser().parse_args(["send", "--name", "a", "--prompt-file", str(prompt)])
+                    with mock.patch.object(actions, "_preflight", return_value=None), mock.patch.object(
+                            actions.paseo, "send", side_effect=actions.paseo.PaseoError("SEND_ACK_UNKNOWN", {"notSent": True} if error == "notSent" else {}) if error else None
+                            ) as send, mock.patch.object(actions.subprocess, "run", return_value=SimpleNamespace(returncode=0)):
+                        self.assertEqual(actions.send(cfg, args), int(bool(error)))
+                        self.assertEqual(send.call_args.args[0].paseo_agent_id, st.paseo_agent_id)
+                        self.assertEqual(marker.exists(), error == "notSent")
+                        self.assertEqual(len(list(marker.parent.glob("*.history-*"))), 1)
+                        current = state.load(cfg.state_dir, "a")
+                        self.assertEqual(current.paseo_send_pending, error is True)
+                        self.assertEqual(current.started, st.started)
+                        self.assertEqual(current.status, C.STATUS_DONE if error else C.STATUS_RUNNING)
+                        self.assertEqual(actions.send(cfg, args), 1 if error == "notSent" else C.EXIT_USAGE)
+                        self.assertEqual(send.call_count, 2 if error == "notSent" else 1)
+                        self.assertTrue(Path(current.dir).is_dir())
+
+    def test_bridge_restores_before_exact_send_and_preserves_on_error(self):
+        import subprocess
+        # Archived workspace is absent from the active directory until restored; the
+        # public 0.15.0 sendMessage resolves {} on acceptance (no create, same agent).
+        for broken in ("", "restore", "restore-error", "send", "ack"):
+            with self.subTest(broken=broken), tempfile.TemporaryDirectory() as d:
+                root = Path(d)
+                utils = root / "dist" / "utils"
+                utils.mkdir(parents=True)
+                (root / "package.json").write_text('{"type":"module"}')
+                (utils / "daemon-target.js").write_text('export const selectDaemonTarget=()=>({kind:"instance",home:"/fake"});')
+                (utils / "client.js").write_text("""
+import {appendFileSync} from 'node:fs';
+export async function connectToDaemon(){let active=false; const log=x=>appendFileSync(process.env.TEST_EVENTS,x+'\\n'); return {
+ fetchAgent:async()=>({agent:{id:'a',workspaceId:'w',archivedAt:'2026-01-01'}}),
+ fetchWorkspaces:async()=>({entries:active?[{id:'w',workspaceDirectory:'/repo'},{id:'main',workspaceDirectory:'/repo'}]:[],pageInfo:{nextCursor:null}}),
+ inspectWorkspaceRecovery:async()=>active?{kind:'unavailable',reason:'workspace_not_archived',workspaceId:'w'}:{kind:'recoverable',action:'unarchive',workspaceId:'w'},
+ restoreWorkspace:async id=>{log('restore:'+id); if(process.env.TEST_BROKEN==='restore')throw Error(); if(process.env.TEST_BROKEN==='restore-error')return {error:'RESTORE_FAILED'};active=true;return {};},
+ createAgent:async()=>log('create'),
+ sendMessage:async(id,text)=>{log('send:'+id);if(process.env.TEST_BROKEN==='send')throw Error();return process.env.TEST_BROKEN==='ack'?{deliveryStatus:'bogus'}:{};},
+ close:async()=>{} };}
+""")
+                events = root / "events"
+                proc = subprocess.run(["node", str(actions.paseo.BRIDGE), str(root)], input=json.dumps({
+                    "command": "send", "agentId": "a", "expectedWorkspaceId": "w",
+                    "expectedTargetKey": "home:/fake", "workdir": "/repo", "text": "task"}), text=True,
+                    capture_output=True, timeout=5, env={**os.environ, "TEST_EVENTS": str(events), "TEST_BROKEN": broken})
+                result = json.loads(proc.stdout)
+                self.assertEqual(result["ok"], not bool(broken))
+                if broken:
+                    self.assertEqual(result["data"].get("notSent", False), broken.startswith("restore"))
+                self.assertEqual(events.read_text().splitlines(), ["restore:w"] + ([] if broken.startswith("restore") else ["send:a"]))
+
+    def test_tidy_defaults_and_preserves_state_on_error(self):
+        for apply, broken in ((False, False), (True, False), (True, True)):
+            with tempfile.TemporaryDirectory() as d:
+                cfg = cfg_for(Path(d))
+                save_session(cfg, "a", status=C.STATUS_DONE, worktree=False, dir=str(cfg.repo))
+                before = state.state_path(cfg.state_dir, "a").read_text()
+                args = build_parser().parse_args(["tidy", "--name", "a"] + (["--apply"] if apply else []))
+                result = {"eligible": True, "archived": apply, "workspaceId": "workspace-a",
+                          "targetKey": "home:/tmp/paseo", "agentIds": []}
+                with mock.patch.object(actions.paseo, "_call", return_value=result,
+                        side_effect=actions.paseo.PaseoError("FAILED") if broken else None) as call, redirect_stdout(io.StringIO()):
+                    self.assertEqual(actions.tidy(cfg, args), int(broken))
+                    self.assertEqual(call.call_args.args[1]["apply"], apply)
+                self.assertEqual(state.load(cfg.state_dir, "a").paseo_workspace_archived, apply and not broken)
+                if not apply or broken:
+                    self.assertEqual(state.state_path(cfg.state_dir, "a").read_text(), before)
+
     def test_main_start(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(actions.paseo, "plan", return_value={"target": "fake"}), mock.patch.object(actions.paseo, "start_agent", return_value={"agentId": "main"}) as agent, mock.patch.object(actions.K, "watch_cmd") as watch, mock.patch.object(actions.paseo.codex_trust, "ensure_codex_compact_limit") as compact:
             cfg = cfg_for(Path(d))
@@ -155,12 +241,14 @@ class PaseoStartTest(unittest.TestCase):
             save_session(cfg, "idle-done", worktree=True)
             st = state.load(cfg.state_dir, "idle-done")
             work = Path(st.dir)
-            work.mkdir()
+            work.mkdir(parents=True)
             cfg.handoff_dir.mkdir()
             out = io.StringIO()
             with mock.patch.object(actions.paseo, "status",
                                    return_value={"status": "idle"}) as agent_status, \
-                    mock.patch.object(actions.paseo, "_call", return_value={"ok": True}) as call, \
+                    mock.patch.object(actions.paseo, "_call", return_value={"ok": True, "archived": True, "agentArchived": True,
+                        "agentId": st.paseo_agent_id, "workspaceId": st.paseo_workspace_id,
+                        "targetKey": st.paseo_target}) as call, \
                     mock.patch.object(actions, "_quit") as quit_session, \
                     redirect_stdout(out):
                 self.assertTrue(actions.watch_tick(cfg, st.name))
@@ -198,15 +286,17 @@ class PaseoStartTest(unittest.TestCase):
                 self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_DONE)
                 self.assertEqual(actions._running(cfg), [])
                 # Dedicated lifecycle operation must preserve the conversation.
-                self.assertEqual(call.call_args.args[0], "finish")
+                self.assertEqual([c.args[0] for c in call.call_args_list], ["finish", "rearchive"])
                 self.assertEqual(call.call_args.args[1]["agentId"], st.paseo_agent_id)
                 self.assertEqual(call.call_args.args[1]["expectedWorkspaceId"], st.paseo_workspace_id)
                 pending = state.load(cfg.state_dir, st.name)
                 pending.paseo_workspace_archived = False
                 state.save(cfg.state_dir, pending)
                 call.side_effect = actions.paseo.PaseoError("WORKSPACE_ARCHIVE_FAILED")
-                self.assertTrue(actions.watch_tick(cfg, st.name))
+                self.assertFalse(actions.watch_tick(cfg, st.name))
+                self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_DONE)
                 call.side_effect = None
+                call.return_value = {"ok": True, "archived": True}
                 actions.ls(cfg, None)
                 self.assertTrue(state.load(cfg.state_dir, st.name).paseo_workspace_archived)
                 self.assertEqual(call.call_args.args[1]["expectedTargetKey"], st.paseo_target)
@@ -454,7 +544,7 @@ class PaseoStartTest(unittest.TestCase):
             cfg = cfg_for(tmp)
             work = tmp / "work"
             other = tmp / "other"
-            work.mkdir()
+            work.mkdir(parents=True)
             other.mkdir()
             handoff = cfg.handoff_dir / "n.md"
             handoff.parent.mkdir(parents=True)
@@ -599,7 +689,7 @@ class PaseoStartTest(unittest.TestCase):
                     fake["events"].append(("revive", st.name))
                     return fake["revive"]
 
-                def rearchive(st):
+                def rearchive(st, owners):
                     fake["events"].append(("rearchive", st.name))
                     return fake["rearchive"]
 
@@ -668,10 +758,10 @@ class PaseoStartTest(unittest.TestCase):
                             mock.patch.object(actions, "count_tokens", return_value=0), \
                             redirect_stdout(io.StringIO()):
                         run_step()
-                        self.assertEqual(fake["events"], [])
+                        self.assertEqual(fake["events"], [("rearchive", "a")])
                         self.assertEqual(snapshot(), (C.STATUS_DONE, False, True))
                         run_step()
-                    self.assertEqual(fake["events"], [("revive", "a")])
+                    self.assertEqual(fake["events"], [("rearchive", "a"), ("revive", "a")])
 
     def test_ls_skips_missing_and_mismatched_done_agents(self) -> None:
         with tempfile.TemporaryDirectory() as d:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.36.0 — 2026-11-09
+
+- Claude main: thêm `main_session.claude_auto_compact_window` mặc định `272000` cho mọi account; nhận số nguyên `100000..1000000`, `null`/`"auto"` bỏ override, giá trị khác báo lỗi kèm nguồn; công khai helper chuẩn hóa và provenance qua `hand-ext config --json`. `side-session start --main --provider claude` qua Paseo/screen truyền `CLAUDE_CODE_AUTO_COMPACT_WINDOW` khi có window; `ls` dùng window đã áp dụng, lưu lúc launch kèm `(tự nén)`. Main cũ chưa lưu window giữ hiển thị cũ; mở main MỚI để nhận env/window mới, không sửa settings hay restart/dừng main đang chạy. Phiên phụ/hand giữ nguyên; hand Claude lọc biến compact kế thừa.
+
+- `side-session` qua mọi provider Paseo: report/`.done` archive đúng agent và workspace do plugin tạo (LOCAL riêng hoặc worktree) khi mọi agent cùng `workspaceId` đã archived hoặc được xác nhận là phiên plugin đã đóng rồi archive. Không archive `main_session`, workspace ngoài plugin hay workspace còn thành viên hoạt động; xét thành viên theo `workspaceId`, không theo cwd vì nhiều workspace LOCAL có thể dùng chung checkout. Lỗi archive workspace vẫn giữ done và retry có giới hạn; giữ thư mục, lịch sử, report và artifacts.
+- `side-session send --name NAME --prompt-file FILE` khôi phục cùng workspace rồi đúng agent, lưu marker cũ vào lịch sử và chạy lại, không tạo bản trùng. Lỗi chắc chắn trước send cho phép retry; send chưa rõ kết quả giữ pending.
+- `side-session tidy [--name NAME] [--apply]` mặc định dry-run, dọn trạng thái archive workspace do plugin tạo đã rỗng hoặc chỉ còn agent plugin đã archived, lặp an toàn; bảo vệ main, workspace ngoài plugin, workspace dùng chung còn thành viên cần giữ và mọi thư mục.
+- Managed `awaiting_review` sau đủ report/hooks tự archive đúng child và workspace trước review; follow-up vẫn cần review approval, khôi phục cả hai với cùng ID và epoch mới. Archive tường minh lặp an toàn, không dọn worktree; lifecycle hh-ps/panel giữ nguyên.
+
 ## 0.35.6 — 2026-11-09
 
 - `managed recover --legacy-attest --reason` bổ sung ngoại lệ người vận hành xác nhận cho record trước 0.35.5 thiếu inventory/reap proof: dry-run mặc định, apply kiểm exact binding/revision/reservation, owner/root/group đã vắng hoặc PID reuse được chứng minh và marker scan mới sạch. Record mang evidence inventory/reap hiện đại phải dùng `post_hoc_reverify`.

@@ -22,7 +22,7 @@ from hand_ext.paseo_controller import (PaseoController, FreshPolicy, PaseoUnavai
     ExecutionUnresolved, cmd_managed_run, terminal_evidence, build_gateway)
 from hand_ext.paseo_completion import CompletionService
 from hand_ext.paseo_gateway import Gateway, ProtocolError
-from hand_ext.paseo_transport import PaseoTransport
+from hand_ext.paseo_transport import PaseoTransport, TransportError
 
 
 class Ops:
@@ -65,6 +65,9 @@ class FinishingWorker:
 
 class ControllerTests(unittest.TestCase):
     def setUp(self):
+        self.schedule_archive = CompletionService._schedule_archive
+        archive = patch.object(CompletionService, '_schedule_archive')
+        archive.start(); self.addCleanup(archive.stop)
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup)
         self.root=Path(temp.name).resolve()
         self.repo=self.root/'repo'; self.repo.mkdir()
@@ -137,6 +140,8 @@ class ControllerTests(unittest.TestCase):
                             messageId=request['messageId'],prompt=[dict(type='text',text=request['brief'])]))
                     except ProtocolError as error:
                         if error.code!=-32011:raise
+                if command in ('archive', 'reopen'):
+                    result['state'] = {'archive':'archived', 'reopen':'reopened'}[command]
                 return result
             transport=PaseoTransport(package,{'kind':'instance','home':str(self.root/'daemon')},
                 client_factory=lambda *args:client,store=store)
@@ -205,9 +210,14 @@ class ControllerTests(unittest.TestCase):
         gateway=Gateway(self.store,admission,worker,invocation_id=inv.invocation_id,wait_seconds=1,completion=completion)
         package=Path(__file__).parent/'fixtures/hand_paseo/transport/package'
         calls=[]
+        failures = {'archive': 1, 'reopen': 1}
         def client(request):
             command=request['command'];calls.append(command)
             result={'ok':True,'targetKey':transport.target_key}
+            if failures.get(command, 0):
+                failures[command] -= 1
+                return {'ok': False, 'code': 'RAW_SECRET_DIAGNOSTIC'}
+            if command=='reconcile':result['state']='unresolved'
             if command=='probe':result['providers']=['hh-hand-codex']
             if command=='parent':result.update(parentAgentId='parent-agent',projectId='project')
             if command=='send':
@@ -215,23 +225,69 @@ class ControllerTests(unittest.TestCase):
                 envelope = ('<paseo-system version="1" kind="agent-message" source-agent-id="' +
                     escape(inv.parent_paseo_agent_id) + '" message-id="' + request['messageId'] +
                     '">\n' + escape(request['brief']) + '\n</paseo-system>')
-                gateway.handle('session/prompt',dict(sessionId=inv.invocation_id,
-                    messageId=request['messageId'],prompt=[dict(type='text',text=envelope)]))
+                try:
+                    gateway.handle('session/prompt',dict(sessionId=inv.invocation_id,
+                        messageId=request['messageId'],prompt=[dict(type='text',text=envelope)]))
+                except ProtocolError as error:
+                    if error.code != -32011: raise
+            if command in ('archive', 'reopen'):
+                result['state'] = {'archive':'archived', 'reopen':'reopened'}[command]
             return result
         transport=PaseoTransport(package.resolve(),{'kind':'instance','home':str(self.root/'daemon')},
             client_factory=lambda *args:client,store=self.store)
         # Independent frontend has no daemon process authority.
         front=PaseoController(self.cfg,self.store,transport,completion=CompletionService(self.store,ExecutionSupervisor(self.store),admission))
         parent=front.preflight('codex','parent-agent')
+        self.assertFalse(transport._read((a.invocation_id, a.attempt_id, a.epoch))['settled'])
+        with self.assertRaises(StateConflict): front.archive(a.key)
+        worker.status = 'failed'
         record=front.dispatch(inv,a,'fresh synthetic brief',parent)
         self.assertTrue(terminal_evidence(record));self.assertEqual(worker.calls,1)
         self.assertIn('create',calls); self.assertIn('send',calls)
         self.assertGreaterEqual(self.preflight.call_count,2)
-        front.approve_review(a.key)
+        for field, value in (('reservation', {'held': True}), ('settle_keys', {}),
+                             ('quiescence', {'confirmed': False, 'evidence': ''})):
+            unfinished = replace(record, **{field: value})
+            self.assertFalse(terminal_evidence(unfinished))
+        self.assertEqual(record.outcome['status'], 'failed')
+        self.assertEqual(record.receipt['lifecycle_error']['code'], 'ARCHIVE_UNRESOLVED')
+        self.assertNotIn('RAW_SECRET', str(record.receipt))
+        with self.assertRaises(StateConflict): front.followup(a.key, 'review required')
+        with self.assertRaises(ExecutionUnresolved): front.archive(a.key)  # Unknown ACK.
         front.archive(a.key)
         self.assertEqual(self.store.get(a.key).state,'archived')
+        self.assertNotIn('review', self.store.get(a.key).artifacts)
+        front.archive(a.key)  # Idempotent exact child + workspace observation.
+        self.assertTrue(transport.archive_child((a.invocation_id, a.attempt_id, a.epoch))['ok'])
+        before = self.store.get(a.key)
+        with patch.object(transport, '_mutate', side_effect=TransportError('RAW_SECRET')):
+            with self.assertRaises(ExecutionUnresolved): front.archive(a.key)
+        after = self.store.get(a.key)
+        self.assertEqual((after.state, after.outcome, after.settle_keys), ('archived', before.outcome, before.settle_keys))
+        self.assertNotIn('RAW_SECRET', str(after.receipt))
+        front.archive(a.key); self.assertNotIn('lifecycle_error', self.store.get(a.key).receipt)
+        front.approve_review(a.key)
+        for _ in range(2):
+            with self.assertRaises(ExecutionUnresolved):
+                front.followup(a.key, 'second self-contained brief')
+            from hand_ext.paseo_controller import records_for
+            self.assertEqual(len(records_for(self.store, inv.invocation_id)), 1)
+            self.assertTrue(self.store.get(a.key).artifacts['review']['approved'])
+            self.assertIsNone(self.store.get(a.key).reservation)
+        is_dir = Path.is_dir
+        with patch.object(Path, 'is_dir', lambda path: False if str(path) == inv.isolated_cwd else is_dir(path)):
+            with self.assertRaises(ExecutionUnresolved):
+                front.followup(a.key, 'second self-contained brief')
+        self.assertEqual(len(records_for(self.store, inv.invocation_id)), 1)
+        legacy=self.store.get(a.key); legacy.receipt['transport'].pop('lifecycle'); self.store.compare_and_swap(a.key,legacy.revision,legacy)
+        self.assertIn('lifecycle',transport.ensure_workspace(a.key,parent,inv.isolated_cwd))
         next_record=front.followup(a.key,'second self-contained brief')
         self.assertEqual(next_record.attempt.epoch,2)
+        from hand_ext.paseo_completion import deferred_archive
+        next_record.state='awaiting_review'; self.store.compare_and_swap(next_record.key,next_record.revision,next_record)
+        with patch('hand_ext.paseo_transport.PaseoTransport',return_value=transport), patch('hand_ext.paseo_completion.subprocess.run',side_effect=lambda args,**kw: deferred_archive(args[-2],args[-1])):
+            self.schedule_archive(completion,next_record.key); completion._archive_threads[next_record.key].join(3)
+        self.assertEqual(self.store.get(next_record.key).state,'archived')
         self.assertEqual(next_record.attempt.agent_id,record.attempt.agent_id)
         self.assertEqual(next_record.attempt.workspace_id,record.attempt.workspace_id)
         self.assertNotEqual(next_record.attempt.request_key,a.request_key)
@@ -651,7 +707,7 @@ class ControllerTests(unittest.TestCase):
         def client(r):
             calls.append(r['command'])
             if r['command']=='create':return {'ok':False,'code':'TRANSPORT_UNRESOLVED'}
-            return dict(ok=True,targetKey=transport.target_key,projectId='project',parentAgentId='parent-agent',providers=['hh-hand-codex'])
+            return dict(ok=True,state='reopened' if r['command']=='reopen' else 'verified',targetKey=transport.target_key,projectId='project',parentAgentId='parent-agent',providers=['hh-hand-codex'])
         transport=PaseoTransport(package.resolve(),{'kind':'instance','home':str(self.root/'daemon')},client_factory=lambda *args:client,store=self.store)
         front=PaseoController(self.cfg,self.store,transport,supervisor=sup,admission=admission,completion=completion)
         parent=front.preflight('codex','parent-agent')
@@ -683,7 +739,7 @@ class ControllerTests(unittest.TestCase):
                     'usage_observation':{'capacity_failure':True}}
         dr.outcome=dict(status='failed',quiescent=True)
         dr.quiescence=dict(confirmed=True,evidence='fixture reaped',observed_at=time.time())
-        dr.state='awaiting_review'
+        dr.state='archived'
         dr.settle_keys={k:dict(state='completed',key=k) for k in ('finalize','report','ledger','go_ledger','usage_state')}
         self.store.compare_and_swap(dr.key,dr.revision,dr)
         with patch.object(front,'dispatch',side_effect=lambda i,a,b,p:self.store.get(a.key)), \
@@ -692,6 +748,7 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(next_record.attempt.epoch,2)
         self.assertEqual(next_record.receipt['completion']['context']['baseline_tree'],saved['context']['baseline_tree'])
         self.assertNotIn('review',self.store.get(da.key).artifacts)
+        self.assertIn('reopen', calls)
         dcfg=replace(self.cfg,order=['dsh'])
         with patch('hand_ext.paseo_controller.load_config',return_value=dcfg):
             self.assertTrue(FreshPolicy(self.store)(dsh,next_record.attempt))

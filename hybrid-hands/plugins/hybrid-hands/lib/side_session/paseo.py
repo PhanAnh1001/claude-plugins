@@ -38,7 +38,7 @@ class PaseoError(RuntimeError):
 def clean_env() -> dict[str, str]:
     """Environment for bridge/watchdog processes, without ambient Paseo ownership."""
     env = dict(os.environ)
-    for key in C.PASEO_INHERITED_ENVS:
+    for key in (*C.PASEO_INHERITED_ENVS, C.CLAUDE_AUTO_COMPACT_ENV):
         env.pop(key, None)
     return env
 
@@ -67,10 +67,10 @@ def _call(command: str, payload: dict | None = None, *, timeout: float) -> dict:
     request = {"command": command, **(payload or {})}
     node = shutil.which(C.PASEO_NODE)
     if node is None:
-        raise PaseoError("NODE_NOT_FOUND")
+        raise PaseoError("NODE_NOT_FOUND", {"notSent": True} if command == "send" else {})
     root = cli_package_root()
     if root is None:
-        raise PaseoError("PASEO_CLI_NOT_FOUND")
+        raise PaseoError("PASEO_CLI_NOT_FOUND", {"notSent": True} if command == "send" else {})
     try:
         proc = subprocess.run(
             [node, str(BRIDGE), str(root)],
@@ -79,7 +79,7 @@ def _call(command: str, payload: dict | None = None, *, timeout: float) -> dict:
     except subprocess.TimeoutExpired as exc:
         raise PaseoError("PASEO_TIMEOUT") from exc
     except OSError as exc:
-        raise PaseoError("PASEO_BRIDGE_FAILED") from exc
+        raise PaseoError("PASEO_BRIDGE_FAILED", {"notSent": True} if command == "send" else {}) from exc
     lines = [line for line in proc.stdout.splitlines() if line.strip()]
     try:
         response = json.loads(lines[-1]) if lines else {}
@@ -107,7 +107,8 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
                 initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str,
                 project_root: str, provider: str = C.PROVIDER_CODEX,
                 claude_config_dir: str = "", mode_id: str = "",
-                claude_options: dict | None = None) -> dict:
+                claude_options: dict | None = None,
+                claude_auto_compact_window: int | None = None) -> dict:
     """Create a directory workspace and the selected provider in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
@@ -118,6 +119,8 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
     claude_only: dict = {}
     if provider == C.PROVIDER_CLAUDE:
         env = {"CLAUDE_CONFIG_DIR": claude_config_dir, C.HAND_SCOPE_ENV: hand_scope}
+        if claude_auto_compact_window is not None:
+            env[C.CLAUDE_AUTO_COMPACT_ENV] = str(claude_auto_compact_window)
         provider_options = claude_options or {}
         claude_only = {"modeId": mode_id or None}
     return _call("start", {
@@ -179,7 +182,10 @@ def _exact_agent(st: state.SessionState) -> dict | None:
     return {"agentId": st.paseo_agent_id,
             "expectedWorkspaceId": st.paseo_workspace_id,
             "expectedTargetKey": st.paseo_target,
-            "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS}
+            "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
+            "privateWorkspace": bool(st.role != "main"
+                                     and Path(st.dir).is_absolute()),
+            "workdir": st.dir}
 
 
 def _guard_message(st: state.SessionState) -> str:
@@ -194,7 +200,12 @@ def finish(st: state.SessionState) -> str | None:
     if payload is None:
         return _guard_message(st)
     try:
-        _call("finish", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+        result = _call("finish", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+        if (result.get("agentArchived") is not True
+                or result.get("agentId") != st.paseo_agent_id
+                or result.get("workspaceId") != st.paseo_workspace_id
+                or result.get("targetKey") != st.paseo_target):
+            return "AGENT_ARCHIVE_UNCONFIRMED"
     except PaseoError as exc:
         return exc.code
     return None
@@ -254,12 +265,13 @@ def revive(st: state.SessionState) -> tuple[bool | None, str | None]:
     return None, "PASEO_BRIDGE_PROTOCOL"
 
 
-def rearchive(st: state.SessionState) -> tuple[bool | None, str | None]:
+def rearchive(st: state.SessionState, owners: list[state.SessionState] | None = None) -> tuple[bool | None, str | None]:
     """Archive only the private workspace once the revived agent is archived again."""
     payload = _exact_agent(st)
     if payload is None:
         return None, _guard_message(st)
     try:
+        payload["workspaceOwners"] = workspace_owners(st, [st] if owners is None else owners)
         result = _call("rearchive", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
     except PaseoError as exc:
         return None, exc.code
@@ -267,6 +279,30 @@ def rearchive(st: state.SessionState) -> tuple[bool | None, str | None]:
     if archived is True or archived is False:
         return archived, None
     return None, "PASEO_BRIDGE_PROTOCOL"
+
+
+def workspace_owners(st: state.SessionState, records: list[state.SessionState]) -> list[dict]:
+    """Only this repo's recorded exact workspace/target identifies ownership."""
+    return [{"agentId": item.paseo_agent_id, "workspaceId": item.paseo_workspace_id,
+             "role": item.role, "status": item.status,
+             "sendPending": item.paseo_send_pending}
+            for item in records if item.paseo_workspace_id == st.paseo_workspace_id
+            and item.paseo_target == st.paseo_target
+            and item.transport == C.TRANSPORT_PASEO]
+
+
+def tidy_workspace(st: state.SessionState, records: list[state.SessionState], apply: bool) -> dict:
+    payload = {"expectedWorkspaceId": st.paseo_workspace_id,
+               "expectedTargetKey": st.paseo_target, "workdir": st.dir,
+               "privateWorkspace": st.role != "main", "apply": apply,
+               "workspaceOwners": workspace_owners(st, records)}
+    result = _call("tidy", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+    if (result.get("workspaceId") != st.paseo_workspace_id
+            or result.get("targetKey") != st.paseo_target
+            or result.get("eligible") is not True
+            or not isinstance(result.get("archived"), bool)):
+        raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+    return result
 
 
 def plan(cfg: SideConfig, a) -> dict | None:
@@ -358,6 +394,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         env = ({"CLAUDE_CONFIG_DIR": st.claude_config_dir, C.HAND_SCOPE_ENV: st.uuid}
                if st.provider == C.PROVIDER_CLAUDE else
                {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: st.uuid})
+        if st.claude_auto_compact_window is not None:
+            env[C.CLAUDE_AUTO_COMPACT_ENV] = str(st.claude_auto_compact_window)
         options = process_options(cfg, st.chrome) if st.provider == C.PROVIDER_CLAUDE else {}
         print(json.dumps({"provider": "claude" if st.provider == C.PROVIDER_CLAUDE
                           else C.PASEO_PROVIDER, "env": env,
@@ -393,6 +431,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
             project_root=str(cfg.repo),
             target_key=st.paseo_target,
             **({"provider": st.provider, "claude_config_dir": st.claude_config_dir,
+                "claude_auto_compact_window": st.claude_auto_compact_window,
                 **process_options(cfg, st.chrome)} if st.provider == C.PROVIDER_CLAUDE else {}))
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")
@@ -427,7 +466,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     if st.role != "main" and subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
         print("side-session: warning: watchdog failed to start")
     usage = (f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén)"
-             if st.provider == C.PROVIDER_CODEX else f"cap {st.max_tokens}")
+             if st.provider == C.PROVIDER_CODEX else (f"context {st.claude_auto_compact_window} (tự nén)"
+                   if st.claude_auto_compact_window is not None else f"cap {st.max_tokens}"))
     print(f"started {st.name} (Paseo agent {st.paseo_agent_id}), uuid {st.uuid}, "
           f"{usage}; mở app Paseo hoặc `paseo attach`")
     return 0
@@ -494,3 +534,15 @@ def capture_native_id(st: state.SessionState, native_id: str) -> bool:
         return False
     st.codex_thread_id = native_id
     return True
+
+
+def send(st: state.SessionState, text: str) -> None:
+    payload = _exact_agent(st)
+    if payload is None or not st.paseo_target:
+        raise PaseoError("SEND_IDENTITY_UNKNOWN", {"notSent": True})
+    result = _call("send", {**payload, "text": text}, timeout=C.PASEO_START_TIMEOUT_S)
+    if (result.get("accepted") is not True
+            or result.get("agentId") != st.paseo_agent_id
+            or result.get("workspaceId") != st.paseo_workspace_id
+            or result.get("targetKey") != st.paseo_target):
+        raise PaseoError("SEND_ACK_UNKNOWN")

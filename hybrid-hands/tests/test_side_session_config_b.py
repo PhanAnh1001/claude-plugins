@@ -74,3 +74,25 @@ class ConfigBTest(unittest.TestCase):
             self.assertIn(str(root/path), rendered)
         self.assertIn((root/'templates/hand-brief.md').read_text(), rendered)
         self.assertIn('Codex actual-model medium', rendered)
+
+    def test_main_claude_compact_launch_and_display(self):
+        from dataclasses import replace
+        from side_session.constants import CLAUDE_AUTO_COMPACT_ENV as key
+        for value in (272000, 400000, None, 'auto'):
+            self.cfg = replace(self.cfg, main_session={} if value == 272000 else {'claude_auto_compact_window': value})
+            for transport in ('screen', 'paseo'):
+                self.cfg = replace(self.cfg, transport=transport, main_session={**self.cfg.main_session, "transport": transport})
+                for account in ('v1', 'v2'):
+                    for main in (False, True):
+                        applied = value if main and isinstance(value, int) else None
+                        with patch.dict(os.environ, {key: '272000'}), patch.object(paseo, '_call', side_effect=AssertionError('no daemon')):
+                            result, out = self.run_start('--provider', 'claude', '--account', account, '--prompt', 'fixture', '--dry-run', *(['--main'] if main else []))
+                            self.assertNotIn(key, paseo.clean_env())
+                        self.assertEqual(result, 0)
+                        self.assertIn(f'{key}={applied}' if transport == 'screen' else f'"{key}": "{applied}"', out) if applied else self.assertNotIn(f'{key}=' if transport == 'screen' else f'"{key}":', out)
+        for role, window in (('main', 272000), ('main', None), ('', None)):
+            st = state.SessionState('fixture', 'u', 'claude', str(self.root), '', '', 300000, 0, 'running', '', role=role, claude_auto_compact_window=window)
+            self.assertEqual(actions._token_cell(self.cfg, st, 400000), '400000/272000 (tự nén)' if window else '400000/300000 !')
+        with patch.object(paseo, '_call', return_value={}) as call:
+            paseo.start_agent(workdir=str(self.root), name='fixture', model='claude-opus-5-5', effort='high', initial_prompt='fixture', codex_home=self.cfg.codex_home, target_key='fixture', hand_scope='scope', project_root=str(self.root), provider='claude', claude_auto_compact_window=272000)
+        self.assertEqual(call.call_args.args[1]['env'][key], '272000')
