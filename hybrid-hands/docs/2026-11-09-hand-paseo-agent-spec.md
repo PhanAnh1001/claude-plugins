@@ -1,6 +1,6 @@
 # Hand/subagent thành agent Paseo — spec lane A
 
-Ngày cập nhật: **09/11/2026**. [Plan triển khai](2026-11-09-hand-paseo-agent-plan.md). G0 chốt thiết kế trên base `cee82cc`, main tham chiếu `fd7d071`, plugin/revive **0.33.1**. Interface dưới đây đã có implementation offline: G0 `a67f050`, G1 `af71045`, G6a `fa87ef5`, G2 `cb756dd`, G6b `3def687`, gateway settlement `53a2738`, compatibility `b5c4243`. Theo bàn giao Sol, mỗi gói implementation đã qua 3 test offline và Sol review; aggregate chạy đúng một lần sau `53a2738`: 12 tests OK (6.740s). Sau đó compatibility `b5c4243` sửa account/scope, chỉ narrow execution 3 tests OK (2.852s); không lặp aggregate/full, aggregate không xác nhận exact final head. Không xác nhận full suite/live/install.
+Ngày cập nhật: **09/11/2026**. Trạng thái hiện tại: G3/G4/G5/G7 **offline hoàn tất**, full suite cuối trên `2db961f` **487 tests OK (90.876s), exit 0**, chạy đúng một lần; G7 live/release/install chưa chạy. [Plan triển khai](2026-11-09-hand-paseo-agent-plan.md). G0 chốt thiết kế trên base `cee82cc`, main tham chiếu `fd7d071`, plugin/revive **0.33.1**. Interface dưới đây đã có implementation offline: G0 `a67f050`, G1 `af71045`, G6a `fa87ef5`, G2 `cb756dd`, G6b `3def687`, gateway settlement `53a2738`, compatibility `b5c4243`. Theo bàn giao Sol, mỗi gói implementation đã qua 3 test offline và Sol review; aggregate chạy đúng một lần sau `53a2738`: 12 tests OK (6.740s). Sau đó compatibility `b5c4243` sửa account/scope, chỉ narrow execution 3 tests OK (2.852s); không lặp aggregate/full, aggregate không xác nhận exact final head. Đây là lịch sử Stage 1; full suite cuối Stage 3 ở §4.3, live/install vẫn chưa xác nhận.
 
 ## 1. Quyết định và phạm vi
 
@@ -14,7 +14,7 @@ Ngày cập nhật: **09/11/2026**. [Plan triển khai](2026-11-09-hand-paseo-ag
 
 B direct Codex bị loại khỏi execution vì giảm guard UI/OS-exit parity; C plugin orchestration bị loại vì không có drop-in giữ contract hand-ext. Khảo sát lịch sử được giữ ở cuối, không tạo lane triển khai.
 
-Stage 1 chỉ **G0/G1/G2/G6a/G6b**, offline fixtures. G3+ deferred trong Stage 1. Stage 2 G3 controller/completion/provider đã implement offline và qua Sol review vòng 2; chưa đăng ký provider thật, G4/G5/live/release chưa hoàn tất. Order lấy policy repo hiệu lực: quyết định repo `6d3e9c7` là codex `gpt-6.1-sol low` → dsh → claude-v1 → claude-v2; defaults có thể khác, không hardcode bảng order trong gateway. Giữ model/account/effort, guard và retry cùng backend một lần rồi backend kế tiếp. Không bật parallel-subagents hay sửa settings/credentials.
+Stage 1 chỉ **G0/G1/G2/G6a/G6b**, offline fixtures. G3+ deferred trong Stage 1. Stage 2 G3 controller/completion/provider đã implement offline và qua Sol review vòng 2; chưa đăng ký provider thật, G4/G5/G7 Stage 3 hoàn tất offline, full suite cuối xanh; G7 live/release/install còn chờ. Order lấy policy repo hiệu lực: quyết định repo `6d3e9c7` là codex `gpt-6.1-sol low` → dsh → claude-v1 → claude-v2; defaults có thể khác, không hardcode bảng order trong gateway. Giữ model/account/effort, guard và retry cùng backend một lần rồi backend kế tiếp. Không bật parallel-subagents hay sửa settings/credentials.
 
 ## 2. Runtime, dependency và license
 
@@ -147,19 +147,34 @@ Mỗi prompt UI/API: resolve fixed invocation → CAS epoch/request key → admi
 
 Module [paseo_provider.py](../plugins/hybrid-hands/lib/hand_ext/paseo_provider.py) triển khai `setup_provider(home, *, apply=False, package_root=None)` và `status_provider(transport)`; `ProviderError` chỉ mang machine code an toàn. `home` là **Paseo daemon home**, file đích `<home>/config.json`. Official CLI package pin `@getpaseo/cli` **0.15.0**, Node >=22; production validator dùng chính `PersistedConfigSchema.safeParse`, không nhân bản schema. Source đã đối chiếu: `S/server/persisted-config.js:294–305,317,333–335` đặt `agents.providers` và file đích; `S/server/agent/provider-registry.js:484–539` đăng ký custom ACP; `R/provider-config.js:41–96` quy định command argv, label và provider ID.
 
-Setup tạo/cập nhật `hh-hand-codex`, `hh-hand-dsh`, `hh-hand-claude-v1`, `hh-hand-claude-v2`, mỗi entry `extends: "acp"`, `command: [<plugin>/bin/hand-paseo-acp]`, `enabled: true`; thêm label mặc định khi thiếu, giữ label/env/options và mọi khóa khác. Config/schema/package không hợp lệ hoặc JSON trùng khóa bị từ chối. Dry-run mặc định không ghi, kể cả mkdir/backup. Return gồm `ok`, `applied`, `changed`, `config_path`, `providers`, `changes`, `proposed_updates`, `backup_path`, `reload_required`; `changes` chỉ provider/action, `proposed_updates` chỉ ba giá trị tool sở hữu `command`/`extends`/`enabled` theo provider thay đổi, không echo config/label/env/options có sẵn. Apply backup bytes gốc private 0600 trước atomic write; không tự reload/restart daemon. `reload_required=true` sau ghi: operator cần reload config hoặc restart daemon trước khi dùng catalog để kiểm chứng runtime.
+Setup tạo/cập nhật `hh-hand-codex`, `hh-hand-dsh`, `hh-hand-claude-v1`, `hh-hand-claude-v2`, mỗi entry `extends: "acp"`, `command: [<plugin>/bin/hand-paseo-acp]`, `enabled: true`; thêm label mặc định khi thiếu, giữ label/env/options và mọi khóa khác. Config/schema/package không hợp lệ hoặc JSON trùng khóa bị từ chối. Dry-run mặc định không ghi, kể cả mkdir/backup. Return gồm `ok`, `applied`, `changed`, `config_path`, `providers`, `changes`, `proposed_updates`, `backup_path`, `reload_required`; `changes` chỉ provider/action, `proposed_updates` chỉ ba giá trị tool sở hữu `command`/`extends`/`enabled` theo provider thay đổi, không echo config/label/env/options có sẵn. Apply backup bytes gốc private 0600 trước atomic write; không tự reload/restart daemon. `reload_required=true` sau ghi: operator cần explicit public `paseo daemon reload --home <daemon-home> --json`, kiểm kết quả rồi dùng catalog để kiểm chứng runtime; không bắt buộc restart chỉ để thêm providers.
 
 CLI thực dùng tên **`hand-ext provider`**: setup `--home <daemon-home> --package-root <official-cli-root>` với `--dry-run` mặc định hoặc `--apply`; status dùng transport từ config repo qua `--cwd`. Không cần alias `paseo-provider`. Ví dụ lệnh vận hành (apply chưa từng thực thi trên daemon home thật trong gói này):
 
 ```sh
 hand-ext provider setup --home /absolute/paseo-home --package-root /absolute/official-cli-root --dry-run
 hand-ext provider setup --home /absolute/paseo-home --package-root /absolute/official-cli-root --apply
+paseo daemon reload --home /absolute/paseo-home --json
 hand-ext provider status --cwd /absolute/claude-plugins
 ```
 
 `status_provider(transport)` gọi public catalog `transport.probe_capabilities()`; return `providers`, `missing`, `ok`, code `READY` / `PROVIDERS_MISSING` / `CATALOG_UNAVAILABLE`. Config đã ghi không chứng minh provider khả dụng. Setup tests dùng pinned package fixture giả/schema marker và mock validator/subprocess; không vendor upstream, không daemon thật. Narrow provider mới nhất do Sol chạy **3 tests OK (0.025s)**, Sol review vòng 2 đạt; không suy ra smoke backend, live hay release.
 
-## 4. G3 Stage 2 hoàn tất offline; G4+ deferred
+### 3.7 Reload provider: kết luận source 0.15.0
+
+Đã đọc package cài tại `P=/Users/anhtp/.nvm/versions/node/v24.19.0/lib/node_modules/@getpaseo/cli`; manifests CLI/server/client đều **0.15.0**. Các alias `S`/`C` theo §6. Chuỗi public reload đã đối chiếu ngày 09/11/2026:
+
+| Bước | Source file:line |
+| --- | --- |
+| CLI public `paseo daemon reload --home <home> --json` | `P/dist/commands/daemon/reload.js:22–42`: gọi `reloadDaemonConfig`, xuất `appliedPaths`, `restartRequiredPaths`, `overrideControlledPaths`. |
+| Client → daemon session → store | `C/daemon-client.js:3717–3722`: `daemon.config.reload.request`; `S/server/session/daemon/daemon-session.js:179–184`: response từ reload callback; `S/server/session.js:515`: `daemonConfigStore.reload()`. |
+| Provider là phần reloadable | `S/server/daemon-config-store.js:78–100,126`: `agents.providers` → `providers`; `:310–357`: đọc persisted, resolve, tính delta/overrides/restart paths và apply replacement. `S/server/config.js:415–440` resolve `persisted.agents.providers`. |
+| Cập nhật registry runtime | `S/server/agent/mutable-provider-config-owner.js:4–28` chuẩn bị/commit với rollback; `S/server/websocket-server.js:423–427` nối owner với `agentManager.updateProviderRegistry`; `S/server/agent/provider-snapshot-manager.js:346–401` rebuild definitions, thay generation, invalidation catalog/bindings và warmup. |
+| Giới hạn kết luận về agent đang mở | `S/server/agent/agent-manager.js:361–384` chỉ gọi close cho `input.retiredProviders`; state tạo tại `S/server/agent/provider-snapshot-manager.js:141–160` không có trường này. Không suy từ đó rằng mọi loại thay provider đều giữ runtime/context đang chạy. |
+
+Sau setup ghi trực tiếp config, dùng **explicit reload** rồi kiểm ba nhóm paths và `hand-ext provider status --cwd <repo>` phải thấy catalog khả dụng. Không thấy fs watcher trong các đường config store/config/persisted/bootstrap đã khảo sát; không hứa auto-watch. Chỉ thêm/cập nhật `hh-hand-*`, giữ existing providers; reload áp **mọi delta reloadable đang chờ**, nên operator kiểm delta trước khi thực hiện. Không mặc định restart cho thêm provider; `restartRequiredPaths` hoặc override phải được operator xử lý theo kết quả thực. Đây là kết luận source, **chưa chạy reload/status/setup apply trên daemon thật**, không thay G7 live proof.
+
+## 4. G3 Stage 2 và G4/G5/G7 Stage 3 hoàn tất offline; live/release deferred
 
 G3 controller/completion/provider đã qua Sol review vòng 2. [paseo_controller.py](../plugins/hybrid-hands/lib/hand_ext/paseo_controller.py) cung cấp `FreshPolicy(store)` và `PaseoController.dispatch/approve_review/archive/followup/continue_capacity`. FreshPolicy đọc lại effective repo policy, kiểm immutable backend/account/model/options/sandbox và durable completion binding, gọi preflight backend đã pin cho guard/quota; pool admission giữ cap1..4/exit8. Exhausted order trả exit7; không coi lỗi transport là quota để đổi backend. Dispatch prepare isolated worktree trước network, bind policy/completion rồi admit và tạo đúng child. ACK/crash/cancel chưa rõ giữ unresolved/reservation, reconcile writer cũ, không writer mới.
 
@@ -171,17 +186,54 @@ Lifecycle: intent → placement verified → admitted → running → settling �
 
 `wait_child(key, timeout_s, poll_interval=.1, *, require_settlement=False)` giữ compatibility caller Stage 1; controller luôn True, đòi outcome/quiescence và reservation đã release ở awaiting_review/archived. Transport CAS chỉ merge receipt.transport khi nhánh transport không đổi, giữ receipt worker/completion độc lập; concurrent transport conflict vẫn reconcile, không blind retry mutation.
 
-Kiểm chứng Sol báo: controller **3 tests OK (4.067s)**, completion **3 tests OK (0.652s)**, provider **3 tests OK (0.025s)**; review vòng 2 đạt. Aggregate Stage 2 do Sol chạy đúng **một lần**: `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hand_*.py'` → **198 tests OK (27.234s), exit 0**. Code ổn định trước aggregate, sau đó chỉ đổi docs; không chạy thêm test. Node `--check` bridge pass; default plugin validation pass; directory LICENSE_MISSING/ICON_MISSING vẫn là release gate. Không full suite/live/install.
+Kiểm chứng Sol báo: controller **3 tests OK (4.067s)**, completion **3 tests OK (0.652s)**, provider **3 tests OK (0.025s)**; review vòng 2 đạt. Aggregate Stage 2 do Sol chạy đúng **một lần**: `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hand_*.py'` → **198 tests OK (27.234s), exit 0**. Trong gói Stage 2, code ổn định trước aggregate, sau đó chỉ đổi docs; các thay đổi/tests Stage 3 ghi riêng ở §4.1–4.3. Node `--check` bridge pass; default plugin validation pass; directory LICENSE_MISSING/ICON_MISSING vẫn là release gate. Không full suite/live/install.
 
 G4 dùng mapping explicit `(target_key, agent_id, epoch)` ↔ invocation/attempt/run/provider thread/parent canonical, một execution một dòng. Managed thuộc hand pool 4, không thêm side-session root hay ăn giới hạn 6 phiên phụ. Native legacy giữ fixed sessions và không giả run/meta/report/ledger. Runner parser/ledger là nguồn managed usage; ACP/Paseo là projection, không cộng rollout + ledger + projection. GPT machine tuần vẫn delta timestamp reset window từ fixed sessions + archived_sessions, dedup thread/event; giá duy nhất [model-prices.json](../plugins/hybrid-hands/config/model-prices.json), thiếu nguồn/giá/quota giữ `?`, không suy quota từ USD. DSH context used/size không billable.
 
-Giữ layout/colors/counts/hidden/selection, giờ kết thúc local/elapsed, không giờ bắt đầu; hh-ps text/JSON giữ orphan, hai UI cây bỏ orphan. Statusline là plugin riêng, không sửa trong scope. G5 policy/release hướng dẫn opt-in qua official setup, không tự sửa settings/credential/install ledger. Live gate/release chưa chạy; Stage 1 không quảng bá supported runtime cho bốn backend chỉ vì có fixture xanh.
+Giữ layout/colors/counts/hidden/selection, giờ kết thúc local/elapsed, không giờ bắt đầu; hh-ps text/JSON giữ orphan, hai UI cây bỏ orphan. Statusline là plugin riêng, không sửa trong scope. G5 policy/docs đã hướng dẫn opt-in qua official setup (§4.1), không tự sửa settings/credential/install ledger. Live gate/release chưa chạy; Stage 1 không quảng bá supported runtime cho bốn backend chỉ vì có fixture xanh.
+
+### 4.1 G5 Stage 3: CLI và policy/docs offline
+
+CLI đã đối chiếu source commit **`2e7dddd`**, `H/lib/hand_ext/cli.py`: `managed ls` bắt buộc `--cwd`; `review-approve`, `archive`, `followup` bắt buộc `--cwd` và `--key INVOCATION_UUID:ATTEMPT_UUID:EPOCH` (epoch số nguyên >=1); riêng `followup` bắt buộc `--brief FILE`. Không có flag resume hay lifecycle alias khác được hứa.
+
+```sh
+hand-ext managed ls --cwd /absolute/claude-plugins
+hand-ext managed review-approve --cwd /absolute/claude-plugins --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH
+hand-ext managed archive --cwd /absolute/claude-plugins --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH
+hand-ext managed followup --cwd /absolute/claude-plugins --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH --brief /absolute/fresh-brief.md
+```
+
+CLI lọc/kiểm source repo, giữ exact latest epoch và safe machine-code errors; admission full trả 8. Sol review diff/report trước approve, done giữ hiện; archive exact child giữ workspace/worktree/parent. Followup dùng latest key để cấp epoch/request key mới, cùng agent/workspace và baseline mới, brief tự chứa; không resume backend CLI. Q2 own workspace cùng verified project/parent track, Q3 opt-in native Sol-low intent mới đi `run --backend auto --mode paseo-required` khi ready, existing native giữ nguyên, Q6 không cleanup và Q7 shell default được ghi ở hai skills, template Sol, README và OVERVIEW. Pick/account/model/effort guards/pool giữ nguyên; auto thiếu daemon/capability trước dispatch fallback shell, required fail; sau dispatch ambiguity không tạo writer khác.
+
+G5 offline đã qua Sol review: parent báo narrow CLI **3 tests OK (1.163s)**, hand báo controller **3 tests OK (4.332s)**. Đây là kết quả được bàn giao, lượt docs không chạy lại code tests. G4/G7 offline và full suite cuối hoàn tất theo §4.2–4.3; aggregate Stage 2 vẫn là kết quả lịch sử riêng. G7 live/release/install/runtime deferred.
+
+### 4.2 G4 projection và G7 integration offline
+
+G4 commit **`6f6bb07`** đã qua Sol review: bảy modules `H/lib/hh_ps/{paseo_source,registry_source,models,native_source,tree,render,compact}.py` và `test_hh_ps_paseo_hand.py`. `paseo_source.execution_id(key)` dùng SHA-256 của JSON key canonical; `load_executions(roots, cutoff)` đọc durable `ExecutionRecord`, chỉ origin managed/native_intent, chọn revision mới nhất mỗi exact invocation/attempt/epoch. `run_id=Attempt.run_id` nếu có, nếu không dùng hash exact key riêng từng epoch; không bịa run/meta/report/ledger cho native.
+
+`HandRun` bổ sung cuối với defaults: `execution_key=None`, `target_key/agent_id/thread_id/workspace_id/project_id=None`, `request_key/worker_run_dir/patch_path/report_path/isolated_cwd=""`. Mapping JSON giữ các identity/artifact fields đó; backend/model/effort/parent canonical từ invocation, target/agent/thread/workspace/project/request từ attempt, artifact paths từ durable receipts. Status lỗi/exit khác 0 ưu tiên; unresolved/unknown không suy done từ mtime, idle hay sink. Token lấy outcome parser trước, rồi machine-readable completion/registry metadata có exact execution key hoặc legacy run_id + exact worker_run_dir; counters rỗng từ registry.start không chứng minh measured zero. Không đọc report prose/hội thoại.
+
+`registry_source.load_hand_runs` tìm execution roots hiệu lực và loại registry/meta trùng exact execution key; legacy sinks chỉ dedup bằng run_id hoặc exact worker_run_dir. `native_ids`, `managed_metadata`, `dedup_native` loại projection aliases theo exact agent/thread IDs hoặc resolved **absolute isolated cwd**; không prefix/substring cwd. `tree.build_snapshot` truyền managed_runs vào native attach/discovery, gắn managed vào parent canonical trực tiếp, không đoán side-session root từ label. Usage Codex chỉ enrich ledger khi có tokens và ledger execution_key khớp exact epoch, không mượn run-id-only legacy usage. Một execution một dòng, ACP không cộng thêm token; native legacy fixed sources và UI/count/layout contract giữ nguyên.
+
+Sol báo narrow G4 **3 OK (0.183s)**, native **3 OK (0.201s)**, targeted legacy grouping/schema/data-protection **3 OK (0.224s)**. G7 **offline** commit **`2db961f`**, `test_hand_paseo_integration.py`: một integration test qua worker/Gateway/CompletionService/PaseoTransport thật với runner/client giả inject, snapshot/JSON thật một row/dedup/usage, CLI review/archive/followup epoch 2 cùng child/workspace, giữ history/artifacts và baseline/apply once; parent narrow **1 OK (1.947s)**. Đây không phải daemon/model live proof; G7 live vẫn chưa chạy.
+
+### 4.3 Full suite cuối và giới hạn release
+
+Sol chạy **đúng một lần**, từ cwd worktree `hybrid-hands`, trên source/test head **`2db961f`**:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Kết quả **Ran 487 tests in 90.876s — OK, exit 0**. Code/test ổn định sau `2db961f`; từ full suite này chỉ sửa docs/bàn giao, không chạy lại full/narrow trong lượt docs. Các commit Stage 3: G5 CLI `2e7dddd`, docs `a5fb53b`, G4 `6f6bb07`, G7 offline `2db961f`.
+
+Parent xác nhận default plugin validation pass và Node bridge `--check` pass; directory profile vẫn `LICENSE_MISSING`/`ICON_MISSING`, không claim directory pass. Skill `quick_validate.py` bị thiếu dependency `yaml`; hai frontmatter đã kiểm bằng Ruby YAML parse và relative links hợp lệ, không claim quick_validate pass. G7 live, license/release/version/install/loaded-path/runtime checks còn deferred; không setup apply/reload/status hay model/API thật từ gói này.
 
 ## 5. Kiểm chứng và gate còn lại
 
-Kết quả đoạn kế tiếp là lịch sử Stage 1; kết quả Stage 2 hiện tại ở §4: aggregate `test_hand_*.py` 198 OK, không phải full suite repo. G3 offline hoàn tất, G4/G5/live/release chưa hoàn tất.
+Kết quả đoạn kế tiếp là lịch sử Stage 1; kết quả Stage 2 lịch sử ở §4: aggregate `test_hand_*.py` 198 OK, không phải full suite repo. G3 offline hoàn tất, G4/G5/G7 Stage 3 hoàn tất offline, full suite cuối xanh; G7 live/release/install còn chờ.
 
-Theo bàn giao Sol: G1/G2/G6a/G6b mỗi gói 3 tests offline xanh và review xong, aggregate 12 tests OK (6.740s) đúng một lần sau `53a2738`; sau đó compatibility `b5c4243` chỉ narrow execution 3 tests OK (2.852s), không lặp aggregate/full và không claim aggregate trên exact final head; existing parallel 3 + rundir 4 + core token cap 1 + timeout 1 tests đều OK. Node bridge syntax và git diff --check OK. Default validation pass; directory profile còn lỗi LICENSE_MISSING và warning ICON_MISSING; không mở rộng scope sửa chúng. Lượt cập nhật G0 chỉ đọc consumers để mô tả interface, không review hand khác, chỉ sửa hai docs, kiểm link nội bộ và diff; không test cho prose. Stage 1 dùng synthetic fixtures, fake daemon/runner/process ops; mỗi gói một main path và tối đa hai failure/boundary quan trọng. Sol đã chạy từ root `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hand_paseo_*.py'` **một lần** cùng existing regression narrow cho phần thật sự sửa; **không full suite hiện tại**. Không live API/model, không cài dependency/plugin, không tạo resource daemon.
+Theo bàn giao Sol: G1/G2/G6a/G6b mỗi gói 3 tests offline xanh và review xong, aggregate 12 tests OK (6.740s) đúng một lần sau `53a2738`; sau đó compatibility `b5c4243` chỉ narrow execution 3 tests OK (2.852s), không lặp aggregate/full và không claim aggregate trên exact final head; existing parallel 3 + rundir 4 + core token cap 1 + timeout 1 tests đều OK. Node bridge syntax và git diff --check OK. Default validation pass; directory profile còn lỗi LICENSE_MISSING và warning ICON_MISSING; không mở rộng scope sửa chúng. Lượt cập nhật G0 chỉ đọc consumers để mô tả interface, không review hand khác, chỉ sửa hai docs, kiểm link nội bộ và diff; không test cho prose. Stage 1 dùng synthetic fixtures, fake daemon/runner/process ops; mỗi gói một main path và tối đa hai failure/boundary quan trọng. Sol đã chạy từ root `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hand_paseo_*.py'` **một lần** cùng existing regression narrow cho phần thật sự sửa; **Stage 1 chưa chạy full suite; kết quả cuối Stage 3 ở §4.3**. Không live API/model, không cài dependency/plugin, không tạo resource daemon.
 
 Live gate deferred: cần brief disposable resources/account/trần thời gian/chi phí, kiểm exact placement/parent track, admission UI, stop/reap, ACK recovery, done-review-archive-reopen và smoke từng backend/account trước rollout supported. Public API evidence đã dùng cho transport offline; reopen/stop thực tế vẫn cần live gate trên package root được cấp. License distribution và release/install/version/path thực tế deferred. Không đánh dấu các gate này đã pass.
 
