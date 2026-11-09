@@ -103,6 +103,8 @@ async function creationFailure(client, r, target) {
     'CAPABILITY_UNCONFIRMED');
   let snapshot, inFlight;
   if (info.features.creationLifecycle === true) {
+    // Only this pinned server transition proves the omitted inFlight field.
+    check(info.version === '0.15.0', 'CREATION_UNCONFIRMED');
     const observation = client.observe('creation.subscribe.response', {
       type:'creation.subscribe.request', kind:'agent', idempotencyKey:r.agentKey});
     let timer;
@@ -159,13 +161,22 @@ export async function handleRequest(client, r, target, schemas) {
         providers: p.providers.filter(x => x.available && !x.error).map(x => x.provider)};
     }
     if (r.command === 'parent') return {ok: true, targetKey: fingerprint, ...await parent(client, r)};
+    // Recovery observes an immutable child receipt, even after its parent or
+    // workspace is archived. Never use this exception for mutation requests.
+    if (r.command === 'creation-failure') {
+      check(typeof r.agentId === 'string' && r.agentId.length > 0
+        && typeof r.parentAgentId === 'string' && r.parentAgentId.length > 0
+        && r.agentId !== r.parentAgentId
+        && typeof r.workspaceId === 'string' && r.workspaceId.length > 0, 'CHILD_ID_INVALID');
+      const w = await workspace(client, r.workspaceId);
+      // A successful directory miss is not proof; exact creation and public
+      // fetchAgent absence below remain mandatory. Directory errors reject.
+      if (w) check(w.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
+      return await creationFailure(client, r, target);
+    }
     await directory(r.cwd);
     await parent(client, r);
-    if (r.command === 'creation-failure') {
-      const w = await workspace(client, r.workspaceId);
-      check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
-      return await creationFailure(client, r, target);
-    } else if (r.command === 'verify-workspace') {
+    if (r.command === 'verify-workspace') {
       const w = await workspace(client, r.workspaceId);
       check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
     } else if (r.command === 'workspace') {

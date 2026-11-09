@@ -80,12 +80,13 @@ class Gateway:
         if method == 'session/new':
             record = self._records()[-1]
             self._cwd(params, record)
-            return {'sessionId': self.invocation_id}
+            return {'sessionId': self.invocation_id, **self._metadata(record)}
         if method == 'session/load':
             record = self._session(params)
             self._cwd(params, record)
             # Only durable public outcome metadata, never transcript/auth files.
-            return {'_meta': {'history': [self._history(r) for r in self._records()]}}
+            return {**self._metadata(record),
+                    '_meta': {'history': [self._history(r) for r in self._records()]}}
         if method == 'session/prompt':
             return self._prompt(params)
         if method in ('session/cancel', 'session/close'):
@@ -93,6 +94,28 @@ class Gateway:
             self._cancel('client_cancel' if method.endswith('cancel') else 'session_close')
             return {}
         raise ProtocolError(-32601, 'method unsupported')
+
+    @staticmethod
+    def _metadata(record):
+        """Project durable selections so ACP need not invoke unsupported setters.
+
+        These singleton choices describe policy; Invocation remains authoritative
+        and no model/mode/effort mutation method is exposed.
+        """
+        invocation = record.invocation
+        metadata = {'modes': {'currentModeId': 'default', 'availableModes': [
+            {'id': 'default', 'name': 'Bound execution policy'}]}}
+        if invocation.model:
+            metadata['models'] = {
+                'currentModelId': invocation.model, 'availableModels': [
+                    {'modelId': invocation.model, 'name': invocation.model}]}
+        if invocation.effort:
+            metadata['configOptions'] = [{
+                'id': 'bound-effort', 'name': 'Bound execution effort',
+                'type': 'select', 'category': 'thought_level',
+                'currentValue': invocation.effort, 'options': [
+                    {'value': invocation.effort, 'name': invocation.effort}]}]
+        return metadata
 
     @staticmethod
     def _history(record):

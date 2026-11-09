@@ -173,16 +173,18 @@ class PaseoTransportTests(unittest.TestCase):
           await mkdir(home+'/creations');
           const name=createHash('sha256').update(JSON.stringify(['agent','key'])).digest('hex');
           await writeFile(home+'/creations/'+name+'.json',JSON.stringify({snapshot,inFlight:null}));
-          let modern=true,bad=false,missing=null,released=0;
-          const client={getLastServerInfoMessage:()=>({features:{creationLifecycle:modern}}),
+          let modern=true,version='0.15.0',bad=false,missing=null,released=0;
+          const client={getLastServerInfoMessage:()=>({version,features:{creationLifecycle:modern}}),
             observe:()=>({subscribe:hooks=>hooks.snapshot(bad?{error:'PRIVATE'}:{error:null,snapshot}),release:async()=>{released++;}}),
-            fetchAgent:async({agentId})=>agentId==='parent'?{agent:{id:'parent',workspaceId:'parent-ws'}}:missing,
-            fetchWorkspaces:async()=>({entries:[{id:'parent-ws',projectId:'project'},
-              {id:'child-ws',projectId:'project',workspaceDirectory:home}],pageInfo:{nextCursor:null}})};
+            fetchAgent:async({agentId})=>{if(agentId==='parent')throw Error('archived parent must not be fetched');return missing;},
+            fetchWorkspaces:async()=>({entries:[],pageInfo:{nextCursor:null}})};
           const results=[];results.push(await handleRequest(client,r,target));
           bad=true;results.push(await handleRequest(client,r,target));
           bad=false;missing=undefined;results.push(await handleRequest(client,r,target));
-          missing=null;modern=false;results.push(await handleRequest(client,r,target));
+          missing=null;snapshot.agentId='wrong';results.push(await handleRequest(client,r,target));snapshot.agentId='child';
+          missing=null;
+          for(version of [undefined,'0.16.0'])results.push(await handleRequest(client,r,target));
+          modern=false;results.push(await handleRequest(client,r,target));
           await writeFile(home+'/creations/'+name+'.json',JSON.stringify({snapshot,inFlight:'agent'}));
           results.push(await handleRequest(client,r,target));
           console.log(JSON.stringify({results,released}));
@@ -190,8 +192,8 @@ class PaseoTransportTests(unittest.TestCase):
         run=subprocess.run(['node','--input-type=module','-e',script,BRIDGE.as_uri(),str(self.root)],capture_output=True,text=True,timeout=10)
         self.assertEqual(run.returncode,0,run.stderr)
         result=json.loads(run.stdout)
-        self.assertEqual([x['ok'] for x in result['results']],[True,False,False,True,False])
-        self.assertEqual(result['released'],3); self.assertNotIn('PRIVATE',run.stdout)
+        self.assertEqual([x['ok'] for x in result['results']],[True,False,False,False,False,False,True,False])
+        self.assertEqual(result['released'],4); self.assertNotIn('PRIVATE',run.stdout)
 
     def test_official_schema_preflight_without_network(self):
         executable=shutil.which('paseo')

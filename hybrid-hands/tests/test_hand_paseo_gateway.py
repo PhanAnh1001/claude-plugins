@@ -2,6 +2,8 @@
 import io
 import json
 import queue
+import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -120,6 +122,28 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(rows[0]['result']['agentCapabilities'], {})
         self.assertEqual(rows[1]['result']['models']['currentModelId'], 'default')
         self.assertEqual([r['error'] for r in rows[2:]], [{'code': -32003, 'message': 'discovery only; execution binding required'}]*5)
+
+    def test_bound_metadata_skips_paseo_overrides(self):
+        executable = shutil.which('paseo')
+        if not executable: self.skipTest('Paseo CLI 0.15.0 unavailable')
+        package = Path(executable).resolve().parent
+        while package.parent != package and not (package/'package.json').is_file():
+            package = package.parent
+        manifest = package/'package.json'
+        identity = json.loads(manifest.read_text()) if manifest.is_file() else {}
+        if (identity.get('name'), identity.get('version')) != ('@getpaseo/cli', '0.15.0'):
+            self.skipTest('compatible @getpaseo/cli 0.15.0 unavailable')
+        module = package/'node_modules/@getpaseo/server/dist/server/server/agent/providers/acp-agent.js'
+        if not module.is_file(): self.skipTest('pinned public Paseo source unavailable')
+        script = """const {ACPAgentSession}=await import(process.argv[1]);
+          let text='';for await(const chunk of process.stdin)text+=chunk;const session=Object.create(ACPAgentSession.prototype);
+          Object.assign(session,{config:{modeId:'default',model:'fixed-model',thinkingOptionId:'low'},configFeatureOptions:[],defaultModes:[]});
+          session.applySessionState(JSON.parse(text));await session.applyConfiguredOverrides();console.log(JSON.stringify([session.currentMode,session.currentModel,session.thinkingOptionId]));"""
+        for method in ('session/new', 'session/load'):
+            metadata = self.gateway.handle(method, self.session())
+            run = subprocess.run(['node', '--input-type=module', '-e', script, module.as_uri()], input=json.dumps(metadata), capture_output=True, text=True, timeout=10)
+            self.assertEqual((run.returncode, json.loads(run.stdout or 'null')), (0, ['default', 'fixed-model', 'low']), run.stderr)
+        self.assertEqual((self.worker.calls, self.checks), (0, []))
 
     def test_initialize_new_prompt_and_authoritative_outcome(self):
         response = self.gateway.handle('initialize',{'protocolVersion':1})
