@@ -1,1 +1,5 @@
-{}
+{
+  "ext_hand": {
+    "order": ["codex", "dsh", "claude-v1", "claude-v2"]
+  }
+}
