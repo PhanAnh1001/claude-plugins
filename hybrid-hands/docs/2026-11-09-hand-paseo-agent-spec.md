@@ -1,6 +1,6 @@
 # Hand/subagent thành agent Paseo — spec lane A
 
-Ngày cập nhật: **09/11/2026**. [Plan triển khai](2026-11-09-hand-paseo-agent-plan.md). G0 chốt thiết kế trên base `cee82cc`, main tham chiếu `fd7d071`, plugin/revive **0.33.1**. Đây là contract để triển khai, không phải xác nhận code hay live gate đã đạt.
+Ngày cập nhật: **09/11/2026**. [Plan triển khai](2026-11-09-hand-paseo-agent-plan.md). G0 chốt thiết kế trên base `cee82cc`, main tham chiếu `fd7d071`, plugin/revive **0.33.1**. Interface dưới đây đã có implementation offline: G0 `a67f050`, G1 `af71045`, G6a `fa87ef5`, G2 `cb756dd`, G6b `3def687`, gateway settlement `53a2738`, compatibility `b5c4243`. Theo bàn giao Sol, mỗi gói implementation đã qua 3 test offline và Sol review; aggregate chạy đúng một lần sau `53a2738`: 12 tests OK (6.740s). Sau đó compatibility `b5c4243` sửa account/scope, chỉ narrow execution 3 tests OK (2.852s); không lặp aggregate/full, aggregate không xác nhận exact final head. Không xác nhận full suite/live/install.
 
 ## 1. Quyết định và phạm vi
 
@@ -22,9 +22,9 @@ Gateway là **Python 3 stdlib**, ACP JSON-RPC qua **NDJSON stdin/stdout**, khôn
 
 Code mới theo license repo. Kiểm metadata công khai tại base: không thấy LICENSE/COPYING/NOTICE trong file tracked và manifest plugin/addon không khai license. Vì vậy không vendor/copy code bên ngoài; license distribution là gate deferred của release, không tự gán license. Source/recipe chỉ là bằng chứng thiết kế; license của Paseo không cấp license cho repo này.
 
-## 3. Schema và API chung (contract đề xuất, chưa tồn tại)
+## 3. Schema và API chung đã implement offline
 
-Tên dưới đây là giao diện thống nhất cho G1/G2/G6. Record authoritative nằm ngoài isolated writer cwd, không chứa auth/env values; labels chỉ ID an toàn, không chứa prompt. JSON dùng null cho dữ liệu chưa biết. Dataclass công khai bổ sung cuối với default tương thích.
+Tên dưới đây đối chiếu actual implementation G1/G2/G6, là contract để G3 tích hợp. Record authoritative nằm ngoài isolated writer cwd, không chứa auth/env values; labels chỉ ID an toàn, không chứa prompt. JSON dùng null cho dữ liệu chưa biết. Dataclass công khai bổ sung cuối với default tương thích.
 
 ### 3.1 Identity bất biến
 
@@ -32,7 +32,7 @@ Tên dưới đây là giao diện thống nhất cho G1/G2/G6. Record authorita
 
 ```text
 invocation_id: str (UUID)
-scope_id: str                     # pool scope, độc lập parent
+scope_id: str                     # parallel.scope_digest(Path(source_root)), độc lập parent
 parent_session: str               # sid canonical
 parent_paseo_agent_id: str | null
 backend: str; account_alias: str; model: str; effort: str
@@ -44,22 +44,27 @@ resource_claims: tuple[str, ...]   # canonical repo/file/dependency write claims
 
 Invocation đã pin backend/account; fallback backend tạo invocation mới liên kết logical task, sau khi writer cũ quiescent, không sửa invocation cũ. Follow-up giữ invocation/options, tạo attempt/epoch mới và brief mới; muốn retarget/options khác phải tạo invocation khác qua dispatcher.
 
-`Attempt` có immutable identity `(invocation_id, attempt_id, epoch)` với `epoch >= 1`, `request_key: str` ghi trước network; `run_id: str | null`. Placement fields `target_key`, `project_id`, `workspace_id`, `agent_id`, `thread_id` nullable trước create, sau xác minh chỉ bind một lần; không đổi sang daemon/child khác. `thread_id` là provider execution thread nếu quan sát được, không hứa giữ thread giữa epochs. Agent/workspace history có thể reuse, attempt thì mới.
+`Invocation.scope_id` do dispatcher tính `parallel.scope_digest(Path(source_root))` trong env Sol rồi pin vào invocation/reservation để shell cùng scope. Worker canonical-validates và trusts pinned reservation, không recompute scope từ env daemon; HAND_SCOPE_ENV/CODEX_THREAD_ID của daemon khác Sol được phép. Không dùng scope làm parent. `parallel.canonical_scope` giữ nguyên digest 64 hex, raw scope ID được hash theo `HAND_SCOPE_ENV:<id>`; không truyền path làm raw ID.
+
+`ExecutionKey(invocation_id, attempt_id, epoch)` là frozen dataclass; API nhận key này hoặc tuple ba phần qua `as_key`. `Attempt.key` trả ExecutionKey. `Attempt` có immutable identity `(invocation_id, attempt_id, epoch)` với `epoch >= 1`, `request_key: str` ghi trước network; `run_id: str | null`. Placement fields `target_key`, `project_id`, `workspace_id`, `agent_id`, `thread_id` nullable trước create, sau xác minh chỉ bind một lần; không đổi sang daemon/child khác. `thread_id` là provider execution thread nếu quan sát được, không hứa giữ thread giữa epochs. Agent/workspace history có thể reuse, attempt thì mới.
 
 `ExecutionRecord(version=1, revision: int, invocation, attempt, state, ...)` giữ:
 
 ```text
-state: intent | prepared | admitted | running | settling | awaiting_review | archived | unresolved | failed
+state: intent | prepared | admitted | launching | running | settling | awaiting_review | archived | unresolved | failed
 writer: {owner_id, kind, observed_at} | null
 process: {pid, pgid, start_identity, supervisor_id} | null
 receipt: {request_key, create_ack, prompt_ack, provider_receipt} | null
 outcome: {status, reason, backend_exit_code: int|null, provenance, quiescent: bool} | null
 artifacts: {baseline_path, patch_path, report_path, ledger_ref} # nullable
 settle_keys: {outcome_key, patch_key, report_key, ledger_key}   # nullable
+reservation: dict | null
+pending_outcome: dict | null       # chưa có authority quiescence
+quiescence: {confirmed, evidence, observed_at} | null
 started_at, finished_at: number | null
 ```
 
-`provenance` xác định nguồn worker/runner/native reconciliation, không suy từ UI idle. Settle keys dùng `(invocation_id, attempt_id, epoch, artifact-kind)` để retry không apply/report/ledger lặp. Durable outcome worker có thể có trước G3 artifact settlement; chỉ `awaiting_review` khi quiescent và các artifact bắt buộc đã durable.
+`provenance` xác định nguồn worker/runner/native reconciliation, không suy từ UI idle. Settle keys dùng `(invocation_id, attempt_id, epoch, artifact-kind)` để retry không apply/report/ledger lặp. Worker outcome bất biến chỉ publish sau supervisor authority quiescence; trước đó lưu pending_outcome. Durable outcome có thể có trước G3 artifact settlement; chỉ `awaiting_review` khi quiescent và các artifact bắt buộc đã durable.
 
 ### 3.2 G1 state/admission/supervisor
 
@@ -75,7 +80,7 @@ list_unsettled(scope_id) -> list[ExecutionRecord]
 
 Persist intent trước create/send; CAS dùng file lock + atomic replace hoặc cơ chế atomic CAS tương đương, khóa xuyên read/validate/write. Conflict trả `StateConflict`; không last-writer-wins. Admission và receipt cập nhật cùng cơ chế; lock-file unlink không là recovery.
 
-`execution_admission.py`: `AdmissionController(store, supervisor, policy_checker)` với `admit(invocation, attempt, *, max_parallel) -> Reservation`, `reconcile_legacy(observations)`, `release(reservation, *, outcome, artifacts_settled)`. `Reservation` gồm `reservation_id`, execution key, `scope_id`, claims. Policy checker injectable; mỗi prompt phải kiểm fresh policy/guard và fixed options trước start. Stage 1 dùng fake checker, wiring guard thật thuộc G3; không claim parity đã đạt. Full trả `AdmissionFull` (frontend mapping exit 8), conflict claims trả `AdmissionConflict`, denied policy trả `AdmissionDenied`; transport lỗi không mượn exit 7/8.
+`execution_admission.py`: `AdmissionController(store, supervisor, policy_checker)` với `admit(invocation, attempt, *, max_parallel) -> Reservation`, `reconcile_legacy(observations)`, `release(reservation, *, outcome, artifacts_settled)`. `Reservation` gồm `reservation_id`, execution key, `scope_id`, `claims`, `store_root`. Claims được canonicalize qua git common-dir để collapse worktrees; hỗ trợ repo:*, file/path và dependency IDs. Policy checker injectable; mỗi prompt phải kiểm fresh policy/guard và fixed options trước start. Stage 1 dùng fake checker, wiring guard thật thuộc G3; không claim parity đã đạt. Full trả `AdmissionFull` (frontend mapping exit 8), conflict claims trả `AdmissionConflict`, denied policy trả `AdmissionDenied`; transport lỗi không mượn exit 7/8.
 
 Pool chung shell + managed + **reconciled legacy native**, cap `1..4`; retry không giữ hai reservation cho một writer. Unknown/unresolved vẫn chiếm slot; frontend chết, TTL hết, PID mất/reuse, idle/mtime không chứng minh quiescence. Cùng file/phụ thuộc tuần tự cả khác worktree. Native ngoài dispatcher chưa được chặn trước spawn: phải báo giới hạn này đến khi rollout đảm bảo routing mới.
 
@@ -88,29 +93,32 @@ reconcile(key) -> Quiescence
 record_outcome_once(key, outcome) -> ExecutionRecord
 ```
 
-Supervisor sở hữu process group, cancel/timeout/EOF/crash phải stop và reap group, đối chiếu identity chống PID reuse. Không xác minh dừng được → unresolved giữ slot. Không dùng signal gửi thành công làm bằng chứng quiescent. G1 duy nhất sửa `parallel.py` để compatibility adapter, chưa tích hợp CLI trong Stage 1.
+Supervisor/process ops sở hữu process group và retained Popen identity; runner có control thì start_new_session, spawned/poll/wait/stop/cancel event qua control, không control giữ legacy behavior. Cancel/timeout/EOF phải stop/reap owned group. Default process ops sau restart bảo thủ, không tự nhận authority từ PID lưu. Chưa có containment cho descendant escape session/group; group còn sống sau leader đã reaped vẫn unresolved và không signal numeric PGID có thể bị reuse. Đây là live gate trước rollout, không hứa containment tuyệt đối. Không xác minh dừng được → unresolved giữ slot. Không dùng signal gửi thành công làm bằng chứng quiescent. G1 duy nhất sửa `parallel.py` để compatibility adapter, chưa tích hợp CLI trong Stage 1.
 
 ### 3.3 G2 transport
 
-`paseo_transport.py`: `PaseoTransport(package_root, target, client_factory)`; Node bridge `paseo_bridge.mjs` chỉ gọi official client từ root pin. Các method:
+`PaseoTransport(package_root, target, client_factory=None, *, store=None, node='node')` dùng G1 ExecutionStore; mutation thiếu store bị chặn. Target `instance/home` hoặc `endpoint/host` được đối chiếu normalized fingerprint trước kết nối official client, không tự đổi daemon. API trả dict observation/placement, không dataclass CapabilitySnapshot giả:
 
 ```text
-probe_capabilities() -> CapabilitySnapshot
-verify_parent(parent_agent_id) -> VerifiedProject
-ensure_workspace(key, verified_project, isolated_cwd) -> Placement
-create_child(key, placement, *, caller_agent_id, provider_id) -> Placement
-send_prompt(key, brief) -> PromptReceipt
-reconcile(key) -> TransportObservation
-cancel_child(key); archive_child(key); reopen_child(key) -> TransportObservation
+probe_capabilities(); verify_parent(parent_agent_id)
+ensure_workspace(key, verified_project, isolated_cwd)
+create_child(key, placement, *, caller_agent_id, provider_id)
+send_prompt(key, brief); reconcile(key)
+wait_child(key, timeout_s, poll_interval=0.1)
+cancel_child(key); archive_child(key); reopen_child(key)
 ```
 
-`key` trỏ persisted execution record; mọi mutation đối chiếu exact target/project/workspace/agent/parent và pinned provider. Không `initialPrompt` khi create: persist ID/request key → create → verify cwd/parent/project/IDs → send. Own workspace cùng verified project; không dùng workspace cha vì public resolver có thể ép cwd về cha [E1–E3]. Create/send ACK mất → read/reconcile UUID/key/receipt cả archived, không duplicate create/send hay shell writer. Create workspace/agent dùng `idempotencyKey` và explicit workspace/agent IDs theo API thực; send dùng `options.messageId` đã persist. `activeTurnBehavior` chỉ có `interrupt|steer`, không có reject/enqueue: không invent option hay dùng default interrupt để chống duplicate. Admission và precheck quiescence chặn concurrent prompt trước send. Bounded waits; unknown trả unresolved.
+`record.receipt.transport` là state CAS bền: exact target/project/workspace/agent IDs, workspaceKey/agentKey/messageId, pending workspace/create/send/archive/reopen, cancelPending riêng, confirmations và briefDigest. Persist UUID/idempotency keys trước network, không initialPrompt. `messageId = Attempt.request_key` phải UUID theo gateway; public send dùng activeTurnBehavior=steer (API chỉ interrupt|steer), admission chặn concurrent writer. Public create pin provider `hh-hand-*`, model/effort và env không secret chỉ `HYBRID_HANDS_EXECUTION_ROOT`/`HYBRID_HANDS_INVOCATION_ID`. Verify own workspace/project/cwd/caller parent trước send [E1–E3].
 
-Trước mutation thật cần read-only source/API evidence cho placement, request-key/idempotency và reopen. Fake client chứng minh code contract, không chứng minh daemon behavior. Reopen chỉ exact archived/quiescent child, cwd còn nguyên, public API bảo toàn ID rồi revive workspace theo 0.33.1; `refreshAgent` là API exact-ID có thật, không có `unarchiveAgent`. Phải inspect recovery `action=unarchive`, cwd tồn tại và durable quiescence trước refresh: source có thể khôi phục owning workspace legacy, unarchive, interrupt nếu running rồi reload. Không dùng refresh polling hay parent refresh. API thiếu đường an toàn → blocked, không tạo agent thay thế.
+Fresh admitted record chưa có writer/process/outcome/sendConfirmed được dispatch trước khi có quiescence đầu tiên; lượt sau cần authority quiescence. Epoch mới cùng bound IDs chỉ read-only verify workspace/child, không recreate. ACK mất create/send → reconcile ID/receipt, không duplicate hay shell fallback. Cancel khi send còn pending được phép qua cancelPending riêng; cancel ACK chỉ xác nhận request, không process quiescence. Cancel/reopen ACK mất vẫn unresolved tới authoritative proof, không retry mù; public idle không đủ proof và reopen không có refresh receipt API.
+
+`wait_child` bounded read-only đợi outcome và quiescence authority **đúng epoch**, không dùng UI idle làm completed, không mutate receipt/retry/fallback; timeout trả unresolved. Injected client phải tự tuân bounded requests.
+
+Archive đòi `record.artifacts.review.approved is True` và quiescence; `archiveAgent` exact child giữ workspace active, không archive workspace/parent. Reopen exact archived child sau review/quiescence và cwd tồn tại: active workspace recovery `workspace_not_archived` được phép, hoặc action=unarchive có metadata xác minh thì restore/verify trước refresh. Không có unarchiveAgent; refreshAgent có thể interrupt/reload, không polling. Archived workspace vắng public metadata bị blocked trước mutation, không recreate hay hứa recovery đầy đủ. Fake/source evidence chưa chứng minh live API.
 
 ### 3.4 G6b worker
 
-`execution_worker.py`: `ExecutionWorker(store, supervisor, runner, settlement_hooks=None)` (runner/process ops injectable):
+`execution_worker.py`: `ExecutionWorker(store, supervisor, runner=None, settlement_hooks=None)` (runner/process ops injectable):
 
 ```text
 start(invocation, attempt, brief) -> WorkerHandle
@@ -119,15 +127,21 @@ reconcile(key) -> WorkerObservation
 outcome(key) -> WorkerOutcome | null
 ```
 
-`WorkerHandle` gồm key/owner/process identity; `WorkerObservation` gồm `state`, `quiescence`, `outcome`. `WorkerOutcome` gồm key/status/reason/nullable `backend_exit_code`/provenance/quiescence/artifact refs. `settlement_hooks` nhận prepared isolation context/artifact refs và idempotency settle keys; không tự mở cwd mới. Start đòi reservation hợp lệ của G1 và fixed invocation; không tự reserve slot thứ hai. Worker là authority ghi outcome một lần qua supervisor/store; retry đọc outcome cũ. Idle Paseo, `.done`, gateway exit không là OS exit backend.
+`WorkerHandle` gồm key/owner/process identity; `WorkerObservation` gồm `state`, `quiescence`, `outcome`. `WorkerOutcome` gồm `key`, `status`, `reason`, nullable `backend_exit_code`, `provenance`, nullable `quiescence`, `quiescent`, `artifact_refs`, `final_text`, nullable `usage` (snake keys input/cached_input/output và usage parser hiện có). Default Usage() toàn 0 chưa có observation giữ unknown, không giả đã đo 0. `settlement_hooks` nhận prepared isolation context/artifact refs và idempotency settle keys; không tự mở cwd mới. Start đòi reservation hợp lệ của G1 và fixed invocation; không tự reserve slot thứ hai. Worker là authority ghi outcome một lần qua supervisor/store; retry đọc outcome cũ. Idle Paseo, `.done`, gateway exit không là OS exit backend.
+
+Fixed options chỉ nhận `run_dir`, `sandbox`, `timeout_s`, `max_tokens`, `browser`, `options`; bốn key đầu bắt buộc. `run_dir` là base, thư mục thực là base/hash execution key, lưu `receipt.worker_run_dir`; state root ở ngoài writer/log directory. Worker kiểm backend/account cố định: Codex canonical account là `gpt` (giữ alias `codex`), DSH fixed `dsh`, mismatch bị reject; model/effort tường minh, isolated cwd tồn tại khác source, browser chỉ dsh. Nested options chỉ hỗ trợ existing defaults backend (+ Claude append_system_prompt, DSH browser_dir), reject model/effort/sandbox xung đột và max_turns sai.
+
+Hooks là mapping `kind -> hook(key, idempotency_key, record, outcome) -> refs`. Persist settle_keys[kind] `{key, state: in_progress|completed}`; hook crash/ACK ambiguous **không blind repeat**. G3 phải reconcile external sink bằng key rồi đánh dấu completed; đây không là bảo đảm exactly-once ở sink nếu sink chưa hỗ trợ reconcile. Worker giữ state settling và reservation; G3 kiểm mọi REQUIRED hooks durable rồi gọi admission.release một lần sang awaiting_review, không chỉ truyền artifacts_settled=True vì có outcome.
 
 Worker gọi runner nội bộ, không CLI `hand-ext run`, side-session hay native recursion. Có thể adapt hooks của `runner.py`, backend và ledger để lấy process group/exit/parser, giữ scrub/account/sandbox/browser/max-turns/timeout/cap, DSH empty-launch/Go/NDJSON. Stage 1 **không sửa** `run_cmd.py`, `cli.py`, `config.py`, `run_registry.py`, `report.py`, không tự prepare hay quyết định apply policy thay G3. Worker nhận prepared isolation context qua injected runner/hooks; sau authoritative quiescence, worker sở hữu artifact settlement một lần qua hooks và settle keys (finalize/report/ledger), còn G3 sở hữu wiring prepare và policy check/apply. Stage 1 kiểm hooks bằng fixtures; không tuyên bố runtime report/apply integration đã tồn tại. Runner parser/ledger là nguồn usage canonical; ACP projection không tạo ledger thứ hai.
 
 ### 3.5 G6a gateway
 
-Python entry `bin/hand-paseo-acp` → `lib/hand_ext/paseo_gateway.py`, `Gateway(store, admission, worker)`; NDJSON JSON-RPC handling `initialize`, `session/new`, `session/load`, `session/prompt`, `session/cancel`, `session/close` và EOF. Capability chỉ quảng bá phần có mapping; không tự nhận resume/modes/forks/MCP tùy ý. `session/new/load` bind authoritative record/session ID, xem history không chạy model.
+Python entry `bin/hand-paseo-acp` → `lib/hand_ext/paseo_gateway.py`, `Gateway(store, admission, worker, *, invocation_id=None, max_parallel=1, wait_seconds=30)`; NDJSON JSON-RPC handling `initialize`, `session/new`, `session/load`, `session/prompt`, `session/cancel`, `session/close` và EOF. Capability chỉ quảng bá phần có mapping; không tự nhận resume/modes/forks/MCP tùy ý. `session/new/load` bind authoritative record/session ID, xem history không chạy model.
 
-Mỗi prompt UI/API: resolve fixed invocation → CAS epoch/request key → admission fresh → worker.start; duplicate key attach kết quả cũ, concurrent epoch bị chặn. Prompt mới có brief tự chứa và epoch mới; không arbitrary retarget cwd/account/model/options từ prompt hay UI metadata. Load không CLI resume. Cancel/close/EOF gọi worker/supervisor; nếu chưa quiescent giữ unresolved, không nhả slot hay báo completed. stdout chỉ protocol, stderr safe diagnostic codes, không forward raw credential/errors. ACP prompt result phản ánh worker outcome; `awaiting_review`/artifact settlement hoàn chỉnh phải chờ G3, chưa có integration thì không claim đã apply/report.
+Entry `--state-root`/`--invocation-id` nhận defaults từ `HYBRID_HANDS_EXECUTION_ROOT`/`HYBRID_HANDS_INVOCATION_ID`, yêu cầu binding explicit. Entry hiện deny mọi prompt tới khi G3 inject trusted checker/worker; tự nó chưa enforce production day_guard/quota/capacity. G3 phải supply policy max_parallel và wait_seconds/deadline phù hợp thời lượng task, không lấy từ ACP params. `session/load` chỉ metadata history, không transcript/CLI context. Prompt thiếu UUID messageId unsupported; Paseo transport gửi UUID request key.
+
+Mỗi prompt UI/API: resolve fixed invocation → CAS epoch/request key → admission fresh → worker.start; duplicate key attach kết quả cũ sau fresh policy check; completed duplicate chỉ policy check không reserve slot. Concurrent epoch bị chặn. Prompt mới có brief tự chứa và epoch mới; không arbitrary retarget cwd/account/model/options từ prompt hay UI metadata. Load không CLI resume. Cancel/close/EOF gọi worker/supervisor; nếu chưa quiescent giữ unresolved, không nhả slot hay báo completed. stdout chỉ protocol, stderr safe diagnostic codes, không forward raw credential/errors. Async input giữ cancel/EOF responsive trong lúc prompt chạy. Success chỉ sau authority outcome, required settlement và release; bounded waiting phải đi xuyên settling tới deadline (đã bổ sung và kiểm bằng final aggregate offline). ACP usage projection từ canonical parser/ledger không thêm ledger. ACP prompt result phản ánh worker outcome; `awaiting_review`/artifact settlement hoàn chỉnh phải chờ G3, chưa có integration thì không claim đã apply/report.
 
 ## 4. Integration và lifecycle deferred (G3+)
 
@@ -141,9 +155,9 @@ Giữ layout/colors/counts/hidden/selection, giờ kết thúc local/elapsed, kh
 
 ## 5. Kiểm chứng và gate còn lại
 
-G0 chỉ sửa hai docs, kiểm link nội bộ và diff; không test cho prose. Stage 1 dùng synthetic fixtures, fake daemon/runner/process ops; mỗi gói một main path và tối đa hai failure/boundary quan trọng. Cuối Stage 1 chạy `python3 -m unittest discover -s tests -p 'test_hand_paseo_*.py'` **một lần** cùng existing regression narrow cho phần thật sự sửa; **không full suite hiện tại**. Không live API/model, không cài dependency/plugin, không tạo resource daemon.
+Theo bàn giao Sol: G1/G2/G6a/G6b mỗi gói 3 tests offline xanh và review xong, aggregate 12 tests OK (6.740s) đúng một lần sau `53a2738`; sau đó compatibility `b5c4243` chỉ narrow execution 3 tests OK (2.852s), không lặp aggregate/full và không claim aggregate trên exact final head; existing parallel 3 + rundir 4 + core token cap 1 + timeout 1 tests đều OK. Node bridge syntax và git diff --check OK. Default validation pass; directory profile còn lỗi LICENSE_MISSING và warning ICON_MISSING; không mở rộng scope sửa chúng. Lượt cập nhật G0 chỉ đọc consumers để mô tả interface, không review hand khác, chỉ sửa hai docs, kiểm link nội bộ và diff; không test cho prose. Stage 1 dùng synthetic fixtures, fake daemon/runner/process ops; mỗi gói một main path và tối đa hai failure/boundary quan trọng. Sol đã chạy từ root `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hand_paseo_*.py'` **một lần** cùng existing regression narrow cho phần thật sự sửa; **không full suite hiện tại**. Không live API/model, không cài dependency/plugin, không tạo resource daemon.
 
-Live gate deferred: cần brief disposable resources/account/trần thời gian/chi phí, kiểm exact placement/parent track, admission UI, stop/reap, ACK recovery, done-review-archive-reopen và smoke từng backend/account trước rollout supported. Public API evidence/reopen semantics còn phải được G2 kiểm đúng package root được cấp. License distribution và release/install/version/path thực tế deferred. Không đánh dấu các gate này đã pass.
+Live gate deferred: cần brief disposable resources/account/trần thời gian/chi phí, kiểm exact placement/parent track, admission UI, stop/reap, ACK recovery, done-review-archive-reopen và smoke từng backend/account trước rollout supported. Public API evidence đã dùng cho transport offline; reopen/stop thực tế vẫn cần live gate trên package root được cấp. License distribution và release/install/version/path thực tế deferred. Không đánh dấu các gate này đã pass.
 
 ## 6. Nguồn khảo sát lịch sử (không phải execution plan)
 
