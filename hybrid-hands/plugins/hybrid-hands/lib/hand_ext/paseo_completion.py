@@ -10,13 +10,20 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import subprocess
+import sys
+import threading
 
 from . import isolation, go_usage, codex_usage, quota_state
 from .backends.base import Quota
-from .execution_state import StateConflict, _plain, atomic_json
+from .execution_state import StateConflict, as_key, _plain, atomic_json
 from .execution_admission import Reservation
 from .legacy_attestation import settlement_authorized
 from .locked_json import locked, read_json, write_atomic
+
+ARCHIVE_WORKER_LOCK_TIMEOUT = 10
+ARCHIVE_PROCESS_TIMEOUT = 90
+ARCHIVE_ATTEMPTS = 2
 
 
 def serialize_context(ctx):
@@ -273,14 +280,98 @@ class CompletionService:
 
     def release(self, key):
         r = self.store.get(key)
-        if r.state == 'awaiting_review' and not r.reservation: return True
+        if r.state in ('awaiting_review', 'archived') and not r.reservation:
+            self._after_release(key)
+            return True
         if not r.outcome or not r.outcome.get('quiescent'): return False
         if any(r.settle_keys.get(k, {}).get('state') != 'completed' for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')): return False
         if not r.reservation: return False
         for kind, marker in r.settle_keys.items():
             if kind in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state') and self._recover_refs(r, kind, marker['key']) is None: return False
         self.admission.release(Reservation.from_dict(r.reservation), outcome=r.outcome, artifacts_settled=True)
+        self._after_release(key)
         return True
+
+    def _after_release(self, key):
+        try:
+            self._schedule_archive(key)
+        except Exception:
+            # This is a worker callback boundary: no scheduling exception may
+            # turn successful settlement into a worker failure.
+            self._archive_diagnostic(key)
+            # Release is already durable. Scheduling failure never changes the
+            # authoritative outcome; the next controller/release call can retry.
+            return
+
+    def _archive_diagnostic(self, key):
+        from .paseo_controller import lifecycle_diagnostic
+        try:
+            lifecycle_diagnostic(self.store, key, 'archive')
+        except (OSError, StateConflict):
+            # The pre-launch receipt remains durable if a refresh cannot write.
+            return
+
+    def _schedule_archive(self, key):
+        key = as_key(key)
+        from .paseo_controller import terminal_evidence, lifecycle_diagnostic
+        record = self.store.get(key)
+        binding = record.receipt.get('transport', {}).get('lifecycle')
+        if not terminal_evidence(record) or not binding or record.state == 'archived':
+            return
+        # Persist retry intent before any independent process can close this
+        # gateway. No API call occurs on the unfinished worker callback stack.
+        lifecycle_diagnostic(self.store, key, 'archive')
+        if not hasattr(self, '_archive_threads'):
+            self._archive_threads = {}
+        previous = self._archive_threads.get(key)
+        if previous is not None and previous.is_alive():
+            return
+        def launch():
+            worker_lock = getattr(self.worker, 'lock', None)
+            try:
+                if worker_lock is not None:
+                    if not worker_lock.acquire(timeout=ARCHIVE_WORKER_LOCK_TIMEOUT):
+                        return
+                    worker_lock.release()
+                code = ('import sys; sys.path.insert(0, sys.argv[1]); '
+                        'from hand_ext.paseo_completion import deferred_archive; '
+                        'deferred_archive(sys.argv[2], sys.argv[3])')
+                # A new session survives archiveAgent closing the gateway runtime.
+                # The child itself is finite: two bounded lifecycle invocations.
+                subprocess.run([sys.executable, '-c', code, str(Path(__file__).resolve().parents[1]),
+                    str(self.store.root), json.dumps([key.invocation_id, key.attempt_id, key.epoch])],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True, timeout=ARCHIVE_PROCESS_TIMEOUT, check=False)
+            except Exception:
+                # Thread callbacks also preserve settlement and the retry receipt.
+                self._archive_diagnostic(key)
+        thread = threading.Thread(target=launch, name='paseo-archive', daemon=True)
+        self._archive_threads[key] = thread
+        thread.start()
+
+
+def deferred_archive(root, serialized_key):
+    """Independent bounded lifecycle worker; no provider/model execution."""
+    from .execution_state import ExecutionStore, as_key
+    from .paseo_controller import archive_settled, lifecycle_diagnostic
+    from .paseo_transport import PaseoTransport, TransportError
+    store = ExecutionStore(root)
+    key = as_key(json.loads(serialized_key))
+    for _ in range(ARCHIVE_ATTEMPTS):
+        try:
+            record = store.get(key)
+            binding = record.receipt['transport']['lifecycle']
+            transport = PaseoTransport(binding['package_root'], binding['target'],
+                                       node=binding['node'], store=store)
+            result = archive_settled(store, transport, key)
+            if result.state == 'archived':
+                return
+        except (OSError, ValueError, KeyError, TransportError, StateConflict):
+            try:
+                lifecycle_diagnostic(store, key, 'archive')
+            except (OSError, StateConflict):
+                pass  # Keep the pre-launch receipt; never alter settlement.
+            return
 
 
 def serialize_result(result):

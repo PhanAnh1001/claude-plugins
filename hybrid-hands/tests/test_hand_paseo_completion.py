@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -118,6 +119,36 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(reconstructed, self.ctx)
         self.assertEqual(conflicts, [True])
         self.assertEqual(json.loads(Path(r.artifacts['report']['registry']).read_text())['label'], 'fixture-label')
+        # Callback schedules an independent bounded process only after the worker
+        # releases its settlement lock; fake the process and every lifecycle API.
+        from hand_ext.paseo_completion import deferred_archive
+        from hand_ext.paseo_controller import terminal_evidence
+        observed = threading.Event()
+        r.receipt['transport'] = {'lifecycle': dict(package_root='fixture', target={}, node='node')}
+        self.store.compare_and_swap(r.key, r.revision, r)
+        owner = self
+        class Transport:
+            def __init__(self, *args, **kwargs): pass
+            def archive_child(self, key):
+                settled = owner.store.get(key)
+                owner.assertTrue(terminal_evidence(settled))
+                owner.assertTrue(Path(settled.artifacts['report']['report']).is_file())
+                owner.assertNotIn('review', settled.artifacts)
+                return dict(ok=True, state='archived')
+        def independent(*args, **kwargs):
+            deferred_archive(str(self.store.root), '["one", "try", 1]')
+            observed.set()
+        with patch('hand_ext.paseo_completion.subprocess.run', side_effect=independent), \
+             patch('hand_ext.paseo_transport.PaseoTransport', Transport):
+            with worker.lock:
+                self.assertTrue(self.service.release(self.attempt.key))
+                self.assertFalse(observed.is_set())
+            self.assertTrue(observed.wait(3))
+            self.service._archive_threads[self.attempt.key].join(3)
+        with patch.object(self.service, '_schedule_archive', side_effect=ValueError('unsafe raw diagnostic')): self.assertTrue(self.service.release(self.attempt.key))
+        self.assertEqual(self.store.get(self.attempt.key).receipt['lifecycle_error']['code'], 'ARCHIVE_UNRESOLVED')
+        self.assertEqual(self.store.get(self.attempt.key).state, 'archived')
+        self.assertEqual(self.store.get(self.attempt.key).outcome, r.outcome)
         # A second execution exercises Codex account/window projection without
         # reading any real account path or invoking a backend CLI.
         options = dict(self.inv.fixed_options)
