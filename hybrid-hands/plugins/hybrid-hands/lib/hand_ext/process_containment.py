@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import ctypes
-from dataclasses import dataclass
+import errno
+from dataclasses import dataclass, asdict
 import os
 from pathlib import Path
 import sys
@@ -11,6 +12,7 @@ MARKER = 'HYBRID_HANDS_INVOCATION_ID'
 SNAPSHOT_INTERVAL = .05
 TERM_WAIT = .3
 VERIFY_WAIT = .5
+DIAGNOSTIC_LIMIT = 64
 METHOD = 'root_group+tracked_tree+env_marker'
 
 
@@ -24,8 +26,8 @@ class OSIdentity:
     zombie: bool = False
 
     def matches(self, other: OSIdentity | None) -> bool:
-        return other is not None and (self.pid, self.start, self.comm, self.uid) == (
-            other.pid, other.start, other.comm, other.uid)
+        return other is not None and (self.pid, self.start, self.uid) == (
+            other.pid, other.start, other.uid)
 
 
 def procargs_marker(data: bytes, marker: bytes) -> bool:
@@ -55,11 +57,12 @@ class _BsdInfo(ctypes.Structure):
 
 def _mac_info(libproc, pid):
     info = _BsdInfo()
+    ctypes.set_errno(0)
     count = libproc.proc_pidinfo(pid, 3, 0, ctypes.byref(info), ctypes.sizeof(info))
     if count != ctypes.sizeof(info):
         if ctypes.get_errno() == 3:
             return None
-        raise RuntimeError('process identity unavailable')
+        raise OSError(ctypes.get_errno(), 'process identity unavailable')
     return OSIdentity(pid, f'{info.start_sec}:{info.start_usec}',
                       info.comm.decode(errors='replace'), info.ppid, info.uid, info.status == 5)
 
@@ -104,6 +107,23 @@ class ProcessTable:
                 continue
         return rows
 
+    def identity(self, pid: int) -> OSIdentity | None:
+        """Direct birth query; never query a process environment here."""
+        if sys.platform == 'darwin':
+            return _mac_info(ctypes.CDLL('/usr/lib/libproc.dylib', use_errno=True), pid)
+        if sys.platform.startswith('linux'):
+            path = Path(f'/proc/{pid}')
+            try:
+                uid = path.stat().st_uid
+                stat = (path / 'stat').read_text()
+                end = stat.rindex(')')
+                fields = stat[end + 2:].split()
+                return OSIdentity(pid, fields[19], stat[stat.index('(') + 1:end],
+                                  int(fields[1]), uid, fields[0] == 'Z')
+            except FileNotFoundError:
+                return None
+        raise RuntimeError('process identity unavailable')
+
     def marker_matches(self, pid: int, invocation: str) -> bool:
         marker = (MARKER + '=' + invocation).encode()
         try:
@@ -115,22 +135,51 @@ class ProcessTable:
                 if libc.sysctl(mib, 3, buf, ctypes.byref(size), None, 0):
                     error = ctypes.get_errno()
                     if error == 3:  # ESRCH: raced exit
-                        return False
-                    raise RuntimeError('marker scan unavailable')
+                        raise ProcessLookupError(error, 'marker process exited')
+                    raise OSError(error, 'marker scan unavailable')
                 return procargs_marker(buf.raw[:size.value], marker)
             if sys.platform.startswith('linux'):
                 return marker in Path(f'/proc/{pid}/environ').read_bytes().split(b'\0')
             raise RuntimeError('marker scan unavailable')
         except FileNotFoundError:
-            return False
+            raise ProcessLookupError(errno.ESRCH, 'marker process exited') from None
+        except OSError as exc:
+            error = RuntimeError('marker scan unavailable')
+            error.errno = exc.errno
+            raise error from None
         except Exception:
             raise RuntimeError('marker scan unavailable') from None
 
-    def signal(self, identity: OSIdentity, sig: int) -> None:
+    def signal(self, identity: OSIdentity, sig: int) -> str | None:
         # Revalidate immediately before EACH signal, including escalation.
-        current = self.snapshot().get(identity.pid)
-        if identity.matches(current) and not current.zombie:
+        current = self.identity(identity.pid)
+        if current is None:
+            return 'esrch'
+        if not identity.matches(current):
+            return 'identity_mismatch'
+        if not current.zombie:
             os.kill(identity.pid, sig)
+        return None
+
+
+def merge_evidence(previous, current):
+    """Retain historical uncertainty and births across independent observations."""
+    merged = dict(previous, **current)
+    inventory = {(i['pid'], i['start'], i['uid']): i
+                 for i in previous.get('inventory', []) + current.get('inventory', [])}
+    merged['inventory'] = list(inventory.values())
+    merged['inventory_complete'] = (current.get('inventory_complete') is True
+                                    and previous.get('inventory_complete') is not False)
+    merged['root_reaped'] = bool(previous.get('root_reaped') or current.get('root_reaped'))
+    for field in ('binding', 'owner_done', 'first_fatal'):
+        if previous.get(field):
+            merged[field] = previous[field]
+    diagnostics = []
+    for detail in previous.get('diagnostics', []) + current.get('diagnostics', []):
+        if detail not in diagnostics and len(diagnostics) < DIAGNOSTIC_LIMIT:
+            diagnostics.append(detail)
+    merged['diagnostics'] = diagnostics
+    return merged
 
 
 class Descendants:
@@ -138,6 +187,9 @@ class Descendants:
         self.proc, self.invocation = proc, invocation
         self.table = table or ProcessTable()
         self.tracked = {}
+        self.inventory = {}
+        self.diagnostics = []
+        self.inventory_complete = True
         # Audit only: retain full identity chains across reparent/marker refresh.
         # Never use historical numeric parent PIDs to authorize discovery/signals.
         self.ancestry: dict[tuple[int, str, str, int], list[tuple[OSIdentity, ...]]] = {}
@@ -153,13 +205,65 @@ class Descendants:
                 self.protected[pid] = rows[pid]
                 pid = rows[pid].ppid
             self.authoritative = self.root is not None and bool(invocation)
+            if self.root is None:
+                self.inventory_complete = False
+                self.failure('initial_snapshot', code='root_missing')
             self.capture(rows)
-        except Exception:
+        except Exception as exc:
+            self.inventory_complete = False
+            self.failure('initial_snapshot', exc)
+
+    def failure(self, stage, exc=None, item=None, code=None, fatal=True):
+        error = getattr(exc, 'errno', None)
+        kind = code or ('esrch' if error == errno.ESRCH or isinstance(exc, ProcessLookupError)
+                        else 'eperm' if error in (errno.EPERM, errno.EACCES)
+                        else 'einval' if error == errno.EINVAL else 'unavailable')
+        detail = dict(method=METHOD, stage=stage, error=kind)
+        if code == 'exit_or_reused' and error == errno.EINVAL:
+            detail.update(error='einval', resolution='gone_or_reused')
+        if item is not None:
+            detail.update(pid=item.pid, start=item.start)
+        if len(self.diagnostics) < DIAGNOSTIC_LIMIT:
+            self.diagnostics.append(detail)
+        if fatal:
+            if not getattr(self, 'first_fatal', None):
+                self.first_fatal = detail
             self.authoritative = False
+
+    def details(self):
+        return dict(method=METHOD, inventory_complete=self.inventory_complete,
+                    inventory=list(self.inventory.values()),
+                    root=asdict(self.root) if self.root else None,
+                    root_reaped=self.proc.returncode is not None,
+                    owner=asdict(self.protected[self.owner_pid]) if self.owner_pid in self.protected else None,
+                    protected=[asdict(i) for i in self.protected.values()],
+                    diagnostics=list(self.diagnostics),
+                    first_fatal=getattr(self, 'first_fatal', None))
+
+    def fresh(self, pid):
+        query = getattr(self.table, 'identity', None)
+        return query(pid) if query else self.table.snapshot().get(pid)
+
+    def marker(self, item):
+        try:
+            return self.table.marker_matches(item.pid, self.invocation)
+        except Exception as exc:
+            try:
+                current = self.fresh(item.pid)
+                if current is None or not item.matches(current):
+                    self.failure('marker', exc, item, code='exit_or_reused', fatal=False)
+                    return False
+            except Exception as fresh_error:
+                self.inventory_complete = False
+                self.failure('marker_identity', fresh_error, item)
+                return False
+            self.inventory_complete = False
+            self.failure('marker', exc, item)
+            return False
 
     def is_protected(self, item: OSIdentity) -> bool:
         protected = self.protected.get(item.pid)
-        return item.pid == self.owner_pid or (protected is not None and protected.matches(item))
+        return protected is not None and protected.matches(item)
 
     def remember(self, item: OSIdentity, rows: dict[int, OSIdentity]) -> None:
         key = (item.pid, item.start, item.comm, item.uid)
@@ -175,14 +279,15 @@ class Descendants:
         if observed not in history:
             history.append(observed)
         self.tracked[item.pid] = item
+        self.inventory[(item.pid, item.start, item.uid)] = asdict(item)
 
     def capture(self, rows=None):
         try:
             rows = self.table.snapshot() if rows is None else rows
             current = rows.get(self.proc.pid)
             # Popen retains root authority across exec (comm changes), while
-            # OS birth time/uid must stay fixed. Signals still compare comm
-            # against a fresh, independent snapshot immediately before kill.
+            # OS birth time/uid must stay fixed. Signals revalidate birth
+            # with a fresh direct query immediately before kill.
             if (self.root and current and self.proc.returncode is None
                     and (self.root.pid, self.root.start, self.root.uid) ==
                     (current.pid, current.start, current.uid)):
@@ -190,7 +295,9 @@ class Descendants:
             elif self.root and current and self.proc.returncode is None:
                 # A live reused root PID must never certify quiescence.
                 # macOS enumeration can omit an unreaped zombie.
-                self.authoritative = False
+                self.failure('capture', item=current, code='identity_mismatch')
+            if self.root:
+                self.inventory[(self.root.pid, self.root.start, self.root.uid)] = asdict(self.root)
             parents = {i.pid for i in self.tracked.values() if i.matches(rows.get(i.pid))}
             for pid in parents:
                 self.remember(rows[pid], rows)
@@ -205,30 +312,31 @@ class Descendants:
                     self.remember(item, rows)
                     parents.add(item.pid)
             return rows
-        except Exception:
-            self.authoritative = False
+        except Exception as exc:
+            self.inventory_complete = False
+            self.failure('capture', exc)
             return {}
 
     def live(self) -> list[OSIdentity]:
         rows = self.capture()
-        try:
-            for item in rows.values():
-                if not self.is_protected(item) and item.uid == os.getuid() and not item.zombie:
-                    if self.table.marker_matches(item.pid, self.invocation):
-                        self.remember(item, rows)
-        except Exception:
-            self.authoritative = False
+        for item in rows.values():
+            if not self.is_protected(item) and item.uid == os.getuid() and not item.zombie:
+                if self.marker(item):
+                    self.remember(item, rows)
         return [i for i in self.tracked.values() if not self.is_protected(i)
                 and i.matches(rows.get(i.pid)) and not rows[i.pid].zombie]
 
     def signal_live(self, sig: int) -> None:
         for item in self.live():
             try:
-                self.table.signal(item, sig)
-            except ProcessLookupError:
-                pass
-            except Exception:
-                self.authoritative = False
+                result = self.table.signal(item, sig)
+                if result in ('esrch', 'identity_mismatch'):
+                    self.failure('signal', item=item, code=result,
+                                 fatal=result == 'identity_mismatch')
+            except ProcessLookupError as exc:
+                self.failure('signal', exc, item, fatal=False)
+            except Exception as exc:
+                self.failure('signal', exc, item)
 
     def verify(self) -> bool:
         live = self.live()

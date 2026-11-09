@@ -172,7 +172,7 @@ class PreDispatchAdmission(AdmissionController):
             return r
 
 
-def recover(store, key, source, package_root, *, apply=False, validator=None, target=None):
+def recover(store, key, source, package_root, *, apply=False, validator=None, target=None, process_table=None):
     from .paseo_controller import lifecycle_lock, records_for
     with lifecycle_lock(store):
         r = store.get(key)
@@ -180,6 +180,10 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
             raise StateConflict('wrong repo')
         if records_for(store, r.invocation.invocation_id)[-1].key != r.key:
             raise StateConflict('latest exact epoch required')
+        if ((r.pending_outcome or r.outcome or {}).get('status') == 'cancelled'
+                and r.process and (r.receipt or {}).get('worker_owner')):
+            from .post_hoc_reverify import recover_cancelled
+            return recover_cancelled(store, r, apply=apply, table=process_table)
         admission = PreDispatchAdmission(store, None, None)
         prior = (r.receipt or {}).get('pre_dispatch_failure')
         if prior and prior.get('reason') in ('invalid_bound_workspace_id', 'failed_child_creation', PROMPT_REASON):
