@@ -178,4 +178,4 @@ class ExecutionStore:
     def list_unsettled(self, scope_id=None):
         with self.locked():
             records = [self._read(p) for p in self.root.glob('*.json')]
-        return [r for r in records if (scope_id is None or r.invocation.scope_id == scope_id) and (r.reservation or r.state not in ('archived','awaiting_review','failed'))]
+        return [r for r in records if (scope_id is None or r.invocation.scope_id == scope_id) and (r.reservation or r.state not in ('archived','awaiting_review','failed','not_admitted'))]

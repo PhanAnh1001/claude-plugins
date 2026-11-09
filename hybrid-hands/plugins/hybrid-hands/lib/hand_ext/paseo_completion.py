@@ -15,6 +15,7 @@ from . import isolation, go_usage, codex_usage, quota_state
 from .backends.base import Quota
 from .execution_state import StateConflict, _plain, atomic_json
 from .execution_admission import Reservation
+from .legacy_attestation import settlement_authorized
 from .locked_json import locked, read_json, write_atomic
 
 
@@ -97,7 +98,7 @@ class CompletionService:
             config = self._config(r)
             if r.outcome and r.outcome.get('reason') == 'usage observation unresolved':
                 raise StateConflict('usage observation unresolved')
-            if not outcome or not outcome.quiescent or not self.supervisor.reconcile(key).confirmed:
+            if not outcome or not outcome.quiescent or not settlement_authorized(self.supervisor, key):
                 raise StateConflict('authoritative quiescence required')
             run_dir = Path(r.receipt['worker_run_dir'])
             run_dir.mkdir(parents=True, exist_ok=True)

@@ -81,7 +81,7 @@ def load_executions(roots, cutoff):
         if exit_code not in (None, 0):
             status = "failed"
         elif status in ("error", "failed", "errored", "cancelled", "timeout", "killed",
-                        "capped", "quota_exhausted", "not_logged_in"):
+                        "capped", "quota_exhausted", "not_logged_in", "not_admitted"):
             pass
         elif status in ("ok", "completed", "done"):
             status = "ok"
