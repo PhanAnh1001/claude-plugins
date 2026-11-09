@@ -75,6 +75,7 @@ class PaseoTransportTests(unittest.TestCase):
         self.assertIn('hh-hand-codex',self.transport.probe_capabilities()['providers'])
         self.assertTrue(self.child()['ok'])
         before=self.store.get(self.key).attempt
+        self.assertRegex(before.workspace_id, r'^wks_[a-f0-9]{16}$')
         r=self.store.get(self.key); r.quiescence=None
         self.store.compare_and_swap(self.key,r.revision,r)
         self.assertTrue(self.transport.send_prompt(self.key,'fresh brief')['ok'])
@@ -158,6 +159,76 @@ class PaseoTransportTests(unittest.TestCase):
         for name in ('createWorkspace','createAgent','sendMessage'):
             self.assertEqual(sum(x['name']==name for x in calls),1)
         self.assertIsNone(self.store.get(self.key).receipt['transport']['pending'])
+
+    def test_creation_lifecycle_and_fixed_receipt_fallback(self):
+        script = """
+          const {handleRequest,targetFingerprint}=await import(process.argv[1]);
+          const {mkdir,writeFile}=await import('node:fs/promises');
+          const {createHash}=await import('node:crypto');
+          const home=process.argv[2],target={kind:'instance',home};
+          const r={command:'creation-failure',targetKey:targetFingerprint(target),cwd:home,
+            parentAgentId:'parent',projectId:'project',workspaceId:'child-ws',agentId:'child',agentKey:'key'};
+          const snapshot={kind:'agent',idempotencyKey:'key',agentId:'child',workspaceId:'child-ws',
+            phase:'failed',outcomeUnknown:false,failedStage:'agent'};
+          await mkdir(home+'/creations');
+          const name=createHash('sha256').update(JSON.stringify(['agent','key'])).digest('hex');
+          await writeFile(home+'/creations/'+name+'.json',JSON.stringify({snapshot,inFlight:null}));
+          let modern=true,bad=false,missing=null,released=0;
+          const client={getLastServerInfoMessage:()=>({features:{creationLifecycle:modern}}),
+            observe:()=>({subscribe:hooks=>hooks.snapshot(bad?{error:'PRIVATE'}:{error:null,snapshot}),release:async()=>{released++;}}),
+            fetchAgent:async({agentId})=>agentId==='parent'?{agent:{id:'parent',workspaceId:'parent-ws'}}:missing,
+            fetchWorkspaces:async()=>({entries:[{id:'parent-ws',projectId:'project'},
+              {id:'child-ws',projectId:'project',workspaceDirectory:home}],pageInfo:{nextCursor:null}})};
+          const results=[];results.push(await handleRequest(client,r,target));
+          bad=true;results.push(await handleRequest(client,r,target));
+          bad=false;missing=undefined;results.push(await handleRequest(client,r,target));
+          missing=null;modern=false;results.push(await handleRequest(client,r,target));
+          await writeFile(home+'/creations/'+name+'.json',JSON.stringify({snapshot,inFlight:'agent'}));
+          results.push(await handleRequest(client,r,target));
+          console.log(JSON.stringify({results,released}));
+        """
+        run=subprocess.run(['node','--input-type=module','-e',script,BRIDGE.as_uri(),str(self.root)],capture_output=True,text=True,timeout=10)
+        self.assertEqual(run.returncode,0,run.stderr)
+        result=json.loads(run.stdout)
+        self.assertEqual([x['ok'] for x in result['results']],[True,False,False,True,False])
+        self.assertEqual(result['released'],3); self.assertNotIn('PRIVATE',run.stdout)
+
+    def test_official_schema_preflight_without_network(self):
+        executable=shutil.which('paseo')
+        if not executable:self.skipTest('installed pinned CLI unavailable')
+        package=Path(executable).resolve().parents[1]
+        # The npm bin entry is dist/index.js; find its owning package locally.
+        while package.parent != package and not (package/'package.json').exists():package=package.parent
+        if json.loads((package/'package.json').read_text()).get('version')!='0.15.0':
+            self.skipTest('installed pinned CLI unavailable')
+        script="""
+          const {loadSchemas,handleRequest,preflight,payload}=await import(process.argv[1]);
+          const schemas=await loadSchemas(process.argv[2]);let calls=0;
+          const client=new Proxy({}, {get(){calls++;throw Error('network');}});
+          const base={cwd:'/fake',projectId:'project',parentAgentId:'parent',
+            workspaceId:'wks_0123456789abcdef',agentId:'00000000-0000-4000-8000-000000000001',
+            providerId:'codex',model:'gpt-test',gatewayEnv:{PUBLIC_FIXTURE:'yes'},
+            messageId:'message',brief:'synthetic'};
+          const results=[];
+          for(const [command,field] of [['workspace','workspaceId'],['create','agentId'],['send','brief']]){
+            const r={...base,command};
+            if(preflight(r,schemas))throw Error('valid shape rejected');
+            r[field]=command==='send'?123:'PRIVATE_INVALID';
+            results.push(await handleRequest(client,r,{},schemas));
+          }
+          console.log(JSON.stringify({calls,results}));
+        """
+        run=subprocess.run(['node','--input-type=module','-e',script,BRIDGE.as_uri(),str(package)],
+                           capture_output=True,text=True,timeout=10)
+        self.assertEqual(run.returncode,0,run.stderr)
+        result=json.loads(run.stdout);self.assertEqual(result['calls'],0)
+        for rejection in result['results']:
+            self.assertEqual(rejection['code'],'REQUEST_SCHEMA_REJECTED');self.assertTrue(rejection['notSent'])
+            self.assertNotIn('PRIVATE_INVALID',json.dumps(rejection))
+            self.assertTrue(all(set(i)=={'path','code'} for i in rejection['issues']))
+        run=subprocess.run(['node',str(BRIDGE),str(package)],capture_output=True,text=True,timeout=10,
+                           input=json.dumps(dict(command='workspace',workspaceId='PRIVATE_INVALID')))
+        self.assertEqual(json.loads(run.stdout)['code'],'REQUEST_SCHEMA_REJECTED')
 
     def test_wrong_target_parent_missing_cwd_and_recovery_block_before_mutation(self):
         self.assertTrue(self.child()['ok'])

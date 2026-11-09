@@ -9,10 +9,13 @@ from dataclasses import replace
 import hashlib
 import json
 import math
+import secrets
 import time
 from pathlib import Path
 import subprocess
 import uuid
+
+WORKSPACE_ID_RANDOM_BYTES = 8
 
 
 class TransportError(RuntimeError):
@@ -156,6 +159,8 @@ class PaseoTransport:
         if command == 'send' and record.get('freshDispatch'):
             record['quiescent'] = True
         result = self._call(command, dict({k: v for k, v in record.items() if k != '_source_transport'}, **extra))
+        if trusted_schema_rejection(result, command):
+            record = self._save(key, record, pending=None, schemaRejection=result)
         if result.get('ok'):
             record = self._save(key, record, pending=None, **{command + 'Confirmed': True})
         return dict(result, placement={k: record.get(k) for k in
@@ -184,7 +189,7 @@ class PaseoTransport:
                 return result
             return self._save(key, record, workspaceConfirmed=True)
         if not record.get('workspaceId'):
-            record = self._save(key, record, **proposed, workspaceId=str(uuid.uuid4()),
+            record = self._save(key, record, **proposed, workspaceId='wks_' + secrets.token_hex(WORKSPACE_ID_RANDOM_BYTES),
                 agentId=str(uuid.uuid4()), workspaceKey=str(uuid.uuid4()))
         return self._mutate(key, 'workspace')
 
@@ -284,3 +289,16 @@ class PaseoTransport:
         if not self._read(key).get('quiescent'):
             raise TransportError('QUIESCENCE_REQUIRED')
         return self._mutate(key, 'reopen')
+
+
+def trusted_schema_rejection(result, command):
+    names = {'workspace': 'WorkspaceCreateRequestSchema', 'create': 'AgentCreateRequestSchema',
+             'send': 'SendAgentMessageRequestSchema'}
+    issues = result.get('issues')
+    return (result.get('ok') is False and result.get('code') == 'REQUEST_SCHEMA_REJECTED'
+            and result.get('notSent') is True and command in names
+            and result.get('schema') == names[command] and isinstance(issues, list) and bool(issues)
+            and set(result) <= {'ok', 'code', 'notSent', 'schema', 'issues'}
+            and all(isinstance(i, dict) and set(i) == {'path', 'code'}
+                    and isinstance(i['path'], list) and isinstance(i['code'], str)
+                    and all(isinstance(p, (str, int)) for p in i['path']) for i in issues))

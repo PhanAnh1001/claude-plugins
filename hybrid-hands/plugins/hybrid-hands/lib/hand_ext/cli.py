@@ -59,12 +59,14 @@ def _parser() -> argparse.ArgumentParser:
     provider_status.add_argument("--cwd")
     managed = sub.add_parser("managed", help="quản lý exact managed execution")
     managed_sub = managed.add_subparsers(dest="managed_cmd", required=True)
-    for action in ("ls", "review-approve", "archive", "followup"):
+    for action in ("ls", "review-approve", "archive", "followup", "recover"):
         command = managed_sub.add_parser(action)
         command.add_argument("--cwd", required=True)
         if action != "ls":
             command.add_argument("--key", required=True, type=_execution_key,
                                  help="invocation:attempt:epoch (epoch >= 1)")
+        if action == "recover":
+            command.add_argument("--apply", action="store_true")
         if action == "followup":
             command.add_argument("--brief", required=True, help="fresh self-contained brief file")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
@@ -267,6 +269,13 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
                 record = store.get(args.key)
                 if Path(record.invocation.source_cwd).resolve() != source:
                     raise StateConflict("execution belongs to another repo")
+                if args.managed_cmd == "recover":
+                    from .paseo_recovery import recover
+                    record = recover(store, args.key, source, cfg.paseo.get('package_root'),
+                                     apply=args.apply, target=cfg.paseo.get('target'))
+                    print(json.dumps({"ok": True, "applied": args.apply,
+                                      "execution": _managed_summary(record)}))
+                    return EXIT_OK
                 brief = None
                 if args.managed_cmd == "followup":
                     brief = Path(args.brief).read_text()
