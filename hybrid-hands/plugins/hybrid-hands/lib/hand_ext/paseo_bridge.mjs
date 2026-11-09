@@ -176,6 +176,12 @@ export async function handleRequest(client, r, target, schemas) {
     }
     await directory(r.cwd);
     await parent(client, r);
+    if (r.command === 'prompt-failure') {
+      const a = await exact(client, r);
+      check(['error', 'closed'].includes(a.status), 'GATEWAY_NOT_TERMINATED');
+      return {ok:true, targetKey:fingerprint, agentId:r.agentId,
+        workspaceId:r.workspaceId, messageId:r.messageId, status:a.status};
+    }
     if (r.command === 'verify-workspace') {
       const w = await workspace(client, r.workspaceId);
       check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');

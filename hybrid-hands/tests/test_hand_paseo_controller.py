@@ -3,6 +3,7 @@ import argparse
 from dataclasses import replace
 from pathlib import Path
 import io
+import hashlib
 import os
 import subprocess
 import sys
@@ -35,6 +36,8 @@ class FinishingWorker:
         self.hooks = {}; self.calls = 0; self.status="ok"; self.capacity=False
         completion.attach(self)
     def start(self, invocation, attempt, brief):
+        from hand_ext.paseo_prompt import prompt_path
+        assert brief == prompt_path(self.store.get(attempt.key)).read_bytes().decode()
         self.calls += 1
         file = Path(invocation.isolated_cwd) / 'file.txt'
         file.write_text(file.read_text() + 'epoch' + str(self.calls) + '\n')
@@ -208,8 +211,12 @@ class ControllerTests(unittest.TestCase):
             if command=='probe':result['providers']=['hh-hand-codex']
             if command=='parent':result.update(parentAgentId='parent-agent',projectId='project')
             if command=='send':
+                from hand_ext.paseo_prompt import escape
+                envelope = ('<paseo-system version="1" kind="agent-message" source-agent-id="' +
+                    escape(inv.parent_paseo_agent_id) + '" message-id="' + request['messageId'] +
+                    '">\n' + escape(request['brief']) + '\n</paseo-system>')
                 gateway.handle('session/prompt',dict(sessionId=inv.invocation_id,
-                    messageId=request['messageId'],prompt=[dict(type='text',text=request['brief'])]))
+                    messageId=request['messageId'],prompt=[dict(type='text',text=envelope)]))
             return result
         transport=PaseoTransport(package.resolve(),{'kind':'instance','home':str(self.root/'daemon')},
             client_factory=lambda *args:client,store=self.store)
@@ -251,6 +258,77 @@ class ControllerTests(unittest.TestCase):
         new=replace(inv,fixed_options=_plain(inv.fixed_options),invocation_id=str(uuid.uuid4()),resource_claims=('dependency:new',))
         na=Attempt(new.invocation_id,str(uuid.uuid4()),1,str(uuid.uuid4()))
         with self.assertRaises(AdmissionFull):always.admit(new,na,max_parallel=1)
+
+    def test_gateway_rejection_settles_without_worker(self):
+        from hand_ext.paseo_controller import persist_prompt
+        inv,a,sup,admission,completion = self.intent(); admission.admit(inv,a,max_parallel=1)
+        r=self.store.get(a.key)
+        r.attempt=replace(r.attempt,target_key='target',project_id='project',workspace_id='workspace',agent_id='child')
+        r.receipt['transport']=dict(targetKey='target',projectId='project',workspaceId='workspace',agentId='child',
+            parentAgentId=inv.parent_paseo_agent_id,messageId=a.request_key,briefDigest=hashlib.sha256(b'pinned').hexdigest(),sendConfirmed=True)
+        self.store.compare_and_swap(a.key,r.revision,r); persist_prompt(r,'pinned')
+        worker=FinishingWorker(self.store,sup,completion)
+        gateway=Gateway(self.store,admission,worker,invocation_id=inv.invocation_id,completion=completion)
+        params=dict(sessionId=inv.invocation_id,messageId=a.request_key,prompt=[dict(type='text',text='wrong')])
+        for field in ('gateway_claim','worker_owner','worker_run_dir'):
+            for value in (None, '', 'existing'):
+                r=self.store.get(a.key); r.receipt[field]=value; self.store.compare_and_swap(a.key,r.revision,r)
+                before=self.store._path(a.key).read_bytes()
+                with self.assertRaises(ProtocolError): gateway.handle('session/prompt',params)
+                self.assertEqual(self.store._path(a.key).read_bytes(),before)
+                r=self.store.get(a.key); r.receipt.pop(field); self.store.compare_and_swap(a.key,r.revision,r)
+        with self.assertRaises(ProtocolError): gateway.handle('session/prompt',params)
+        self.assertIn('prompt_rejection',self.store.get(a.key).receipt)
+        package=Path(__file__).parent/'fixtures/hand_paseo/transport/package'
+        transport=PaseoTransport(package.resolve(),{'kind':'instance','home':str(self.root/'daemon')},store=self.store)
+        transport.target_key='target'  # synthetic binding
+        result=transport.wait_child(a.key,0,require_settlement=True)
+        self.assertEqual(result['outcome']['status'],'failed'); self.assertEqual(worker.calls,0)
+        params['prompt'][0]['text']='pinned'
+        with self.assertRaises(ProtocolError): gateway.handle('session/prompt',params)
+        self.assertEqual(worker.calls,0)
+
+    def test_prompt_rejection_recovery(self):
+        from hand_ext.paseo_recovery import recover
+        inv,a,_,admission,_ = self.intent(); admission.admit(inv,a,max_parallel=1)
+        r = self.store.get(a.key)
+        r.attempt = replace(r.attempt,target_key='target',project_id='project',workspace_id='workspace',agent_id='child')
+        r.receipt.update(gateway_claim='old-gateway', transport=dict(
+            targetKey='target',projectId='project',workspaceId='workspace',agentId='child',
+            parentAgentId=inv.parent_paseo_agent_id,messageId=a.request_key,
+            briefDigest='digest',sendConfirmed=True,pending=None))
+        self.store.compare_and_swap(a.key,r.revision,r)
+        proof = dict(ok=True,targetKey='target',agentId='child',workspaceId='workspace',messageId=a.request_key,status='error')
+        before=self.store._path(a.key).read_bytes(); pool=list(parallel.durable_reservations())
+        for bad in (dict(proof,status='idle'),dict(proof,agentId='other'),dict(ok=False)):
+            with self.assertRaises(StateConflict): recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _,b=bad:b)
+            self.assertEqual(self.store._path(a.key).read_bytes(),before)
+            self.assertEqual(list(parallel.durable_reservations()),pool)
+        for claim in (None, '', 'old-gateway'):
+            r=self.store.get(a.key); r.receipt.update(gateway_claim=claim, prompt_rejection=dict(reason='gateway_prompt_fence_rejected',epoch=a.epoch,request_key=a.request_key))
+            self.store.compare_and_swap(a.key,r.revision,r); blocked=self.store._path(a.key).read_bytes()
+            with self.assertRaises(StateConflict): recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _:proof)
+            self.assertEqual((self.store._path(a.key).read_bytes(),list(parallel.durable_reservations())),(blocked,pool))
+        r=self.store.get(a.key); r.receipt.pop('prompt_rejection'); r.receipt['gateway_claim']='old-gateway'; self.store.compare_and_swap(a.key,r.revision,r)
+        before=self.store._path(a.key).read_bytes()
+        recover(self.store,a.key,self.repo,None,validator=lambda _:proof)
+        self.assertEqual(self.store._path(a.key).read_bytes(),before)
+        for field in ('worker_owner','process','outcome','pending_outcome'):
+            r=self.store.get(a.key)
+            if field == 'worker_owner': r.receipt[field]='worker'
+            else: setattr(r,field,{'status':'uncertain'})
+            self.store.compare_and_swap(a.key,r.revision,r); blocked=self.store._path(a.key).read_bytes()
+            with self.assertRaises(StateConflict): recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _:proof)
+            self.assertEqual(self.store._path(a.key).read_bytes(),blocked)
+            r=self.store.get(a.key)
+            if field == 'worker_owner': r.receipt.pop(field)
+            else: setattr(r,field,None)
+            # Restore the synthetic fixture; production outcomes are immutable.
+            from hand_ext.execution_state import atomic_json
+            atomic_json(self.store._path(a.key),r.to_dict())
+        failed=recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _:proof)
+        self.assertEqual(failed.state,'failed'); self.assertFalse(list(parallel.durable_reservations()))
+        self.assertEqual(failed.to_dict(),recover(self.store,a.key,self.repo,None,apply=True).to_dict())
 
     def test_failed_create_recovery_exact_proof(self):
         from hand_ext.paseo_recovery import recover

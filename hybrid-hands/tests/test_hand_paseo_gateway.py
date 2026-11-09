@@ -1,5 +1,6 @@
 """Offline ACP contract with real durable admission and synthetic worker."""
 import io
+import hashlib
 import json
 import queue
 import shutil
@@ -101,6 +102,33 @@ class GatewayTests(unittest.TestCase):
                     prompt=[{'type':'text','text':'Self-contained synthetic brief'}])
     def session(self):
         return dict(sessionId=self.invocation.invocation_id,cwd=str(self.root),mcpServers=[])
+
+    def test_canonical_pinned_envelope(self):
+        from hand_ext.paseo_prompt import project, prompt_path, escape, trim
+        from hand_ext.execution_state import StateConflict
+        r = self.store.get(self.attempt.key)
+        r.invocation = replace(r.invocation, fixed_options={'run_dir': str(self.root/'runs')}, parent_paseo_agent_id='parent')
+        pin = "\ufeff<&\"'>\n"
+        path = prompt_path(r); path.parent.mkdir(parents=True); path.write_bytes(pin.encode())
+        r.attempt = replace(r.attempt,target_key='t',project_id='p')
+        r.receipt = {'transport': dict(messageId=self.key,briefDigest=hashlib.sha256(pin.encode()).hexdigest(),
+            targetKey='t',projectId='p',workspaceId=r.attempt.workspace_id,agentId=r.attempt.agent_id)}
+        envelope = ('<paseo-system version="1" kind="agent-message" source-agent-id="' +
+                    escape(r.invocation.parent_paseo_agent_id) + '" message-id="' + self.key +
+                    '">\n' + escape(trim(pin)) + '\n</paseo-system>')
+        self.assertEqual(project(r, envelope, self.key), pin)
+        self.assertEqual(project(r, pin, self.key), pin)
+        for receipt in ({}, {'brief_digest': None}, {'brief_digest': 'bad'},
+                        {'brief_digest': None, **r.receipt}):
+            with self.assertRaises(StateConflict): project(replace(r,receipt=receipt), pin, self.key)
+        partial=replace(r,attempt=replace(r.attempt,target_key=None))
+        with self.assertRaises(StateConflict): project(partial,envelope,self.key)
+        self.assertEqual(trim('\u0085x\u001c'), '\u0085x\u001c')
+        for bad in (envelope.replace(self.key, str(uuid.uuid4())),
+                    envelope.replace('source-agent-id="parent"', 'source-agent-id="other"'),
+                    envelope+'\n'+envelope, envelope+'prose',
+                    envelope.replace('&lt;', '&#60;'), envelope.replace('&gt;', 'x')):
+            with self.subTest(bad=bad), self.assertRaises(StateConflict): project(r, bad, self.key)
 
     def test_unbound_discovery_and_partial_binding(self):
         from hand_ext.paseo_gateway import main

@@ -34,7 +34,7 @@ def consistent_bindings(record, transport):
 
 def untouched(record, *, recovery=False):
     receipt = record.receipt or {}
-    if set(receipt) - {'controller', 'completion', 'transport'} or record.settle_keys:
+    if set(receipt) - {'controller', 'completion', 'transport', 'brief_digest'} or record.settle_keys:
         raise StateConflict('other dispatch evidence present')
     t = receipt.get('transport', {})
     if (record.state != 'admitted' or not record.reservation or record.writer is not None
@@ -77,6 +77,45 @@ def untouched(record, *, recovery=False):
     return t
 
 
+PROMPT_REASON = 'gateway_prompt_fence_rejected'
+
+
+def prompt_untouched(record):
+    """worker_owner is persisted before thread.start and runner.Popen."""
+    receipt = record.receipt or {}
+    if 'prompt_rejection' in receipt and 'gateway_claim' in receipt:
+        raise StateConflict('rejection marker conflicts with gateway claim')
+    t = receipt.get('transport', {})
+    consistent_bindings(record, t)
+    known = {'pending', 'workspaceConfirmed', 'agentKey', 'createConfirmed', 'targetKey',
+             'projectId', 'workspaceId', 'agentId', 'workspaceKey', 'parentAgentId', 'cwd',
+             'sourceCwd', 'providerId', 'revision', 'requestKey', 'admitted', 'expectedProviderId',
+             'model', 'effort', 'gatewayEnv', 'quiescent', 'freshDispatch', 'reviewed',
+             'messageId', 'briefDigest', 'sendConfirmed'}
+    if set(t) - known:
+        raise StateConflict('unknown prompt transport evidence')
+    if (record.state != 'admitted' or not record.reservation or record.writer is not None
+            or record.process is not None or record.outcome is not None
+            or record.pending_outcome is not None or record.started_at is not None
+            or record.finished_at is not None or record.artifacts or record.settle_keys
+            or 'worker_owner' in receipt or 'worker_run_dir' in receipt
+            or set(receipt) - {'controller', 'completion', 'transport', 'brief_digest',
+                              'gateway_claim', 'prompt_rejection'}):
+        raise StateConflict('worker start authority uncertain')
+    for public, field in {'targetKey': 'target_key', 'projectId': 'project_id',
+                          'workspaceId': 'workspace_id', 'agentId': 'agent_id'}.items():
+        if not getattr(record.attempt, field) or t.get(public) != getattr(record.attempt, field):
+            raise StateConflict('exact prompt binding required')
+    if (t.get('parentAgentId') != record.invocation.parent_paseo_agent_id
+            or not record.invocation.parent_paseo_agent_id
+            or t.get('messageId') != record.attempt.request_key
+            or t.get('sendConfirmed') is not True or t.get('pending') is not None
+            or not t.get('briefDigest') or any(t.get(k) for k in
+                ('cancelPending', 'cancelConfirmed', 'archiveConfirmed', 'reopenConfirmed'))):
+        raise StateConflict('prompt dispatch evidence uncertain')
+    return t
+
+
 class PreDispatchAdmission(AdmissionController):
     """Separate authority from process quiescence: no process ever existed."""
     def fail(self, key, proof, reason, *, recovery=False, expected_revision=None):
@@ -95,7 +134,10 @@ class PreDispatchAdmission(AdmissionController):
             else:
                 if expected_revision is not None and r.revision != expected_revision:
                     raise StateConflict('proof revision changed')
-                untouched(r, recovery=recovery)
+                if reason == PROMPT_REASON:
+                    prompt_untouched(r)
+                else:
+                    untouched(r, recovery=recovery)
                 reservation = Reservation.from_dict(r.reservation)
                 if reservation.key != r.key or reservation.store_root != str(self.store.root):
                     raise StateConflict('reservation mismatch')
@@ -111,9 +153,10 @@ class PreDispatchAdmission(AdmissionController):
             if not (r.receipt or {}).get('pre_dispatch_failure'):
                 r.receipt = dict(r.receipt or {}, pre_dispatch_failure=evidence)
                 r.outcome = {'status': 'failed', 'backend_exit_code': 1, 'quiescent': True,
-                             'provenance': ('creation_lifecycle' if reason == 'failed_child_creation'
+                             'provenance': ('gateway_prompt_fence' if reason == PROMPT_REASON else
+                                            'creation_lifecycle' if reason == 'failed_child_creation'
                                             else 'pre_dispatch_schema'), 'reason': reason}
-                r.quiescence = {'confirmed': True, 'evidence': (reason if reason == 'failed_child_creation'
+                r.quiescence = {'confirmed': True, 'evidence': (reason if reason in ('failed_child_creation', PROMPT_REASON)
                                 else 'schema rejected before network dispatch'),
                                 'observed_at': time.time()}
                 r.state = 'failed'; r.finished_at = time.time(); r.reservation = None
@@ -139,8 +182,29 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
             raise StateConflict('latest exact epoch required')
         admission = PreDispatchAdmission(store, None, None)
         prior = (r.receipt or {}).get('pre_dispatch_failure')
-        if prior and prior.get('reason') in ('invalid_bound_workspace_id', 'failed_child_creation'):
+        if prior and prior.get('reason') in ('invalid_bound_workspace_id', 'failed_child_creation', PROMPT_REASON):
             return admission.fail(key, prior['proof'], prior['reason']) if apply else r
+        receipt = r.receipt or {}
+        if 'prompt_rejection' in receipt or 'gateway_claim' in receipt:
+            transport = prompt_untouched(r)
+            marker = receipt.get('prompt_rejection')
+            if 'prompt_rejection' in receipt:
+                if marker != {'reason': PROMPT_REASON, 'epoch': r.attempt.epoch,
+                              'request_key': r.attempt.request_key}:
+                    raise StateConflict('rejection marker mismatch')
+                proof = marker
+            else:
+                request = dict(transport, command='prompt-failure', target=target,
+                               cwd=r.invocation.isolated_cwd,
+                               model=r.invocation.model, effort=r.invocation.effort)
+                proof = creation_proof(request, package_root, validator)
+                expected = {'ok': True, 'targetKey': r.attempt.target_key,
+                            'agentId': r.attempt.agent_id, 'workspaceId': r.attempt.workspace_id,
+                            'messageId': r.attempt.request_key}
+                if (not isinstance(proof, dict) or proof.get('status') not in ('error', 'closed')
+                        or proof != dict(expected, status=proof.get('status'))):
+                    raise StateConflict('exact terminated gateway not proved')
+            return admission.fail(key, proof, PROMPT_REASON, expected_revision=r.revision) if apply else r
         transport = untouched(r, recovery=True)
         if transport.get('pending') == 'create':
             request = dict(transport, command='creation-failure', target=target)
