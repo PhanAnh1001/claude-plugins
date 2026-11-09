@@ -137,7 +137,7 @@ def _read(path, now):
 
 def discover_main_sessions(sessions: list[Session], pinned: dict[str, str],
                            project: Path, all_projects: bool, cutoff: float,
-                           now: float, main_session_id: str | None) -> None:
+                           now: float, main_session_id: str | None, *, managed_runs=()) -> None:
     """Discover unregistered roots from local metadata before attaching children.
 
     A pinned thread already has a canonical side-session identity. Never create a
@@ -168,6 +168,9 @@ def discover_main_sessions(sessions: list[Session], pinned: dict[str, str],
         metadata = next((payload for kind, payload, _ in _records(path)
                          if kind == "session_meta"), None)
         if metadata is None:
+            continue
+        from .paseo_source import managed_metadata
+        if managed_metadata(metadata, managed_runs):
             continue
         sid = metadata.get("id")
         cwd = metadata.get("cwd")
@@ -201,7 +204,7 @@ def discover_main_sessions(sessions: list[Session], pinned: dict[str, str],
         pinned[sid] = str(path)
 
 
-def attach_native(sessions, pinned, now):
+def attach_native(sessions, pinned, now, *, managed_runs=()):
     home = codex_home(None)
     root = _sessions_root(home)
     if root is None:
@@ -225,14 +228,17 @@ def attach_native(sessions, pinned, now):
         if path is None:
             continue
         native_parent = ""
+        managed = False
         for kind, payload, _ in _records(path):
             if kind == "session_meta":
+                from .paseo_source import managed_metadata
+                managed = managed_metadata(payload, managed_runs)
                 source = payload.get("source") or {}
                 sub = source.get("subagent") if isinstance(source, dict) else None
                 spawn = sub.get("thread_spawn") if isinstance(sub, dict) else None
                 native_parent = payload.get("parent_thread_id") or (spawn.get("parent_thread_id") if isinstance(spawn, dict) else "")
                 break
-        if native_parent not in aliases:
+        if managed or native_parent not in aliases:
             continue
         sid, parent, agent = _read(path, now)
         target = aliases.get(parent)
