@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.3 — 2026-11-09
+
+- Dispatcher pin plaintext/digest trước network cho dispatch/follow-up/capacity; gateway kiểm exact một envelope Paseo canonical với messageId/source parent/body khớp pin, trim đúng ECMAScript. Worker nhận plaintext pin; raw prompt chỉ nhận khi digest khớp, prompt ACP lạ không tự tạo epoch managed.
+- Prompt fence ghi durable rejection marker chỉ trước claim/worker, controller terminal failed và nhả reservation exact. `managed recover` hỗ trợ legacy claim đã lỗi trước worker_owner/process với inspect public exact error/closed và invariant persist-before-spawn; dry-run mặc định, apply/repeat fenced, uncertainty giữ reservation.
+- Kiểm offline: 506 tests pass; envelope sai ID/source/body, nhiều message, thiếu digest và marker mâu thuẫn bị từ chối; unbound discovery vẫn không thực thi/ghi state/đọc auth. Live gates được ghi riêng trong bàn giao pilot.
+
 ## 0.35.2 — 2026-11-09
 
 - Recover exact failed child creation vẫn hoạt động khi parent/workspace đã archived: proof public và agent absence bắt buộc, không nới kiểm cha của create/send. Chỉ suy inFlight từ public snapshot khi daemon đúng 0.15.0 đã đối chiếu source; daemon khác/thiếu version từ chối, không fallback.
