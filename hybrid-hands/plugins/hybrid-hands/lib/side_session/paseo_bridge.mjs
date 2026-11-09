@@ -14,6 +14,7 @@ const DEFAULT_TIMEOUT_MS = 3000;
 const SUBAGENT_TIMELINE_LIMIT = 100;
 const DIRECTORY_PAGE_LIMIT = 200;
 const DIRECTORY_MAX_PAGES = 100;
+const EMPTY_WORKSPACE_OWNER_TERMINAL = new Set(["error", "done", "stopped"]);
 const SEND_QUEUED = "queued";
 const TIMELINE_METADATA = [
   "provider", "direction", "epoch", "projection", "startCursor", "endCursor",
@@ -77,59 +78,85 @@ async function exactWorkspace(client, request) {
   fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return null;
 }
 
-// Include archived agents: even an inactive sibling makes this workspace shared.
-async function privateWorkspace(client, request, agent) {
-  if (request.privateWorkspace !== true) {
-    fail("WORKSPACE_NOT_PRIVATE");
-    return false;
-  }
-  if (!nonemptyId(request.expectedWorkspaceId)
-      || agent.workspaceId !== request.expectedWorkspaceId) {
-    fail("WORKSPACE_ID_MISMATCH");
-    return false;
-  }
-  if (typeof client.archiveWorkspace !== "function" || typeof client.fetchAgents !== "function") {
-    fail("WORKSPACE_CLEANUP_UNSUPPORTED");
-    return false;
-  }
-  const workspace = await exactWorkspace(client, request);
-  if (!workspace) return false;
-  if (workspace.workspaceKind !== "worktree" || !nonemptyId(workspace.projectRootPath)
-      || workspace.projectRootPath === request.workdir) {
+// Membership and ownership are exact IDs; checkout paths never group agents.
+async function privateWorkspace(client, request, agent, apply = true) {
+  if (request.privateWorkspace !== true || !nonemptyId(request.expectedWorkspaceId)
+      || (agent && agent.workspaceId !== request.expectedWorkspaceId)) {
     fail("WORKSPACE_NOT_PRIVATE"); return false;
   }
-  let cursor;
-  const ids = new Set();
-  const seen = new Set();
-  for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
-    const payload = await client.fetchAgents({
-      filter: { includeArchived: true },
-      sort: [{ key: "created_at", direction: "desc" }],
-      page: { limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? { cursor } : {}) },
-    });
-    if (payload?.error != null || !Array.isArray(payload?.entries)
-        || !payload.pageInfo || !Object.hasOwn(payload.pageInfo, "nextCursor") || payload.entries.some((entry) => !entry?.agent
-          || !nonemptyId(entry.agent.id) || !nonemptyId(entry.agent.workspaceId))) {
-      fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
-      return false;
-    }
-    for (const {agent: other} of payload.entries) {
-      if (ids.has(other.id)) { fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return false; }
-      ids.add(other.id);
-    }
-    if (payload.entries.some(({ agent: other }) =>
-      other.workspaceId === request.expectedWorkspaceId && other.id !== request.agentId
-      && other.archivedAt == null && !["closed"].includes(other.status))) {
-      fail("WORKSPACE_SHARED");
-      return false;
-    }
-    cursor = payload.pageInfo.nextCursor;
-    if (cursor == null) return true;
-    if (!nonemptyId(cursor) || seen.has(cursor)) break;
-    seen.add(cursor);
+  const owners = request.workspaceOwners;
+  if (!Array.isArray(owners) || !owners.length
+      || owners.some(o => typeof o?.agentId !== "string" || typeof o.role !== "string"
+        || typeof o.status !== "string" || typeof o.sendPending !== "boolean"
+        || ["main", "main_session"].includes(o.role)
+        || o.workspaceId !== request.expectedWorkspaceId
+        || (!nonemptyId(o.agentId) && (o.agentId !== ""
+          || !EMPTY_WORKSPACE_OWNER_TERMINAL.has(o.status) || o.sendPending !== false)))) {
+    fail("WORKSPACE_NOT_PRIVATE"); return false;
   }
-  fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
-  return false;
+  if (typeof client.fetchAgents !== "function" || typeof client.archiveWorkspace !== "function") {
+    fail("WORKSPACE_CLEANUP_UNSUPPORTED"); return false;
+  }
+  const members = [], ids = new Set(), cursors = new Set();
+  let cursor;
+  let complete = false;
+  for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
+    const result = await client.fetchAgents({filter: {includeArchived: true},
+      sort: [{key: "created_at", direction: "desc"}],
+      page: {limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? {cursor} : {})}});
+    if (result?.error != null || !Array.isArray(result?.entries)
+        || !result.pageInfo || !Object.hasOwn(result.pageInfo, "nextCursor")) break;
+    for (const entry of result.entries) {
+      const other = entry?.agent;
+      if (!nonemptyId(other?.id) || !nonemptyId(other.workspaceId) || ids.has(other.id)
+          || (other.archivedAt != null && (typeof other.archivedAt !== "string"
+            || !Number.isFinite(Date.parse(other.archivedAt))))) {
+        fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return false;
+      }
+      ids.add(other.id);
+      if (other.workspaceId === request.expectedWorkspaceId) members.push(other);
+    }
+    cursor = result.pageInfo.nextCursor;
+    if (cursor === null) { complete = true; break; }
+    if (!nonemptyId(cursor) || cursors.has(cursor)) break;
+    cursors.add(cursor);
+  }
+  if (!complete) { fail("WORKSPACE_DIRECTORY_UNCONFIRMED"); return false; }
+  // Missing API children never establish completion.
+  if (!members.length && owners.some(o =>
+      !EMPTY_WORKSPACE_OWNER_TERMINAL.has(o.status) || o.sendPending !== false)) {
+    fail("WORKSPACE_OWNER_ACTIVE_OR_UNKNOWN"); return false;
+  }
+  if (owners.some(o => o.sendPending === true)) {
+    fail("WORKSPACE_OWNER_ACTIVE_OR_UNKNOWN"); return false;
+  }
+  for (const member of members) {
+    const owner = owners.find(o => o.agentId === member.id);
+    if (!owner || ["main", "main_session"].includes(member.role) || member.main_session === true
+        || (!agentArchived(member) && member.status !== "closed")) {
+      fail("WORKSPACE_SHARED"); return false;
+    }
+  }
+  // Inspect before reading the active directory: archived workspaces are absent.
+  const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+  if (workspaceUnarchivable(inspected, request)) return {alreadyArchived: true, members};
+  if (!workspaceActive(inspected, request)) {
+    fail("WORKSPACE_ARCHIVE_UNCONFIRMED"); return false;
+  }
+  if (!await exactWorkspace(client, request)) return false;
+  const agentIds = members.filter(m => !agentArchived(m)).map(m => m.id);
+  if (apply) {
+    for (const id of agentIds) {
+      if (!await archiveExactAgent(client, id)) return false;
+      const confirmed = await client.fetchAgent({agentId: id});
+      if (confirmed?.agent?.id !== id
+          || confirmed.agent.workspaceId !== request.expectedWorkspaceId
+          || !agentArchived(confirmed.agent)) {
+        fail("AGENT_ARCHIVE_UNCONFIRMED"); return false;
+      }
+    }
+  }
+  return {alreadyArchived: false, members, agentIds};
 }
 
 // Read-only complete directory snapshot; never expose provider details.
@@ -335,8 +362,8 @@ async function reviveAgent(client, request, agent, key) {
     workspaceId: agent.workspaceId, targetKey: key });
 }
 
-// A revived session ended again: hide its private workspace only. The agent keeps
-// its archive (or stays active); this never cancels or archives the agent again.
+// A revived session ended again: retain the exact agent archive, then archive
+// any known closed siblings before hiding the private workspace.
 async function rearchiveWorkspace(client, request, agent, key) {
   if (!agentArchived(agent)) {
     emit({ ok: true, archived: false, agentId: agent.id, workspaceId: agent.workspaceId,
@@ -344,21 +371,11 @@ async function rearchiveWorkspace(client, request, agent, key) {
     return;
   }
   if (request.privateWorkspace !== true) { fail("WORKSPACE_NOT_PRIVATE"); return; }
-  // An archived workspace is absent from the public directory: recognise the exact
-  // already-archived workspace first as a no-op, without any mutation.
-  if (typeof client.inspectWorkspaceRecovery === "function") {
-    const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
-    if (workspaceUnarchivable(inspected, request)) {
-      emit({ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
-        targetKey: key}); return;
-    }
-    if (!workspaceActive(inspected, request)) { fail("WORKSPACE_ARCHIVE_UNCONFIRMED"); return; }
-  }
-  // Any mutation still needs the complete public worktree/path/sibling validation.
-  if (!await privateWorkspace(client, request, agent)) return;
-  if (!await archivePrivateWorkspace(client, request.expectedWorkspaceId)) return;
-  emit({ ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
-    targetKey: key });
+  const checked = await privateWorkspace(client, request, agent);
+  if (!checked) return;
+  if (!checked.alreadyArchived && !await archivePrivateWorkspace(client, request.expectedWorkspaceId)) return;
+  emit({ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
+    targetKey: key});
 }
 
 function emit(value) {
@@ -436,6 +453,18 @@ async function main() {
     timeout: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   });
   try {
+    if (request.command === "tidy") {
+      const checked = await privateWorkspace(client, request, null, request.apply === true);
+      if (!checked) return;
+      let archived = checked.alreadyArchived;
+      if (!archived && request.apply === true) {
+        if (!await archivePrivateWorkspace(client, request.expectedWorkspaceId)) return;
+        archived = true;
+      }
+      emit({ok: true, eligible: true, archived: !!archived,
+        workspaceId: request.expectedWorkspaceId, agentIds: checked.agentIds || [], targetKey: key});
+      return;
+    }
     if (request.command === "agent-archive-states") {
       await readAgentArchiveStates(client, key);
       return;

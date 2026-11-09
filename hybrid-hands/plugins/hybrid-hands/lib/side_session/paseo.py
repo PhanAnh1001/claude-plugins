@@ -38,7 +38,7 @@ class PaseoError(RuntimeError):
 def clean_env() -> dict[str, str]:
     """Environment for bridge/watchdog processes, without ambient Paseo ownership."""
     env = dict(os.environ)
-    for key in C.PASEO_INHERITED_ENVS:
+    for key in (*C.PASEO_INHERITED_ENVS, C.CLAUDE_AUTO_COMPACT_ENV):
         env.pop(key, None)
     return env
 
@@ -107,7 +107,8 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
                 initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str,
                 project_root: str, provider: str = C.PROVIDER_CODEX,
                 claude_config_dir: str = "", mode_id: str = "",
-                claude_options: dict | None = None) -> dict:
+                claude_options: dict | None = None,
+                claude_auto_compact_window: int | None = None) -> dict:
     """Create a directory workspace and the selected provider in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
@@ -118,6 +119,8 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
     claude_only: dict = {}
     if provider == C.PROVIDER_CLAUDE:
         env = {"CLAUDE_CONFIG_DIR": claude_config_dir, C.HAND_SCOPE_ENV: hand_scope}
+        if claude_auto_compact_window is not None:
+            env[C.CLAUDE_AUTO_COMPACT_ENV] = str(claude_auto_compact_window)
         provider_options = claude_options or {}
         claude_only = {"modeId": mode_id or None}
     return _call("start", {
@@ -180,7 +183,7 @@ def _exact_agent(st: state.SessionState) -> dict | None:
             "expectedWorkspaceId": st.paseo_workspace_id,
             "expectedTargetKey": st.paseo_target,
             "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
-            "privateWorkspace": bool(st.worktree and st.role != "main"
+            "privateWorkspace": bool(st.role != "main"
                                      and Path(st.dir).is_absolute()),
             "workdir": st.dir}
 
@@ -262,12 +265,13 @@ def revive(st: state.SessionState) -> tuple[bool | None, str | None]:
     return None, "PASEO_BRIDGE_PROTOCOL"
 
 
-def rearchive(st: state.SessionState) -> tuple[bool | None, str | None]:
+def rearchive(st: state.SessionState, owners: list[state.SessionState] | None = None) -> tuple[bool | None, str | None]:
     """Archive only the private workspace once the revived agent is archived again."""
     payload = _exact_agent(st)
     if payload is None:
         return None, _guard_message(st)
     try:
+        payload["workspaceOwners"] = workspace_owners(st, [st] if owners is None else owners)
         result = _call("rearchive", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
     except PaseoError as exc:
         return None, exc.code
@@ -275,6 +279,30 @@ def rearchive(st: state.SessionState) -> tuple[bool | None, str | None]:
     if archived is True or archived is False:
         return archived, None
     return None, "PASEO_BRIDGE_PROTOCOL"
+
+
+def workspace_owners(st: state.SessionState, records: list[state.SessionState]) -> list[dict]:
+    """Only this repo's recorded exact workspace/target identifies ownership."""
+    return [{"agentId": item.paseo_agent_id, "workspaceId": item.paseo_workspace_id,
+             "role": item.role, "status": item.status,
+             "sendPending": item.paseo_send_pending}
+            for item in records if item.paseo_workspace_id == st.paseo_workspace_id
+            and item.paseo_target == st.paseo_target
+            and item.transport == C.TRANSPORT_PASEO]
+
+
+def tidy_workspace(st: state.SessionState, records: list[state.SessionState], apply: bool) -> dict:
+    payload = {"expectedWorkspaceId": st.paseo_workspace_id,
+               "expectedTargetKey": st.paseo_target, "workdir": st.dir,
+               "privateWorkspace": st.role != "main", "apply": apply,
+               "workspaceOwners": workspace_owners(st, records)}
+    result = _call("tidy", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
+    if (result.get("workspaceId") != st.paseo_workspace_id
+            or result.get("targetKey") != st.paseo_target
+            or result.get("eligible") is not True
+            or not isinstance(result.get("archived"), bool)):
+        raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+    return result
 
 
 def plan(cfg: SideConfig, a) -> dict | None:
@@ -366,6 +394,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         env = ({"CLAUDE_CONFIG_DIR": st.claude_config_dir, C.HAND_SCOPE_ENV: st.uuid}
                if st.provider == C.PROVIDER_CLAUDE else
                {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: st.uuid})
+        if st.claude_auto_compact_window is not None:
+            env[C.CLAUDE_AUTO_COMPACT_ENV] = str(st.claude_auto_compact_window)
         options = process_options(cfg, st.chrome) if st.provider == C.PROVIDER_CLAUDE else {}
         print(json.dumps({"provider": "claude" if st.provider == C.PROVIDER_CLAUDE
                           else C.PASEO_PROVIDER, "env": env,
@@ -401,6 +431,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
             project_root=str(cfg.repo),
             target_key=st.paseo_target,
             **({"provider": st.provider, "claude_config_dir": st.claude_config_dir,
+                "claude_auto_compact_window": st.claude_auto_compact_window,
                 **process_options(cfg, st.chrome)} if st.provider == C.PROVIDER_CLAUDE else {}))
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")
@@ -435,7 +466,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     if st.role != "main" and subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
         print("side-session: warning: watchdog failed to start")
     usage = (f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén)"
-             if st.provider == C.PROVIDER_CODEX else f"cap {st.max_tokens}")
+             if st.provider == C.PROVIDER_CODEX else (f"context {st.claude_auto_compact_window} (tự nén)"
+                   if st.claude_auto_compact_window is not None else f"cap {st.max_tokens}"))
     print(f"started {st.name} (Paseo agent {st.paseo_agent_id}), uuid {st.uuid}, "
           f"{usage}; mở app Paseo hoặc `paseo attach`")
     return 0

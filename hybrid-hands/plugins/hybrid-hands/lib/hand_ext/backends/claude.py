@@ -75,6 +75,7 @@ class ClaudeBackend(Backend):
     BLOCKED_ENV = (
         "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
         "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW",
     )
 
     def day_block_reason(self, options: dict) -> Optional[str]:

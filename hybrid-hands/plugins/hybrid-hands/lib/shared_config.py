@@ -10,6 +10,31 @@ from typing import Any
 
 CONFIG_ENV = "HYBRID_HANDS_CONFIG"
 GLOBAL_CONFIG = "~/.hybrid-hands/config.json"
+DEFAULT_MAIN_CLAUDE_AUTO_COMPACT_WINDOW = 272000
+MAIN_CLAUDE_AUTO_COMPACT_KEY = "main_session.claude_auto_compact_window"
+MIN_CLAUDE_AUTO_COMPACT_WINDOW = 100000
+MAX_CLAUDE_AUTO_COMPACT_WINDOW = 1000000
+
+
+def normalize_claude_auto_compact_window(value: Any) -> int | None:
+    """Validate a main Claude window; null/exact 'auto' disables the override.
+
+    Pure normalization only: launchers decide whether to inject an environment
+    variable. Booleans and numeric strings are deliberately not integer windows.
+
+    Returns the integer unchanged, or None for either disable sentinel.
+    Raises ValueError with the dotted config key for every unsupported value.
+    The loader supplies the source path when reporting that error.
+    This helper neither reads nor writes process environment or settings.
+    """
+    if value is None or (type(value) is str and value == "auto"):
+        return None
+    if (type(value) is int
+            and MIN_CLAUDE_AUTO_COMPACT_WINDOW <= value <= MAX_CLAUDE_AUTO_COMPACT_WINDOW):
+        return value
+    raise ValueError(
+        f"{MAIN_CLAUDE_AUTO_COMPACT_KEY} phải là số nguyên "
+        f"{MIN_CLAUDE_AUTO_COMPACT_WINDOW}..{MAX_CLAUDE_AUTO_COMPACT_WINDOW}, null hoặc 'auto'")
 
 
 class GlobalConfigError(Exception):
@@ -70,7 +95,10 @@ def _object_section(prefix: str) -> bool:
 
 
 def _validate(value: Any, path: Path, prefix: str = "") -> None:
-    """Check object shape only; a leaf value (even ``null``) replaces its default."""
+    """Check object shape and the main Claude compact window in each source."""
+    if prefix == MAIN_CLAUDE_AUTO_COMPACT_KEY:
+        normalize_claude_auto_compact_window(value)
+        return
     if _object_section(prefix):
         if not isinstance(value, dict):
             raise ValueError(f"{path}: {prefix or 'root'} phải là object")
@@ -110,7 +138,8 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
                 "main_session": {"provider": "codex", "codex_model": "gpt-6.1-sol",
                                  "codex_effort": "high", "claude_model": "claude-opus-5-5",
                                  "claude_effort": "high", "claude_account": "v1",
-                                 "transport": "paseo"},
+                                 "transport": "paseo",
+                                 "claude_auto_compact_window": DEFAULT_MAIN_CLAUDE_AUTO_COMPACT_WINDOW},
                 "paseo": {"claude_providers": {"v1": "claude"}}}
     effective, sources, paths, sections = {}, {}, {}, []
     _merge(effective, defaults, sources, "plugin")
@@ -146,4 +175,14 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
             if source == "global":
                 raise GlobalConfigError(f"{path}: {exc}") from exc
             raise ValueError(f"{path}: {exc}") from exc
+    # Check the effective value too, including the canonical plugin default.
+    key = MAIN_CLAUDE_AUTO_COMPACT_KEY
+    try:
+        normalize_claude_auto_compact_window(effective["main_session"]["claude_auto_compact_window"])
+    except ValueError as exc:
+        source = sources[key]
+        path = paths.get(source, {}).get("path", "plugin")
+        if source == "global":
+            raise GlobalConfigError(f"{path}: {exc}") from exc
+        raise ValueError(f"{path}: {exc}") from exc
     return ConfigResult(root, effective, sources, paths, tuple(sections))

@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 LIB = Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'
 sys.path.insert(0, str(LIB))
-from shared_config import load_config, GlobalConfigError
+from shared_config import load_config, GlobalConfigError, normalize_claude_auto_compact_window
 from hand_ext.cli import main
 from hand_ext.config import load_config as load_hand
 from hand_ext.run_cmd import _spec
@@ -89,6 +89,8 @@ class SharedConfigTest(unittest.TestCase):
         self.assertEqual(payload['effective']['ext_hand']['mode'], 'shell')
         self.assertEqual(payload['effective']['ext_hand']['paseo'], {})
         self.assertEqual(payload['sources']['ext_hand.mode'], 'plugin')
+        self.assertEqual((payload['effective']['main_session']['claude_auto_compact_window'],
+                          payload['sources']['main_session.claude_auto_compact_window']), (272000, 'plugin'))
         self.assertEqual(payload['sources']['ext_hand.paseo'], 'plugin')
         with patch.dict(os.environ):
             os.environ.pop('HYBRID_HANDS_CONFIG', None)
@@ -110,3 +112,20 @@ class SharedConfigTest(unittest.TestCase):
                     with patch('pathlib.Path.cwd', return_value=self.root), contextlib.redirect_stderr(io.StringIO()) as errors:
                         self.assertNotEqual(cli(argv), 0)
                     self.assertIn(str(self.global_file), errors.getvalue())
+
+    def test_main_claude_compact_config(self):
+        repo, key = self.root / 'repo.json', 'claude_auto_compact_window'
+        for value in (100000, 1000000, None, 'auto', 99999, 1000001, True, 272000.0, '272000', 'AUTO', [], {}):
+            for source, path, error in (('global', self.global_file, GlobalConfigError), ('repo', repo, ValueError)):
+                with self.subTest(value=value, source=source):
+                    self.global_file.write_text(json.dumps({'main_session': {key: 300000}}))
+                    repo.write_text('{}')
+                    path.write_text(json.dumps({'main_session': {key: value}}))
+                    if value is None or value == 'auto' or type(value) is int and 100000 <= value <= 1000000:
+                        result = load_config(self.root, config_file=repo)
+                        self.assertEqual((result.sources['main_session.' + key],
+                            normalize_claude_auto_compact_window(result.effective['main_session'][key])),
+                            (source, value if type(value) is int else None))
+                    else:
+                        with self.assertRaisesRegex(error, str(path)):
+                            load_config(self.root, config_file=repo)

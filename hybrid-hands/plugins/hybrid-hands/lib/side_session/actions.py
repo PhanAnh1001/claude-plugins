@@ -203,6 +203,12 @@ def start(cfg: SideConfig, a) -> int:
         account=account, claude_config_dir=config_dir,
         model=a.model or (C.CLAUDE_MODEL_DEFAULT if a.provider == C.PROVIDER_CLAUDE else ""),
         effort=a.effort or (C.CLAUDE_EFFORT_DEFAULT if a.provider == C.PROVIDER_CLAUDE else ""))
+    if is_main and st.provider == C.PROVIDER_CLAUDE:
+        from shared_config import (DEFAULT_MAIN_CLAUDE_AUTO_COMPACT_WINDOW,
+                                   normalize_claude_auto_compact_window)
+        st.claude_auto_compact_window = normalize_claude_auto_compact_window(
+            cfg.main_session.get("claude_auto_compact_window",
+                                 DEFAULT_MAIN_CLAUDE_AUTO_COMPACT_WINDOW))
     if is_main:
         st.handoff = ""
         st.watch_screen = ""
@@ -214,7 +220,8 @@ def start(cfg: SideConfig, a) -> int:
         cmds.append(K.worktree_cmd(cfg, name, a.base or C.DEFAULT_BASE))
     cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
                               prompt_file, a.hours, model=a.model, effort=a.effort,
-                              account=account, config_dir=config_dir))
+                              account=account, config_dir=config_dir,
+                              claude_auto_compact_window=st.claude_auto_compact_window))
     if not is_main:
         cmds.append(K.watch_cmd(cfg, name))
     return _launch(cfg, a, st, cmds, prompt_file=prompt_file, prompt_text=full_prompt,
@@ -223,7 +230,9 @@ def start(cfg: SideConfig, a) -> int:
                                 f"uuid {sid}, " + (
                                     f"context {C.CODEX_AUTO_COMPACT_TOKEN_LIMIT} (tự nén)"
                                     if st.provider == C.PROVIDER_CODEX
-                                    else f"cap {max_tokens}"))
+                                    else (f"context {st.claude_auto_compact_window} (tự nén)"
+                                          if st.claude_auto_compact_window is not None
+                                          else f"cap {max_tokens}")))
 
 
 def _validate_resume(a) -> int | None:
@@ -387,6 +396,9 @@ def _token_display(cfg: SideConfig, st: state.SessionState, used: int) -> tuple[
         if rollout is None or not rollout.is_file():
             return None, C.CODEX_AUTO_COMPACT_TOKEN_LIMIT
         return tokens.codex_context_tokens(rollout), C.CODEX_AUTO_COMPACT_TOKEN_LIMIT
+    if (st.role == "main" and st.provider == C.PROVIDER_CLAUDE
+            and st.claude_auto_compact_window is not None):
+        return used, st.claude_auto_compact_window
     return used, st.max_tokens
 
 
@@ -395,6 +407,9 @@ def _token_cell(cfg: SideConfig, st: state.SessionState, used: int) -> str:
     if used is None:
         return "?"
     cell = f"{used}/{cap}"
+    if (st.role == "main" and st.provider == C.PROVIDER_CLAUDE
+            and st.claude_auto_compact_window is not None):
+        return cell + " (tự nén)"
     if st.provider != C.PROVIDER_CODEX and used >= cap:
         cell += C.OVER_CAP_SUFFIX
     return cell
@@ -442,7 +457,7 @@ def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
         return False
     st.status = C.STATUS_DONE
     state.save(cfg.state_dir, st)
-    if st.transport == C.TRANSPORT_PASEO and st.worktree:
+    if st.transport == C.TRANSPORT_PASEO:
         _rearchive_revived(cfg, st)
     return True
 
@@ -453,7 +468,7 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
     Failed cleanup keeps status done with a one-line warning; the next ls/watch
     retries. A revived session never runs _finish_codex, even with a stale .done.
     """
-    if not st.worktree or Path(st.dir).resolve() != (cfg.worktree_root / st.name).resolve():
+    if st.role == "main":
         return
     revived, failure = paseo.revive(st)
     if failure:
@@ -469,11 +484,14 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
 
 def _rearchive_revived(cfg: SideConfig, st: state.SessionState) -> None:
     """Hide the private workspace once a revived agent is archived again."""
-    if (not st.worktree or st.role == "main"
-            or Path(st.dir).resolve() != (cfg.worktree_root / st.name).resolve()
-            or Path(st.dir).resolve() == cfg.repo.resolve()):
+    if st.role == "main":
         return
-    archived, failure = paseo.rearchive(st)
+    try:
+        records = state.load_all(cfg.state_dir)
+    except (OSError, ValueError, TypeError):
+        print(f"{st.name}: warning: ownership state không đầy đủ; giữ state")
+        return
+    archived, failure = paseo.rearchive(st, records)
     if failure:
         print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
         return
@@ -760,8 +778,7 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
         if st.paseo_revived or st.paseo_workspace_archived:
             _reconcile_done(cfg, st)
             return False
-        if st.worktree:
-            _rearchive_revived(cfg, st)
+        _rearchive_revived(cfg, st)
         return False
     if st.status not in C.ACTIVE_STATUSES:
         return False
@@ -886,3 +903,42 @@ def send(cfg: SideConfig, a) -> int:
         if subprocess.run(K.watch_cmd(cfg, st.name)).returncode != 0:
             print("side-session: warning: watchdog failed to start")
         return 0
+
+
+def tidy(cfg: SideConfig, args) -> int:
+    """Manual exact workspace cleanup; inspection is the default."""
+    try:
+        records = state.load_all(cfg.state_dir)
+    except (OSError, ValueError, TypeError):
+        print("side-session: warning: state không đầy đủ; giữ nguyên")
+        return 1
+    selected = [st for st in records if not args.name or st.name == args.name]
+    seen = set()
+    failed = False
+    for st in selected:
+        key = (st.paseo_target, st.paseo_workspace_id)
+        if (st.transport != C.TRANSPORT_PASEO or not st.paseo_workspace_id
+                or key in seen):
+            continue
+        seen.add(key)
+        owners = paseo.workspace_owners(st, records)
+        if (st.role == "main" or not st.paseo_target or not owners
+                or any(o["role"] in ("main", "main_session") for o in owners)):
+            print(f"{st.name}: blocked workspace={st.paseo_workspace_id} (ownership)")
+            failed = True
+            continue
+        try:
+            result = paseo.tidy_workspace(st, records, args.apply)
+        except paseo.PaseoError as exc:
+            print(f"{st.name}: blocked workspace={st.paseo_workspace_id} ({exc.code}); giữ state")
+            failed = True
+            continue
+        print(f"{st.name}: eligible workspace={st.paseo_workspace_id} "
+              f"agents={','.join(result.get('agentIds', []))} "
+              f"{'archived' if result['archived'] else 'dry-run'}")
+        if args.apply:
+            for item in records:
+                if (item.paseo_target, item.paseo_workspace_id) == key:
+                    item.paseo_workspace_archived = result["archived"]
+                    state.save(cfg.state_dir, item)
+    return int(failed)

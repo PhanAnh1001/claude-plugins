@@ -125,7 +125,8 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
                   prompt_path: Path | None = None, hours: float | None = None,
                   resume: bool = False, model: str | None = None,
                   effort: str | None = None, account: str = "v1",
-                  config_dir: str = "") -> tuple[list[str], dict[str, str]]:
+                  config_dir: str = "",
+                  claude_auto_compact_window: int | None = None) -> tuple[list[str], dict[str, str]]:
     if provider == C.PROVIDER_CODEX:
         return (codex_argv(cfg, workdir, prompt, model, effort),
                 {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: uuid})
@@ -143,6 +144,8 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
     # The primary login uses ~/.claude.json only while CLAUDE_CONFIG_DIR is unset.
     env = ({} if Path(config_dir).expanduser().resolve() == (Path.home() / ".claude").resolve()
            else {"CLAUDE_CONFIG_DIR": config_dir})
+    if claude_auto_compact_window is not None:
+        env[C.CLAUDE_AUTO_COMPACT_ENV] = str(claude_auto_compact_window)
     return (["claude", *session_flag, "-n", name, *argv,
              "--model", model or C.CLAUDE_MODEL_DEFAULT,
              "--effort", effort or C.CLAUDE_EFFORT_DEFAULT, prompt],
@@ -154,13 +157,15 @@ def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
                 prompt_path: Path | None = None, hours: float | None = None,
                 resume: bool = False, model: str | None = None,
                 effort: str | None = None, account: str = "v1",
-                config_dir: str = "") -> list[str]:
+                config_dir: str = "",
+                  claude_auto_compact_window: int | None = None) -> list[str]:
     argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
-                              prompt_path, hours, resume, model, effort, account, config_dir)
+                              prompt_path, hours, resume, model, effort, account, config_dir,
+                              claude_auto_compact_window)
     prelude = ""
     if provider == C.PROVIDER_CODEX:
         prelude = f"{shlex.join(codex_trust.prelude_argv(cfg.codex_home, workdir))} && "
-    unset = (C.CHILD_SESSION_ENV,)
+    unset = (C.CHILD_SESSION_ENV, C.CLAUDE_AUTO_COMPACT_ENV)
     if provider == C.PROVIDER_CLAUDE:
         unset += ("CLAUDE_CONFIG_DIR",)
     return screen.start_cmd(session_screen(name), argv, workdir, env,
