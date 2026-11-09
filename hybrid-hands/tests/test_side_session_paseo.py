@@ -586,5 +586,100 @@ class PaseoStartTest(unittest.TestCase):
             self.assertIn("paseo attach agent-1", hint_out.getvalue())
 
 
+    def test_done_revive_and_rearchive_follow_agent_archive(self) -> None:
+        # Scripted bridge answers read from mutable fixtures.
+        for kind in ("ls", "watch"):
+            with tempfile.TemporaryDirectory() as d:
+                cfg = cfg_for(Path(d))
+                cfg.handoff_dir.mkdir()
+                fake = {"revive": (False, None), "rearchive": (False, None),
+                        "events": []}
+
+                def revive(st):
+                    fake["events"].append(("revive", st.name))
+                    return fake["revive"]
+
+                def rearchive(st):
+                    fake["events"].append(("rearchive", st.name))
+                    return fake["rearchive"]
+
+                def step() -> str:
+                    out = io.StringIO()
+                    with mock.patch.object(actions.paseo, "revive", side_effect=revive), \
+                            mock.patch.object(actions.paseo, "rearchive", side_effect=rearchive), \
+                            mock.patch.object(actions, "_finish_codex") as finish_codex, \
+                            mock.patch.object(actions.paseo, "refresh", return_value="alive"), \
+                            redirect_stdout(out):
+                        if kind == "ls":
+                            self.assertEqual(actions.ls(cfg, None), 0)
+                        else:
+                            actions.watch_tick(cfg, "a")
+                    finish_codex.assert_not_called()
+                    return out.getvalue()
+
+                def snapshot() -> tuple[str, bool, bool]:
+                    st = state.load(cfg.state_dir, "a")
+                    return st.status, st.paseo_revived, st.paseo_workspace_archived
+
+                save_session(cfg, "a", status=C.STATUS_DONE, paseo_workspace_archived=True)
+                done = Path(cfg.handoff_dir / "a.md").with_suffix(C.DONE_SUFFIX)
+                done.write_text("")  # a stale .done must never finish a revived session
+                # Done + private workspace archived + agent unarchived: restore, persist.
+                fake["revive"] = (True, None)
+                self.assertNotIn("warning", step())
+                self.assertEqual(snapshot(), (C.STATUS_DONE, True, False))
+                self.assertTrue(done.is_file())
+                # Workspace already active (agent archived again later): no restore needed.
+                step()
+                self.assertEqual(snapshot(), (C.STATUS_DONE, True, False))
+                # Revived and agent archived again: workspace archived, agent untouched.
+                fake["rearchive"] = (True, None)
+                step()
+                self.assertEqual(snapshot(), (C.STATUS_DONE, False, True))
+                # Exactly one rearchive succeeds once the agent is archived again.
+                self.assertEqual(fake["events"], [("revive", "a"), ("rearchive", "a"),
+                                                  ("rearchive", "a")])
+                # Fail closed: workspace untouched and a single warning, status stays done.
+                for code in ("WORKSPACE_RECOVERY_UNSUPPORTED", "WORKSPACE_ID_MISMATCH"):
+                    save_session(cfg, "a", status=C.STATUS_DONE, paseo_workspace_archived=True)
+                    fake["revive"] = (None, code)
+                    log = step()
+                    self.assertEqual(snapshot(), (C.STATUS_DONE, False, True))
+                    self.assertIn(f"warning: .done cleanup lỗi ({code})", log)
+                    self.assertEqual(fake["events"][-1], ("revive", "a"))
+                # A just-finished session is reconciled only on the next call, never twice in one.
+                for run_step in (lambda: actions.ls(cfg, None), lambda: actions.watch_tick(cfg, "a")):
+                    fake["events"].clear()
+                    save_session(cfg, "a", status=C.STATUS_IDLE)
+                    done.write_text("")
+                    with mock.patch.object(actions.paseo, "finish", return_value=None), \
+                            mock.patch.object(actions.paseo, "revive", side_effect=revive), \
+                            mock.patch.object(actions.paseo, "rearchive", side_effect=rearchive), \
+                            mock.patch.object(actions.paseo, "refresh", return_value="alive"), \
+                            mock.patch.object(actions, "_capture_paseo_thread"), \
+                            mock.patch.object(actions, "_pin_rollout"), \
+                            mock.patch.object(actions, "count_tokens", return_value=0), \
+                            redirect_stdout(io.StringIO()):
+                        run_step()
+                        self.assertEqual(fake["events"], [])
+                        self.assertEqual(snapshot(), (C.STATUS_DONE, False, True))
+                        run_step()
+                    self.assertEqual(fake["events"], [("revive", "a")])
+
+    def test_revive_guards_never_call_bridge(self) -> None:
+        with mock.patch.object(actions.paseo, "_call") as call:
+            for st in (state.SessionState(
+                    name="n", uuid="u", provider=C.PROVIDER_CODEX, dir="", screen="",
+                    watch_screen="", max_tokens=1, started=0, status=C.STATUS_DONE,
+                    handoff="", role="main", paseo_agent_id="a", paseo_workspace_id="w"),
+                    state.SessionState(
+                    name="n", uuid="u", provider=C.PROVIDER_CODEX, dir="", screen="",
+                    watch_screen="", max_tokens=1, started=0, status=C.STATUS_DONE,
+                    handoff="", paseo_agent_id="a")):
+                self.assertEqual(actions.paseo.revive(st)[0], None)
+                self.assertEqual(actions.paseo.rearchive(st)[0], None)
+            call.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

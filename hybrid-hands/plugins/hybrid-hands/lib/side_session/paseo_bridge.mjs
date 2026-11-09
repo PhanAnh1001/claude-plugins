@@ -164,6 +164,88 @@ async function readNativeSubagents(client, request, key) {
     rows: fetched.rows, ...metadata, targetKey: key });
 }
 
+// Exact agent identity, before any mutation: id echo, stored workspace and target.
+async function fetchExactAgent(client, request) {
+  const fetched = await client.fetchAgent({ agentId: request.agentId });
+  if (!nonemptyId(request.agentId) || !nonemptyId(request.expectedWorkspaceId)) {
+    fail("INVALID_AGENT_ID");
+    return null;
+  }
+  if (!fetched || !fetched.agent) {
+    fail("AGENT_NOT_FOUND", { agentId: request.agentId });
+    return null;
+  }
+  if (fetched.agent.id !== request.agentId) {
+    fail("AGENT_ID_MISMATCH");
+    return null;
+  }
+  if (fetched.agent.workspaceId !== request.expectedWorkspaceId) {
+    fail("WORKSPACE_ID_MISMATCH");
+    return null;
+  }
+  return fetched.agent;
+}
+
+// archivedAt != null means archived; null or undefined means unarchived.
+function agentArchived(agent) {
+  return agent.archivedAt != null;
+}
+
+function workspaceActive(inspected, request) {
+  return inspected?.kind === "unavailable"
+    && inspected.reason === "workspace_not_archived"
+    && inspected.workspaceId === request.expectedWorkspaceId;
+}
+
+// Revive only an agent the user already unarchived whose own workspace is still
+// archived and can be unarchived in place (no worktree recreate, no restore).
+async function reviveAgent(client, request, agent, key) {
+  if (agentArchived(agent)) {
+    emit({ ok: true, revived: false, archived: true, agentId: agent.id,
+      workspaceId: agent.workspaceId, targetKey: key });
+    return;
+  }
+  if (typeof client.inspectWorkspaceRecovery !== "function"
+      || typeof client.restoreWorkspace !== "function") {
+    fail("WORKSPACE_RECOVERY_UNSUPPORTED");
+    return;
+  }
+  const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+  let restored = false;
+  if (!workspaceActive(inspected, request)) {
+    const recoverable = inspected?.kind === "recoverable"
+      && inspected.action === "unarchive"
+      && inspected.workspaceId === request.expectedWorkspaceId;
+    if (!recoverable) {
+      fail("WORKSPACE_RECOVERY_UNSUPPORTED");
+      return;
+    }
+    await client.restoreWorkspace(request.expectedWorkspaceId);
+    restored = true;
+    const after = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+    if (!workspaceActive(after, request)) {
+      fail("WORKSPACE_RESTORE_UNCONFIRMED");
+      return;
+    }
+  }
+  emit({ ok: true, revived: true, restored, agentId: agent.id,
+    workspaceId: agent.workspaceId, targetKey: key });
+}
+
+// A revived session ended again: hide its private workspace only. The agent keeps
+// its archive (or stays active); this never cancels or archives the agent again.
+async function rearchiveWorkspace(client, request, agent, key) {
+  if (!agentArchived(agent)) {
+    emit({ ok: true, archived: false, agentId: agent.id, workspaceId: agent.workspaceId,
+      targetKey: key });
+    return;
+  }
+  if (!await privateWorkspace(client, request, agent)) return;
+  if (!await archivePrivateWorkspace(client, request.expectedWorkspaceId)) return;
+  emit({ ok: true, archived: true, agentId: agent.id, workspaceId: agent.workspaceId,
+    targetKey: key });
+}
+
 function emit(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
 }
@@ -240,6 +322,17 @@ async function main() {
   try {
     if (request.command === "subagents" || request.command === "subagent-timeline") {
       await readNativeSubagents(client, request, key);
+      return;
+    }
+    if (request.command === "revive" || request.command === "rearchive") {
+      // Every identity check fails closed before any mutation.
+      const agent = await fetchExactAgent(client, request);
+      if (agent === null) return;
+      if (request.command === "revive") {
+        await reviveAgent(client, request, agent, key);
+      } else {
+        await rearchiveWorkspace(client, request, agent, key);
+      }
       return;
     }
     if (request.command === "ready") {
