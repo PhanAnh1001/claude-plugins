@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.4 — 2026-11-09
+
+- Managed worker theo dõi cây con khi root sống và trước cancel, giữ PID + OS start time + comm cùng lịch sử chuỗi cha; kiểm lại identity trước từng signal. Cancel dừng root group và descendant đã setsid/reparent, TERM/KILL với thời hạn; marker invocation exact được quét cùng user qua KERN_PROCARGS2 trên macOS, không ghi/in giá trị môi trường.
+- Chỉ xác nhận quiescence khi root đã reap, group vắng và không còn tracked/marker process sống; evidence `root_group+tracked_tree+env_marker`. Scan lỗi, mất authority hoặc process còn sống giữ unknown/reservation; gateway/ancestors được bảo vệ, không signal PID phục hồi khi thiếu Popen ownership.
+- Giới hạn macOS: process vừa bỏ marker vừa double-fork giữa hai snapshot có thể thoát; đây là best-effort, không phải containment tuyệt đối. Kiểm offline: 508 tests pass; syscall và setsid fixture thật trên macOS pass. Kết quả gate live được ghi riêng trong bàn giao pilot.
+
 ## 0.35.3 — 2026-11-09
 
 - Dispatcher pin plaintext/digest trước network cho dispatch/follow-up/capacity; gateway kiểm exact một envelope Paseo canonical với messageId/source parent/body khớp pin, trim đúng ECMAScript. Worker nhận plaintext pin; raw prompt chỉ nhận khi digest khớp, prompt ACP lạ không tự tạo epoch managed.
