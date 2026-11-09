@@ -150,6 +150,14 @@ class ProcessTable:
         except Exception:
             raise RuntimeError('marker scan unavailable') from None
 
+    def group_present(self, pgid: int) -> bool:
+        """Read-only group existence probe; permission failures remain uncertain."""
+        try:
+            os.killpg(pgid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+
     def signal(self, identity: OSIdentity, sig: int) -> str | None:
         # Revalidate immediately before EACH signal, including escalation.
         current = self.identity(identity.pid)

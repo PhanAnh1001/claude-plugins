@@ -8,7 +8,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'))
 from hand_ext import parallel
 from hand_ext.execution_state import Invocation, Attempt, ExecutionStore, StateConflict, StateCorrupt
-from hand_ext.execution_admission import AdmissionController, AdmissionFull, AdmissionConflict
+from hand_ext.execution_admission import AdmissionController, AdmissionFull, AdmissionConflict, Reservation
 from hand_ext.execution_supervisor import ExecutionSupervisor, ProcessIdentity, Quiescence
 
 class Ops:
@@ -39,6 +39,38 @@ class AdmissionTests(unittest.TestCase):
             self.admission.admit(*self.intent('other',scope='independent'),max_parallel=1)
         for invalid in (0,5,True):
             with self.assertRaises(ValueError): self.admission.admit(i,a,max_parallel=invalid)
+    def test_not_admitted_and_legacy_intent(self):
+        from hand_ext.paseo_recovery import recover
+        from hh_ps.paseo_source import load_executions
+        from dataclasses import asdict
+        i, a = self.intent('holding', claims=('file:shared.py',))
+        reservation = self.admission.admit(i, a, max_parallel=1)
+        for name, claims, error in (('full', (), AdmissionFull), ('conflict', ('file:shared.py',), AdmissionConflict)):
+            inv, attempt = self.intent(name, claims=claims)
+            with self.assertRaises(error) as caught: self.admission.admit(inv, attempt, max_parallel=1)
+            self.assertEqual(caught.exception.holding_key, a.key)
+            self.assertEqual(self.store.get(attempt.key).state, 'not_admitted')
+        self.assertTrue(all(r.status != 'unknown' for r in load_executions([self.store.root], 0) if r.exit_code == 8))
+        inv, attempt = self.intent('legacy')
+        self.store.create_intent(inv, attempt)
+        def run(apply=False): return recover(self.store, attempt.key, self.root, None,
+            legacy_attest=True, reason='operator checked', apply=apply)
+        path = self.store._path(attempt.key); before = path.read_bytes()
+        run(); self.assertEqual(path.read_bytes(), before)
+        from hand_ext.execution_state import atomic_json
+        interrupted = Reservation('interrupted', attempt.key, inv.scope_id, (), str(self.store.root))
+        pool = parallel.pool_scope(inv.scope_id)/'reservation-interrupted.json'
+        atomic_json(pool, asdict(interrupted))
+        with self.assertRaises(StateConflict): run(True)
+        self.assertEqual(path.read_bytes(), before); pool.unlink()
+        r = self.store.get(attempt.key); r.receipt = {'transport': {'pending':'create'}}
+        self.store.compare_and_swap(attempt.key, r.revision, r)
+        with self.assertRaises(StateConflict): run(True)
+        r = self.store.get(attempt.key); r.receipt = None
+        self.store.compare_and_swap(attempt.key, r.revision, r)
+        self.assertEqual(run(True).state, 'not_admitted')
+        before = path.read_bytes(); run(True); self.assertEqual(path.read_bytes(), before)
+
     def test_frontend_death_retains_writer_until_authoritative_reap(self):
         i,a = self.intent('writer'); reservation = self.admission.admit(i,a,max_parallel=1)
         self.supervisor.register_writer(a.key,ProcessIdentity(123,123,'owned-start'),'worker')

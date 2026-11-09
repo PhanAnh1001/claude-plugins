@@ -288,6 +288,122 @@ class ControllerTests(unittest.TestCase):
         with self.assertRaises(ProtocolError): gateway.handle('session/prompt',params)
         self.assertEqual(worker.calls,0)
 
+    def test_legacy_attestation_fences_and_completion(self):
+        from hand_ext.paseo_recovery import recover
+        from hand_ext.post_hoc_reverify import bindings
+        from hand_ext.process_containment import OSIdentity
+        inv, a, sup, admission, completion = self.intent()
+        admission.admit(inv, a, max_parallel=1)
+        r = self.store.get(a.key)
+        self.store.bind_placement(a.key, r.revision, dict(target_key='target',
+            project_id='project', workspace_id='workspace', agent_id='agent'))
+        sup.register_writer(a.key, ProcessIdentity(91001, 91001, 'opaque'), 'worker')
+        r = self.store.get(a.key); r.process['supervisor_id'] = '91002'
+        r.state = 'unresolved'; r.pending_outcome = dict(status='cancelled', backend_exit_code=143)
+        r.receipt.update(worker_owner='worker', worker_run_dir=str(self.root/'legacy-run'))
+        r.receipt['transport'] = dict(targetKey='target', projectId='project',
+            workspaceId='workspace', agentId='agent', requestKey=a.request_key,
+            messageId=a.request_key, cwd=inv.isolated_cwd,
+            parentAgentId=inv.parent_paseo_agent_id, sendConfirmed=True,
+            gatewayEnv=dict(HYBRID_HANDS_INVOCATION_ID=inv.invocation_id,
+                            HYBRID_HANDS_EXECUTION_ROOT=str(self.store.root)))
+        r.receipt['containment'] = dict(binding=bindings(r))
+        self.store.compare_and_swap(a.key, r.revision, r)
+        class Table:
+            rows = {}; dirty = False; group = False
+            def identity(self, pid): return self.rows.get(pid)
+            def snapshot(self): return self.rows.copy()
+            def group_present(self, pgid): return self.group
+            def marker_matches(self, pid, invocation): return self.dirty
+        table = Table(); path = self.store._path(a.key)
+        def run(apply=False, **kw):
+            return recover(self.store, a.key, self.repo, None, apply=apply,
+                           legacy_attest=True, reason=kw.pop('reason', 'operator checked'),
+                           process_table=table, **kw)
+        original = path.read_bytes(); run(); self.assertEqual(path.read_bytes(), original)
+        # Older receipts have no containment binding; public placement/request
+        # still must pin the exact immutable invocation before any OS proof.
+        saved = self.store.get(a.key); legacy = self.store.get(a.key)
+        legacy.receipt['containment'] = {}
+        legacy.receipt['transport'] = dict(targetKey='target', projectId='project',
+            workspaceId='workspace', agentId='agent', requestKey=a.request_key,
+            messageId=a.request_key, cwd=inv.isolated_cwd,
+            parentAgentId=inv.parent_paseo_agent_id, sendConfirmed=True,
+            gatewayEnv=dict(HYBRID_HANDS_INVOCATION_ID=inv.invocation_id,
+                            HYBRID_HANDS_EXECUTION_ROOT=str(self.store.root)))
+        self.store.compare_and_swap(a.key, legacy.revision, legacy); run()
+        saved.revision = self.store.get(a.key).revision
+        self.store.compare_and_swap(a.key, saved.revision, saved)
+        table.rows = {91002:OSIdentity(91002, 'new-birth', 'SECRET_ARGV', 1, os.getuid())}
+        run(owner_os_start='90')  # Explicit prior owner birth proves PID reuse.
+        table.rows = {}
+        for bad in ('reason', 'owner', 'root', 'group', 'marker', 'scan', 'binding', 'complete', 'incomplete', 'fatal', 'gateway', 'completion', 'owner_binding', 'reservation_key', 'pool', 'latest'):
+            with self.subTest(bad=bad):
+                saved = self.store.get(a.key)
+                if bad in ('binding', 'complete', 'incomplete', 'fatal', 'gateway', 'completion', 'owner_binding', 'reservation_key'):
+                    changed = self.store.get(a.key)
+                    if bad == 'binding': changed.receipt['containment']['binding']['process']['pid'] = 5
+                    elif bad == 'complete': changed.receipt['containment'].update(inventory_complete=True)
+                    elif bad == 'incomplete': changed.receipt['containment'].update(inventory_complete=False)
+                    elif bad == 'fatal': changed.receipt['containment']['first_fatal'] = 'scan'
+                    elif bad == 'gateway': changed.receipt['transport']['gatewayEnv'] = {}
+                    elif bad == 'completion': changed.receipt['completion']['context']['worktree'] = str(self.repo)
+                    elif bad == 'owner_binding': changed.writer['owner_id'] = 'other'
+                    else: changed.reservation['reservation_id'] = 'other'
+                    self.store.compare_and_swap(a.key, changed.revision, changed)
+                table.rows = {91002:OSIdentity(91002, '90', 'owner', 1, os.getuid())} if bad == 'owner' else {91001:OSIdentity(91001, '100', 'root', 1, os.getuid())} if bad == 'root' else {91003:OSIdentity(91003, '101', 'child', 1, os.getuid())} if bad in ('marker', 'scan') else {}
+                table.group, table.dirty = bad == 'group', bad == 'marker'
+                pool = next(parallel.pool_root().glob('*/reservation-*.json'))
+                pool_bytes = pool.read_bytes()
+                if bad == 'pool': pool.write_text('{}')
+                if bad == 'latest':
+                    newer = Attempt(inv.invocation_id, 'newer', 2, 'newer-request')
+                    self.store.create_intent(inv, newer)
+                before = path.read_bytes()
+                with patch.object(table, 'snapshot', side_effect=PermissionError('SECRET_ENV_ARGV')) if bad == 'scan' else patch.object(table, 'dirty', table.dirty):
+                    with self.assertRaises(StateConflict) as caught: run(True, reason='' if bad == 'reason' else 'operator checked')
+                self.assertNotIn('SECRET_ENV_ARGV', str(caught.exception))
+                self.assertEqual(path.read_bytes(), before)
+                if bad == 'pool': pool.write_bytes(pool_bytes)
+                if bad == 'latest': self.store._path(newer.key).unlink()
+                if bad in ('binding', 'complete', 'incomplete', 'fatal', 'gateway', 'completion', 'owner_binding', 'reservation_key'):
+                    saved.revision = self.store.get(a.key).revision
+                    self.store.compare_and_swap(a.key, saved.revision, saved)
+        table.rows = {}; table.group = table.dirty = False
+        calls = []
+        def race():
+            calls.append(1)
+            if len(calls) == 2:
+                changed = self.store.get(a.key)
+                self.store.compare_and_swap(a.key, changed.revision, changed)
+            return {}
+        with patch.object(table, 'snapshot', race), self.assertRaises(StateConflict): run(True)
+        self.assertTrue(self.store.get(a.key).reservation)
+        # Simulate a crash after a durable report sink, before its hook receipt.
+        report_calls = []
+        original_report = CompletionService._report
+        def crash_report(service, *args):
+            report_calls.append(1)
+            original_report(service, *args)
+            raise RuntimeError('SECRET_ENV_ARGV')
+        with patch.object(CompletionService, '_report', crash_report):
+            partial = run(True)
+        self.assertTrue(partial.reservation)
+        from hand_ext.legacy_attestation import attested
+        for field, value in (('owner', {}), ('root', {}), ('group', 'present'),
+                             ('marker_matches', 1), ('authoritative', False), ('method', 'other')):
+            corrupt = self.store.get(a.key)
+            corrupt.receipt['legacy_attestation']['evidence'][field] = value
+            corrupt.quiescence['details'][field] = value
+            self.assertFalse(attested(corrupt))
+        with patch.object(CompletionService, '_report', side_effect=AssertionError('no replay')) as replay:
+            result = run(True)
+        replay.assert_not_called()
+        self.assertEqual(report_calls, [1])
+        self.assertEqual((result.outcome['status'], result.quiescence['confirmed'], result.quiescence['details']['attested']), ('cancelled', False, True))
+        self.assertIsNone(result.reservation); self.assertEqual(len(result.settle_keys), 5)
+        before = path.read_bytes(); run(True); self.assertEqual(path.read_bytes(), before)
+
     def test_cancelled_post_hoc_proof_dry_run_refusal_and_settlement(self):
         from dataclasses import asdict
         import copy

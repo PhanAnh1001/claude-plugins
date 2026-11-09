@@ -67,6 +67,11 @@ def _parser() -> argparse.ArgumentParser:
                                  help="invocation:attempt:epoch (epoch >= 1)")
         if action == "recover":
             command.add_argument("--apply", action="store_true")
+            command.add_argument("--legacy-attest", action="store_true",
+                                 help="operator attests pre-0.35.5 origin (not recorded by old schema)")
+            command.add_argument("--reason", help="operator reason attesting pre-0.35.5 origin")
+            command.add_argument("--owner-os-start")
+            command.add_argument("--root-os-start")
         if action == "followup":
             command.add_argument("--brief", required=True, help="fresh self-contained brief file")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
@@ -272,7 +277,9 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
                 if args.managed_cmd == "recover":
                     from .paseo_recovery import recover
                     record = recover(store, args.key, source, cfg.paseo.get('package_root'),
-                                     apply=args.apply, target=cfg.paseo.get('target'))
+                                     apply=args.apply, target=cfg.paseo.get('target'),
+                                     legacy_attest=args.legacy_attest, reason=args.reason,
+                                     owner_os_start=args.owner_os_start, root_os_start=args.root_os_start)
                     print(json.dumps({"ok": True, "applied": args.apply,
                                       "execution": _managed_summary(record)}))
                     return EXIT_OK
@@ -297,6 +304,9 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
             AdmissionFull, PaseoUnavailable, ExecutionUnresolved, TransportError) as exc:
         # Never echo arbitrary transport/backend text, briefs, or persisted options.
         result = {"ok": False, "code": type(exc).__name__}
+        from .legacy_attestation import LegacyOwnerAlive
+        if isinstance(exc, LegacyOwnerAlive):
+            result["hint"] = "close exact child through public Paseo"
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 8 if isinstance(exc, AdmissionFull) else EXIT_FAIL
     print(json.dumps(result, ensure_ascii=False, indent=2))

@@ -95,6 +95,38 @@ class ManagedCliTests(unittest.TestCase):
         self.assertEqual(sum(c['command']=='create' for c in calls), 1)
         self.assertEqual(sum(c['command']=='archive' for c in calls), 1)
 
+    def test_recover_flags_and_safe_diagnostics(self):
+        from hand_ext.execution_state import StateConflict
+        from hand_ext.execution_admission import AdmissionConflict, admission_diagnostic
+        from hand_ext.legacy_attestation import LegacyOwnerAlive
+        _, attempt, *_ = self.f.intent()
+        key = attempt.key
+        argv = ['managed', 'recover', '--cwd', str(self.f.repo), '--key',
+                f'{key.invocation_id}:{key.attempt_id}:{key.epoch}',
+                '--legacy-attest', '--reason', 'operator checked', '--apply',
+                '--owner-os-start', '90']
+        for error in (StateConflict('SECRET_ENV_ARGV'), LegacyOwnerAlive('SECRET_ENV_ARGV')):
+            out = io.StringIO()
+            with patch.object(cli, '_cfg', return_value=self.f.cfg), patch('sys.stdout', out), patch('hand_ext.paseo_recovery.recover', side_effect=error) as call:
+                self.assertEqual(cli.main(argv), 1)
+            self.assertNotIn('SECRET_ENV_ARGV', out.getvalue())
+            self.assertTrue(call.call_args.kwargs['legacy_attest'])
+            self.assertEqual(call.call_args.kwargs['owner_os_start'], '90')
+        self.assertIn('public Paseo', out.getvalue())
+        safe = admission_diagnostic(AdmissionConflict('SECRET_ENV_ARGV'))
+        self.assertNotIn('SECRET_ENV_ARGV', json.dumps(safe))
+        self.assertEqual(admission_diagnostic(AdmissionConflict('claims_conflict', key))['holding_key']['epoch'], 1)
+        from hand_ext.execution_state import ExecutionKey
+        for bad in (ExecutionKey('bad/path', 'a', 1), ExecutionKey('a'*129, 'b', 1), ExecutionKey('a', 'b', True)):
+            self.assertIsNone(admission_diagnostic(AdmissionConflict('claims_conflict', bad))['holding_key'])
+        from hand_ext.execution_admission import AdmissionFull
+        for error in (AdmissionConflict('claims_conflict', key), AdmissionFull('pool_full', key)):
+            brief = self.f.root/'admission.md'; brief.write_text('synthetic brief')
+            out = io.StringIO()
+            with patch.object(cli, '_cfg', return_value=self.f.cfg), patch('sys.stderr', out), patch('hand_ext.paseo_controller.transport_from_config'), patch.object(PaseoController, 'preflight', return_value={}), patch.object(PaseoController, 'dispatch', side_effect=error):
+                self.assertEqual(cli.main(['run', '--cwd', str(self.f.repo), '--brief', str(brief), '--mode', 'paseo-required']), 8)
+            self.assertIn(error.kind, out.getvalue())
+
     def test_guards_unknown_unreviewed_unquiescent_and_stale(self):
         attempt, transport, calls = self.transport()
         brief = self.f.root/'fresh.md'; brief.write_text('new synthetic brief')

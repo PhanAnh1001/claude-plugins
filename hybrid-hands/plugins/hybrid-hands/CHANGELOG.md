@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.6 — 2026-11-09
+
+- `managed recover --legacy-attest --reason` bổ sung ngoại lệ người vận hành xác nhận cho record trước 0.35.5 thiếu inventory/reap proof: dry-run mặc định, apply kiểm exact binding/revision/reservation, owner/root/group đã vắng hoặc PID reuse được chứng minh và marker scan mới sạch. Record mang evidence inventory/reap hiện đại phải dùng `post_hoc_reverify`.
+- Quiescence legacy giữ `confirmed=false`, ghi `attested=true` và method `operator_legacy_attest`; settlement qua năm hook chuẩn và admission release đúng một lần. Record cũ không lưu phiên bản nên operator xác nhận nguồn gốc; rủi ro còn lại là process vừa bỏ marker vừa thoát cây theo dõi.
+- AdmissionConflict/AdmissionFull trước reservation/dispatch ghi terminal `not_admitted`, exit 8 có loại chặn và holding key an toàn; recover intent cũ qua cùng cờ xác nhận, hh-ps hiển thị lỗi kết thúc thay vì unknown. Không ghi/in env, argv hay exception text tùy ý.
+
 ## 0.35.5 — 2026-11-09
 
 - Giữ diagnostics containment an toàn (stage/method/loại lỗi/PID/OS start), inventory identity, bằng chứng reap và owner acknowledgment; giữ lỗi fatal đầu tiên và retry CAS có giới hạn.
