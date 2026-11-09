@@ -1,7 +1,5 @@
 #!/bin/bash
-# UserPromptSubmit: policy ngắn, luật đầy đủ ở SessionStart/template/skill.
-cat << 'EOF'
-POLICY hybrid-hands 3 tầng: Opus thư ký/SA/BA/PM, spec/plan L2/L3, review giải pháp/bàn giao; Sol gpt-6.1-sol high lead tech/QA, spec L1, review code hand mình giao; hand không review hand. L0/L1 BẮT BUỘC hand theo ext_hand.order: `hand-ext run --backend auto`; L1 có lựa chọn/mức kỹ: Opus duyệt; L2/L3: người dùng duyệt. Opus chia brief khác file, mở Sol bằng `side-session start --provider codex` (mặc định 4). MỖI SOL tối đa ext_hand.max_parallel hand (mặc định 4); chờ đủ rồi review. Cùng file/phụ thuộc tuần tự; hai cap 1..4, tối đa 16 hand. Chờ .done, đọc side-session handoff. Exit 8: chờ slot, không đổi backend/tự làm. Exit 7: hand-ext doctor trước; xác nhận dsh hết quota mới codex medium; Sol hết quota về Opus/chờ reset. Hand lỗi ghi lý do+mã thoát. Sáng tạo: Opus low/claude-main (≥5%/ngày thoát 7).
-Ngoại lệ A chỉ Sol Codex/Paseo: order chọn codex gpt-6.1-sol low, tools native chọn được model/effort; chi tiết templates/side-session-prompt-codex.md và skills/paseo/SKILL.md; không đổi mặc định Opus.
-Sol được đọc secret/dữ liệu khách hàng như Opus; hand ngoài chỉ code/test/docs công khai, nhạy cảm dùng hand Claude. Cấm hiện .env/token/credential; cấm API key/API trả phí. Test tối thiểu; kỹ chỉ (1) tạo hứng thú/giữ chân trả tiền: giả thuyết/chỉ số/ngưỡng/thời gian, analytics+flag/A-B, số tổng hợp; (2) bảo mật ngoài: SAST/dependency/DAST staging. Opus không tự tra cứu; không hỏi trạng thái; xong đợt/nghỉ quá 1 giờ mở phiên brain mới. Luật đầy đủ ở SessionStart/template/skill.
+# UserPromptSubmit: con trỏ ổn định; policy đầy đủ được SessionStart nạp.
+cat <<'EOF'
+POLICY: xem SessionStart và AGENTS.md. Hand theo ext_hand.order (pick trước native); brain không tự tra cứu; cấm hiện .env/token/credential.
 EOF

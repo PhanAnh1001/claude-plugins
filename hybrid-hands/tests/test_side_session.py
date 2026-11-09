@@ -103,6 +103,28 @@ class SideSessionTest(unittest.TestCase):
             self.assertEqual(tokens.claude_transcript("/repo", "id", config_dir=st["claude_config_dir"]).parent.parent, Path(st["claude_config_dir"]) / "projects")
 
     def test_unknown_claude_account_rejected_before_mutation(self):
+        from hand_ext.config import load_config as load_hand_config
+        from side_session.config import claude_account, default_claude_accounts
+        self.assertEqual(load_config(self.repo).claude_accounts, default_claude_accounts())
+        from side_session.commands import provider_argv, session_cmd
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(self.tmp / "inherited-v2")}):
+            _, env = provider_argv(load_config(self.repo), "claude", "v1", "id", str(self.repo), "hi")
+            self.assertNotIn("CLAUDE_CONFIG_DIR", env)
+            command = session_cmd(load_config(self.repo), "claude", "v1", "id", str(self.repo), "hi")
+            self.assertIn("unset CLAUDE_CONFIG_DIR;", command[-1])
+        config = self.repo / ".claude" / "hybrid-hands.json"
+        config.parent.mkdir()
+        config.write_text(json.dumps({"ext_hand": {
+            "claude_accounts": {"v3": {"config_dir": "third", "max_day_pct": 2}},
+            "backends": {"claude-main": {"config_dir": "legacy-first"},
+                         "claude-v2": {"config_dir": "canonical-second"}}}}))
+        cfg = load_config(self.repo)
+        self.assertEqual(cfg.claude_accounts, load_hand_config(known_root=self.repo).claude_accounts)
+        for account, directory in (("v1", "legacy-first"), ("v2", "canonical-second"), ("v3", "third")):
+            self.assertEqual(claude_account(cfg, account)["config_dir"], str((self.repo / directory).resolve()))
+        self.assertEqual(cfg.claude_accounts["v3"]["max_day_pct"], 2)
+        _, env = provider_argv(cfg, "claude", "v1", "id", str(self.repo), "hi")
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], str((self.repo / "legacy-first").resolve()))
         with mock.patch.object(actions.K, "worktree_cmd") as worktree, mock.patch.object(actions, "_preflight") as preflight:
             code, out = self.run_cli("start", "--name", "bad", "--provider", "claude", "--account", "v99", "--worktree", "--prompt", "task")
         self.assertEqual(code, 2)

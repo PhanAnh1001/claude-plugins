@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.33.0 — 2026-11-09
+
+- Thêm sổ tài khoản Claude `v1`/`v2`/`v…`, alias backend cũ và `hand-ext pick`; auto chọn theo order dsh → Codex low → Claude v1 low → Claude v2 low, giữ chặn ngày theo tài khoản.
+- Phiên chính/phụ Claude chọn `--account` qua cùng loader tài khoản của hand-ext, nhận cả override backend canonical và legacy; không thêm nguồn cấu hình người dùng.
+- Giữ model dsh `deepseek-v4.1-flash`, mặc định effort `off`; template ánh xạ `off: null` để tắt thinking, giữ low/high/max và nguồn giá canonical. User-Agent lấy version plugin 0.33.0.
+- Đồng bộ policy Opus → Sol → hand theo tài khoản và order; rút hook mỗi prompt, giảm policy trùng và đưa phần tĩnh của brief lên đầu để dùng cache tiền tố.
+
 ## 0.32.2 — 2026-11-09
 
 - Kiểm freshness quota theo thời điểm hoàn tất đọc nguồn, giữ timestamp quan sát gốc; không loại nhầm mẫu Paseo được tạo trong lúc lệnh đang chạy. Cho phép poll sớm một lần khi cache thành công đã hết hạn.

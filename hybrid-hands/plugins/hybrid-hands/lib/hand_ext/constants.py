@@ -123,7 +123,7 @@ DEFAULTS = {
                         "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT},
         # DeepSeek Harness on the OpenCode Go key (templates/dsh-hand.yml).
         "dsh": {"home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key",
-                "model": "deepseek-v4.1-flash", "effort": "high",
+                "model": "deepseek-v4.1-flash", "effort": "off",
                 "base_url": "https://opencode.ai/inference/go/openai/v1",
                 "compact_at": DEFAULT_COMPACT_AT,
                 "context_window": DEFAULT_CONTEXT_WINDOW,

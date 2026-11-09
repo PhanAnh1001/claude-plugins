@@ -1,16 +1,15 @@
 #!/bin/bash
 # SessionStart hook (startup|resume|clear|compact): bơm khuôn brief, luật chọn hand, luật hạn mức MỘT LẦN.
-# Nội dung cố định; giá trị động duy nhất là đường dẫn bin của plugin (cố định theo bản cài) để prefix cache ổn định.
+# Policy ổn định; chỉ rút đoạn khớp nguyên văn với AGENTS.md của repo đang chạy.
 set -euo pipefail
-ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
 BRIEF="$(cat "$ROOT/templates/hand-brief.md")"
 RULES="$(cat << 'EOT'
 Thiếu PHẠM VI GHI thì hand coi là CHỈ ĐỌC (fail-closed).
 
-LUẬT CHỌN HAND (3 tầng Opus / Sol / dsh; giữ hạn mức gói Claude chính cho brain):
-Vai trò: Opus (brain, gói Claude chính) = thư ký, solution architect, BA, product manager. Sol (phiên phụ Codex `gpt-6.1-sol` effort high, tài khoản ChatGPT riêng, `CODEX_HOME` `~/.codex-hand`) = lead tech, lead QA, quyền ngang Opus. dsh = dev, tester. Hand Opus `low` (`hybrid-hands:hand`) = việc sáng tạo (UI design, mockup, design token, câu chữ).
+Vai trò: Opus thư ký/SA/BA/PM, review spec/plan/giải pháp và bàn giao; phiên phụ Sol hoặc Claude đúng account là lead tech/QA, viết tiêu chí trước khi giao và review code hand mình giao. L0/L1 bắt buộc giao hand; chỉ tự làm khi hand-ext lỗi (ghi lý do/mã thoát) hoặc việc cần secret/dữ liệu khách hàng theo luật dữ liệu.
+
 Opus chia brief thành các gói L1 độc lập khác file, chủ động lấp tối đa `side_session.max_parallel` Sol (mặc định 4). MỖI SOL chia brief độc lập khác file và chạy nền tối đa `ext_hand.max_parallel` hand (mặc định 4), chờ đủ tất cả kết thúc rồi Sol review. Cùng file hoặc phụ thuộc phải tuần tự; không ép song song. Có thể 16 hand tổng khi 4 Sol độc lập; không phải cap toàn máy 4. Hai giới hạn là số nguyên 1..4, có thể giảm, không >4. Scope hand riêng mỗi Sol qua `HYBRID_HANDS_HAND_SCOPE` = uuid Sol, giữ nguyên `CODEX_HOME` và parent Claude session. Exit 8: đợi slot/tiến trình đang chạy kết thúc rồi thử lại; không đổi backend hay tự làm như lỗi hand.
-NGOẠI LỆ A — chỉ Sol Codex trên Paseo: ưu tiên native khi ext_hand.order thực chọn codex gpt-6.1-sol low và tools spawn/wait hỗ trợ model/effort riêng; không áp cho Opus/Claude/dsh/executor. Dùng fork_turns="none", brief tự chứa và luật dữ liệu nguyên văn theo templates/side-session-prompt-codex.md, skills/paseo/SKILL.md và skills/ext-hand/SKILL.md. Hand executor làm trực tiếp, không hand-ext/side-session/subagent, không recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext trong mỗi Sol ≤ ext_hand.max_parallel (1..4), kể cả child unknown; cùng file/phụ thuộc tuần tự, chờ đủ rồi Sol review. Thiếu capability hoặc order khác trước spawn: hand-ext run --backend auto; đã nhận spawn mà unknown thì reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, đổi config/slots, tạo agent ngang hàng hay fallback B. Native completed giữ tab/history, không archive parent; .done chỉ sau mọi hand xong và Sol review. Báo cáo/usage qua native/Paseo, không có meta/report/ledger hand-ext; thiếu ghi ?, không suy quota từ token/USD. Exit 7/8 giữ nguyên. Chi tiết brief, luật dữ liệu và lifecycle theo template/skill trên.
 
 Bảng lane:
 | Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
@@ -20,15 +19,32 @@ Bảng lane:
 | L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | hand theo `ext_hand.order` | Sol |
 | L2/L3 | Opus | Người dùng | Opus cắt thành các gói cỡ L1, giao các phiên Sol | Sol |
 Opus phân lane rồi mở phiên Sol bằng `side-session start --provider codex` (provider mặc định giờ là codex; `--model`/`--effort` mặc định `gpt-6.1-sol`/`high`). Gom nhiều việc L0 vào một phiên; mỗi task một phiên. Chờ file `<handoff_dir>/<name>.done` bằng Monitor, không hỏi trạng thái; đọc `side-session handoff <tên>`. L2/L3: Opus viết spec/plan, người dùng duyệt, Opus cắt thành gói cỡ L1 giao các phiên Sol (tối đa `max_parallel`).
-Sáng tạo (UI design, mockup, design token, câu chữ): Opus giao `hybrid-hands:hand` (đã là Opus effort low) ngay ở giai đoạn spec; trong phiên Sol thì `hand-ext run --backend claude-main` (thoát 7 khi máy đã dùng ≥5% Claude hôm nay → ghi yêu cầu vào bàn giao để Opus quyết). Phần code hoá thiết kế giao hand theo `ext_hand.order`.
-Thư ký cơ học: việc cần PAT Jira giao hand Claude với `model: haiku` hoặc `sonnet`; tài liệu không secret giao hand theo `ext_hand.order`. Opus chỉ quyết nội dung.
-1. Hand ngoài (`hand-ext run --backend auto`) là MẶC ĐỊNH cho việc code/tài liệu tự chứa, phạm vi file rõ: sửa hay viết script, viết test, refactor trong vài file, soát hay sửa tài liệu, đọc code trả lời câu hỏi. Chạy trên GÓI subscription thứ hai (mặc định và duy nhất trong `order` là backend dsh — DeepSeek V4.1 Flash trên gói OpenCode Go; codex, claude, claude-main, gemini chỉ gọi tường minh bằng `--backend`; dsh hết hạn mức thì Sol dùng backend codex effort medium). Brief theo cùng khuôn, ghi vào file tạm trong scratchpad; gọi `hand-ext run --brief <file> --label <nhãn>` bằng tool Bash với run_in_background rồi chờ thông báo khi lệnh thoát (không tự viết vòng chờ); đọc report.md theo đường dẫn được in. `hand-ext run` mặc định chạy trong git worktree sạch chỉ có file tracked cùng thay đổi chưa commit/untracked không bị ignore (file bị ignore như `.env` không có trong workspace); đừng tắt bằng `--isolation none` khi repo có secret. `--browser` chỉ dùng với `--backend dsh`/`auto` (Playwright MCP cô lập, chỉ trang công khai, không đăng nhập/form/mua/captcha, không TikTok). Codex, DeepSeek Harness (dsh) và Gemini KHÔNG chịu hook của Claude Code: LUẬT BẮT BUỘC của brief phải chép nguyên văn luật cấm của repo (đặc biệt: "Không đọc `.env` bằng lệnh hay tool hiện giá trị: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `more`, `rg`, `Read`, kể cả có che phần sau dấu `=`."), PHẠM VI GHI hẹp tới từng file. Backend claude (gói Claude thứ hai) thì hook của repo vẫn chạy, nhưng brief vẫn chép luật cấm.
-   LUẬT DỮ LIỆU: Phiên phụ Sol được đọc secret và dữ liệu khách hàng như Opus; luật dưới áp cho hand ngoài (dsh, gemini, codex dùng làm hand). Không giao hand ngoài (dsh, codex, gemini — gửi dữ liệu lên dịch vụ ngoài) việc phải đọc hoặc gửi: secret (`.env`, token, mật khẩu, URL DB có mật khẩu), dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân). Những việc đó dùng hand Claude. Được giao hand ngoài: code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được.
-2. Hand Claude (Agent với `hybrid-hands:hand`, gói chính): việc cần tool riêng của Claude Code (Chrome, MCP, Skill, đọc ảnh, SendMessage), việc chạy lệnh trả phí của dự án; và dự phòng sau khi chạy `hand-ext doctor`, đọc lý do `hand-ext` thoát 7 (mọi gói thứ hai hết hạn mức hoặc chưa đăng nhập) hoặc lỗi.
-3. Dự phòng: exit 7 phải chạy `hand-ext doctor` trước, đọc lý do rồi mới chọn; dsh hết hạn mức → Sol dùng `hand-ext run --backend codex --effort medium`; Sol hết hạn mức → task về Opus hoặc chờ reset.
-Chi tiết: skill `hybrid-hands:ext-hand`, `hybrid-hands:side-session`.
 
-LUẬT HẠN MỨC hand ngoài: không bao giờ dùng hay tạo API key, không chuyển sang API khi hết hạn mức (dsh hết hạn mức thì Sol dùng backend codex effort medium; `hand-ext` thoát 7 thì doctor trước khi chọn hand Claude). Gói không tính tiền theo lượt nên không cần bảng USD; sau mỗi lượt hand-ext báo backend, token, % hạn mức và thời điểm reset từ khối tóm tắt của `run` (thiếu ghi `?`; native dùng runtime/Paseo theo ngoại lệ A); xem trạng thái các gói bằng `hand-ext status`, tổng lượt bằng `hand-ext report`.
+   LUẬT DỮ LIỆU: Phiên phụ Sol được đọc secret và dữ liệu khách hàng như Opus; luật dưới áp cho hand ngoài (dsh, gemini, codex dùng làm hand). Không giao hand ngoài (dsh, codex, gemini — gửi dữ liệu lên dịch vụ ngoài) việc phải đọc hoặc gửi: secret (`.env`, token, mật khẩu, URL DB có mật khẩu), dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân). Những việc đó dùng hand Claude. Được giao hand ngoài: code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được.
+Không in/hiện giá trị `.env`, token, credential ở bất kỳ tầng nào; công cụ của plugin (`hand-ext doctor/run`, đọc hạn mức) được đọc file auth nội bộ, chỉ không được in giá trị. Brief giao hand ngoài chép nguyên văn luật này.
+Không đọc `.env` bằng lệnh hay tool hiện giá trị: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `more`, `rg`, `Read`, kể cả có che phần sau dấu `=`.
+Không đọc hay in token, auth.json, file credential. Không giao hand ngoài việc cần secret hay dữ liệu khách hàng. Chỉ dùng code và fixtures giả công khai được; không đọc transcript/log thật. Không gọi API trả phí, không tạo hay dùng API key.
+
+Cách ly worktree (`--isolation`), trình duyệt công khai (`--browser`, chỉ dsh), preflight/setup/doctor: xem skills/ext-hand/SKILL.md (skill hybrid-hands:ext-hand); giữ brief tự chứa và luật dữ liệu.
+
+## Chọn hand theo tài khoản
+
+Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
+
+Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+
+| Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
+|---|---|---|---|---|---|
+| Sol | hand-ext | native Codex | hand-ext | hand-ext | hand-ext claude-v1 |
+| Opus v1 | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext | Native khi preflight v1 đủ; thiếu thì hand-ext claude-v1 |
+| Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
+
+Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
+Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
+
+Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
 
 LUẬT TIẾP VIỆC (cache của hand chỉ sống 5 phút; tiếp việc khi cache đã nguội thì phải ghi lại toàn bộ ngữ cảnh hand ở giá 1,25x, đắt ngang tạo hand mới):
 - Cache NÓNG: brain giao tiếp việc ngay trong lượt nhận báo cáo, không có chờ người dùng, chờ hand khác hay lệnh dài xen giữa. Khi cache nóng và việc kế tiếp chạm cùng file/module hand vừa đọc/sửa: SendMessage tới hand đó (brief bổ sung cùng khuôn, chỉ ghi phần thay đổi). Có việc tiếp thì giao ngay, trước khi hỏi người dùng hay làm việc dài khác.
@@ -47,6 +63,29 @@ LUẬT NGỮ CẢNH BRAIN (mỗi lượt gọi của brain đọc lại toàn b�
 - KHÔNG HỎI TRẠNG THÁI: trong lúc chờ hand, phiên phụ hay lệnh nền, brain không hỏi trạng thái (`side-session ls`/`watch`, `hh-ps`, `hand-ext status`, `git log` lặp lại): kết thúc lượt và chờ thông báo hoàn thành; việc không tự báo thì đặt một `Monitor` chờ file kết thúc (done, handoff). Chỉ hỏi trạng thái khi người dùng hỏi hoặc việc đã quá hạn dự kiến.
 EOT
 )"
+# Payload cwd is authoritative when present; environment/cwd are fallbacks.
+PAYLOAD="$(cat)"
+REPO_CWD="$(printf '%s' "$PAYLOAD" | jq -r '.cwd // empty' 2>/dev/null || true)"
+REPO_CWD="${REPO_CWD:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+if [[ -f "$REPO_CWD/AGENTS.md" ]]; then
+  RULES="$(RULES_TEXT="$RULES" python3 - "$REPO_CWD/AGENTS.md" <<'PYCODE'
+import os, sys
+from pathlib import Path
+try:
+    agents = Path(sys.argv[1]).read_text(encoding="utf-8")
+except (OSError, UnicodeError):
+    agents = ""
+# Exact content match, never trust a repository name or marker alone.
+parts = os.environ["RULES_TEXT"].split("\n\n")
+for part in parts:
+    if part.strip() and part.strip() in agents:
+        print("Xem AGENTS.md mục Phạm vi và vai trò / Luật dữ liệu chung.")
+    else:
+        print(part)
+    print()
+PYCODE
+)"
+fi
 TEXT="POLICY hybrid-hands - KHUÔN BRIEF (bắt buộc khi gọi Agent với hybrid-hands:hand và khi viết brief cho hand-ext; điền đủ các mục, ngắn gọn):
 ${BRIEF}
 ${RULES}

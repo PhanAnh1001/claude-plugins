@@ -127,10 +127,13 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
     session_flag = ["--resume", uuid] if resume else ["--session-id", uuid]
     from .config import claude_account
     config_dir = config_dir or claude_account(cfg, account)["config_dir"]
+    # The primary login uses ~/.claude.json only while CLAUDE_CONFIG_DIR is unset.
+    env = ({} if Path(config_dir).expanduser().resolve() == (Path.home() / ".claude").resolve()
+           else {"CLAUDE_CONFIG_DIR": config_dir})
     return (["claude", *session_flag, "-n", name, *argv,
              "--model", model or C.CLAUDE_MODEL_DEFAULT,
              "--effort", effort or C.CLAUDE_EFFORT_DEFAULT, prompt],
-            {"CLAUDE_CONFIG_DIR": config_dir})
+            env)
 
 
 def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
@@ -144,8 +147,11 @@ def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
     prelude = ""
     if provider == C.PROVIDER_CODEX:
         prelude = f"{shlex.join(codex_trust.prelude_argv(cfg.codex_home, workdir))} && "
+    unset = (C.CHILD_SESSION_ENV,)
+    if provider == C.PROVIDER_CLAUDE:
+        unset += ("CLAUDE_CONFIG_DIR",)
     return screen.start_cmd(session_screen(name), argv, workdir, env,
-                            unset=(C.CHILD_SESSION_ENV,), prelude=prelude)
+                            unset=unset, prelude=prelude)
 
 
 def watch_cmd(cfg: SideConfig, name: str) -> list[str]:

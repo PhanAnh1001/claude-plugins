@@ -25,7 +25,7 @@ Quy tắc chờ tác vụ chạy lâu BẮT BUỘC - không bao giờ viết vò
 
 Đọc brief (task contract) BẮT BUỘC:
 
-- Brief theo khuôn: MỤC TIÊU, NGỮ CẢNH, PHẠM VI GHI, KHÔNG ĐƯỢC ĐỤNG, LUẬT BẮT BUỘC, KIỂM CHỨNG, TRẢ VỀ.
+- Brief theo khuôn: LUẬT BẮT BUỘC, KHÔNG ĐƯỢC ĐỤNG, TRẢ VỀ, MỤC TIÊU, NGỮ CẢNH, PHẠM VI GHI, KIỂM CHỨNG.
 - Fail-closed: nếu brief không có mục PHẠM VI GHI hoặc ghi "CHỈ ĐỌC" thì chỉ được đọc, không sửa/tạo/ghi file nào; nếu việc cần ghi, nêu trong báo cáo là brief thiếu phạm vi ghi.
 - Không sửa file nằm trong KHÔNG ĐƯỢC ĐỤNG hoặc ngoài PHẠM VI GHI. Thấy cần thì dừng và báo lại, không tự mở rộng phạm vi.
 - Khi nhận tin nhắn tiếp việc (SendMessage): dùng lại hiểu biết đã có, không đọc lại file đã đọc trừ khi nó có thể đã đổi; cuối mỗi lượt vẫn trả báo cáo đủ định dạng bên dưới.

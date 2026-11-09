@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import subprocess
 import unittest
+import tempfile
 from pathlib import Path
 
 HYBRID_HANDS = Path(__file__).resolve().parents[1]
@@ -14,10 +15,11 @@ REPORT = HYBRID_HANDS / "docs" / "2026-11-06-brain-token-cost.md"
 
 
 class BrainContextPolicyTest(unittest.TestCase):
-    def _session_start_context(self) -> str:
+    def _session_start_context(self, cwd: str | None = None) -> str:
         out = subprocess.run(
             ["bash", str(SESSION_START)],
             env={"CLAUDE_PLUGIN_ROOT": str(PLUGIN), "PATH": "/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin"},
+            input=json.dumps({"cwd": cwd}) if cwd else "{}",
             capture_output=True,
             text=True,
             check=True,
@@ -47,14 +49,23 @@ class BrainContextPolicyTest(unittest.TestCase):
 
     def test_inject_policy_has_short_form_and_stays_short(self) -> None:
         text = subprocess.run(["bash", str(INJECT)], capture_output=True, text=True, check=True).stdout
-        for marker in ("phiên brain mới", "tự tra cứu", "không hỏi trạng thái",
-                       "Test tối thiểu", "tạo hứng thú", "bảo mật"):
+        for marker in ("SessionStart", "AGENTS.md", "ext_hand.order", "không tự tra cứu", ".env/token/credential"):
             self.assertIn(marker, text)
-        for policy in (text, self._session_start_context()):
-            for marker in ("MỖI SOL", "chờ đủ", "Cùng file", "Exit 8", "doctor", "ext_hand.order", "mặc định 4"):
-                self.assertIn(marker, policy)
-        # bắn mỗi prompt nên phải ngắn
-        self.assertLess(len(text), 1800)
+        self.assertLessEqual(len(text), 300)
+        with tempfile.TemporaryDirectory() as directory:
+            full = self._session_start_context(directory)
+            self.assertIn("hand-ext pick --json", full)
+            self.assertIn("LUẬT NGỮ CẢNH BRAIN", full)
+            # A marker/name alone cannot remove policy; exact matching content can.
+            agents = Path(directory) / "AGENTS.md"
+            agents.write_text("# Hướng dẫn sống cho repo claude-plugins", encoding="utf-8")
+            self.assertEqual(full, self._session_start_context(directory))
+            part = next(p for p in full.split("\n\n") if p.startswith("Mặc định `ext_hand.order`"))
+            agents.write_text(part, encoding="utf-8")
+            compact = self._session_start_context(directory)
+            self.assertNotIn(part, compact)
+            self.assertIn("Xem AGENTS.md", compact)
+            self.assertIn("LUẬT TEST TỐI THIỂU", compact)
 
     def test_report_exists_and_is_anonymous(self) -> None:
         text = REPORT.read_text(encoding="utf-8")

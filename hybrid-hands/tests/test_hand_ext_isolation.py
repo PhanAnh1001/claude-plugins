@@ -340,7 +340,6 @@ class PolicyTextTest(HandExtTestCase):
     def test_data_rule_is_present_in_policy_surfaces(self) -> None:
         files = [
             PLUGIN / "scripts" / "session-start-policy.sh",
-            PLUGIN / "scripts" / "inject-policy.sh",
             PLUGIN / "skills" / "ext-hand" / "SKILL.md",
             PLUGIN / "templates" / "ext-hand-preamble.md",
             HYBRID_HANDS / "README.md",
@@ -348,6 +347,8 @@ class PolicyTextTest(HandExtTestCase):
         for path in files:
             self.assertIn("dữ liệu khách hàng", path.read_text(encoding="utf-8"), str(path))
             self.assertIn("hand Claude", path.read_text(encoding="utf-8"), str(path))
+        inject = (PLUGIN / "scripts" / "inject-policy.sh").read_text(encoding="utf-8")
+        self.assertIn("xem SessionStart và AGENTS.md", inject)
 
 
 if __name__ == "__main__":

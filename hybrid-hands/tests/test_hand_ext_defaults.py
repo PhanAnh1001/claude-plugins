@@ -29,7 +29,11 @@ class DefaultsTest(HandExtTestCase):
                 "v3": {"config_dir": str(root / "third"), "max_day_pct": 2}}}}))
             cfg = load_config(known_root=root, config_file=config)
             self.assertEqual(cfg.options("codex")["effort"], "low")
-            self.assertEqual(cfg.options("dsh")["effort"], "high")
+            self.assertEqual((cfg.options("dsh")["model"], cfg.options("dsh")["effort"]),
+                             ("deepseek-v4.1-flash", "off"))
+            from hand_ext.backends import dsh
+            self.assertEqual(dsh.DEFAULT_EFFORT, "off")
+            self.assertIn("              off: null\n", dsh.TEMPLATE_PATCH.read_text())
             for alias, canonical in (("claude-main", "claude-v1"), ("claude", "claude-v2")):
                 self.assertEqual(cfg.options(alias), cfg.options(canonical))
             for name in ("claude-v1", "claude-v2", "claude-v3"):

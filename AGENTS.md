@@ -2,13 +2,31 @@
 
 ## Phạm vi và vai trò
 
-**Phiên chính Sol:** Người dùng có thể mở Sol high qua `side-session start --main`; Sol kiêm vai Opus + lead tech, L2/L3 người dùng duyệt. Luật delegate và dữ liệu giữ nguyên.
+**Phiên chính:** mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… bằng `side-session start --main --provider claude --account v2` hoặc Sol high qua `side-session start --main`. Sol chính kiêm vai Opus + lead tech, L2/L3 người dùng duyệt. Phiên phụ mặc định Sol high, chọn Claude bằng `--provider claude --account v1|v2|v…`. Đổi model/account mở phiên mới từ bàn giao, không `/model` giữa phiên. Luật delegate và dữ liệu giữ nguyên.
 
 Đọc brief, AGENTS.md/CLAUDE.md ở thư mục áp dụng trước khi sửa. Brief thiếu PHẠM VI GHI hoặc ghi CHỈ ĐỌC thì chỉ đọc; không mở rộng phạm vi. Giữ thay đổi chưa commit của người khác; cùng file/phụ thuộc phải tuần tự. Không nạp luật của `dev-workflow/` cho công việc hybrid-hands không liên quan.
 
-Sol là lead tech/QA: giao code/test/tài liệu L0/L1 qua `hand-ext run --backend auto` theo `ext_hand.order`, review code hand mình giao; chỉ tự làm khi hand-ext lỗi (ghi lý do/mã thoát) hoặc việc cần secret/dữ liệu khách hàng. Exit 7 chạy doctor trước, chỉ chuyển codex medium khi xác nhận dsh hết quota; exit 8 chờ slot. Opus review spec/plan/giải pháp và đọc bàn giao. Hand nhận brief trực tiếp là executor, không phải Sol: làm trực tiếp phần được giao, không gọi hand-ext, không mở side-session, không recursion hay giao tiếp phiên khác. Chỉ Sol có quyền chia hand theo brief/policy; hand không tự review việc hand khác.
+Sol là lead tech/QA: giao code/test/tài liệu L0/L1 qua `hand-ext run --backend auto` theo `ext_hand.order`, review code hand mình giao; chỉ tự làm khi hand-ext lỗi (ghi lý do/mã thoát) hoặc việc cần secret/dữ liệu khách hàng. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; exit 8 chờ slot. Review lỗi thì giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp trong order. Opus review spec/plan/giải pháp và đọc bàn giao. Hand nhận brief trực tiếp là executor, không phải Sol: làm trực tiếp phần được giao, không gọi hand-ext, không mở side-session, không recursion hay giao tiếp phiên khác. Chỉ Sol có quyền chia hand theo brief/policy; hand không tự review việc hand khác.
 
-Ngoại lệ A (0.27.0) đã được người dùng cho phép: Sol trên Paseo dùng native subagent khi backend thực theo `ext_hand.order` là codex `gpt-6.1-sol` low và tools hỗ trợ model/effort riêng. Dùng `fork_turns=none`, full brief và luật dữ liệu chép nguyên văn; hand executor không recursion/giao tiếp phiên khác. Sol giữ tổng native + hand-ext đang chạy ≤ `ext_hand.max_parallel` (1..4), cùng file/phụ thuộc tuần tự; code/slots hand-ext không đổi. Ngoại lệ không áp cho Opus/Claude/dsh hay executor, không bật parallel-subagents/sửa config. Local Codex CLI 0.166.0 + Paseo CLI 0.15.0 đã được Sol probe: child completed đúng parent, timeline 3 dòng assistant. Native completed giữ tab/history, không archive top-level/parent; báo cáo/usage qua native/Paseo, không có run/meta/report/token ledger hand-ext, thiếu hiện `?`, không bịa quota. Thiếu native/capability trước spawn hoặc repo chọn backend khác thì fallback `hand-ext run --backend auto`; unknown sau spawn không tạo duplicate writer. Hand-ext shell không tự hiện hội thoại trên Paseo. A đạt nên B (agent ngang hàng/archive) chưa triển khai.
+Ngoại lệ A mở rộng — chọn hand theo tài khoản:
+
+Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
+
+Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` chỉ lấy từ defaults plugin và cấu hình repo, không có nguồn user config; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+
+| Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
+|---|---|---|---|---|---|
+| Sol | hand-ext | native Codex | hand-ext | hand-ext | hand-ext claude-v1 |
+| Opus v1 | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext | Native khi preflight v1 đủ; thiếu thì hand-ext claude-v1 |
+| Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
+
+Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
+Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
+
+Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
+
 
 Xong một tính năng (test hẹp xanh, đã review) thì Opus/Sol điều phối commit, push nhánh rồi merge ngay vào `main` và push `main` (người dùng chốt 08/11/2026); hand executor không commit/merge. Ngoài trường hợp đó không commit/push mặc định; không chạy lệnh phá hoại. Không sửa `.claude/hybrid-hands.json`, `~/.codex-hand/config.toml`, `~/.claude/settings.json`, `installed_plugins.json`, credential/settings hay bật parallel-subagents trong công việc usage panel. Không xoá/di chuyển/dọn `output/llm/`. Shell dùng cwd/workdir hoặc đường dẫn tuyệt đối, không `cd <dir> && ...`. Không vòng chờ vô hạn; kết thúc tiến trình nền mình tạo trước báo cáo. Không tải/mua/gọi API trả phí hay tạo/dùng API key nếu brief không giao rõ và có trần chi phí.
 

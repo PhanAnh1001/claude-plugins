@@ -101,27 +101,15 @@ def load_config(cwd: Path) -> SideConfig:
 
 
 def default_claude_accounts() -> dict:
-    # Adapter until hand_ext exports the registry: prefer its canonical defaults.
+    from copy import deepcopy
     from hand_ext.constants import DEFAULTS
-    import copy
-    return copy.deepcopy(DEFAULTS.get("claude_accounts", {
-        "v1": {"config_dir": "~/.claude", "max_day_pct": 5},
-        "v2": {"config_dir": "~/.claude-hand"},
-    }))
+    return deepcopy(DEFAULTS["claude_accounts"])
 
 
 def load_claude_accounts(repo: Path) -> dict:
-    """Adapter for ext_hand.claude_accounts, using hand_ext's config resolution."""
-    from hand_ext.config import _read_section
-    accounts = default_claude_accounts()
-    overrides = _read_section(repo).get("claude_accounts", {})
-    if not isinstance(overrides, dict):
-        raise ValueError("ext_hand.claude_accounts phải là object")
-    for name, opts in overrides.items():
-        if not isinstance(opts, dict):
-            raise ValueError(f"claude_accounts.{name} phải là object")
-        accounts.setdefault(name, {}).update(opts)
-    return accounts
+    """Use the canonical repo/default registry, including legacy backend overrides."""
+    from hand_ext.config import load_config as load_hand_config
+    return load_hand_config(known_root=repo).claude_accounts
 
 
 def claude_account(cfg: SideConfig, account: str) -> dict:

@@ -84,10 +84,12 @@ class CodexArgvTest(unittest.TestCase):
         self.assertNotIn(C.HAND_EXT_PLACEHOLDER, prompt)
         for required in ("BẮT BUỘC giao code/test/tài liệu L0/L1", "ext_hand.order",
                          "run --backend auto", "MỖI SOL", "chạy nền", "chờ đủ", "Cùng file", "Exit 8", "Sol chỉ tự viết", "hand-ext thoát lỗi",
-                         "lý do và mã thoát", "doctor` trước", "không giả định dsh hết quota"):
+                         "lý do và mã thoát", "Exit 7 khi mọi backend trong order không dùng được",
+                         "chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết"):
             self.assertIn(required, prompt)
         self.assertNotIn("mặc định dsh", prompt)
-        self.assertLess(prompt.index("doctor` trước"), prompt.index("codex effort medium"))
+        self.assertNotIn("codex effort medium", prompt)
+        self.assertNotIn("--effort medium", prompt)
 
     def test_codex_context_does_not_cap_cumulative_usage(self):
         self.assertIn("model_auto_compact_token_limit=272000", codex_argv(self._cfg(""), "/w", "hi"))
