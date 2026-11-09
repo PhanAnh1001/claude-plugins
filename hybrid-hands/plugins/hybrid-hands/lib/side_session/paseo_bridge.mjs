@@ -79,6 +79,47 @@ async function privateWorkspace(client, request, agent) {
   return false;
 }
 
+// Read-only complete directory snapshot; never expose provider details.
+async function readAgentArchiveStates(client, key) {
+  if (typeof client.fetchAgents !== "function") {
+    fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+    return;
+  }
+  const agents = [];
+  const ids = new Set();
+  const cursors = new Set();
+  let cursor;
+  for (let page = 0; page < DIRECTORY_MAX_PAGES; page++) {
+    const payload = await client.fetchAgents({
+      filter: { includeArchived: true },
+      sort: [{ key: "created_at", direction: "desc" }],
+      page: { limit: DIRECTORY_PAGE_LIMIT, ...(cursor ? { cursor } : {}) },
+    });
+    if (payload?.error != null || !Array.isArray(payload?.entries)
+        || !payload.pageInfo || !Object.hasOwn(payload.pageInfo, "nextCursor")) break;
+    for (const entry of payload.entries) {
+      const agent = entry?.agent;
+      if (!agent || !nonemptyId(agent.id) || !nonemptyId(agent.workspaceId)
+          || (agent.archivedAt != null && typeof agent.archivedAt !== "string")
+          || ids.has(agent.id)) {
+        fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+        return;
+      }
+      ids.add(agent.id);
+      agents.push({ agentId: agent.id, workspaceId: agent.workspaceId,
+        archivedAt: agent.archivedAt ?? null });
+    }
+    cursor = payload.pageInfo.nextCursor;
+    if (cursor === null) {
+      emit({ ok: true, agents, targetKey: key });
+      return;
+    }
+    if (!nonemptyId(cursor) || cursors.has(cursor)) break;
+    cursors.add(cursor);
+  }
+  fail("WORKSPACE_DIRECTORY_UNCONFIRMED");
+}
+
 async function archivePrivateWorkspace(client, workspaceId) {
   const result = await client.archiveWorkspace(workspaceId);
   if (result?.error != null) {
@@ -320,6 +361,10 @@ async function main() {
     timeout: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,
   });
   try {
+    if (request.command === "agent-archive-states") {
+      await readAgentArchiveStates(client, key);
+      return;
+    }
     if (request.command === "subagents" || request.command === "subagent-timeline") {
       await readNativeSubagents(client, request, key);
       return;

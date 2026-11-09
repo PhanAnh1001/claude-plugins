@@ -184,6 +184,39 @@ archiveWorkspace:async(id)=>{record(id);return RESULT}});'''.replace("OTHER", st
         self.assertEqual(self.calls.read_text().splitlines(),
                          ["inspect:private", "restore:private:1", "inspect:private"])
 
+    def test_agent_archive_states_directory(self):
+        client = self.root / "dist/utils/client.js"
+        first = '{entries:[{agent:{id:"one",workspaceId:"w1",archivedAt:null}}],pageInfo:{nextCursor:"next"}}'
+        last = '{entries:[{agent:{id:"two",workspaceId:"w2",archivedAt:"2026-11-09T00:00:00Z"}}],pageInfo:{nextCursor:null}}'
+        for second, error in [
+            (last, None),
+            ('{error:"PRIVATE_ERROR",entries:[],pageInfo:{nextCursor:null}}', "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+            ('{entries:[],pageInfo:{nextCursor:"next"}}', "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+            (first, "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+            ('{entries:[{agent:{id:"two",workspaceId:"w2",archivedAt:7}}],pageInfo:{nextCursor:null}}', "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+            ('{entries:[],pageInfo:{}}', "WORKSPACE_DIRECTORY_UNCONFIRMED"),
+        ]:
+            self.calls.write_text("")
+            client.write_text('''import {appendFileSync} from "node:fs";
+let page=0;
+export const connectToDaemon=async()=>({close:async()=>{},fetchAgents:async(request)=>{
+appendFileSync(new URL("../../calls",import.meta.url),JSON.stringify(request)+"\\n");
+return page++===0?FIRST:SECOND;}});'''.replace("FIRST", first).replace("SECOND", second))
+            if error:
+                with self.assertRaises(paseo.PaseoError) as caught:
+                    paseo._call("agent-archive-states", timeout=3)
+                self.assertEqual(caught.exception.code, error)
+            else:
+                result = paseo._call("agent-archive-states", timeout=3)
+                self.assertEqual(result["agents"], [
+                    {"agentId": "one", "workspaceId": "w1", "archivedAt": None},
+                    {"agentId": "two", "workspaceId": "w2", "archivedAt": "2026-11-09T00:00:00Z"}])
+                self.assertEqual(result["targetKey"], "home:/fake")
+            calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+            self.assertEqual(len(calls), 2)
+            self.assertEqual([call["filter"] for call in calls], [{"includeArchived": True}] * 2)
+            self.assertEqual([call["page"] for call in calls], [{"limit": 200}, {"limit": 200, "cursor": "next"}])
+
     def test_safe_failures(self):
         for parent, child, code in [("parent", "other", "SUBAGENT_NOT_FOUND"), ("error", "child", "PASEO_ERROR"), ("timeline-error", "child", "DAEMON_FAILED"), (" ", "child", "INVALID_AGENT_ID"), ("parent", "", "INVALID_AGENT_ID")]:
             with self.subTest(parent=parent, child=child), self.assertRaises(paseo.PaseoError) as caught:

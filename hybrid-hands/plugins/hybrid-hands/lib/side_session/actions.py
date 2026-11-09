@@ -419,7 +419,7 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
     """
     revived, failure = paseo.revive(st)
     if failure:
-        print(f"{st.name}: warning: .done cleanup lỗi ({failure}); giữ state và thử lại")
+        print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
         return
     if not revived:
         return
@@ -433,7 +433,7 @@ def _rearchive_revived(cfg: SideConfig, st: state.SessionState) -> None:
     """Hide the private workspace once a revived agent is archived again."""
     archived, failure = paseo.rearchive(st)
     if failure:
-        print(f"{st.name}: warning: .done cleanup lỗi ({failure}); giữ state và thử lại")
+        print(f"{st.name}: warning: workspace reconcile lỗi ({failure}); giữ state và thử lại")
         return
     if not archived:
         return
@@ -456,6 +456,17 @@ def _reconcile_done(cfg: SideConfig, st: state.SessionState) -> None:
 
 def ls(cfg: SideConfig, _a) -> int:
     sessions = state.load_all(cfg.state_dir)
+    candidates = [st for st in sessions if st.role != "main"
+                  and st.status == C.STATUS_DONE and st.provider == C.PROVIDER_CODEX
+                  and st.transport == C.TRANSPORT_PASEO
+                  and (st.paseo_workspace_archived or st.paseo_revived)]
+    candidate_names = {st.name for st in candidates}
+    archive_states = {}
+    if candidates:
+        try:
+            archive_states = paseo.agent_archive_states(candidates)
+        except paseo.PaseoError as exc:
+            print(f"side-session: warning: workspace reconcile lỗi ({exc.code}); giữ state và thử lại")
     needs_screen = any(s.transport != C.TRANSPORT_PASEO
                        and s.status in C.ACTIVE_STATUSES for s in sessions)
     alive = screen.screen_names() if needs_screen else set()
@@ -473,8 +484,10 @@ def ls(cfg: SideConfig, _a) -> int:
                 or (st.status == C.STATUS_DONE and st.transport == C.TRANSPORT_PASEO
                     and not st.paseo_workspace_archived)):
             _finish_codex(cfg, st)
-        else:
-            _reconcile_done(cfg, st)
+        elif st.name in candidate_names and st.paseo_agent_id in archive_states:
+            archived = archive_states[st.paseo_agent_id]
+            if (st.paseo_revived and archived) or (not st.paseo_revived and not archived):
+                _reconcile_done(cfg, st)
         if st.transport == C.TRANSPORT_PASEO:
             # Pending .done retains its slot even if archive partially closed the agent.
             live = ("unknown" if done and st.provider == C.PROVIDER_CODEX

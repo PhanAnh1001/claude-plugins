@@ -189,6 +189,40 @@ def finish(st: state.SessionState) -> str | None:
     return None
 
 
+def agent_archive_states(candidates: list[state.SessionState]) -> dict[str, bool]:
+    """Validate one complete directory snapshot before selecting any reconciliation."""
+    targets = {st.paseo_target for st in candidates if st.paseo_target}
+    if len(targets) > 1:
+        raise PaseoError("TARGET_CHANGED")
+    result = _call("agent-archive-states", {"expectedTargetKey": next(iter(targets), "")},
+                   timeout=C.PASEO_STOP_TIMEOUT_S)
+    target = result.get("targetKey")
+    entries = result.get("agents")
+    if not isinstance(target, str) or not target.strip() or not isinstance(entries, list):
+        raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+    if targets and target not in targets:
+        raise PaseoError("TARGET_CHANGED")
+    directory = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+        aid, wid = entry.get("agentId"), entry.get("workspaceId")
+        if not isinstance(aid, str) or not aid.strip() \
+                or not isinstance(wid, str) or not wid.strip() \
+                or "archivedAt" not in entry \
+                or (entry["archivedAt"] is not None and not isinstance(entry["archivedAt"], str)) \
+                or aid in directory:
+            raise PaseoError("PASEO_BRIDGE_PROTOCOL")
+        directory[aid] = entry
+    for st in candidates:
+        entry = directory.get(st.paseo_agent_id)
+        if entry is None:
+            raise PaseoError("AGENT_NOT_FOUND")
+        if not st.paseo_workspace_id or entry["workspaceId"] != st.paseo_workspace_id:
+            raise PaseoError("WORKSPACE_ID_MISMATCH")
+    return {aid: entry["archivedAt"] is not None for aid, entry in directory.items()}
+
+
 def revive(st: state.SessionState) -> tuple[bool | None, str | None]:
     """Reopen the private workspace of an agent the user already unarchived.
 

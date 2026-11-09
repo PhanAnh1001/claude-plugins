@@ -56,7 +56,13 @@ của workspace, nên workspace dùng chung không bao giờ bị archive.
 ## Revive và rearchive sau done
 
 Trạng thái done của phiên Paseo lưu `paseo_workspace_archived` và `paseo_revived`.
-`side-session ls` và watch dùng chung một bước đối soát chỉ khi side-session chạy:
+`side-session ls` đọc archive state của toàn bộ agent bằng một bridge invocation
+`agent-archive-states` (`fetchAgents(includeArchived:true)`, có phân trang) trước khi
+đối soát. Chỉ gọi revive cho agent đã unarchive có workspace flag archived, hoặc
+rearchive cho phiên revived có agent đã archive. Snapshot thiếu/lỗi, lệch target hay
+workspace thì bỏ toàn bộ đối soát lượt đó với một warning, giữ nguyên state.
+Watch một phiên giữ flow riêng hiện có, không đọc directory theo lô.
+Cả hai chỉ đối soát khi side-session chạy:
 
 1. `status=done`, chưa revived, workspace đã archive: bridge `revive` fetch đúng
    agent id và workspace đã lưu trước mọi mutation. Agent còn `archivedAt != null`
@@ -74,7 +80,7 @@ Trạng thái done của phiên Paseo lưu `paseo_workspace_archived` và `paseo
    `cancelAgent`/`archiveAgent`. Thành công: `archived=true, revived=false`, lưu state.
    Agent chưa archived thì không mutation.
 
-Lỗi bridge/identity giữ nguyên state và in một dòng warning theo dạng `.done cleanup`;
+Lỗi bridge/identity giữ nguyên state và in một dòng warning theo dạng `workspace reconcile lỗi`;
 lần ls/watch sau retry. `status` vẫn `done` nên slot/cap/start không đổi. Mỗi lần gọi
 `ls`/watch chỉ finish hoặc đối soát một bước; phiên vừa finish trong vòng đó không
 revive ngay, và phiên vừa rearchive không revive/finish lại trong cùng vòng.
