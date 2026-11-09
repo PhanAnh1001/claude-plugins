@@ -2,6 +2,7 @@
 import {createHash} from 'node:crypto';
 import {readFile, stat} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
+import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 const die = code => { throw Object.assign(new Error(code), {safeCode: code}); };
 const check = (value, code) => { if (!value) die(code); };
@@ -19,6 +20,39 @@ export async function validatePackage(root) {
 async function directory(path) {
   check(typeof path === 'string' && resolve(path) === path, 'CWD_INVALID');
   check(await stat(path).then(x => x.isDirectory(), () => false), 'CWD_MISSING');
+}
+// Resolve only from the pinned CLI dependency tree; never download or substitute schemas.
+export async function loadSchemas(root) {
+  await validatePackage(root);
+  const require = createRequire(join(root, 'package.json'));
+  return import(pathToFileURL(require.resolve('@getpaseo/protocol/messages')));
+}
+const schemaNames = {workspace:'WorkspaceCreateRequestSchema', create:'AgentCreateRequestSchema',
+  send:'SendAgentMessageRequestSchema', 'validate-workspace-id':'WorkspaceCreateRequestSchema'};
+export function payload(r) {
+  const requestId = r.requestKey ?? r.messageId ?? 'preflight';
+  if (r.command === 'workspace') return {type:'workspace.create.request', requestId,
+    source:{kind:'directory', path:r.cwd, projectId:r.projectId}, workspaceId:r.workspaceId,
+    callerAgentId:r.parentAgentId, idempotencyKey:r.workspaceKey};
+  if (r.command === 'create') return {type:'agent.create.request', requestId,
+    agentId:r.agentId, workspaceId:r.workspaceId, callerAgentId:r.parentAgentId,
+    idempotencyKey:r.agentKey, env:r.gatewayEnv, config:{provider:r.providerId, cwd:r.cwd,
+      ...(r.model ? {model:r.model} : {}), ...(r.effort ? {thinkingOptionId:r.effort} : {})}};
+  if (r.command === 'send') return {type:'send_agent_message_request', requestId,
+    agentId:r.agentId, text:r.brief, messageId:r.messageId, sourceAgentId:r.parentAgentId,
+    activeTurnBehavior:'steer'};
+}
+export function preflight(r, schemas) {
+  const name = schemaNames[r.command];
+  if (!name) return null;
+  const schema = schemas?.[name];
+  check(typeof schema?.safeParse === 'function', 'SCHEMA_UNAVAILABLE');
+  const result = r.command === 'validate-workspace-id'
+    ? schema.shape.workspaceId.safeParse(r.workspaceId) : schema.safeParse(payload(r));
+  if (result.success) return null;
+  return {ok:false, code:'REQUEST_SCHEMA_REJECTED', notSent:true, schema:name,
+    issues:result.error.issues.map(x => ({path:r.command === 'validate-workspace-id'
+      ? ['workspaceId', ...x.path] : x.path, code:x.code}))};
 }
 // Public directory contains active workspaces. Missing archived metadata fails closed.
 async function workspace(client, id) {
@@ -61,8 +95,11 @@ async function exact(client, r) {
 const methods = ['fetchAgent','fetchWorkspaces','listAvailableProviders','createWorkspace','createAgent',
   'sendMessage','fetchAgentTimeline','cancelAgent','archiveAgent','inspectWorkspaceRecovery','restoreWorkspace','refreshAgent'];
 // Injectable entry exercises the same request shapes and identity gates as production.
-export async function handleRequest(client, r, target) {
+export async function handleRequest(client, r, target, schemas) {
   try {
+    const rejected = preflight(r, schemas);
+    if (rejected) return rejected;
+    const wire = payload(r);
     const fingerprint = targetFingerprint(target);
     check(r.targetKey === fingerprint, 'TARGET_MISMATCH');
     if (r.command === 'probe') {
@@ -81,8 +118,7 @@ export async function handleRequest(client, r, target) {
     } else if (r.command === 'workspace') {
       const before = await workspace(client, r.workspaceId);
       check(!before, 'WORKSPACE_ALREADY_EXISTS');
-      await client.createWorkspace({source: {kind:'directory', path:r.cwd, projectId:r.projectId},
-        workspaceId:r.workspaceId, callerAgentId:r.parentAgentId, idempotencyKey:r.workspaceKey});
+      await client.createWorkspace(wire);
       const w = await workspace(client, r.workspaceId);
       check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
     } else if (r.command === 'create') {
@@ -91,9 +127,8 @@ export async function handleRequest(client, r, target) {
       check(r.agentId !== r.parentAgentId, 'CHILD_ID_INVALID');
       const providers = await client.listAvailableProviders();
       check(providers?.providers?.some(p => p.provider === r.providerId && p.available && !p.error), 'PROVIDER_UNAVAILABLE');
-      await client.createAgent({agentId:r.agentId, workspaceId:r.workspaceId, cwd:r.cwd,
-        callerAgentId:r.parentAgentId, provider:r.providerId, idempotencyKey:r.agentKey,
-        ...(r.model ? {model:r.model} : {}), ...(r.effort ? {thinkingOptionId:r.effort} : {}), env:r.gatewayEnv});
+      const {type, ...options} = wire;
+      await client.createAgent(options);
       await exact(client, r);
     } else if (r.command === 'reconcile') {
       const w = await workspace(client, r.workspaceId);
@@ -123,8 +158,7 @@ export async function handleRequest(client, r, target) {
       else if (r.command === 'send') {
         check(r.admitted === true && r.quiescent === true && !a.archivedAt, 'ADMISSION_REQUIRED');
         check(typeof r.messageId === 'string' && r.messageId.length > 0, 'MESSAGE_ID_REQUIRED');
-        await client.sendMessage(r.agentId, r.brief, {messageId:r.messageId, sourceAgentId:r.parentAgentId,
-          activeTurnBehavior:'steer'});
+        await client.sendMessage(wire.agentId, wire.text, wire);
       } else if (r.command === 'cancel') await client.cancelAgent(r.agentId);
       else if (r.command === 'archive') {
         check(r.reviewed === true && r.quiescent === true, 'REVIEW_REQUIRED');
@@ -162,6 +196,12 @@ async function main() {
     let input = '';
     for await (const chunk of process.stdin) { input += chunk; check(input.length < 2_000_000, 'REQUEST_TOO_LARGE'); }
     const r = JSON.parse(input);
+    const schemas = await loadSchemas(root);
+    const rejected = preflight(r, schemas);
+    if (rejected || r.command === 'validate-workspace-id') {
+      process.stdout.write(JSON.stringify(rejected ?? {ok:true})+'\n');
+      return;
+    }
     const {selectDaemonTarget} = await import(pathToFileURL(join(root,'dist/utils/daemon-target.js')));
     const {connectToDaemon} = await import(pathToFileURL(join(root,'dist/utils/client.js')));
     check(r.target && ['instance','endpoint'].includes(r.target.kind), 'TARGET_INVALID');
@@ -169,7 +209,7 @@ async function main() {
     const target = selectDaemonTarget(options, process.env, false);
     check(targetFingerprint(target) === r.targetKey, 'TARGET_MISMATCH');
     const client = await connectToDaemon({target, timeout:3000});
-    try { process.stdout.write(JSON.stringify(await handleRequest(client,r,target))+'\n'); }
+    try { process.stdout.write(JSON.stringify(await handleRequest(client,r,target,schemas))+'\n'); }
     finally { await client.close(); }
   } catch { process.stdout.write(JSON.stringify({ok:false,code:'BRIDGE_UNAVAILABLE'})+'\n'); }
 }

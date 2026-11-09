@@ -23,7 +23,8 @@ const client={
     state.workspaces[options.workspaceId]={id:options.workspaceId,projectId:options.source.projectId,
       workspaceDirectory:options.source.path};
   });return {workspace:state.workspaces[options.workspaceId]};},
-  async createAgent(options){await mutate('createAgent',options,()=>{
+  async createAgent(wire){
+    const options={...wire,...wire.config};await mutate('createAgent',options,()=>{
     state.agents[options.agentId]={id:options.agentId,provider:options.provider,cwd:options.cwd,
       workspaceId:options.workspaceId,model:options.model,thinkingOptionId:options.thinkingOptionId,labels:{'paseo.parent-agent-id':options.callerAgentId},archivedAt:null};
   });return state.agents[options.agentId];},
@@ -39,6 +40,15 @@ const client={
   async restoreWorkspace(workspaceId){await mutate('restoreWorkspace',{workspaceId},()=>{state.workspaces[workspaceId].archivedAt=null;});},
   async refreshAgent(agentId){await mutate('refreshAgent',{agentId},()=>{state.agents[agentId].archivedAt=null;});},
 };
-const result=await handleRequest(client,request,state.target);
+// Explicit injectable boundary: production loads official schemas, this fake checks
+// the wire contract fields used by the synthetic lifecycle.
+const schema = required => ({safeParse(value) {
+  const issues=required.filter(k=>typeof value[k] !== 'string').map(k=>({path:[k],code:'invalid_type'}));
+  return issues.length ? {success:false,error:{issues}} : {success:true,data:value};
+}});
+const schemas={WorkspaceCreateRequestSchema:schema(['requestId','workspaceId']),
+  AgentCreateRequestSchema:{safeParse(value) {return schema(['provider','cwd']).safeParse(value.config??{});}},
+  SendAgentMessageRequestSchema:schema(['requestId','text','agentId'])};
+const result=await handleRequest(client,request,state.target,schemas);
 await save();
 process.stdout.write(JSON.stringify(result));

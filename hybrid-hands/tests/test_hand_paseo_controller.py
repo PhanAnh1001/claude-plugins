@@ -252,6 +252,66 @@ class ControllerTests(unittest.TestCase):
         na=Attempt(new.invocation_id,str(uuid.uuid4()),1,str(uuid.uuid4()))
         with self.assertRaises(AdmissionFull):always.admit(new,na,max_parallel=1)
 
+    def test_schema_failure_and_offline_recovery(self):
+        from hand_ext.paseo_recovery import recover
+        inv,a,sup,admission,completion=self.intent()
+        admission.admit(inv,a,max_parallel=1)
+        r=self.store.get(a.key)
+        r.attempt=replace(r.attempt,workspace_id='invalid-bound-id')
+        r.receipt['transport']={'pending':'workspace'}
+        self.store.compare_and_swap(a.key,r.revision,r)
+        proof=dict(ok=False,code='REQUEST_SCHEMA_REJECTED',notSent=True,
+                   schema='WorkspaceCreateRequestSchema',issues=[dict(path=['workspaceId'],code='invalid_format')])
+        before=self.store.get(a.key).to_dict()
+        validator=lambda _:proof
+        args=cli._parser().parse_args(['managed','recover','--cwd',str(self.repo),'--key',
+                                      f'{a.invocation_id}:{a.attempt_id}:1'])
+        with patch('hand_ext.paseo_recovery.recover',side_effect=lambda store,key,source,package,**kw:
+                   recover(store,key,source,package,validator=validator,**kw)), patch('sys.stdout',io.StringIO()):
+            self.assertEqual(cli.cmd_managed(self.cfg,args),0)
+        self.assertEqual(before,self.store.get(a.key).to_dict())
+        with self.assertRaises(StateConflict):
+            recover(self.store,a.key,self.root,None,apply=True,validator=validator)
+        with self.assertRaises(StateConflict):
+            recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _:dict(ok=True))
+        r=self.store.get(a.key);r.receipt['transport']['cancelPending']=False
+        r=self.store.compare_and_swap(a.key,r.revision,r)
+        with self.assertRaises(StateConflict):recover(self.store,a.key,self.repo,None,apply=True,validator=validator)
+        r.receipt['transport'].pop('cancelPending');self.store.compare_and_swap(a.key,r.revision,r)
+        r=self.store.get(a.key);r.receipt['transport']['workspaceId']='other-workspace'
+        r=self.store.compare_and_swap(a.key,r.revision,r);before=r.to_dict();pool=list(parallel.durable_reservations())
+        with self.assertRaisesRegex(StateConflict,'transport binding mismatch'):
+            recover(self.store,a.key,self.repo,None,apply=True,validator=validator)
+        self.assertEqual(before,self.store.get(a.key).to_dict());self.assertEqual(pool,list(parallel.durable_reservations()))
+        r.receipt['transport']['workspaceId']=r.attempt.workspace_id
+        self.store.compare_and_swap(a.key,r.revision,r);args.apply=True
+        with patch('hand_ext.paseo_recovery.recover',side_effect=lambda store,key,source,package,**kw:
+                   recover(store,key,source,package,validator=validator,**kw)), patch('sys.stdout',io.StringIO()):
+            self.assertEqual(cli.cmd_managed(self.cfg,args),0)
+            failed=self.store.get(a.key);self.assertEqual(cli.cmd_managed(self.cfg,args),0)
+        self.assertEqual(failed.to_dict(),self.store.get(a.key).to_dict())
+        self.assertEqual(failed.state,'failed');self.assertEqual(failed.outcome,dict(status='failed',backend_exit_code=1,
+            quiescent=True,provenance='pre_dispatch_schema',reason='invalid_bound_workspace_id'))
+        self.assertIsNone(failed.reservation);self.assertEqual(list(parallel.durable_reservations()),[])
+        self.assertEqual(failed.to_dict(),recover(self.store,a.key,self.repo,None,apply=True).to_dict())
+        # Rejected send may have an assigned message ID but no delivery or process.
+        inv,a,sup,admission,completion=self.intent();admission.admit(inv,a,max_parallel=1)
+        package=Path(__file__).parent/'fixtures/hand_paseo/transport/package'
+        proof=dict(proof,schema='SendAgentMessageRequestSchema')
+        transport=PaseoTransport(package.resolve(),{'kind':'instance','home':'/fake'},
+            client_factory=lambda *_:lambda _:proof,store=self.store)
+        r=self.store.get(a.key);r.receipt['transport']={'createConfirmed':True,'messageId':a.request_key}
+        self.store.compare_and_swap(a.key,r.revision,r)
+        result=transport._mutate(a.key,'send',brief='synthetic')
+        front=PaseoController(self.cfg,self.store,transport,completion=completion)
+        self.assertTrue(front._schema_failed(a.key,result,'send'))
+        failed=self.store.get(a.key)
+        self.assertIsNone(failed.receipt['transport']['pending']);self.assertEqual(failed.state,'failed')
+        self.assertIsNone(failed.writer);self.assertIsNone(failed.process)
+        self.assertFalse(failed.receipt['transport'].get('sendConfirmed'))
+        self.assertEqual(front.dispatch(inv,a,'synthetic',{}).state,'failed')
+        self.assertEqual(list(parallel.durable_reservations()),[])
+
     def test_postdispatch_ambiguity_retains_identity_and_followup_needs_review(self):
         with patch.object(parallel,'pool_root',return_value=self.root/'cli-ack-pool'):
             code,calls,launched,out,err=self.managed_cli([],fail_create=True)

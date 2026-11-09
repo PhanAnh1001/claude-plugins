@@ -160,6 +160,43 @@ class PaseoTransportTests(unittest.TestCase):
             self.assertEqual(sum(x['name']==name for x in calls),1)
         self.assertIsNone(self.store.get(self.key).receipt['transport']['pending'])
 
+    def test_official_schema_preflight_without_network(self):
+        executable=shutil.which('paseo')
+        if not executable:self.skipTest('installed pinned CLI unavailable')
+        package=Path(executable).resolve().parents[1]
+        # The npm bin entry is dist/index.js; find its owning package locally.
+        while package.parent != package and not (package/'package.json').exists():package=package.parent
+        if json.loads((package/'package.json').read_text()).get('version')!='0.15.0':
+            self.skipTest('installed pinned CLI unavailable')
+        script="""
+          const {loadSchemas,handleRequest,preflight,payload}=await import(process.argv[1]);
+          const schemas=await loadSchemas(process.argv[2]);let calls=0;
+          const client=new Proxy({}, {get(){calls++;throw Error('network');}});
+          const base={cwd:'/fake',projectId:'project',parentAgentId:'parent',
+            workspaceId:'wks_0123456789abcdef',agentId:'00000000-0000-4000-8000-000000000001',
+            providerId:'codex',model:'gpt-test',gatewayEnv:{PUBLIC_FIXTURE:'yes'},
+            messageId:'message',brief:'synthetic'};
+          const results=[];
+          for(const [command,field] of [['workspace','workspaceId'],['create','agentId'],['send','brief']]){
+            const r={...base,command};
+            if(preflight(r,schemas))throw Error('valid shape rejected');
+            r[field]=command==='send'?123:'PRIVATE_INVALID';
+            results.push(await handleRequest(client,r,{},schemas));
+          }
+          console.log(JSON.stringify({calls,results}));
+        """
+        run=subprocess.run(['node','--input-type=module','-e',script,BRIDGE.as_uri(),str(package)],
+                           capture_output=True,text=True,timeout=10)
+        self.assertEqual(run.returncode,0,run.stderr)
+        result=json.loads(run.stdout);self.assertEqual(result['calls'],0)
+        for rejection in result['results']:
+            self.assertEqual(rejection['code'],'REQUEST_SCHEMA_REJECTED');self.assertTrue(rejection['notSent'])
+            self.assertNotIn('PRIVATE_INVALID',json.dumps(rejection))
+            self.assertTrue(all(set(i)=={'path','code'} for i in rejection['issues']))
+        run=subprocess.run(['node',str(BRIDGE),str(package)],capture_output=True,text=True,timeout=10,
+                           input=json.dumps(dict(command='workspace',workspaceId='PRIVATE_INVALID')))
+        self.assertEqual(json.loads(run.stdout)['code'],'REQUEST_SCHEMA_REJECTED')
+
     def test_wrong_target_parent_missing_cwd_and_recovery_block_before_mutation(self):
         self.assertTrue(self.child()['ok'])
         baseline=len(self.read()['calls'])

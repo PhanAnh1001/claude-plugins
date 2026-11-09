@@ -197,19 +197,31 @@ class PaseoController:
     def dispatch(self, invocation, attempt, brief, verified_parent):
         if self.completion is None:
             raise AdmissionDenied('completion binding required')
+        existing = self.store.get(attempt.key)
+        if (existing.receipt or {}).get('pre_dispatch_failure'):
+            from .paseo_recovery import PreDispatchAdmission
+            evidence = existing.receipt['pre_dispatch_failure']
+            return PreDispatchAdmission(self.store, None, None).fail(
+                attempt.key, evidence['proof'], evidence['reason'])
         self.admission.admit(invocation, attempt, max_parallel=self.cfg.max_parallel)
         # First mutation marks a one-way boundary. Any exception retains durable intent.
         try:
             workspace = self.transport.ensure_workspace(attempt.key, verified_parent,
                                                         invocation.isolated_cwd)
+            if self._schema_failed(attempt.key, workspace, 'workspace'):
+                return self.store.get(attempt.key)
             if workspace.get('ok') is False:
                 raise ExecutionUnresolved('WORKSPACE_UNRESOLVED')
             child = self.transport.create_child(attempt.key, workspace,
                 caller_agent_id=invocation.parent_paseo_agent_id,
                 provider_id='hh-hand-' + invocation.backend)
+            if self._schema_failed(attempt.key, child, 'create'):
+                return self.store.get(attempt.key)
             if child.get('ok') is False:
                 raise ExecutionUnresolved('CREATE_UNRESOLVED')
             sent = self.transport.send_prompt(attempt.key, brief)
+            if self._schema_failed(attempt.key, sent, 'send'):
+                return self.store.get(attempt.key)
             if not sent.get('ok'):
                 raise ExecutionUnresolved('SEND_UNRESOLVED')
         except (TransportError, StateConflict) as exc:
@@ -222,6 +234,19 @@ class PaseoController:
         if record.reservation or record.state not in ('awaiting_review', 'archived'):
             raise ExecutionUnresolved('SETTLEMENT_UNRESOLVED')
         return record
+
+    def _schema_failed(self, key, result, command):
+        from .paseo_transport import trusted_schema_rejection
+        from .paseo_recovery import PreDispatchAdmission
+        proof = {k: v for k, v in result.items() if k != 'placement'}
+        if not trusted_schema_rejection(proof, command):
+            return False
+        r = self.store.get(key)
+        if (r.receipt or {}).get('transport', {}).get('schemaRejection') != proof:
+            raise StateConflict('schema evidence not persisted')
+        PreDispatchAdmission(self.store, None, None).fail(key, proof, 'request_schema_rejected',
+                                                        expected_revision=r.revision)
+        return True
 
     def continue_capacity(self, key, brief):
         """Existing DSH capacity policy: keep the accumulated isolated patch."""
@@ -426,6 +451,8 @@ def cmd_managed_run(cfg, args, *, mode):
         persist_prompt(store.get(attempt.key), prompt, brief)
         result = controller.dispatch(invocation, attempt, prompt, parent)
         emit_managed_result(result)
+        if (result.receipt or {}).get('pre_dispatch_failure'):
+            return EXIT_FAIL
         from . import capacity
         from .backends import dsh as dsh_backend
         from .constants import DSH_CAPACITY_MAX_CONTINUATIONS
