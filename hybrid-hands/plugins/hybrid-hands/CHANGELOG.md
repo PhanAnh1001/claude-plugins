@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.2 — 2026-11-09
+
+- Recover exact failed child creation vẫn hoạt động khi parent/workspace đã archived: proof public và agent absence bắt buộc, không nới kiểm cha của create/send. Chỉ suy inFlight từ public snapshot khi daemon đúng 0.15.0 đã đối chiếu source; daemon khác/thiếu version từ chối, không fallback.
+- ACP bound new/load công bố model và effort từ Invocation cùng policy mode hiện tại, tránh Paseo gọi setter không được hỗ trợ; không thêm setter hay đổi quyền thực thi.
+- Kiểm offline: 503 tests pass, regression qua ACPAgentSession public của Paseo 0.15.0, binary discovery/partial binding probe pass. Live lifecycle vẫn được ghi riêng trong bàn giao pilot.
+
 ## 0.35.1 — 2026-11-09
 
 - Sinh workspace ID đúng schema Paseo 0.15.0 (`wks_` + 16 ký tự hex); kiểm official schema workspace/create/send trước kết nối, chỉ trả issue path/code và bằng chứng notSent, giữ reservation khi network/ACK chưa rõ.
