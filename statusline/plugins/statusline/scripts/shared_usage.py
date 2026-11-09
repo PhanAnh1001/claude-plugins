@@ -68,3 +68,12 @@ if __name__ == "__main__":
     value = claude_five(time.time()) if sys.argv[1:] == ["claude"] else None
     if value is not None:
         print(value)
+
+
+def claude_calibration(now):
+    """Read cached calibration only; statusline rendering never polls CLIs."""
+    try:
+        with bounded():
+            return shared_module("claude_calibration").cached(now)
+    except Exception:
+        return {}

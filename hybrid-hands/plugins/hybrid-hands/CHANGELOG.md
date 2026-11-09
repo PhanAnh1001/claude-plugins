@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.32.0 — 2026-11-09
+
+- Thêm hiệu chỉnh Claude ngoài (`~/.claude-hand`): ưu tiên live `rate_limit_event`/cache trực tiếp còn mới, dự phòng usage report Paseo khớp metadata auth Claude chính thức (kể cả Pi đăng nhập); chỉ lưu identity đã hash, không lưu email thô/credential, không cần đổi settings cho nguồn trực tiếp. USD~ chỉ từ token transcript Claude hand và giá canonical, tách input/output/cache đọc/cache ghi 5m/1h.
+- USD~/1% tuần dùng chênh lệch USD và quota của hai quan sát hợp lệ cùng tài khoản/reset; quota số nguyên cần delta ≥2 điểm phần trăm, nguồn có phần lẻ thực cần delta dương; chưa đủ ngưỡng/mẫu, stale hoặc model thiếu giá thì `?`, không dựng baseline lịch sử. Lấy mẫu khoảng 120 giây, cache Paseo tối đa 5 phút. Panel/sidebar thêm quota 5h/tuần Claude ngoài, rate và các nhóm token tổng hợp transcript; USD~ lượt cũ thiếu cache split/session correlation vẫn unknown.
+- Theo lựa chọn người dùng, dùng chung rate này để ước tính phần Claude riêng giữa các tài khoản khi rate sẵn sàng; đây là ước tính subscription, không phải hoá đơn hay đồng hồ riêng chính xác của từng tài khoản. Giữ độ chính xác nguồn, hiển thị % một chữ số lẻ không tăng độ chính xác của API.
+
 ## 0.31.6
 
 - Sửa workspace phiên phụ vẫn hiện sau khi gom chung project: xác minh workspace ID đã lưu và không có agent dùng chung trước mutation; archive agent rồi workspace riêng, yêu cầu archivedAt hợp lệ. Lỗi cleanup retry, ls/watch đối soát done cũ; không archive project hoặc workspace phiên chính.

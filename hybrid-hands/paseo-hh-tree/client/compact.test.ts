@@ -190,3 +190,24 @@ test("session and hand descriptions win; fallback avoids raw IDs", () => {
   assert.equal(shortName({ ai_title: null, name: "Tên phiên" }), "Tên phiên");
   assert.equal(shortName({ session_id: "abcdef12-1234", ai_title: "abcdef12", name: "Tên phiên" }), "Tên phiên");
 });
+
+test("external Claude calibration leads both shared views and preserves machine scopes", () => {
+  const calibration = { source: "fixture", account_source: "fixture-account",
+    account_5h_pct: 2, account_week_pct: 3, usd_per_pct: 12.34567, usd: 37.037,
+    tokens: { input: 120, output: 30, cache_read: 400, cache_write_5m: 50, cache_write_1h: 60 },
+    sampled_at: 100, resets_at: 200, precision: "integer", status: "ok" };
+  const original = panelRows({ sessions: [] });
+  const rows = panelRows({ sessions: [], claude_calibration: calibration });
+  assert.deepEqual(rows.slice(2), original);
+  assert.equal(rows[0].kind === "summary" && rows[0].text,
+    "Claude ngoài · quota báo cáo 5h 2.0% · tuần 3.0% · ~$12.3457/1% tuần (hiệu chuẩn, dùng chung Claude)");
+  assert.equal(rows[1].kind === "summary" && rows[1].text,
+    "Claude ngoài token · in 120 · out 30 · đọc cache 400 · ghi 5m 50 · ghi 1h 60 · ~$37.0370 (quan sát, ước tính offline)");
+  const unknown = panelRows({ sessions: [], claude_calibration: { ...calibration,
+    account_5h_pct: null, account_week_pct: null, usd_per_pct: null, usd: null, tokens: null,
+    sampled_at: null, resets_at: null, status: "unknown" } });
+  assert.equal(unknown[0].kind === "summary" && unknown[0].text,
+    "Claude ngoài · quota báo cáo 5h ? · tuần ? · ~$?/1% tuần (hiệu chuẩn, dùng chung Claude)");
+  assert.equal(unknown[1].kind === "summary" && unknown[1].text,
+    "Claude ngoài token · in ? · out ? · đọc cache ? · ghi 5m ? · ghi 1h ? · ~$? (quan sát, ước tính offline)");
+});

@@ -186,6 +186,7 @@ class Snapshot:
     hidden_ended_sessions: int = 0
     limits: List[Limit] = field(default_factory=list)
     machine_usage: List[dict] = field(default_factory=list)
+    claude_calibration: dict = field(default_factory=dict)
 
     @property
     def live_sessions(self) -> int:

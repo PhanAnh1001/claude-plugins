@@ -339,4 +339,6 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     snapshot.machine_usage = machine_usage(home, claude_week, codex, cfg, moment)
     from .usage_enrichment import enrich_snapshot
     enrich_snapshot(snapshot, cfg, moment)
+    from .claude_calibration import enrich
+    enrich(snapshot, moment)
     return snapshot

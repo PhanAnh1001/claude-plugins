@@ -6,7 +6,7 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.20.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
+  `statusline` (bản 0.22.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
 - **Bản 0.19.1:** thêm dòng `GPT` dưới dòng `Go` (hoặc cuối bảng khi không có `Go`): % 5h/7d mới
@@ -28,6 +28,14 @@
 - **Cập nhật:** chỉ cần `claude plugin marketplace update` và `claude plugin update`; không phải
   chạy lại setup, vì shim luôn chạy bản plugin đang cài.
 - **Yêu cầu:** `jq`, `curl` (phần Go thật), `python3` >= 3.9, `bash`, `git`.
+
+## Hiệu chỉnh Claude ngoài — 0.22.0
+
+Statusline đọc cache hiệu chỉnh Claude ngoài dùng chung với [hybrid-hands](../hybrid-hands/README.md#hiệu-chỉnh-claude-ngoài--0320); không gọi mạng để lấy calibration khi vẽ. Rate pin vẫn ưu tiên, sau đó là rate hiệu chỉnh hợp lệ; chưa sẵn sàng thì giữ nguyên fallback hiện có, kể cả prior, ở mục tách hạn mức theo máy bên dưới.
+
+Nguồn là tài khoản `~/.claude-hand`: ưu tiên live `rate_limit_event`/cache trực tiếp còn mới, dự phòng usage report Paseo khớp email từ metadata auth Claude chính thức trong nội bộ (kể cả Pi đăng nhập). Chỉ lưu định danh tài khoản đã hash, không lưu email thô hay credential; nguồn trực tiếp không cần đổi settings. Mẫu được lấy khoảng mỗi 120 giây, cache Paseo tối đa 5 phút. USD~ chỉ tính token transcript Claude hand theo [giá canonical](../hybrid-hands/plugins/hybrid-hands/config/model-prices.json), gồm input/output/cache đọc/cache ghi 5m/1h. Rate USD~/1% tuần cần hai quan sát có USD và quota tăng hợp lệ trong cùng tài khoản/reset hiện tại; không dựng baseline lịch sử. Quota số nguyên cần delta ít nhất 2 điểm phần trăm để giảm sai số làm tròn; nguồn có phần lẻ thực chỉ cần delta dương, có thể nhỏ hơn. Rate chung giữ unknown đến khi đủ ngưỡng. Mẫu stale/thiếu, model thiếu giá hoặc không có delta hợp lệ thì cache chưa có rate dùng được.
+
+Theo lựa chọn người dùng, rate được chia sẻ để ước tính phần Claude riêng giữa các tài khoản và chỉ thay ước tính hiện có khi rate mới sẵn sàng; đây là ước tính subscription, không phải hoá đơn hay phép đo chính xác riêng từng tài khoản. Phép tính giữ độ chính xác nguồn; % hiển thị một chữ số lẻ. Số nguyên API được viết `x.0%` không có nghĩa nguồn chính xác tới 0,1%. USD~ từng lượt ngoài vẫn unknown nếu registry cũ thiếu tách cache hoặc tương quan session; khối đầu panel tổng hợp từ transcript nguồn. Các mô tả hiệu chỉnh solo bên dưới là fallback khi không có pin hoặc rate hiệu chỉnh ngoài hợp lệ.
 
 ## Các dòng statusline
 

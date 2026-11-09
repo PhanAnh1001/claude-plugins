@@ -394,7 +394,16 @@ def build_summary(samples: list[Sample], ledger: dict, now: float,
     if not samples:
         return None
     index = UsdIndex(ledger["messages"])
-    rate = calibrate(samples, index, windows if windows is not None else [], pin)
+    from shared_usage import claude_calibration
+    shared = claude_calibration(now)
+    if pin is not None:
+        rate = Rate(pin, RATE_PIN, 0)
+    elif shared.get("usd_per_pct") is not None:
+        rate = Rate(shared["usd_per_pct"], RATE_CALIB, 2)
+    else:
+        rate = calibrate(samples, index, windows if windows is not None else [])
+        if rate.usd_per_pct is None or rate.usd_per_pct <= 0:
+            return None
     latest = samples[-1]
     start = latest.reset - WEEK_SECONDS
     local_usd = index.total(start)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.0 — 2026-11-09
+
+- Đọc cache hiệu chỉnh Claude ngoài dùng chung với hybrid-hands để ước tính phần Claude riêng giữa các tài khoản; không gọi mạng để lấy calibration khi vẽ. Rate pin vẫn ưu tiên, thiếu rate hiệu chỉnh hợp lệ thì giữ nguyên fallback hiện có, kể cả prior; chỉ thay ước tính riêng khi rate mới sẵn sàng.
+- Rate được đo từ USD~/quota tuần delta của hai quan sát cùng tài khoản/reset, chỉ sẵn sàng sau hai mẫu hợp lệ và delta ≥2 điểm phần trăm với quota số nguyên (nguồn có phần lẻ thực cần delta dương); không dựng baseline lịch sử. Giữ độ chính xác nguồn, % hiển thị một chữ số lẻ vẫn là ước tính, không phải hoá đơn hoặc phép đo chính xác riêng từng tài khoản.
+
+- Nguồn ưu tiên live/cache Claude hand trực tiếp còn mới, dự phòng report Paseo khớp metadata auth Claude; chỉ lưu identity đã hash. Lấy mẫu khoảng 120 giây, cache Paseo tối đa 5 phút; nguồn trực tiếp không cần đổi settings. USD~ lượt cũ thiếu cache split/session correlation vẫn unknown.
+
 ## 0.21.0 — 2026-11-08
 
 - GPT quota dùng nguồn account chung từ ledger và rollout local cố định `.codex-hand`, chọn sample mới nhất riêng từng cửa sổ; USD hôm nay vẫn chỉ thuộc ledger.

@@ -134,10 +134,12 @@ def main() -> int:
         args += ["--cwd", sys.argv[2]]
     try:
         result = subprocess.run(args + ["--once"], capture_output=True, text=True,
-                                timeout=TIMEOUT_SECONDS, check=False)
+                                timeout=TIMEOUT_SECONDS, check=False,
+                                env=dict(os.environ, HYBRID_HANDS_CALIBRATION_CACHE_ONLY="1"))
         if result.returncode and "unrecognized arguments: --once" in result.stderr:
             result = subprocess.run(args, capture_output=True, text=True,
-                                    timeout=TIMEOUT_SECONDS, check=False)
+                                    timeout=TIMEOUT_SECONDS, check=False,
+                                env=dict(os.environ, HYBRID_HANDS_CALIBRATION_CACHE_ONLY="1"))
         if result.returncode:
             return 0
         snapshot = json.loads(result.stdout)

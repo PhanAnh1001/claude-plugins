@@ -119,6 +119,23 @@ const sessionSchema = z
   })
   .passthrough();
 
+export const claudeCalibrationSchema = z.object({
+  source: z.string(),
+  account_source: z.string(),
+  account_5h_pct: z.number().nullable(),
+  account_week_pct: z.number().nullable(),
+  usd_per_pct: z.number().nullable(),
+  usd: z.number().nullable(),
+  tokens: z.object({
+    input: z.number(), output: z.number(), cache_read: z.number(),
+    cache_write_5m: z.number(), cache_write_1h: z.number(),
+  }).passthrough().nullable(),
+  sampled_at: z.number().nullable(),
+  resets_at: z.number().nullable(),
+  precision: z.string(),
+  status: z.string(),
+}).passthrough();
+
 export const treeSchema = z
   .object({
     schema: z.number(),
@@ -127,6 +144,7 @@ export const treeSchema = z
     cwd: z.string(),
     all_projects: z.boolean(),
     main_session_id: z.string().nullable(),
+    claude_calibration: claudeCalibrationSchema.optional(),
     limits: z.array(limitSchema).optional(),
     machine_usage: z.array(z.object({
       plan: z.enum(["Claude", "GPT"]), window: z.literal("tuần"),
@@ -165,3 +183,5 @@ export type TreeUsage = z.infer<typeof usageSchema>;
 export type TreeLimit = z.infer<typeof limitSchema>;
 export type TreeHandRun = z.infer<typeof handRunSchema>;
 export type TreeResult = z.infer<typeof treeOutput>;
+
+export type ClaudeCalibration = z.infer<typeof claudeCalibrationSchema>;

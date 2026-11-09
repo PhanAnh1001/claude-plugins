@@ -138,6 +138,7 @@ def render_json(snapshot: Snapshot) -> Dict[str, object]:
         "hidden_ended_sessions": snapshot.hidden_ended_sessions,
         "limits": [_limit_json(limit) for limit in snapshot.limits],
         "machine_usage": list(snapshot.machine_usage),
+        "claude_calibration": dict(snapshot.claude_calibration),
         "sessions": [_session_json(session, snapshot.generated_at)
                      for session in snapshot.sessions],
         "orphan_runs": [_hand_run_json(run, snapshot.generated_at)

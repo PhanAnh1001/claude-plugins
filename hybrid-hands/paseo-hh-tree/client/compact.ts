@@ -228,7 +228,7 @@ export function rowText(
 }
 
 /** Render order shared by the panel and sidebar: machine summaries precede trees. */
-export function panelRows(tree: Pick<TreeData, "sessions" | "limits" | "machine_usage">) {
+export function panelRows(tree: Pick<TreeData, "sessions" | "limits" | "machine_usage" | "claude_calibration">) {
   const items = tree.sessions.flatMap(s => [s, ...s.subagents, ...s.hand_runs]);
   const summaries = ["Claude", "GPT"].map(plan => {
     const usage = items.filter(item => providerLabel(item) === plan);
@@ -243,10 +243,18 @@ export function panelRows(tree: Pick<TreeData, "sessions" | "limits" | "machine_
     const machine = tree.machine_usage?.find(u => u.plan === plan && u.window === "tuần");
     return { kind: "summary" as const, text: `${plan} máy này tuần ${machine?.usd == null ? "~$?" : usdText(machine.usd, true)} · ${quota}` };
   });
+  const calibration = tree.claude_calibration;
+  const observed = (value: unknown, decimals: number) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? value.toFixed(decimals) : "?";
+  const calibrationRows = calibration ? [
+    { kind: "summary" as const, text: `Claude ngoài · quota báo cáo 5h ${limitPercentText(calibration.account_5h_pct)} · tuần ${limitPercentText(calibration.account_week_pct)} · ~$${observed(calibration.usd_per_pct, 4)}/1% tuần (hiệu chuẩn, dùng chung Claude)` },
+    { kind: "summary" as const, text: `Claude ngoài token · in ${observed(calibration.tokens?.input, 0)} · out ${observed(calibration.tokens?.output, 0)} · đọc cache ${observed(calibration.tokens?.cache_read, 0)} · ghi 5m ${observed(calibration.tokens?.cache_write_5m, 0)} · ghi 1h ${observed(calibration.tokens?.cache_write_1h, 0)} · ~$${observed(calibration.usd, 4)} (quan sát, ước tính offline)` },
+  ] : [];
   const nested = nestSessions(tree.sessions);
   // Filter intact roots after nesting: children of ended/missing roots stay hidden.
   const sessions = nested.roots.filter(session => outcome(session) === "running");
-  return [...summaries, ...sessions.map(session => ({ kind: "session" as const, session }))];
+  return [...calibrationRows, ...summaries, ...sessions.map(session => ({ kind: "session" as const, session }))];
 }
 
 export function agentName(agent: AgentItem): string {

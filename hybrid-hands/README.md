@@ -231,6 +231,14 @@ Phần trăm **tài khoản** 5h/tuần lấy từ cache/sample sẵn có của 
 
 Sổ usage của statusline dùng version 4 và fingerprint để nhận biết dữ liệu cần tính lại. USD~ Claude vẫn là ước tính offline, không phải chi phí chính xác hay hoá đơn.
 
+### Hiệu chỉnh Claude ngoài — 0.32.0
+
+Nguồn hiệu chỉnh là tài khoản Claude ngoài ở `~/.claude-hand`. Runtime ưu tiên live `rate_limit_event`/cache trực tiếp còn mới và đúng reset của Claude hand; dự phòng usage report Paseo bằng cách đối chiếu email từ metadata auth Claude chính thức trong nội bộ, kể cả khi Paseo đăng nhập bằng Pi. Chỉ lưu định danh tài khoản đã hash, không lưu email thô hay credential. Nguồn trực tiếp không cần đổi settings. Mẫu được lấy khoảng mỗi 120 giây; cache Paseo tối đa 5 phút. Không lấy quota của tài khoản khác làm mẫu hiệu chỉnh.
+
+USD~ chỉ cộng token từ transcript Claude hand: input, output, cache đọc, cache ghi 5m và 1h, theo [giá canonical](plugins/hybrid-hands/config/model-prices.json). Rate USD~/1% tuần = chênh lệch USD quan sát ÷ chênh lệch quota tuần, cần hai quan sát hợp lệ cùng tài khoản và reset còn hiện tại. Nguồn quota số nguyên cần delta ít nhất 2 điểm phần trăm để giảm sai số làm tròn; nguồn có phần lẻ thực dùng được delta dương nhỏ hơn. Rate chung giữ unknown đến khi đủ ngưỡng và cache chỉ sẵn sàng sau hai quan sát đó; không dựng baseline lịch sử. Mẫu stale/thiếu, model không có giá hoặc không có delta hợp lệ đều hiện `?`.
+
+Panel/sidebar thêm khối Claude ngoài gồm quota 5h/tuần, USD~/1% và các nhóm token tổng hợp từ transcript nguồn. USD~ từng lượt ngoài vẫn unknown nếu registry cũ thiếu tách cache hoặc tương quan session. Theo lựa chọn người dùng, rate được dùng chung để ước tính phần Claude riêng giữa các tài khoản, chỉ thay ước tính hiện có khi rate mới sẵn sàng; đây là ước tính subscription, không phải hoá đơn hay đồng hồ sử dụng chính xác riêng từng tài khoản. Giữ độ chính xác gốc khi tính, chỉ định dạng % một chữ số lẻ: API trả số nguyên hiển thị `x.0%` không có nghĩa đo chính xác tới 0,1%. Statusline đọc cùng cache, ưu tiên rate pin và giữ fallback cũ nếu chưa có rate hiệu chỉnh hợp lệ; không gọi mạng để lấy calibration khi vẽ.
+
 ### Nguồn usage 0.30.0
 
 GPT machine `USD~` cộng các token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại từ hai đường dẫn cố định `~/.codex-hand/sessions` và `~/.codex-hand/archived_sessions`, khử trùng thread/event, không cộng trùng ledger. Thread chỉ có metadata, chưa có token event không làm tổng observed thành unknown. Không có token event trong cửa sổ thì hiện `?`; token event thiếu baseline/timestamp/model-price hợp lệ, file không đọc được hoặc thiếu cửa sổ hiện tại cũng giữ `?`. Model lạ không fallback; giá duy nhất từ file canonical. Tổng chỉ phản ánh token events cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; đây là ước tính offline subscription, không phải hoá đơn. Riêng gắn native child vào cây vẫn chỉ đọc `sessions`.
