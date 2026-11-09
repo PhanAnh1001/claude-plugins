@@ -39,6 +39,8 @@ class ManagedCliTests(unittest.TestCase):
         def client(request):
             calls.append(request)
             result = dict(ok=True, targetKey=transport.target_key)
+            if request['command'] in ('archive', 'reopen'):
+                result['state'] = {'archive': 'archived', 'reopen': 'reopened'}[request['command']]
             if request['command'] == 'probe':
                 result['providers'] = ['hh-hand-codex']
             if request['command'] == 'parent':
@@ -72,6 +74,9 @@ class ManagedCliTests(unittest.TestCase):
 
     def test_review_archive_followup_exact_epoch_and_history(self):
         attempt, transport, calls = self.transport()
+        archived = self.f.store.get(attempt.key)
+        self.assertEqual(archived.state, 'archived')
+        self.assertNotIn('review', archived.artifacts)
         brief = self.f.root/'fresh.md'; brief.write_text('fresh self-contained synthetic brief')
         with patch('hand_ext.paseo_controller.transport_from_config', return_value=transport):
             self.assertEqual(self.command('review-approve', attempt.key)[0], 0)
@@ -87,13 +92,15 @@ class ManagedCliTests(unittest.TestCase):
             self.assertEqual(preserved[field], first[field])
         self.assertEqual(preserved['receipt']['completion'], first['receipt']['completion'])
         self.assertEqual(second.attempt.agent_id, first['attempt']['agent_id'])
+        self.assertEqual(second.attempt.workspace_id, first['attempt']['workspace_id'])
+        self.assertEqual(second.state, 'archived')
         self.assertNotEqual(second.attempt.request_key, attempt.request_key)
         self.assertNotEqual(second.receipt['completion']['context']['baseline_tree'],
                             first['receipt']['completion']['context']['baseline_tree'])
         patch_text = Path(second.artifacts['finalize']['result']['patch_path']).read_text()
         self.assertIn('+epoch2', patch_text); self.assertNotIn('+epoch1', patch_text)
         self.assertEqual(sum(c['command']=='create' for c in calls), 1)
-        self.assertEqual(sum(c['command']=='archive' for c in calls), 1)
+        self.assertEqual(sum(c['command']=='archive' for c in calls), 3)
 
     def test_recover_flags_and_safe_diagnostics(self):
         from hand_ext.execution_state import StateConflict
@@ -131,8 +138,9 @@ class ManagedCliTests(unittest.TestCase):
         attempt, transport, calls = self.transport()
         brief = self.f.root/'fresh.md'; brief.write_text('new synthetic brief')
         with patch('hand_ext.paseo_controller.transport_from_config', return_value=transport):
-            for action in ('archive','followup'):
-                self.assertEqual(self.command(action, attempt.key, brief if action=='followup' else None)[0], 1)
+            self.assertEqual(self.command('archive', attempt.key)[0], 0)
+            self.assertEqual(self.f.store.get(attempt.key).state, 'archived')
+            self.assertEqual(self.command('followup', attempt.key, brief)[0], 1)
             record = self.f.store.get(attempt.key)
             record.quiescence = None
             self.f.store.compare_and_swap(record.key, record.revision, record)

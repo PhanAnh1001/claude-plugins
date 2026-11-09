@@ -26,12 +26,22 @@ from .paseo_transport import PaseoTransport, TransportError
 
 MODES = ('shell', 'auto', 'paseo-required')
 ALIASES = {'claude-main': 'claude-v1', 'claude': 'claude-v2'}
+LIFECYCLE_LOCK_TIMEOUT = 10
+LIFECYCLE_LOCK_POLL = 0.05
 
 
 @contextmanager
-def lifecycle_lock(store):
-    with (store.root / '.gateway-lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+def lifecycle_lock(store, name='.gateway-lock'):
+    with (store.root / name).open('a') as lock:
+        deadline = time.monotonic() + LIFECYCLE_LOCK_TIMEOUT
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise StateConflict('lifecycle busy') from None
+                time.sleep(LIFECYCLE_LOCK_POLL)
         yield
 
 
@@ -195,6 +205,41 @@ def terminal_evidence(record):
                     for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')))
 
 
+def lifecycle_diagnostic(store, key, operation):
+    """Safe durable retry receipt; never store provider exception text."""
+    for _ in range(8):
+        record = store.get(key)
+        record.receipt = dict(record.receipt or {}, lifecycle_error=dict(
+            operation=operation, code=operation.upper() + '_UNRESOLVED'))
+        try:
+            return store.compare_and_swap(key, record.revision, record)
+        except StateConflict:
+            continue
+    raise StateConflict('lifecycle receipt busy')
+
+
+def archive_settled(store, transport, key):
+    """One bounded attempt, outcome and settlement artifacts remain authoritative."""
+    with lifecycle_lock(store, '.send-lock'), lifecycle_lock(store):
+        record = store.get(key)
+        key = record.key
+        if records_for(store, record.invocation.invocation_id)[-1].key != key:
+            raise StateConflict('archive requires latest exact execution')
+        if record.state not in ('awaiting_review', 'archived') or not terminal_evidence(record):
+            raise StateConflict('exact child not ready for archive')
+        try:
+            result = transport.archive_child(key)
+            if not result.get('ok') or result.get('state') != 'archived':
+                raise TransportError('ARCHIVE_UNRESOLVED')
+        except (TransportError, StateConflict):
+            lifecycle_diagnostic(store, key, 'archive')
+            return store.get(key)
+        record = store.get(key)
+        record.state = 'archived'
+        record.receipt.pop('lifecycle_error', None)
+        return store.compare_and_swap(key, record.revision, record)
+
+
 def records_for(store, invocation_id):
     with store.locked():
         rows = [store._read(p) for p in store.root.glob('*.json')]
@@ -266,7 +311,13 @@ class PaseoController:
             return record
         if record.reservation or record.state not in ('awaiting_review', 'archived'):
             raise ExecutionUnresolved('SETTLEMENT_UNRESOLVED')
-        return record
+        # This frontend is independent of the gateway being archived. A failed
+        # archive must never replace the backend's authoritative terminal result.
+        try:
+            return archive_settled(self.store, self.transport, attempt.key)
+        except (TransportError, StateConflict):
+            lifecycle_diagnostic(self.store, attempt.key, 'archive')
+            return self.store.get(attempt.key)
 
     def _schema_failed(self, key, result, command):
         from .paseo_transport import trusted_schema_rejection
@@ -293,6 +344,7 @@ class PaseoController:
                 old.receipt.get('usage_observation', {}).get('capacity_failure') is not True or
                 count >= DSH_CAPACITY_MAX_CONTINUATIONS):
                 raise StateConflict('capacity continuation not authorized')
+            self._restore(old, capacity=True)
             attempt = replace(old.attempt, attempt_id=str(uuid.uuid4()), epoch=old.attempt.epoch + 1,
                               request_key=str(uuid.uuid4()), run_id=None, thread_id=None)
             record = self.store.create_intent(old.invocation, attempt)
@@ -309,7 +361,7 @@ class PaseoController:
             record = self.store.get(key)
             if records_for(self.store, record.invocation.invocation_id)[-1].key != key:
                 raise StateConflict('review requires latest exact execution')
-            if (record.reservation or record.state != 'awaiting_review' or
+            if (record.reservation or record.state not in ('awaiting_review', 'archived') or
                 not terminal_evidence(record)):
                 raise StateConflict('settled quiescent exact execution required')
             record = self.store.get(key)
@@ -317,21 +369,26 @@ class PaseoController:
             return self.store.compare_and_swap(key, record.revision, record)
 
     def archive(self, key):
-        with lifecycle_lock(self.store):
-            record = self.store.get(key)
-            if records_for(self.store, record.invocation.invocation_id)[-1].key != key:
-                raise StateConflict('archive requires latest exact execution')
-            if (record.reservation or record.state != 'awaiting_review' or
-                not terminal_evidence(record) or
-                (record.artifacts.get('review') or {}).get('approved') is not True or
-                record.artifacts['review'].get('epoch') != key.epoch):
-                raise StateConflict('exact child not ready for archive')
-            result = self.transport.archive_child(key)
-            if not result.get('ok'):
-                raise ExecutionUnresolved('ARCHIVE_UNRESOLVED')
-            record = self.store.get(key)
-            record.state = 'archived'
-            return self.store.compare_and_swap(key, record.revision, record)
+        record = archive_settled(self.store, self.transport, key)
+        # Explicit archive needs this attempt confirmed; soft failure keeps the
+        # old state but leaves a safe lifecycle_error receipt.
+        if record.state != 'archived' or (record.receipt or {}).get('lifecycle_error'):
+            raise ExecutionUnresolved('ARCHIVE_UNRESOLVED')
+        return record
+
+    def _restore(self, old, *, capacity=False):
+        # Restore before creating an epoch: failure leaves the reviewed latest key
+        # retryable and cannot reserve capacity or create another writer.
+        try:
+            result = self.transport.reopen_child(old.key, **({'capacity': True} if capacity else {}))
+            if not result.get('ok') or result.get('state') != 'reopened':
+                raise TransportError('REOPEN_UNRESOLVED')
+        except (TransportError, StateConflict) as exc:
+            lifecycle_diagnostic(self.store, old.key, 'reopen')
+            raise ExecutionUnresolved('REOPEN_UNRESOLVED') from exc
+        record = self.store.get(old.key)
+        record.receipt.pop('lifecycle_error', None)
+        self.store.compare_and_swap(record.key, record.revision, record)
 
     def followup(self, key, brief):
         with lifecycle_lock(self.store):
@@ -346,17 +403,14 @@ class PaseoController:
                 raise StateConflict('review and quiescence required')
             if not isinstance(brief, str) or not brief.strip():
                 raise ValueError('fresh self-contained brief required')
+            self._restore(old)
             attempt = replace(old.attempt, attempt_id=str(uuid.uuid4()), epoch=old.attempt.epoch + 1,
                               request_key=str(uuid.uuid4()), run_id=None, thread_id=None)
             record = self.store.create_intent(old.invocation, attempt)
             bind_followup(self.store, old, record)
-            # Admission fresh before reopen; existing IDs are verified by transport, never recreated.
+            # Fresh policy/admission still precedes every new send.
             brief = pin_prompt(self.store, self.store.get(attempt.key), brief)
             self.admission.admit(old.invocation, attempt, max_parallel=self.cfg.max_parallel)
-        if old.state == 'archived':
-            result = self.transport.reopen_child(key)
-            if not result.get('ok'):
-                raise ExecutionUnresolved('REOPEN_UNRESOLVED')
         parent = self.transport.verify_parent(old.invocation.parent_paseo_agent_id)
         return self.dispatch(old.invocation, self.store.get(attempt.key).attempt, brief, parent)
 

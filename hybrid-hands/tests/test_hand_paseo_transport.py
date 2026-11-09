@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'))
 from hand_ext.execution_admission import AdmissionController, Reservation
-from hand_ext.execution_state import ExecutionStore, Invocation, Attempt
+from hand_ext.execution_state import ExecutionStore, Invocation, Attempt, ExecutionKey
 from hand_ext.paseo_transport import PaseoTransport, TransportError
 
 FIXTURE = Path(__file__).parent / 'fixtures/hand_paseo/transport'
@@ -33,12 +33,13 @@ class PaseoTransportTests(unittest.TestCase):
             'calls':[],'entries':[]}
         self.write(self.state)
         self.store = ExecutionStore(self.root / 'store')
-        self.key = ('invocation','attempt',1)
+        self.key = ExecutionKey('invocation','attempt',1)
         invocation = Invocation('invocation','scope','canonical',parent_paseo_agent_id='parent',
             isolated_cwd=str(self.cwd), backend='codex', model='gpt-test', effort='low')
-        attempt = Attempt(*self.key, request_key=str(uuid.uuid4()))
+        attempt = Attempt(self.key.invocation_id,self.key.attempt_id,self.key.epoch, request_key=str(uuid.uuid4()))
         with patch('hand_ext.parallel.pool_root', return_value=self.root/'pool'):
             AdmissionController(self.store, None, lambda *_: True).admit(invocation, attempt, max_parallel=4)
+        self.reservation=self.store.get(self.key).reservation
         self.authority()
         self.transport = PaseoTransport(FIXTURE/'package',self.target,self.factory,store=self.store)
 
@@ -47,7 +48,7 @@ class PaseoTransportTests(unittest.TestCase):
     def factory(self, package_root, target):
         def call(request):
             # The persisted intent/IDs must precede even the fake network operation.
-            if request['command'] in ('workspace','create','send','cancel','archive','reopen'):
+            if not request.get('bridgeOnly') and request['command'] in ('workspace','create','send','cancel','archive','reopen'):
                 receipt = self.store.get(self.key).receipt['transport']
                 self.assertTrue(receipt.get('cancelPending') if request['command']=='cancel'
                     else receipt['pending']==request['command'])
@@ -58,10 +59,15 @@ class PaseoTransportTests(unittest.TestCase):
             self.assertEqual(p.returncode,0,p.stderr)
             return json.loads(p.stdout)
         return call
-    def authority(self):
+    def authority(self, settled=False):
         r=self.store.get(self.key)
         r.quiescence={'confirmed':True,'evidence':'owned group stopped/reaped'}
-        r.artifacts['review']={'approved':True}
+        r.artifacts['review']={'approved':True,'epoch':self.key.epoch}
+        if settled:
+            r.reservation=None
+            r.outcome={'quiescent':True,'backend_exit_code':0}
+            r.settle_keys={k:{'key':k,'state':'completed'} for k in
+                ('finalize','report','ledger','go_ledger','usage_state')}
         self.store.compare_and_swap(self.key,r.revision,r)
     def placement(self):
         project=self.transport.verify_parent('parent')
@@ -81,6 +87,7 @@ class PaseoTransportTests(unittest.TestCase):
         self.assertTrue(self.transport.send_prompt(self.key,'fresh brief')['ok'])
         self.authority()
         self.assertTrue(self.transport.cancel_child(self.key)['ok'])
+        self.authority(settled=True)
         self.assertTrue(self.transport.archive_child(self.key)['ok'])
         self.assertTrue(self.transport.reopen_child(self.key)['ok'])
         self.assertEqual(before,self.store.get(self.key).attempt)
@@ -99,18 +106,20 @@ class PaseoTransportTests(unittest.TestCase):
         for x in calls:
             if x['name'] in ('archiveAgent','refreshAgent','cancelAgent'):
                 self.assertEqual(x['args']['agentId'],before.agent_id)
-        self.assertFalse(any(x['name']=='restoreWorkspace' for x in calls))
+        names=[x['name'] for x in calls]
+        self.assertLess(names.index('archiveAgent'),names.index('archiveWorkspace'))
+        self.assertLess(names.index('restoreWorkspace'),names.index('refreshAgent'))
         # Controller reopens prior epoch while its durable quiescence is known,
         # then settles/releases it before admitting a new prompt epoch.
-        old=self.store.get(self.key); old.outcome={'quiescent':True}
+        old=self.store.get(self.key)
         self.store.compare_and_swap(self.key,old.revision,old)
         supervisor=SimpleNamespace(reconcile=lambda key: SimpleNamespace(confirmed=True))
         with patch('hand_ext.parallel.pool_root', return_value=self.root/'pool'):
             admission=AdmissionController(self.store,supervisor,lambda *_:True)
-            admission.release(Reservation.from_dict(old.reservation), outcome=old.outcome, artifacts_settled=True)
+            admission.release(Reservation.from_dict(self.reservation), outcome=old.outcome, artifacts_settled=True)
             attempt=replace(old.attempt,attempt_id='followup',epoch=2,request_key=str(uuid.uuid4()))
             admission.admit(old.invocation,attempt,max_parallel=4)
-        self.key=('invocation','followup',2)
+        self.key=ExecutionKey('invocation','followup',2)
         project=self.transport.verify_parent('parent')
         p=self.transport.ensure_workspace(self.key,project,self.cwd)
         self.assertTrue(p['workspaceConfirmed'])
@@ -137,6 +146,51 @@ class PaseoTransportTests(unittest.TestCase):
         self.assertEqual(sum(x['name']=='createWorkspace' for x in calls),1)
         messages=[x['args']['options']['messageId'] for x in calls if x['name']=='sendMessage']
         self.assertEqual(len(messages),2); self.assertEqual(len(set(messages)),2)
+
+    def bridge(self, command, **changes):
+        request=dict(self.transport._read(self.key),command=command,settled=True,quiescent=True,bridgeOnly=True)
+        request.update(changes)
+        return self.factory(FIXTURE/'package',self.target)(request)
+
+    def test_bridge_workspace_membership_pages(self):
+        self.assertTrue(self.child()['ok'])
+        state=self.read(); aid=self.store.get(self.key).attempt.agent_id
+        wid=state['agents'][aid]['workspaceId']
+        state['agents']['sibling']={'id':'sibling','workspaceId':wid,'archivedAt':None}
+        self.write(state)
+        self.assertEqual(self.bridge('archive')['code'],'WORKSPACE_ACTIVE_MEMBER')
+        state=self.read(); state['agents']['sibling']['archivedAt']=state['agents'][aid]['archivedAt']
+        state['agents']['unrelated']={'id':'unrelated','workspaceId':'other','cwd':str(self.cwd)}
+        state['memberPages']=[[{'agent':a}] for a in state['agents'].values()]
+        self.write(state)
+        for field,value in [('memberCycle',True),('memberError',True),('memberPages',[[{'agent':{'id':''}}]])]:
+            bad=dict(state); bad[field]=value; self.write(bad)
+            self.assertFalse(self.bridge('archive')['ok'])
+        self.write(state); self.assertEqual(self.bridge('archive')['state'],'archived')
+        self.assertIsNone(self.read()['agents']['unrelated'].get('archivedAt'))
+
+    def test_bridge_partial_failures_and_ack_loss(self):
+        self.assertTrue(self.child()['ok'])
+        sentinel=self.cwd/'sentinel'; sentinel.write_text('retained')
+        for operation,command in [('archiveAgent','archive'),('archiveWorkspace','archive'),
+                ('restoreWorkspace','reopen'),('refreshAgent','reopen')]:
+            with self.subTest(operation=operation):
+                if command=='archive' and self.read()['workspaces'][self.store.get(self.key).attempt.workspace_id].get('archivedAt'):
+                    self.assertTrue(self.bridge('reopen',reviewed=True)['ok'])
+                if command=='reopen': self.assertTrue(self.bridge('archive')['ok'])
+                state=self.read(); state['lose']=operation; self.write(state)
+                self.assertFalse(self.bridge(command,reviewed=True)['ok'])
+                observed=self.bridge('reconcile',pending=command,reviewed=True)
+                if observed.get('state')=='unresolved': self.assertTrue(self.bridge(command,reviewed=True)['ok'])
+                else: self.assertEqual(observed['state'],'archived' if command=='archive' else 'reopened')
+                self.assertEqual(sum(x['name']==operation for x in self.read()['calls']),
+                    sum(x['name']==operation for x in state['calls'])+1)
+                self.assertEqual(sentinel.read_text(),'retained')
+        self.assertTrue(self.bridge('archive',reviewed=False)['ok'])
+        self.assertEqual(self.bridge('reopen',reviewed=False)['code'],'REVIEW_REQUIRED')
+        state=self.read(); state['recovery']={'workspaceId':self.store.get(self.key).attempt.workspace_id,
+            'kind':'recoverable','action':'restore'}; self.write(state)
+        self.assertEqual(self.bridge('reopen',reviewed=True)['code'],'RECOVERY_BLOCKED')
 
     def test_lost_create_and_send_ack_reconcile_without_duplicates(self):
         state=self.read(); state['lose']='createWorkspace'; self.write(state)
@@ -238,6 +292,7 @@ class PaseoTransportTests(unittest.TestCase):
         with self.assertRaisesRegex(TransportError,'PROVIDER_MISMATCH'):
             self.transport.create_child(self.key,self.transport._read(self.key),caller_agent_id='parent',provider_id='hh-hand-dsh')
         self.assertEqual(len(self.read()['calls']),baseline)
+        self.authority(settled=True)
         self.assertTrue(self.transport.archive_child(self.key)['ok'])
         baseline=len(self.read()['calls'])
         state=self.read(); state['recovery']={'workspaceId':self.store.get(self.key).attempt.workspace_id,
@@ -247,7 +302,8 @@ class PaseoTransportTests(unittest.TestCase):
         r=self.store.get(self.key); r.receipt['transport']['pending']=None
         self.store.compare_and_swap(self.key,r.revision,r)
         state=self.read(); state['target']={'kind':'instance','home':'/wrong'}; self.write(state)
-        self.assertFalse(self.transport.send_prompt(self.key,'brief')['ok'])
+        with self.assertRaisesRegex(TransportError,'ADMISSION_REQUIRED'):
+            self.transport.send_prompt(self.key,'brief')
         self.assertEqual(len(self.read()['calls']),baseline)
         # Unknown intent needs reconcile, never release/reset to retry automatically.
         state=self.read(); state['target']=self.target; self.write(state)
