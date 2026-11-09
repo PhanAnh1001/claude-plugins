@@ -11,7 +11,7 @@ from side_session.state import load_all as load_side_states
 
 from .claude_source import pid_alive
 from .constants import (
-    PROJECT_CONFIG_RELPATH, PROVIDER_CLAUDE, PS_SECTION, REPO_PLACEHOLDER, RUNS_GLOB,
+    PROVIDER_CLAUDE, PS_SECTION, REPO_PLACEHOLDER, RUNS_GLOB,
     RUNS_SUBDIR, RUN_STATUS_RUNNING, SESSION_META_GLOBS_KEY, SESSION_META_SUFFIX,
     SIDE_SESSION_SECTION, SIDE_STATE_DIR_DEFAULT, SIDE_STATE_DIR_KEY, STATE_DIR_DEFAULT,
     STATE_DIR_ENV,
@@ -49,17 +49,11 @@ def _resolve(root: Path, raw: str) -> Path:
 
 
 def load_ps_config(root: Path) -> PsConfig:
-    section: dict = {}
-    side: dict = {}
-    path = root / PROJECT_CONFIG_RELPATH
-    if path.is_file():
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            raise ValueError(f"{path}: cần JSON object")
-        section = data.get(PS_SECTION) or {}
-        side = data.get(SIDE_SESSION_SECTION) or {}
-        if not isinstance(section, dict) or not isinstance(side, dict):
-            raise ValueError(f"{path}: mục {PS_SECTION}/{SIDE_SESSION_SECTION} phải là object")
+    from shared_config import load_config as load_shared
+    loaded = load_shared(known_root=root)
+    section = loaded.effective.get(PS_SECTION, {})
+    side = loaded.effective[SIDE_SESSION_SECTION]
+    path = loaded.paths["repo"]["path"]
     globs = section.get(SESSION_META_GLOBS_KEY) or []
     if not isinstance(globs, list) or not all(isinstance(item, str) for item in globs):
         raise ValueError(f"{path}: {PS_SECTION}.{SESSION_META_GLOBS_KEY} phải là list chuỗi")

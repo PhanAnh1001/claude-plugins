@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from shared_config import GlobalConfigError, load_config as load_shared
+
 from . import go_live, go_usage, measure, quota_state, render, report
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
@@ -30,6 +32,9 @@ def _parser() -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=text)
         s.add_argument("--backend", default=ALL_BACKENDS)
         s.add_argument("--cwd")
+    inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
+    inspect.add_argument("--json", action="store_true")
+    inspect.add_argument("--cwd")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
     pick.add_argument("--cwd")
@@ -184,10 +189,16 @@ COMMANDS = {"pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": c
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.cmd == "config":
+            result = load_shared(Path(args.cwd) if args.cwd else None)
+            _cfg(args)
+            payload = {"effective": result.effective, "sources": result.sources, "paths": result.paths}
+            print(json.dumps(payload, ensure_ascii=False, indent=2))
+            return EXIT_OK
         return COMMANDS[args.cmd](_cfg(args), args)
     except BackendUnavailable as exc:
         print(f"hand-ext: {exc}", file=sys.stderr)
         return EXIT_USAGE
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, GlobalConfigError) as exc:
         print(f"hand-ext: {exc}", file=sys.stderr)
         return EXIT_USAGE

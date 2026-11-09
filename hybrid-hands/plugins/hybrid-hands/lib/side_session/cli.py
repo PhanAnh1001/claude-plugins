@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import sys
+
+from shared_config import GlobalConfigError
 from pathlib import Path
 
 from . import actions
@@ -98,8 +101,12 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "start" and args.provider is None:
         args.provider = _default_provider(args)
-    if args.cmd == "attach":
-        # Paseo runs terminal profiles from an arbitrary cwd with no project config.
-        return attach.main(args.name, transport_fn=_attach_transport_lookup())
-    cfg = load_config(Path.cwd())
-    return HANDLERS[args.cmd](cfg, args)
+    try:
+        if args.cmd == "attach":
+            # Paseo runs terminal profiles from an arbitrary cwd with no project config.
+            return attach.main(args.name, transport_fn=_attach_transport_lookup())
+        cfg = load_config(Path.cwd())
+        return HANDLERS[args.cmd](cfg, args)
+    except GlobalConfigError as exc:
+        print(f"side-session: {exc}", file=sys.stderr)
+        return 1

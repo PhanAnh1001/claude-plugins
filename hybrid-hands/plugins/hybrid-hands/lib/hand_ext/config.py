@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import json
 import os
 import re
 import subprocess
@@ -94,13 +93,8 @@ def _config_path(root: Path) -> Optional[Path]:
 
 
 def _read_section(root: Path, config_file: Optional[Path] = None) -> Dict[str, Any]:
-    path = config_file if config_file is not None else _config_path(root)
-    if path is None or not path.is_file():
-        return {}
-    section = json.loads(path.read_text(encoding="utf-8")).get(CONFIG_SECTION, {})
-    if not isinstance(section, dict):
-        raise ValueError(f"{path}: '{CONFIG_SECTION}' phải là object")
-    return section
+    from shared_config import load_config as load_shared
+    return load_shared(known_root=root, config_file=config_file).effective[CONFIG_SECTION]
 
 
 def _resolve(root: Path, value: str) -> Path:
@@ -153,15 +147,24 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
     """Reuse caller-resolved roots/config paths within a snapshot, without caching globally."""
     root = known_root if known_root is not None else git_toplevel(Path(cwd or Path.cwd()))
     merged = copy.deepcopy(DEFAULTS)
-    section = _read_section(root, config_file)
-    isolation_explicit = "isolation" in section
-    worktree_root_raw = section.get("worktree_root")
+    from shared_config import load_config as load_shared
+    result = load_shared(known_root=root, config_file=config_file)
+    section = copy.deepcopy(result.effective[CONFIG_SECTION])
+    isolation_explicit = result.sources.get("ext_hand.isolation") != "plugin"
+    worktree_root_raw = (section.get("worktree_root")
+                         if result.sources.get("ext_hand.worktree_root") in ("global", "repo") else None)
     go_section = section.pop(GO_USAGE_SECTION, {}) or {}
     if not isinstance(go_section, dict):
         raise ValueError(f"{CONFIG_SECTION}.{GO_USAGE_SECTION} phải là object")
-    overrides = section.pop("backends", {}) or {}
-    backends = merge_backends(merged["backends"], overrides)
-    account_overrides = section.pop("claude_accounts", {})
+    effective_backends = section.pop("backends", {})
+    overrides = {name: {key: value for key, value in opts.items()
+                        if result.sources.get(f"ext_hand.backends.{name}.{key}") != "plugin"}
+                 for name, opts in effective_backends.items()}
+    backends = merge_backends(effective_backends, {})
+    effective_accounts = section.pop("claude_accounts", {})
+    account_overrides = {name: {key: value for key, value in opts.items()
+                               if result.sources.get(f"ext_hand.claude_accounts.{name}.{key}") != "plugin"}
+                         for name, opts in effective_accounts.items()}
     if not isinstance(account_overrides, dict):
         raise ValueError("claude_accounts phải là object")
     accounts = copy.deepcopy(DEFAULTS["claude_accounts"])
@@ -183,6 +186,19 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         backends[canonical] = {key: _expand(value) for key, value in resolved.items()}
         if alias:
             backends[alias] = dict(backends[canonical])
+    # Resolve only backend path settings, after account and alias precedence.
+    # Keep the account registry raw for side-session and existing callers.
+    for name, options in backends.items():
+        path_keys = ("config_dir",) if name.startswith("claude") else {
+            "codex": ("home",),
+            "dsh": ("home", "key_file", "browser_dir"),
+        }.get(name, ())
+        for key in path_keys:
+            value = options.get(key)
+            if isinstance(value, str) and value and not value.startswith("~"):
+                path = Path(value)
+                if not path.is_absolute():
+                    options[key] = str(root / path)
     merged.update(section)
     go_ledger, go_summary, go_limit, go_live = _go_usage(root, go_section)
     max_parallel = validate_limit(merged["max_parallel"])

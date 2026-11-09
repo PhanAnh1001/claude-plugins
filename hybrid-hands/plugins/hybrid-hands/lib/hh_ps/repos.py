@@ -70,14 +70,9 @@ class RepoState:
 
     def config_files(self) -> Dict[Path, Path]:
         """Resolve known config locations without repeating git directory discovery."""
-        from .constants import PROJECT_CONFIG_RELPATH
-
-        files = {}
-        for root in self.roots:
-            own = root / PROJECT_CONFIG_RELPATH
-            main = self._main_by_root.get(root)
-            files[root] = own if own.is_file() or main is None else main / PROJECT_CONFIG_RELPATH
-        return files
+        from shared_config import load_config as load_shared
+        return {root: Path(load_shared(known_root=root).paths["repo"]["path"])
+                for root in self.roots}
 
     def add_cwds(self, cwds: Iterable[str]) -> bool:
         """Load the repo of each new directory; git runs once per directory."""

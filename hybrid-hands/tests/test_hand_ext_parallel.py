@@ -2,6 +2,7 @@
 import argparse
 import selectors
 import io
+import json
 import os
 import subprocess
 import sys
@@ -88,10 +89,13 @@ class ParallelTest(unittest.TestCase):
                 child.communicate(timeout=10)
 
     def test_independent_scopes_and_config_validation(self):
-        with mock.patch.object(config, '_read_section', return_value={}):
+        self.stack.enter_context(mock.patch.dict(os.environ, {
+            'HOME': str(self.root), 'HYBRID_HANDS_CONFIG': str(self.root / 'global.json')}))
+        config_file = self.root / 'repo.json'
+        with mock.patch.object(config, '_config_path', return_value=config_file):
             self.assertEqual(config.load_config(self.root).max_parallel, 4)
-        for limit in (1, 2, 3, 4, True, False, 0, 5, 1.5, '4', None):
-            with mock.patch.object(config, '_read_section', return_value={'max_parallel': limit}):
+            for limit in (1, 2, 3, 4, True, False, 0, 5, 1.5, '4', None):
+                config_file.write_text(json.dumps({'ext_hand': {'max_parallel': limit}}))
                 if type(limit) is int and 1 <= limit <= 4:
                     self.assertEqual(config.load_config(self.root).max_parallel, limit)
                 else:

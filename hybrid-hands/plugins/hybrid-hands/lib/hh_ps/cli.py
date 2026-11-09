@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from shared_config import GlobalConfigError
+
 from .constants import ENDED_FLAG, FULL_FLAG, MIN_WATCH_SECONDS
 from .render import color_enabled, render_json, render_text
 from .timeutil import parse_since
@@ -100,6 +102,6 @@ def main(argv: Optional[List[str]] = None) -> int:
             time.sleep(args.watch)
     except KeyboardInterrupt:
         return 0
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, GlobalConfigError) as exc:
         print(f"hh-ps: {exc}", file=sys.stderr)
         return 2

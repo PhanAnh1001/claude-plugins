@@ -1,7 +1,6 @@
 """Load project config for side-session from <git toplevel>/.claude/hybrid-hands.json."""
 from __future__ import annotations
 
-import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -70,11 +69,8 @@ def _bool_setting(raw: object, key: str) -> bool:
 
 def load_config(cwd: Path) -> SideConfig:
     repo = git_toplevel(cwd)
-    merged = dict(C.DEFAULTS)
-    cfg_file = repo / C.CONFIG_RELPATH
-    if cfg_file.is_file():
-        data = json.loads(cfg_file.read_text(encoding="utf-8"))
-        merged.update(data.get(C.CONFIG_SECTION, {}))
+    from shared_config import load_config as load_shared
+    merged = load_shared(known_root=repo).effective[C.CONFIG_SECTION]
     max_parallel = merged["max_parallel"]
     if type(max_parallel) is not int or not 1 <= max_parallel <= C.MAX_PARALLEL:
         raise ValueError(f"side_session.max_parallel phải là số nguyên 1..{C.MAX_PARALLEL}")
@@ -87,7 +83,7 @@ def load_config(cwd: Path) -> SideConfig:
         watch_interval_s=float(merged["watch_interval_s"]),
         claude_args=list(merged["claude_args"]),
         state_dir=_resolve(repo, merged["state_dir"]),
-        codex_home=Path(merged["codex_home"]).expanduser(),
+        codex_home=_resolve(repo, merged["codex_home"]),
         codex_profile=str(merged["codex_profile"]),
         codex_model=str(merged["codex_model"]),
         codex_effort=str(merged["codex_effort"]),

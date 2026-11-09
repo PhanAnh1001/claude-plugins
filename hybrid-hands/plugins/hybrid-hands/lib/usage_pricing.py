@@ -56,13 +56,13 @@ def explicit_options(cfg: Any, backend: str) -> dict:
     if root is None:
         return cfg.options(backend)
     # Delay import because config constants import pricing helpers.
-    from hand_ext.config import _config_path
-    path = getattr(cfg, "config_path", None) or _config_path(Path(root))
-    if path is None:
-        return {}
+    from shared_config import GlobalConfigError, backends_from, load_config
     try:
-        data = json.loads(path.read_text())
-        options = data.get("ext_hand", {}).get("backends", {}).get(backend, {})
-    except (OSError, ValueError, AttributeError, TypeError):
+        result = load_config(known_root=Path(root), config_file=getattr(cfg, "config_path", None))
+    except GlobalConfigError:
+        # Fatal by design (not a ValueError): never hide a broken global config here.
+        raise
+    except (OSError, ValueError, AttributeError):
+        # An older repo-only loader failure keeps its historical "no explicit price" fallback.
         return {}
-    return options if isinstance(options, dict) else {}
+    return backends_from(result, backend)
