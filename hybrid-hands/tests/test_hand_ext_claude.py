@@ -165,7 +165,7 @@ class MainBackendTest(HandExtTestCase):
         self.assertEqual(argv[argv.index("--model") + 1], "claude-opus-5-5")
         self.assertEqual(argv[argv.index("--effort") + 1], "low")
 
-    def test_main_never_sets_or_inherits_config_dir(self):
+    def test_main_uses_custom_config_dir_without_inheriting_parent(self):
         tmp = tempfile.mkdtemp()
         main_cfg = tmp + "/main-cfg"
         env = {"HAND_EXT_CLAUDE_BIN": FAKE_BIN, "CLAUDE_CONFIG_DIR": "/parent/cfg"}
@@ -175,7 +175,7 @@ class MainBackendTest(HandExtTestCase):
             doctor_env = ClaudeMainBackend()._base_env({"config_dir": main_cfg})
             _, hand_env, _ = ClaudeBackend().build_command(_spec(tmp, config_dir=main_cfg))
         for kept in (env_add, child_env(ClaudeMainBackend(), env_add), doctor_env):
-            self.assertNotIn("CLAUDE_CONFIG_DIR", kept)
+            self.assertEqual(kept["CLAUDE_CONFIG_DIR"], main_cfg)
         self.assertEqual(hand_env["CLAUDE_CONFIG_DIR"], main_cfg)
 
 

@@ -25,7 +25,7 @@ from .base import Backend, Check, Quota, RunSpec, RunState, Status, Usage, bin_f
 DEFAULT_OPTIONS = {
     "config_dir": "~/.claude-hand",
     "model": "claude-opus-5-5",
-    "effort": "medium",
+    "effort": "low",
     "max_turns": 80,
 }
 MAIN_CONFIG_DIR = CLAUDE_MAIN_CONFIG_DIR  # the brain's plan; the hand must not share it
@@ -76,6 +76,11 @@ class ClaudeBackend(Backend):
         "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN",
         "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
     )
+
+    def day_block_reason(self, options: dict) -> Optional[str]:
+        if "max_day_pct" not in options:
+            return None
+        return ClaudeMainBackend.day_block_reason(self, options)
 
     def _opt(self, options: dict, key: str):
         return options.get(key, self.DEFAULT_OPTIONS[key])
@@ -227,12 +232,14 @@ class ClaudeMainBackend(ClaudeBackend):
 
     def _base_env(self, options: dict) -> Dict[str, str]:
         env = super()._base_env(options)
-        env.pop(CONFIG_DIR_ENV, None)
+        if self._config_dir(options).resolve() == Path(os.path.expanduser(MAIN_CONFIG_DIR)).resolve():
+            env.pop(CONFIG_DIR_ENV, None)
         return env
 
     def build_command(self, spec: RunSpec) -> Tuple[List[str], Dict[str, str], Optional[str]]:
         argv, env_add, stdin = super().build_command(spec)
-        env_add.pop(CONFIG_DIR_ENV, None)
+        if self._config_dir(spec.options).resolve() == Path(os.path.expanduser(MAIN_CONFIG_DIR)).resolve():
+            env_add.pop(CONFIG_DIR_ENV, None)
         return argv, env_add, stdin
 
     def setup(self, options: dict) -> List[str]:
@@ -252,3 +259,27 @@ class ClaudeMainBackend(ClaudeBackend):
             return (f"máy này đã dùng {use.pct:.1f}% Claude hôm nay "
                     f"(ngưỡng {use.max_pct:g}%); ghi yêu cầu vào bàn giao để Opus quyết")
         return None
+
+
+class ClaudeAccountBackend(ClaudeMainBackend):
+    """A configured numbered account; primary-home OAuth semantics follow the path."""
+
+    def __init__(self, name: str):
+        self.name = name
+        account = name[len("claude-"):]
+        self.DEFAULT_OPTIONS = {**DEFAULT_OPTIONS,
+                                "config_dir": "~/.claude" if account == "v1" else "~/.claude-hand"}
+
+    def setup(self, options: dict) -> List[str]:
+        cdir = self._config_dir(options)
+        if cdir.resolve() == Path(os.path.expanduser(MAIN_CONFIG_DIR)).resolve():
+            return super().setup(options)
+        cdir.mkdir(parents=True, exist_ok=True)
+        return [f"Config dir ready: {cdir}",
+                f"Log in to this Claude account in your terminal: {CONFIG_DIR_ENV}={cdir} claude",
+                "then /login, /status, and exit."]
+
+    def day_block_reason(self, options: dict) -> Optional[str]:
+        if "max_day_pct" not in options:
+            return None
+        return super().day_block_reason(options)

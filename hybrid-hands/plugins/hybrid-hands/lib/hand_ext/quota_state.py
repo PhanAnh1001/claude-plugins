@@ -31,8 +31,8 @@ def parse_iso(text: Optional[str]) -> Optional[dt.datetime]:
 def read_state(path: Path) -> Dict[str, Dict[str, Any]]:
     if not path.is_file():
         return {}
-    with locked(path):
-        return read_json(path, {})
+    # Writers replace atomically; readers must not create a lock/state file (pick).
+    return read_json(path, {})
 
 
 def record(path: Path, backend: str, quota: Optional[Quota], exhausted: bool) -> None:

@@ -14,10 +14,10 @@ from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
 from .constants import (
-    ALL_BACKENDS, AUTO_BACKEND, EXIT_FAIL, EXIT_OK, EXIT_USAGE, GO_LIVE_MISSING, ISOLATIONS,
+    ALL_BACKENDS, AUTO_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_OK, EXIT_USAGE, GO_LIVE_MISSING, ISOLATIONS,
     SANDBOXES,
 )
-from .run_cmd import backend_ready, cmd_run, last_run, with_sandbox
+from .run_cmd import auto_preflight, backend_ready, cmd_run, last_run, with_sandbox
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -30,6 +30,9 @@ def _parser() -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=text)
         s.add_argument("--backend", default=ALL_BACKENDS)
         s.add_argument("--cwd")
+    pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
+    pick.add_argument("--json", action="store_true")
+    pick.add_argument("--cwd")
     r = sub.add_parser("run", help="chạy một brief")
     r.add_argument("--brief", required=True, help="file brief hoặc - cho stdin")
     r.add_argument("--backend", default=AUTO_BACKEND)
@@ -68,8 +71,29 @@ def _cfg(args: argparse.Namespace) -> ExtConfig:
 
 def _names(cfg: ExtConfig, choice: str) -> List[str]:
     if choice == ALL_BACKENDS:
-        return list(dict.fromkeys(cfg.order + list(KNOWN_BACKENDS)))
+        return list(dict.fromkeys(cfg.order + list(cfg.backends) + list(KNOWN_BACKENDS)))
     return [choice]
+
+
+def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    result = {"backend": None, "model": None, "effort": None, "account": None, "skipped": []}
+    for backend, name, reason in auto_preflight(cfg):
+        if backend is None:
+            result["skipped"].append({"backend": name, "reason": reason})
+            continue
+        options = cfg.options(name)
+        account = {"codex": "gpt", "claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
+        result.update(backend=name, model=options.get("model", ""),
+                      effort=options.get("effort", options.get("variant", "")), account=account)
+        break
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        for skipped in result["skipped"]:
+            print(f"bỏ qua {skipped['backend']}: {skipped['reason']}")
+        print(f"{result['backend']} model={result['model']} effort={result['effort']} account={result['account']}"
+              if result["backend"] else "Không backend nào dùng được.")
+    return EXIT_OK if result["backend"] else EXIT_ALL_UNAVAILABLE
 
 
 def cmd_setup(cfg: ExtConfig, args: argparse.Namespace) -> int:
@@ -152,7 +176,7 @@ def cmd_measure(cfg: ExtConfig, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-COMMANDS = {"setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
+COMMANDS = {"pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
             "status": cmd_status, "usage": cmd_usage, "report": cmd_report,
             "measure": cmd_measure}
 

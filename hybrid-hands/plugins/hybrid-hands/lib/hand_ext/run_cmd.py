@@ -9,9 +9,9 @@ import re
 import sys
 import time
 from contextlib import ExitStack
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from . import capacity, codex_usage, go_live, go_usage, isolation, ledger, quota_state, render
 from .backends import BackendUnavailable, codex as codex_backend, dsh as dsh_backend
@@ -19,7 +19,7 @@ from .backends import get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import PLUGIN_DIR, ExtConfig
 from .constants import (
-    AUTO_BACKEND, BROWSER_BACKEND, CODEX_FALLBACK_EFFORT, CODEX_FALLBACK_MODEL,
+    AUTO_BACKEND, BROWSER_BACKEND,
     DSH_CAPACITY_MAX_CONTINUATIONS, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_USAGE,
     FALLBACK_STATUSES, EXIT_PARALLEL_FULL,
     GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
@@ -55,7 +55,7 @@ def with_sandbox(cfg: ExtConfig, name: str) -> dict:
 
 
 def day_guard(backend: Backend, cfg: ExtConfig) -> Optional[str]:
-    """Backend-specific daily guard (claude-main); None means the run may start."""
+    """Per-account daily guard; None means the run may start."""
     guard = getattr(backend, "day_block_reason", None)
     return guard(with_sandbox(cfg, backend.name)) if callable(guard) else None
 
@@ -66,34 +66,57 @@ def validate_browser(choice: str, browser: bool) -> None:
                          f"không dùng được với --backend {choice}")
 
 
-def _browser_order(cfg: ExtConfig) -> List[str]:
+def auto_preflight(cfg: ExtConfig, *, browser: bool = False):
+    """Yield (backend-or-None, name, reason) in order, without writing any state."""
     for name in cfg.order:
-        if name != BROWSER_BACKEND:
-            print(f"bỏ qua {name}: không hỗ trợ --browser (chỉ {BROWSER_BACKEND})",
-                  file=sys.stderr)
-    return [BROWSER_BACKEND]
+        if browser and name != BROWSER_BACKEND:
+            yield None, name, f"không hỗ trợ --browser (chỉ {BROWSER_BACKEND})"
+            continue
+        try:
+            backend = get_backend(name)
+            options = with_sandbox(cfg, name)
+        except (BackendUnavailable, ValueError) as exc:
+            yield None, name, str(exc)
+            continue
+        # Alias quota records refer to the same subscription.
+        canonical = {"claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
+        aliases = {"claude-v1": "claude-main", "claude-v2": "claude"}
+        until = quota_state.exhausted_until(cfg.quota_state, canonical)
+        alias = aliases.get(canonical)
+        if until is None and alias:
+            until = quota_state.exhausted_until(cfg.quota_state, alias)
+        if until is not None:
+            yield None, name, f"hết hạn mức tới {quota_state.iso(until)}"
+            continue
+        try:
+            checks = backend.doctor(options)
+        except (OSError, ValueError) as exc:
+            yield None, name, f"doctor không đọc được cấu hình ({type(exc).__name__})"
+            continue
+        failed = [check.name for check in checks if check.required and not check.ok]
+        if failed:
+            # Check names are safe; arbitrary subprocess output can contain credentials.
+            yield None, name, f"doctor chưa đạt: {', '.join(failed)} (`hand-ext doctor --backend {name}`)"
+            continue
+        reason = day_guard(backend, cfg)
+        yield (None if reason else backend), name, reason or ""
+
+
+def iter_candidates(cfg: ExtConfig, choice: str, browser: bool = False) -> Iterator[Backend]:
+    validate_browser(choice, browser)
+    if choice != AUTO_BACKEND:
+        yield get_backend(choice)
+        return
+    for backend, name, reason in auto_preflight(cfg, browser=browser):
+        if backend is None:
+            print(f"bỏ qua {name}: {reason}", file=sys.stderr)
+        else:
+            yield backend
 
 
 def candidates(cfg: ExtConfig, choice: str, browser: bool = False) -> List[Backend]:
-    validate_browser(choice, browser)
-    if choice != AUTO_BACKEND:
-        return [get_backend(choice)]
-    found: List[Backend] = []
-    for name in _browser_order(cfg) if browser else cfg.order:
-        try:
-            backend = get_backend(name)
-        except BackendUnavailable as exc:
-            print(f"bỏ qua {name}: {exc}", file=sys.stderr)
-            continue
-        until = quota_state.exhausted_until(cfg.quota_state, name)
-        if until is not None:
-            print(f"bỏ qua {name}: hết hạn mức tới {quota_state.iso(until)}", file=sys.stderr)
-        elif not backend_ready(backend, cfg):
-            print(f"bỏ qua {name}: doctor chưa đạt (`hand-ext doctor --backend {name}`)",
-                  file=sys.stderr)
-        else:
-            found.append(backend)
-    return found
+    """Compatibility list API; running consumes the same preflight lazily."""
+    return list(iter_candidates(cfg, choice, browser))
 
 
 def _now() -> str:
@@ -306,30 +329,20 @@ def _record_codex(cfg: ExtConfig, entry: dict, spec: RunSpec, outcome: RunOutcom
         print(f"cảnh báo: không ghi được sổ Codex: {exc}", file=sys.stderr)
 
 
-def _codex_fallback(cfg: ExtConfig, args: argparse.Namespace, label: str, cwd: Path,
+def _order_fallback(cfg: ExtConfig, args: argparse.Namespace, label: str, cwd: Path,
                     choice: isolation.IsolationChoice, *, brief: str) -> int:
-    """Run the original brief through codex low after discarding a small dsh patch."""
-    codex_args = argparse.Namespace(**vars(args))
-    codex_args.backend = codex_backend.NAME
-    codex_args.model = CODEX_FALLBACK_MODEL
-    codex_args.effort = CODEX_FALLBACK_EFFORT
-    codex_args.browser = False
-    try:
-        backend = get_backend(codex_backend.NAME)
-    except BackendUnavailable as exc:
-        print(f"hand-ext: {exc}", file=sys.stderr)
-        return EXIT_ALL_UNAVAILABLE
-    if not backend_ready(backend, cfg):
-        print(f"hand-ext: codex chưa sẵn sàng (hand-ext doctor --backend codex)", file=sys.stderr)
-        return EXIT_ALL_UNAVAILABLE
-    until = quota_state.exhausted_until(cfg.quota_state, codex_backend.NAME)
-    if until is not None:
-        print(f"hand-ext: codex đang hết hạn mức tới {quota_state.iso(until)}",
-              file=sys.stderr)
-        return EXIT_ALL_UNAVAILABLE
-    code = _attempt(cfg, codex_args, backend, build_prompt(brief, browser=False),
-                    label, cwd, choice, brief=brief)
-    return EXIT_ALL_UNAVAILABLE if code < 0 else code
+    """Run the original brief through the configured tail after discarding a small patch."""
+    remaining = cfg.order[cfg.order.index(dsh_backend.NAME) + 1:] if dsh_backend.NAME in cfg.order else []
+    tail = replace(cfg, order=remaining)
+    for backend, name, reason in auto_preflight(tail):
+        if backend is None:
+            print(f"bỏ qua {name}: {reason}", file=sys.stderr)
+            continue
+        code = _attempt(tail, args, backend, build_prompt(brief, browser=False),
+                        label, cwd, choice, brief=brief)
+        if code >= 0:
+            return code
+    return EXIT_ALL_UNAVAILABLE
 
 
 def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend,
@@ -355,13 +368,13 @@ def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend
     if ctx.mode != ISOLATION_WORKTREE:
         _emit(result, capacity.report_lines(
             "giữ nguyên dữ liệu (isolation=none)", 0, threshold, wait_s, 0,
-            "không đếm được patch dsh; giữ nguyên source, không chạy codex", patch_path))
+            "không đếm được patch dsh; giữ nguyên source, không chạy backend kế tiếp", patch_path))
         return result.code
     if result.apply_result.status == isolation.APPLY_ERROR:
         _emit(result, capacity.report_lines(
             "giữ patch dsh", 0, threshold, wait_s, 0,
             f"lỗi đếm patch: {result.apply_result.detail}; giữ worktree và patch, "
-            "không chạy codex", patch_path))
+            "không chạy backend kế tiếp", patch_path))
         return result.code
     lines = result.apply_result.changed_lines
     if lines < threshold:
@@ -378,11 +391,11 @@ def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend
         result.kept = ctx.mode == ISOLATION_WORKTREE and keep
         result.cleanup_note = note
         result.apply_result.detail = "bỏ patch dsh (dưới ngưỡng), không áp về gốc"
-        code = _codex_fallback(cfg, args, label, cwd, choice, brief=brief)
+        code = _order_fallback(cfg, args, label, cwd, choice, brief=brief)
         outcome = "ok" if code == 0 else f"mã {code}"
         _emit(result, capacity.report_lines(
-            "bỏ patch dsh, chạy lại brief gốc bằng codex", lines, threshold, wait_s, 0,
-            f"codex {CODEX_FALLBACK_MODEL} effort {CODEX_FALLBACK_EFFORT}: {outcome}",
+            "bỏ patch dsh, chạy lại brief gốc theo order", lines, threshold, wait_s, 0,
+            f"backend kế tiếp trong order: {outcome}",
             patch_path))
         return code
     _emit(result, capacity.report_lines(
@@ -504,9 +517,8 @@ def _cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
         return EXIT_USAGE
     if choice.warning:
         print(f"hand-ext: {choice.warning}", file=sys.stderr)
-    backends = candidates(cfg, args.backend, browser=browser)
-    for index, backend in enumerate(backends):
-        reason = day_guard(backend, cfg)
+    for backend in iter_candidates(cfg, args.backend, browser=browser):
+        reason = day_guard(backend, cfg) if args.backend != AUTO_BACKEND else None
         if reason:
             print(f"hand-ext: {reason}", file=sys.stderr)
             if args.backend != AUTO_BACKEND:
@@ -517,9 +529,8 @@ def _cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
             return code
         if args.backend != AUTO_BACKEND:
             break
-        if index + 1 < len(backends):
-            print(f"{backend.name} hết hạn mức/chưa đăng nhập; thử backend kế tiếp",
-                  file=sys.stderr)
+        print(f"{backend.name} hết hạn mức/chưa đăng nhập; thử backend kế tiếp",
+              file=sys.stderr)
     print("Không backend nào chạy được (hết hạn mức hoặc chưa đăng nhập).", file=sys.stderr)
     return EXIT_ALL_UNAVAILABLE
 

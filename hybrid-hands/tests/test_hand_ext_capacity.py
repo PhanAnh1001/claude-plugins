@@ -24,7 +24,7 @@ SOURCE_DIRTY = "user dirty\n"
 
 class AutoCapacityTest(HandExtTestCase):
     def setUp(self) -> None:
-        self.sb = Sandbox(order=["dsh"])
+        self.sb = Sandbox(order=["dsh", "codex"])
         self.addCleanup(self.sb.close)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -94,7 +94,7 @@ class AutoCapacityTest(HandExtTestCase):
         self.assertFalse((self.repo / "small.txt").exists())
         dsh_dir = self._dsh_dir("-dsh")
         report = (dsh_dir / "report.md").read_text()
-        for needle in ("bỏ patch dsh", "3 dòng", "ngưỡng 30", "gpt-6.1-sol", "low"):
+        for needle in ("bỏ patch dsh", "3 dòng", "ngưỡng 30", "backend kế tiếp trong order"):
             self.assertIn(needle, report)
         self.assertTrue((dsh_dir / "changes.patch").is_file())
         self.assertEqual(self._worktrees(), [])

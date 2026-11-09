@@ -12,8 +12,8 @@ DEFAULT_COMPACT_AT = 272_000
 # dsh model window from templates/dsh-hand.yml; compaction is a ratio of this window.
 DEFAULT_CONTEXT_WINDOW = 1_048_576
 
-# Claude on the PRIMARY subscription (the brain's plan). Explicit backend only: it never
-# enters `order`, and it stops once this machine has used max_day_pct of the weekly limit today.
+# Legacy names remain aliases for the numbered Claude account registry.
+# v1 stops once this machine has used max_day_pct of the weekly limit today.
 CLAUDE_MAIN_BACKEND = "claude-main"
 CLAUDE_MAIN_CONFIG_DIR = "~/.claude"
 CLAUDE_MAIN_MODEL = "claude-opus-5-5"
@@ -96,9 +96,11 @@ HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
 
 DEFAULTS = {
     "max_parallel": MAX_PARALLEL,
-    # The only default hand is dsh (DeepSeek V4.1 Flash on the OpenCode Go plan).
-    # codex/claude/gemini stay declared for explicit `--backend` use only.
-    "order": ["dsh"],
+    "order": ["dsh", "codex", "claude-v1", "claude-v2"],
+    "claude_accounts": {
+        "v1": {"config_dir": "~/.claude", "max_day_pct": 5.0},
+        "v2": {"config_dir": "~/.claude-hand"},
+    },
     "timeout_min": 60,
     "max_tokens": None,
     "sandbox": "workspace-write",
@@ -111,11 +113,11 @@ DEFAULTS = {
     "isolation": ISOLATION_WORKTREE,
     "worktree_root": "~/.hybrid-hands/worktrees",
     "backends": {
-        "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "high",
+        "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "low",
                   CODEX_PRICE_KEY: dict(CODEX_DEFAULT_PRICE)},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",
-                   "effort": "medium", "max_turns": 80},
-        # The brain's own plan, low effort, only via explicit `--backend claude-main`.
+                   "effort": "low", "max_turns": 80},
+        # Compatibility alias for the v1 account.
         "claude-main": {"config_dir": CLAUDE_MAIN_CONFIG_DIR, "model": CLAUDE_MAIN_MODEL,
                         "effort": CLAUDE_MAIN_EFFORT, "max_turns": CLAUDE_MAIN_MAX_TURNS,
                         "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT},

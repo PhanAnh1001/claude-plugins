@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import importlib
+import re
 
 from .base import Backend
 
-KNOWN_BACKENDS = ("dsh", "codex", "claude", "claude-main", "gemini")
+KNOWN_BACKENDS = ("dsh", "codex", "claude-v1", "claude-v2", "claude", "claude-main", "gemini")
 # Backends removed from the plugin; old configs may still name them in `order`.
 REMOVED_BACKENDS = ("opencode",)
 # Names that do not map to their own module/class (hyphen, or a shared implementation).
@@ -17,6 +18,12 @@ class BackendUnavailable(Exception):
 
 
 def get_backend(name: str) -> Backend:
+    canonical = {"claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
+    if re.fullmatch(r"claude-v[1-9][0-9]*", canonical):
+        from .claude import ClaudeAccountBackend
+        backend = ClaudeAccountBackend(canonical)
+        backend.name = name
+        return backend
     if name not in MODULE_OVERRIDES and not name.isidentifier():
         raise BackendUnavailable(f"tên backend không hợp lệ: {name!r}")
     if name in REMOVED_BACKENDS:

@@ -121,7 +121,7 @@ class CodexRunTest(HandExtTestCase):
         self.assertEqual(first["windows"]["7d"], {
             "used_percent": 10.0, "resets_at": "2100-01-01T00:00:01+00:00"})
         self.assertEqual(first["codex_home"], self.sb.home.name)
-        self.assertEqual((first["model"], first["effort"]), ("gpt-6.1-sol", "high"))
+        self.assertEqual((first["model"], first["effort"]), ("gpt-6.1-sol", "low"))
         self.assertNotEqual(first["run_id"], second["run_id"])
         self.assertIsNone(second["cost_usd"])
         self.assertEqual(second["cost_source"], "unknown")
@@ -149,7 +149,7 @@ class CodexSetupDoctorTest(HandExtTestCase):
         self.assertIn("đã ghi", out)
         text = cfg.read_text()
         self.assertNotIn("service_tier", text)
-        self.assertIn('model_reasoning_effort = "high"', text)
+        self.assertIn('model_reasoning_effort = "low"', text)
         self.assertIn("[mcp_servers.x]", text)
         self.assertIn("--device-auth", out)
         _, out2, _ = self.sb.cli("setup", "--backend", "codex")

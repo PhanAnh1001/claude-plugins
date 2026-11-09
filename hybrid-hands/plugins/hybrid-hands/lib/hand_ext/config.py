@@ -4,8 +4,9 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -41,7 +42,22 @@ class ExtConfig:
     machine_state_dir: Path
     max_parallel: int = MAX_PARALLEL
 
+    claude_accounts: Dict[str, Dict[str, Any]] = field(
+        default_factory=lambda: copy.deepcopy(DEFAULTS["claude_accounts"]))
+
     def options(self, name: str) -> Dict[str, Any]:
+        account = {"claude-main": "v1", "claude": "v2"}.get(name)
+        if name.startswith("claude-v"):
+            account = name[len("claude-"):]
+        if account is not None:
+            if account not in self.claude_accounts:
+                raise ValueError(f"tài khoản Claude chưa cấu hình: {account}")
+            canonical = f"claude-{account}"
+            if canonical in self.backends:
+                return dict(self.backends[canonical])
+            # Compatibility for callers constructing ExtConfig themselves.
+            return {"model": "claude-opus-5-5", "effort": "low", "max_turns": 80,
+                    **self.claude_accounts[account], **self.backends.get(name, {})}
         return dict(self.backends.get(name, {}))
 
 
@@ -143,7 +159,30 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
     go_section = section.pop(GO_USAGE_SECTION, {}) or {}
     if not isinstance(go_section, dict):
         raise ValueError(f"{CONFIG_SECTION}.{GO_USAGE_SECTION} phải là object")
-    backends = merge_backends(merged["backends"], section.pop("backends", {}) or {})
+    overrides = section.pop("backends", {}) or {}
+    backends = merge_backends(merged["backends"], overrides)
+    account_overrides = section.pop("claude_accounts", {})
+    if not isinstance(account_overrides, dict):
+        raise ValueError("claude_accounts phải là object")
+    accounts = copy.deepcopy(DEFAULTS["claude_accounts"])
+    for account, options in account_overrides.items():
+        if not re.fullmatch(r"v[1-9][0-9]*", account) or not isinstance(options, dict):
+            raise ValueError("claude_accounts cần tài khoản v<N> và options object")
+        accounts.setdefault(account, {}).update(options)
+    for account, options in accounts.items():
+        canonical = f"claude-{account}"
+        alias = {"v1": "claude-main", "v2": "claude"}.get(account)
+        legacy = overrides.get(alias, {}) if alias else {}
+        resolved = {"model": "claude-opus-5-5", "effort": "low", "max_turns": 80,
+                    **options, **legacy, **account_overrides.get(account, {}),
+                    **overrides.get(canonical, {})}
+        if not isinstance(resolved.get("config_dir"), str) or not resolved["config_dir"]:
+            raise ValueError(f"claude_accounts.{account}.config_dir phải là đường dẫn")
+        accounts[account] = {key: resolved[key] for key in ("config_dir", "max_day_pct")
+                             if key in resolved}
+        backends[canonical] = {key: _expand(value) for key, value in resolved.items()}
+        if alias:
+            backends[alias] = dict(backends[canonical])
     merged.update(section)
     go_ledger, go_summary, go_limit, go_live = _go_usage(root, go_section)
     max_parallel = validate_limit(merged["max_parallel"])
@@ -168,5 +207,5 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         go_monthly_limit_usd=go_limit,
         go_usage_live=go_live,
         machine_state_dir=_state_dir(),
-        max_parallel=max_parallel,
+        max_parallel=max_parallel, claude_accounts=accounts,
     )

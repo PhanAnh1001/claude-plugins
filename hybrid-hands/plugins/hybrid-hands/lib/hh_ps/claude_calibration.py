@@ -337,7 +337,7 @@ def enrich(snapshot, now):
                                 week_pct_source='claude_hand_calibration' if pct is not None else '')
 
     for run in snapshot.iter_runs():
-        if run.backend not in ('claude', 'claude-main') or run.usage is None:
+        if run.backend not in ('claude', 'claude-main', 'claude-v1', 'claude-v2') or run.usage is None:
             continue
         usage = run.usage
         if usage.usd is None:

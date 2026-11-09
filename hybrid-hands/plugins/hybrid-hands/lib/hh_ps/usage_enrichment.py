@@ -94,11 +94,10 @@ def _run_plan(backend: str, options: dict) -> str:
         return "GPT"
     if backend in GO_BACKENDS:
         return "Go"
-    if backend == "claude-main":
-        return "Claude"
     current = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"))
-    configured = options.get("config_dir")
-    if backend == "claude" and configured and Path(os.path.expanduser(str(configured))).resolve() == current.resolve():
+    configured = options.get("config_dir") or ("~/.claude" if backend in ("claude-main", "claude-v1")
+                                               else "~/.claude-hand" if backend == "claude" else None)
+    if (backend in ("claude", "claude-main") or backend.startswith("claude-v")) and configured and Path(os.path.expanduser(str(configured))).resolve() == current.resolve():
         return "Claude"
     return ""
 
@@ -141,7 +140,13 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
                 agent.usage = _account(usage, agent_plan, snapshot, now, five)
     for run in snapshot.iter_runs():
         backend = run.backend
-        options = explicit_options(cfg, backend)
+        try:
+            options = (cfg.options(backend) if cfg is not None and backend.startswith("claude")
+                       else explicit_options(cfg, backend))
+        except (ValueError, KeyError):
+            # Machine/historical ledgers can reference an account removed from this repo.
+            # Keep model pricing, but do not borrow another account's quota source.
+            options = None
         if backend == "codex":
             price = codex_price(options, run.model)
             plan = "GPT"
@@ -150,7 +155,10 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
             plan = "Go"
         else:
             price = token_price(run.model)
-            plan = _run_plan(backend, options)
+            # Without configuration, retain the legacy primary-account label.
+            # An explicitly missing/removed account above must remain unknown.
+            plan = ("Claude" if cfg is None and backend in ("claude-main", "claude-v1")
+                    else _run_plan(backend, options) if options is not None else "")
         usage = run.usage or hand_usage(run.tokens, backend, run.week_limit_usd,
                                         run.week_pct_estimated) or Usage(usd=None)
         tokens = run.tokens or {"input": usage.read + usage.cache_read,
