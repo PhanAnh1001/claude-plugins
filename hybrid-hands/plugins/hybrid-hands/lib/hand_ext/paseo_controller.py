@@ -186,9 +186,10 @@ def valid_completion_binding(record):
 
 def terminal_evidence(record):
     """A released settled epoch retains its daemon authority after frontend restart."""
+    from .legacy_attestation import attested
     q = record.quiescence or {}
     return (record.outcome is not None and record.outcome.get('quiescent') is True
-            and q.get('confirmed') is True and bool(q.get('evidence'))
+            and (q.get('confirmed') is True or attested(record)) and bool(q.get('evidence'))
             and record.reservation is None
             and all(record.settle_keys.get(k, {}).get('state') == 'completed'
                     for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')))
@@ -534,9 +535,9 @@ def cmd_managed_run(cfg, args, *, mode):
     except (isolation.IsolationError, ValueError):
         print('hand-ext: invalid managed isolation or execution limits', file=sys.stderr)
         return EXIT_USAGE
-    except AdmissionFull:
-        return EXIT_PARALLEL_FULL
-    except AdmissionConflict:
+    except (AdmissionFull, AdmissionConflict) as exc:
+        from .execution_admission import admission_diagnostic
+        print(json.dumps(admission_diagnostic(exc)), file=sys.stderr)
         return EXIT_PARALLEL_FULL
     except AdmissionDenied:
         return EXIT_ALL_UNAVAILABLE
