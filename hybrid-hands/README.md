@@ -187,13 +187,16 @@ Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.j
 
 `parallel_subagents.enabled` mặc định `false`, chỉ chấp nhận bool JSON thật (`true`/`false`); sai kiểu về `false` và warning stderr. `true` chỉ hiệu lực khi provenance là repo `.claude/hybrid-hands.json` (kể cả fallback config main worktree); global `true` bị bỏ qua kèm warning, consumer chỉ thấy `false`. `hand-ext config --json` giữ nguồn và đường dẫn config. Hook gặp config lỗi sẽ warning không hiện giá trị, dùng policy thường và exit 0; CLI giữ cách báo lỗi cấu hình hiện có.
 
-Chỉ khi người dùng chốt cho repo đó mới migrate: tắt plugin `parallel-subagents` cũ (luôn tắt ở mọi repo), thêm key dưới đây vào config repo, rồi mở phiên mới vì luật đã nạp ở phiên cũ vẫn còn hiệu lực. Brain/hand không tự bật; ví dụ này chỉ là tài liệu:
+Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Dùng lệnh thay vì sửa JSON thủ công:
 
-```json
-{
-  "parallel_subagents": {"enabled": true}
-}
+```bash
+hand-ext parallel                         # trạng thái, nguồn và file
+hand-ext parallel --json                  # chỉ trạng thái dạng JSON
+hand-ext parallel on --cwd /duong/dan/repo
+hand-ext parallel off --cwd /duong/dan/repo
 ```
+
+Lệnh on/off giữ các key khác, ghi bool vào config repo và in đường dẫn đã ghi. Trong linked worktree chưa có config riêng, nếu loader dùng config main checkout thì lệnh ghi đúng file fallback đó (ảnh hưởng các worktree dùng chung file). Chưa có file thì tạo `.claude/hybrid-hands.json` tại repo hiện tại. JSON lỗi hoặc section không phải object bị từ chối, giữ nguyên file. Luôn **mở phiên mới để hook nạp luật**; luật đã nạp trong phiên cũ vẫn còn hiệu lực.
 
 Mode bật dùng một biến thể policy: brain giao native `Agent hybrid-hands:hand` cho gói độc lập khác file, tối đa `ext_hand.max_parallel` thực (1..4); cùng file/phụ thuộc tuần tự, brain review code hand mình giao. Đây là luật điều phối, không thêm admission runtime. Vẫn `hand-ext pick --json` trước native và guard v1 ≥5%/ngày; pick dsh/codex không chứng minh guard v1 đã qua. Dùng `hand-ext run --backend claude-v1` cho công việc cần wrapper enforce guard, không dùng run làm preflight giả rồi tạo writer trùng; guard chặn hoặc thiếu nguồn thì không spawn native v1, không sửa config/order.
 

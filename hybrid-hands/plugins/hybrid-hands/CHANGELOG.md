@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.1 — 2026-11-10
+
+- Thêm `hand-ext parallel [on|off]`, `--cwd`, `--json`: trạng thái kèm nguồn/file, ghi bool atomic đúng config repo/fallback worktree, giữ key và thứ tự, từ chối file lỗi.
+- Hướng dẫn đổi mode qua lệnh sau khi người dùng chốt từng repo và mở phiên mới để hook nạp luật; plugin parallel-subagents cũ luôn tắt.
+
 ## 0.37.0 — 2026-11-10
 
 - Thêm mode `parallel_subagents.enabled` mặc định tắt, chỉ bool thật và chỉ repo được bật; global true/sai kiểu bị bỏ qua kèm warning, giữ provenance và fallback worktree.
