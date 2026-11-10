@@ -638,6 +638,32 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(failed.state,'failed'); self.assertEqual(list(parallel.durable_reservations()),[])
         self.assertEqual(failed.to_dict(),recover(self.store,a.key,self.repo,None,apply=True).to_dict())
 
+    def test_failed_create_recovery_with_naming_metadata(self):
+        from hand_ext.paseo_recovery import recover
+        inv,a,_,admission,_ = self.intent(); admission.admit(inv,a,max_parallel=1)
+        r = self.store.get(a.key)
+        r.attempt = replace(r.attempt,target_key='target',project_id='project',workspace_id='workspace',agent_id='child')
+        r.receipt['transport'] = dict(pending='create',workspaceConfirmed=True,agentKey='key',targetKey='target',projectId='project',workspaceId='workspace',agentId='child',parentAgentId=inv.parent_paseo_agent_id,
+            title='p › hand codex · l',settled=False,lifecycle=dict(package_root='/pkg',target={'kind':'instance','home':'/h'},node='node'))
+        r.receipt['naming'] = dict(attempts=3,done=False,warning='NAME_UNRESOLVED')
+        self.store.compare_and_swap(a.key,r.revision,r)
+        proof = dict(ok=True,targetKey='target',agentId='child',agentKey='key',workspaceId='workspace',phase='failed',outcomeUnknown=False,inFlight=None,absence='AGENT_NOT_FOUND',failedStage='agent',errorCode='x')
+        # Dispatch evidence or malformed naming stays fail-closed; workspace branch never accepts naming.
+        for path,value in ((('naming','done'),True),(('naming','extra'),1),(('transport','messageId'),'sent'),(('transport','pending'),None)):
+            r=self.store.get(a.key); old=r.receipt[path[0]].get(path[1],'MISSING'); r.receipt[path[0]][path[1]]=value; self.store.compare_and_swap(a.key,r.revision,r)
+            before=self.store._path(a.key).read_bytes()
+            with self.assertRaises(StateConflict): recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _:proof)
+            self.assertEqual(self.store._path(a.key).read_bytes(),before)
+            r=self.store.get(a.key)
+            if old == 'MISSING': r.receipt[path[0]].pop(path[1])
+            else: r.receipt[path[0]][path[1]]=old
+            self.store.compare_and_swap(a.key,r.revision,r)
+        failed = recover(self.store,a.key,self.repo,None,apply=True,validator=lambda _:proof)
+        self.assertEqual(failed.state,'failed'); self.assertEqual(list(parallel.durable_reservations()),[])
+        self.assertEqual(failed.receipt['pre_dispatch_failure']['proof'],proof)
+        self.assertEqual(cli._managed_summary(failed)['create_failure'],{'failedStage':'agent','errorCode':'x'})
+        self.assertEqual(failed.to_dict(),recover(self.store,a.key,self.repo,None,apply=True).to_dict())
+
     def test_schema_failure_and_offline_recovery(self):
         from hand_ext.paseo_recovery import recover
         inv,a,sup,admission,completion=self.intent()

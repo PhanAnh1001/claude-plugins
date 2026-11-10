@@ -268,7 +268,17 @@ def _managed_summary(record):
                 parent_session=record.invocation.parent_session,
                 naming_warning=("NAME_UNRESOLVED" if (record.receipt or {}).get("naming", {}).get("warning") else None),
                 agent_id=record.attempt.agent_id, workspace_id=record.attempt.workspace_id,
-                review_approved=(record.artifacts.get("review") or {}).get("approved") is True)
+                review_approved=(record.artifacts.get("review") or {}).get("approved") is True,
+                create_failure=_create_failure(record))
+
+
+def _create_failure(record):
+    """Sanitized Paseo creation diagnostics persisted by create-failed recovery."""
+    failure = (record.receipt or {}).get("pre_dispatch_failure") or {}
+    if failure.get("reason") != "failed_child_creation":
+        return None
+    proof = failure.get("proof") or {}
+    return {"failedStage": proof.get("failedStage"), "errorCode": proof.get("errorCode")}
 
 
 def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
