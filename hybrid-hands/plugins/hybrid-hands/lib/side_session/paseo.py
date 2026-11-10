@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -402,13 +403,18 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
                           "model": st.model, "thinkingOptionId": st.effort,
                           **({"modeId": options["mode_id"] or None,
                               "providerOptions": options["claude_options"]} if options else {})}, ensure_ascii=False))
+        if a.worktree:
+            for step in K.worktree_steps(cfg, st.name, a.base or C.DEFAULT_BASE,
+                                         sparse=not getattr(a, "no_sparse", False)):
+                print(shlex.join(step.argv))
         print(full_prompt)
         return 0
     if st.role != "main":
         cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     if a.worktree:
-        if subprocess.run(K.worktree_cmd(cfg, st.name, a.base or C.DEFAULT_BASE)).returncode != 0:
-            print("side-session: failed: git worktree add")
+        steps = K.worktree_steps(cfg, st.name, a.base or C.DEFAULT_BASE,
+                                 sparse=not getattr(a, "no_sparse", False))
+        if K.run_worktree_steps(steps) != 0:
             return 1
     st.transport = C.TRANSPORT_PASEO
     st.screen = ""

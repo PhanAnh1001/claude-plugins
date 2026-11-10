@@ -1,0 +1,10 @@
+FIXTURE /tmp/don-s0-cqeme94j
+CASE 1 PASS: sparse isolated; main/sibling full and clean; worktree config true
+CASE 2 PASS: commit/merge/rebase preserve both excluded blob IDs; sparse clean
+BASELINE EXCLUDED: [True, True]
+CASE 3 OBSERVED: isolation.prepare child /tmp/don-s0-cqeme94j/children/sparse-s0 dirty= True excluded_materialized= [False, False]
+DIRTY_FILES ['src/app.txt', 'src/untracked.txt']
+CLEANUP: git worktree remove without force; remaining: worktree /private/tmp/don-s0-cqeme94j/main
+HEAD 505d62981c036946cb8d16c0558a409d6881fa2c
+branch refs/heads/main
+FIXTURE REMOVED /tmp/don-s0-cqeme94j

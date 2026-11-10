@@ -253,7 +253,12 @@ def start(cfg: SideConfig, a) -> int:
         return paseo.start_session(cfg, a, st, workdir, full_prompt, paseo_plan["target"])
     cmds = []
     if a.worktree:
-        cmds.append(K.worktree_cmd(cfg, name, a.base or C.DEFAULT_BASE))
+        steps = K.worktree_steps(cfg, name, a.base or C.DEFAULT_BASE,
+                                 sparse=not getattr(a, "no_sparse", False))
+        if a.dry_run:
+            cmds.extend(step.argv for step in steps)
+        elif K.run_worktree_steps(steps) != 0:
+            return 1
     cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
                               prompt_file, a.hours, model=a.model, effort=a.effort,
                               account=account, config_dir=config_dir,

@@ -17,7 +17,7 @@
 - **Quyết định:**
   1. **`side-session gc`**: mặc định chỉ liệt kê (dry-run); thêm `--apply` mới xoá. Phân lớp worktree theo bảng ở mục 2.1. Chỉ xoá worktree thuộc plugin, đã kết thúc và sạch. **Luôn giữ nhánh**, nên commit không mất; khôi phục bằng `git worktree add <dir> <branch>`.
   2. **Tự dọn khi `side-session start`:** trước khi tạo worktree mới, tự dọn lớp A (đã merge). Cấu hình `side_session.worktree_gc.auto = "merged" | "off"`, mặc định `merged` (đã được người dùng duyệt ngày 10/11/2026).
-  3. **Sparse checkout (P4 bị chặn, chưa phát hành):** thiết kế cấu hình theo repo `side_session.worktree_sparse_exclude`, mặc định `[]`, và cờ `--no-sparse`. Chỉ triển khai sau khi sửa baseline và S0 đạt.
+  3. **Sparse checkout (P4 đã phát hành 0.51.0):** cấu hình theo repo `side_session.worktree_sparse_exclude`, mặc định `[]`, và cờ `--no-sparse`. Đã sửa baseline và S0 chạy lại PASS.
   4. **Chặn đầy ổ:** trước khi tạo worktree (`side-session start`, `hand-ext run`), kiểm tra dung lượng trống. Dưới `disk_guard.warn_gb` (20) thì cảnh báo; dưới `disk_guard.block_gb` (5) thì từ chối và gợi ý `side-session gc`.
   5. **`hand-ext gc`**: xoá worktree hand sót lại khi lượt chạy tương ứng đã ở trạng thái kết thúc trong run registry. Lượt không rõ trạng thái thì giữ.
   6. **Worktree không thuộc plugin:** chỉ báo cáo, không bao giờ xoá; không suy quyền sở hữu từ tên thư mục.
@@ -26,8 +26,8 @@
   - Sau `--apply` có người dùng duyệt: mọi nhánh còn nguyên (đếm `git branch` trước và sau bằng nhau); dung lượng thu hồi khớp con số dry-run dự kiến (lệch ≤ 5%).
   - Worktree mới có sparse chiếm ≤ 15 MB file theo dõi với pattern mặc định đề xuất cho `live-tiktok-games` (hiện ~227 MB).
 - **Lane:** L2, người dùng duyệt spec và plan trước khi code. Plan cắt 1 spike và 6 gói L1 (xem [plan](plan.md)), phát hành một bản minor.
-- **Trạng thái phê duyệt:** spec/plan đã được người dùng duyệt ngày 10/11/2026; chốt `auto = "merged"`, sparse mặc định `[]` và hai pattern ở mục 3.2. Cấu hình `live-tiktok-games` do Opus làm sau khi S0 đạt (hiện chưa đạt), ngoài phạm vi hand. P6 chỉ GC thật dry-run; không apply GC thật hoặc thử sparse trên repo thật.
-- **Kết quả S0:** Git 2.55.0 đạt cô lập và commit/merge/rebase, nhưng helper `isolation.prepare` làm thiếu file bị loại trong baseline tree và ghi nhầm vào `dirty_files`. **S0 FAIL, chặn P4** đến khi sửa và kiểm chứng lại; xem [bằng chứng S0](spike-s0.md). Sol đã chạy lại và review FAIL; không tick S0/P4.
+- **Trạng thái phê duyệt:** spec/plan đã được người dùng duyệt ngày 10/11/2026; chốt `auto = "merged"`, sparse mặc định `[]` và hai pattern ở mục 3.2. Cấu hình `live-tiktok-games` do Opus làm (S0 đã đạt, chưa ghi), ngoài phạm vi hand. P6 chỉ GC thật dry-run; không apply GC thật hoặc thử sparse trên repo thật.
+- **Kết quả S0:** Git 2.55.0 đạt cô lập và commit/merge/rebase, nhưng helper `isolation.prepare` làm thiếu file bị loại trong baseline tree và ghi nhầm vào `dirty_files`. Lần đầu S0 FAIL; sau khi `_snapshot_tree` seed index tạm từ index thật, chạy lại **PASS** ngày 10/11/2026 và P4 phát hành 0.51.0; xem [bằng chứng S0](spike-s0.md).
 
 ## 1. Bối cảnh
 
@@ -88,14 +88,14 @@ Một worktree **thuộc plugin** khi có bản ghi state `side-session` với `
 - `side_session.worktree_gc.auto`: `"merged"` (mặc định đã duyệt) hoặc `"off"`.
 - Khi là `merged`, `start --worktree` chạy gc lớp A của repo trước `git worktree add`, không tính `--include-unmerged`. Lỗi gc chỉ cảnh báo, không chặn start.
 
-### 3.2 Sparse checkout — thiết kế đã duyệt, P4 blocked
+### 3.2 Sparse checkout — đã phát hành 0.51.0
 
-S0 đã được Sol chạy lại/review FAIL ở baseline `isolation.prepare`; các cấu hình/cờ dưới đây chưa có trong release P1–P3/P5. Không ghi config hoặc thử trên live-tiktok-games.
+S0 lần đầu FAIL ở baseline `isolation.prepare`, đã sửa và chạy lại PASS; cấu hình/cờ dưới đây đã phát hành trong 0.51.0. Không ghi config hoặc thử trên live-tiktok-games.
 
 - `side_session.worktree_sparse_exclude`: danh sách pattern theo cú pháp gitignore, mặc định `[]`.
 - Khi danh sách khác rỗng, `start` làm lần lượt: `git worktree add --no-checkout …` → `git -C <wt> sparse-checkout set --no-cone '/*' '!<pattern>'…` → `git -C <wt> checkout`.
 - Cờ `--no-sparse` bỏ qua cấu hình này.
-- Pattern cho `live-tiktok-games` đã được người dùng duyệt ngày 10/11/2026; Opus chỉ đặt trong `.claude/hybrid-hands.json` sau khi S0 đạt (hiện không đạt), ngoài task này: `docs/work-in-progress/handoffs/*-data/` và `docs/work-in-progress/handoffs/*-shots/`. Hai pattern này bỏ được 216 MB trên tổng 227 MB.
+- Pattern cho `live-tiktok-games` đã được người dùng duyệt ngày 10/11/2026; Opus chỉ đặt trong `.claude/hybrid-hands.json` (S0 đã đạt, chưa ghi), ngoài task này: `docs/work-in-progress/handoffs/*-data/` và `docs/work-in-progress/handoffs/*-shots/`. Hai pattern này bỏ được 216 MB trên tổng 227 MB.
 - Spike S0 cần xác nhận với git 2.55:
   1. sparse của worktree không ảnh hưởng checkout chính hay worktree khác;
   2. commit, merge và rebase trong worktree sparse không xoá nhầm file đã bị loại khỏi checkout;
@@ -134,7 +134,7 @@ Test đầy đủ của plugin chạy đúng một lần ở cuối.
 
 - Cài bản mới, chạy `side-session gc` (dry-run) trên `live-tiktok-games`, so với số đo ở mục tóm tắt.
 - P6 hiện chỉ được chạy GC thật dry-run; không chạy `--apply` thật trong phạm vi đã duyệt này.
-- Không thử sparse trên `live-tiktok-games`; S0 chỉ dùng repo giả `/tmp`. Cấu hình hai pattern đã duyệt do Opus thực hiện sau khi S0 đạt (hiện chưa đạt).
+- Không thử sparse trên `live-tiktok-games`; S0 chỉ dùng repo giả `/tmp`. Cấu hình hai pattern đã duyệt do Opus thực hiện (S0 đã đạt, chưa ghi).
 
 ### 5.3 Tài liệu
 
@@ -146,4 +146,4 @@ Cập nhật trong cùng bản phát hành:
 
 ### 5.4 Trạng thái phát hành
 
-Đã phát hành 0.50.0 sau account sync 0.49.0, merge `e85b80d` và push main. P1/P2/P3/P5 đã review và test hẹp đạt; P6 đã validate/cài v1/v2 và đo GC thật chỉ dry-run. Full suite chạy đúng một lần (575 tests, failures=2/errors=3); hai errors auto-GC được sửa và test hẹp xanh lại, ba lỗi ngoài phạm vi còn lại không sửa, không chạy lại full suite. Xem số đo thật và giới hạn ở [plan](plan.md). P4 blocked do S0 FAIL. Không có GC apply thật, không có đo sparse <=15 MB, không ghi config live-tiktok-games.
+Đã phát hành 0.50.0 sau account sync 0.49.0, merge `e85b80d` và push main. P1/P2/P3/P5 đã review và test hẹp đạt; P6 đã validate/cài v1/v2 và đo GC thật chỉ dry-run. Full suite chạy đúng một lần (575 tests, failures=2/errors=3); hai errors auto-GC được sửa và test hẹp xanh lại, ba lỗi ngoài phạm vi còn lại không sửa, không chạy lại full suite. Xem số đo thật và giới hạn ở [plan](plan.md). P4 phát hành 0.51.0 sau khi S0 chạy lại PASS. Không có GC apply thật, không có đo sparse <=15 MB, không ghi config live-tiktok-games.

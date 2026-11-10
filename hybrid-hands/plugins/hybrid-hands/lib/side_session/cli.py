@@ -30,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="mở phiên chính: mặc định Codex Sol high trên Paseo; "
                         "--provider claude mở Claude Opus high trên Paseo")
     s.add_argument("--worktree", action="store_true")
+    s.add_argument("--no-sparse", action="store_true",
+                   help="bỏ qua side_session.worktree_sparse_exclude, checkout đủ")
     s.add_argument("--ignore-disk-guard", action="store_true",
                    help="chủ động vượt chặn dung lượng ổ khi tạo worktree")
     s.add_argument("--base", default=None)
