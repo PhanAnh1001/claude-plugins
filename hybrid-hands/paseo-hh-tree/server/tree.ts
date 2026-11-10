@@ -6,15 +6,7 @@ import { treeRpc, type TreeResult } from "../shared/tree";
 import { findAgentSession } from "./agent-record";
 import { findHhPs, HH_PS_MISSING_ERROR, runHhPs } from "./hh-ps";
 
-export const CACHE_TTL_MS = 3_000;
-
-interface CacheEntry {
-  expiresAt: number;
-  value: TreeResult;
-}
-
-const cache = new Map<string, CacheEntry>();
-const inFlight = new Map<string, Promise<TreeResult>>();
+import { createCachedLoader } from "./cache";
 
 async function configuredPath(
   settings: PluginSettings<HhTreeSettingsSchema>,
@@ -43,29 +35,12 @@ async function loadTree(
   });
 }
 
-/**
- * Handler for hh-tree.get. Reuses a 3 second cache and the in-flight promise so
- * panels polling the same key do not spawn concurrent hh-ps processes.
- */
+/** Each handler shares executions and adaptive cache entries across its clients. */
 export function createTreeHandler(settings: PluginSettings<HhTreeSettingsSchema>) {
-  return async (input: RpcInput<typeof treeRpc>): Promise<TreeResult> => {
-    const key = `${input.agentId ?? ""}|${input.all === true ? "1" : "0"}`;
-    const cached = cache.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.value;
-    }
-    const pending = inFlight.get(key);
-    if (pending) {
-      return pending;
-    }
-    const promise = loadTree(input, settings);
-    inFlight.set(key, promise);
-    try {
-      const value = await promise;
-      cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, value });
-      return value;
-    } finally {
-      inFlight.delete(key);
-    }
-  };
+  const load = createCachedLoader<string, TreeResult>(
+    key => loadTree(JSON.parse(key) as RpcInput<typeof treeRpc>, settings),
+    value => !value.ok,
+  );
+  return (input: RpcInput<typeof treeRpc>): Promise<TreeResult> =>
+    load(JSON.stringify({ agentId: input.agentId, all: input.all === true }));
 }

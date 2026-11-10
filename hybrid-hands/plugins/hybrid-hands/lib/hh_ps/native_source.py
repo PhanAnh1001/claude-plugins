@@ -18,16 +18,25 @@ _HEADER = re.compile(r'^\s*\{\s*' + _HEADER_META +
     _HEADER_META + r'"payload"\s*:\s*\{')
 _EVENT = re.compile(r'"payload"\s*:\s*\{\s*"type"\s*:\s*"(task_started|task_complete|task_failed|task_errored|task_cancelled|turn_aborted|failed|errored|cancelled|token_count)"\s*[,}]')
 
+_TOKEN_EVENT = re.compile(r'"payload"\s*:\s*\{\s*"type"\s*:\s*"token_count"\s*[,}]')
+# A literal gate is only a necessary condition; the anchored header still decides
+# which records may be decoded. Chat/response payloads are never JSON-decoded.
+_METADATA_KEYS = frozenset(("id", "parent_thread_id", "source", "cwd", "timestamp",
+    "model", "effort", "reasoning_effort", "description", "title", "agent_path", "agent_nickname"))
+_EVENT_KEYS = frozenset(("type", "started_at", "completed_at", "ended_at", "duration_ms",
+    "exit_code", "exit", "status", "info", "rate_limits"))
+
 
 def _records(path, token_only=False, strict=False):
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:
-                match = _HEADER.match(line)
-                if not match or (match[1] == "event_msg" and not _EVENT.search(line)):
+                if ('"session_meta"' not in line and '"turn_context"' not in line
+                        and '"event_msg"' not in line):
                     continue
-                if token_only and match[1] == "event_msg" and not re.search(
-                        r'"payload"\s*:\s*\{\s*"type"\s*:\s*"token_count"\s*[,}]', line):
+                match = _HEADER.match(line)
+                if not match or (match[1] == "event_msg" and not (
+                        _TOKEN_EVENT if token_only else _EVENT).search(line)):
                     continue
                 try:
                     row = json.loads(line)
@@ -37,7 +46,7 @@ def _records(path, token_only=False, strict=False):
                     continue
                 payload = row.get("payload")
                 if isinstance(payload, dict):
-                    keys = {"id", "parent_thread_id", "source", "cwd", "timestamp", "model", "effort", "reasoning_effort", "description", "title", "agent_path", "agent_nickname"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info", "rate_limits"}
+                    keys = _EVENT_KEYS if row["type"] == "event_msg" else _METADATA_KEYS
                     yield row["type"], {k: v for k, v in payload.items() if k in keys}, to_epoch(row.get("timestamp"))
     except OSError:
         if strict:

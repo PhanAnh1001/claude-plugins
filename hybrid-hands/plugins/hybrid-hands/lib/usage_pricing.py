@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import copy
+from functools import lru_cache
 import math
 import os
 from pathlib import Path
@@ -23,9 +25,21 @@ def number(value: Any) -> Optional[float]:
     return result if math.isfinite(result) and result >= 0 else None
 
 
+def _prices() -> dict:
+    from shared_config import file_stamp
+    path = Path(os.environ.get(PRICING_ENV, DEFAULT_FILE)).absolute()
+    return _load_prices_cached(path, file_stamp(path))
+
+
 def load_prices() -> dict:
+    """Return an independent copy; price lookups use the private cached table."""
+    return copy.deepcopy(_prices())
+
+
+@lru_cache(maxsize=32)
+def _load_prices_cached(path: Path, stamp: tuple) -> dict:
     try:
-        data = json.loads(Path(os.environ.get(PRICING_ENV, DEFAULT_FILE)).read_text())
+        data = json.loads(path.read_text())
     except (OSError, ValueError, TypeError):
         return {}
     if not isinstance(data, dict) or data.get("version") != 1:
@@ -39,7 +53,7 @@ def load_prices() -> dict:
 
 
 def model_price(model: str) -> Optional[dict]:
-    return load_prices().get(str(model).removeprefix("opencode-go/"))
+    return copy.deepcopy(_prices().get(str(model).removeprefix("opencode-go/")))
 
 
 def token_price(model: str) -> Optional[dict]:

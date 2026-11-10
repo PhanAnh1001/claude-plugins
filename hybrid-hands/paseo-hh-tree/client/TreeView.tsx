@@ -9,7 +9,7 @@ import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
 import { panelRows } from "./compact";
 import { SessionBlock } from "./SessionBlock";
 
-const REFRESH_INTERVAL_MS = 5_000;
+const REFRESH_INTERVAL_MS = 30_000;
 
 interface TreeViewProps {
   agentId?: string;
