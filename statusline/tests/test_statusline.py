@@ -109,7 +109,7 @@ class StatuslineTest(unittest.TestCase):
         self.assertTrue(plain[0].endswith(" project"))
         self.assertEqual(plain[1], "Opus(high) | tokens:6.5k | ctx:55%")
         self.assertIn(EXPECTED_TOKENS, lines[1])
-        self.assertRegex(plain[2], r"^Claude\s+5h:12% \(reset .+\) \| 7d:85% \(reset .+\)$")
+        self.assertRegex(plain[2], r"^Claude v1 ultra\s+5h:12% \(reset .+\) \| 7d:85% \(reset .+\)$")
         self.assertEqual(lines[EXPECTED_LINES:], SKILL_BLOCK)
         self.assertIn(f"{DIM}(high){RESET}", lines[1])  # same style as the skill note
 
@@ -132,26 +132,26 @@ class StatuslineTest(unittest.TestCase):
         self.assertEqual(cache["five"], str(FIVE_PCT))
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
         # The original fixture's expired reset stays absent.
-        self.assertRegex(plain, r"^Claude\s+5h:- \| 7d:~85% \(reset .+\)$")
+        self.assertRegex(plain, r"^Claude v1 ultra\s+5h:- \| 7d:~85% \(reset .+\)$")
         import time
         cache["five_reset"] = str(int(time.time()) + 3600)
         (self.claude_home / CACHE_NAME).write_text(json.dumps(cache), encoding="utf-8")
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
-        self.assertRegex(plain, r"^Claude\s+5h:~12% \|")
+        self.assertRegex(plain, r"^Claude v1 ultra\s+5h:~12% \(reset .+\) \|")
         cache["five_reset"] = str(int(time.time()) - 1)
         (self.claude_home / CACHE_NAME).write_text(json.dumps(cache), encoding="utf-8")
         self.assertIn("5h:-", ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2]))
 
     def test_placeholders_without_rate_limits_or_cache(self) -> None:
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
-        self.assertEqual(plain, "Claude  5h:- | 7d:--")
+        self.assertEqual(plain, "Claude v1 ultra  5h:- | 7d:--")
 
     def test_go_usage_on_its_own_line_under_claude_with_estimated_marks(self) -> None:
         self.write_go_summary(five=12.3, week=31)
         lines = self.render(go_state=self.state_dir)
-        self.assertRegex(ANSI_ESCAPE.sub("", lines[2]), r"^Claude\s+5h:[^|]+ \| 7d:[^|]+$")
-        self.assertEqual(lines[4:], SKILL_BLOCK)
-        line = lines[3]
+        self.assertRegex(ANSI_ESCAPE.sub("", lines[2]), r"^Claude v1 ultra\s+5h:[^|]+ \| 7d:[^|]+$")
+        self.assertEqual(lines[3:-1], SKILL_BLOCK)
+        line = lines[-1]  # Go is the last status-line line, after the skill block
         plain = ANSI_ESCAPE.sub("", line)
         self.assertRegex(plain, r"^Go\s+DS 5h ~12\.3%\s+\| tuần ~31\.0%$")
         self.assertIn(f"{GREEN}12.3%{RESET}", line)
@@ -159,7 +159,7 @@ class StatuslineTest(unittest.TestCase):
 
     def test_go_usage_exact_and_fresh_has_no_tilde(self) -> None:
         self.write_go_summary(five=88, week=12, estimated=False)
-        line = self.render(go_state=self.state_dir)[3]
+        line = self.render(go_state=self.state_dir)[-1]
         plain = ANSI_ESCAPE.sub("", line)
         self.assertRegex(plain, r"^Go\s+DS 5h 88\.0%\s+\| tuần 12\.0%$")
         self.assertIn(f"{RED}88.0%{RESET}", line)
@@ -168,7 +168,7 @@ class StatuslineTest(unittest.TestCase):
     def test_go_usage_older_than_five_hours_is_marked_stale(self) -> None:
         self.write_go_summary(five=12, week=31, estimated=False,
                               updated_at=int(time.time()) - STALE_SECONDS - 60)
-        plain = ANSI_ESCAPE.sub("", self.render(go_state=self.state_dir)[3])
+        plain = ANSI_ESCAPE.sub("", self.render(go_state=self.state_dir)[-1])
         self.assertRegex(plain, r"^Go\s+DS 5h ~12\.0%\s+\| tuần ~31\.0%$")
 
     def test_go_usage_missing_file_is_silent(self) -> None:

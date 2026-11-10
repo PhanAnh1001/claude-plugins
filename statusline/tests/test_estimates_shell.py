@@ -74,7 +74,7 @@ class EstimateShellTest(unittest.TestCase):
     def test_estimate_shown_with_one_decimal_and_integer_colour(self) -> None:
         self.write_summary()
         lines = self.render()
-        self.assertRegex(ANSI_ESCAPE.sub("", lines[2]), r"^Claude\s+5h:- \| 7d:~4\.3% \(reset .+\)$")
+        self.assertRegex(ANSI_ESCAPE.sub("", lines[2]), r"^Claude v1 ultra\s+5h:- \| 7d:~4\.3% \(reset .+\)$")
         self.assertIn(f"{GREEN}4.3%{RESET}", lines[2])
 
     def test_base_mismatch_prints_integer(self) -> None:
@@ -92,15 +92,15 @@ class EstimateShellTest(unittest.TestCase):
     def test_cached_value_with_estimate_has_one_tilde(self) -> None:
         self.render()  # fills the cache
         self.write_summary()
-        self.assertRegex(self.line3(week=None), r"^Claude\s+5h:- \| 7d:~4\.3% \(reset .+\)$")
+        self.assertRegex(self.line3(week=None), r"^Claude v1 ultra\s+5h:- \| 7d:~4\.3% \(reset .+\)$")
 
     def test_live_five_still_printed(self) -> None:
-        self.assertRegex(self.line3(five=12.3), r"^Claude\s+5h:12% \(reset .+\) \| 7d:4%")
+        self.assertRegex(self.line3(five=12.3), r"^Claude v1 ultra\s+5h:12% \(reset .+\) \| 7d:4%")
 
-    def test_cached_five_is_not_shown(self) -> None:
+    def test_cached_five_with_future_reset_is_shown_stale(self) -> None:
         (self.claude_home / ".statusline-cache.json").write_text(json.dumps(
             {"five": "40", "five_reset": str(WEEK_RESET)}))
-        self.assertRegex(self.line3(), r"^Claude\s+5h:- \| ")
+        self.assertRegex(self.line3(), r"^Claude v1 ultra\s+5h:~40% \(reset .+\) \| ")
 
     # --- Go ---
     def go_line(self) -> str:

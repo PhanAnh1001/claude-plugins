@@ -163,7 +163,7 @@ class GoUsageTest(unittest.TestCase):
         lines = result.stdout.split("\n")
         self.assertGreaterEqual(len(lines), 4, result.stdout)
         claude = ANSI_ESCAPE.sub("", lines[2])
-        self.assertRegex(claude, r"^Claude\s+5h:[^|]+ \| 7d:[^|]+$")
+        self.assertRegex(claude, r"^Claude v1 ultra\s+5h:[^|]+ \| 7d:[^|]+$")
         return lines[3]
 
     def wait_for(self, predicate, timeout: float = 12.0) -> bool:

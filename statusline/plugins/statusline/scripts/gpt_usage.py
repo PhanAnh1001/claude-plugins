@@ -1,8 +1,11 @@
-"""GPT (Codex) cells for the statusline limit table.
+"""GPT (Codex) cells for the statusline limit table, from the ~/.codex account's rollouts.
 
-Reads local shared Codex account samples (ledger and fixed .codex-hand rollouts).
-Today's estimated USD remains ledger-only. Read-only, no network or credentials.
-Missing shared sources fail open; collect() remains a deterministic ledger-only helper.
+5h / 7d %: the newest `token_count.rate_limits` sample (by timestamp) in `sessions/` and
+`archived_sessions/`. A window is labelled by `window_minutes` (300 = 5h, 10080 = 7d); a legacy
+sample without durations keeps primary = 5h, secondary = 7d. Expired resets show "?".
+Today's USD~: per-thread token deltas of today's (local) `token_count` events x the canonical
+price file; an unpriced model or unreadable price file gives "?". Read-only, offline estimate.
+Only rollouts modified within SCAN_DAYS are read. STATUSLINE_CODEX_DIR overrides ~/.codex.
 """
 from __future__ import annotations
 
@@ -12,157 +15,187 @@ import math
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterator, Optional, Tuple
+from typing import Any, Iterator, Optional
 
-SCHEMA_VERSION = 1
-CODEX_HOME = ".codex-hand"
-LEDGER_NAME = "codex_usage.jsonl"
+from shared_prices import load_prices
+
+CODEX_DIR_ENV = "STATUSLINE_CODEX_DIR"
+CODEX_DIR_NAME = ".codex"
+ROLLOUT_DIRS = ("sessions", "archived_sessions")
+ROLLOUT_GLOB = "rollout-*.jsonl"
+SCAN_DAYS = 7
 FRESH_SECONDS = 24 * 3600
 PCT_MAX = 100
+FIVE_HOUR_MINUTES = 300
+WEEK_MINUTES = 10080
+LEGACY_WINDOWS = {"primary": "5h", "secondary": "7d"}
+TOKENS_PER_PRICE_UNIT = 1_000_000
 UNKNOWN_USD = "?"
 USD_FORMAT = "{:.2f}"
 CELL_SEPARATOR = "\x1f"
+EVENT_MARKER = '"token_count"'
 
 
-def ledger_path() -> Path:
-    state_dir = os.environ.get("HYBRID_HANDS_STATE_DIR") or str(Path.home() / ".hybrid-hands")
-    return Path(state_dir) / LEDGER_NAME
+def codex_dir() -> Path:
+    return Path(os.environ.get(CODEX_DIR_ENV) or Path.home() / CODEX_DIR_NAME)
 
 
 def finite_number(value: Any) -> Optional[float]:
     """A JSON number that is finite, not a bool and not negative, else None."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    try:
-        number = float(value)
-    except (TypeError, ValueError, OverflowError):
+    if not math.isfinite(value) or value < 0:
         return None
-    if not math.isfinite(number) or number < 0:
-        return None
-    return 0.0 if number == 0 else number
+    return float(value)
 
 
 def parse_moment(value: Any) -> Optional[dt.datetime]:
     """An ISO-8601 string (any offset, optional Z) or an epoch number, else None."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        number = finite_number(value)
-        if number is None:
-            return None
+    number = finite_number(value)
+    if number is not None:
         try:
             return dt.datetime.fromtimestamp(number, dt.timezone.utc)
         except (OverflowError, OSError, ValueError):
             return None
-    if not isinstance(value, str):
+    if not isinstance(value, str) or not value.strip():
         return None
     text = value.strip()
-    if not text:
-        return None
     if text.endswith(("Z", "z")):
         text = text[:-1] + "+00:00"
     try:
         moment = dt.datetime.fromisoformat(text)
     except ValueError:
         return None
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=dt.datetime.now().astimezone().tzinfo)
-    return moment
+    return moment if moment.tzinfo else moment.astimezone()
 
 
-def is_account_record(record: Any) -> bool:
-    """Schema 1 and the hand account only; `.codex` and unknown schemas are ignored."""
-    if not isinstance(record, dict):
-        return False
-    schema = record.get("schema")
-    return not isinstance(schema, bool) and schema == SCHEMA_VERSION \
-        and record.get("codex_home") == CODEX_HOME
+def recent_rollouts(root: Path, since: float) -> list[tuple[float, Path]]:
+    """(mtime, path) of rollouts modified at or after `since`, newest first."""
+    found = []
+    for name in ROLLOUT_DIRS:
+        for path in (root / name).rglob(ROLLOUT_GLOB):
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime >= since:
+                found.append((mtime, path))
+    return sorted(found, reverse=True)
 
 
-def read_records(path: Path) -> Iterator[dict]:
-    """Yield JSON objects line by line; a broken line, scalar or list is skipped."""
+def read_events(path: Path) -> Iterator[tuple[str, dict, Optional[dt.datetime]]]:
+    """(record type, payload, timestamp) of session_meta / turn_context / token_count lines."""
     try:
         handle = path.open("r", encoding="utf-8", errors="replace")
     except OSError:
         return
     with handle:
         for line in handle:
+            if EVENT_MARKER not in line and '"session_meta"' not in line \
+                    and '"turn_context"' not in line:
+                continue
             try:
                 record = json.loads(line)
             except ValueError:
                 continue
-            if isinstance(record, dict):
-                yield record
+            payload = record.get("payload") if isinstance(record, dict) else None
+            if isinstance(payload, dict):
+                kind = payload.get("type") if record.get("type") == "event_msg" else record.get("type")
+                yield str(kind), payload, parse_moment(record.get("timestamp"))
 
 
-def window_percent(raw: Any, now: dt.datetime) -> Optional[float]:
-    """A used_percent 0..100 whose reset is in the future; null/expired is not shown."""
-    if not isinstance(raw, dict):
-        return None
-    percent = finite_number(raw.get("used_percent"))
-    reset = parse_moment(raw.get("resets_at"))
-    if percent is None or percent > PCT_MAX or reset is None or reset <= now:
-        return None
-    return percent
-
-
-def collect(path: Path, now: dt.datetime) -> Optional[Tuple[Optional[float], Optional[float], str]]:
-    """Newest quota sample plus today's USD, or None when the newest sample is >= 24h old."""
-    today_start = now.astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
-    sample_ended: Optional[dt.datetime] = None
-    sample_windows: dict = {}
-    usd_total = 0.0
-    usd_unknown = False
-    for record in read_records(path):
-        if not is_account_record(record):
+def sample_windows(rate_limits: dict, now: dt.datetime) -> dict:
+    """{"5h"|"7d": (pct, reset epoch)} of usable windows; durations decide the label."""
+    result = {}
+    for slot, legacy in LEGACY_WINDOWS.items():
+        raw = rate_limits.get(slot)
+        if not isinstance(raw, dict):
             continue
-        ended = parse_moment(record.get("ended"))
-        if ended is None or ended > now:
-            continue
-        windows = record.get("windows")
-        if isinstance(windows, dict) and (sample_ended is None or ended > sample_ended):
-            sample_ended = ended
-            sample_windows = windows
-        if ended >= today_start:
-            cost = finite_number(record.get("cost_usd"))
+        minutes = raw.get("window_minutes")
+        label = {FIVE_HOUR_MINUTES: "5h", WEEK_MINUTES: "7d"}.get(minutes) if minutes is not None \
+            else legacy
+        pct = finite_number(raw.get("used_percent"))
+        reset = parse_moment(raw.get("resets_at"))
+        if label and pct is not None and pct <= PCT_MAX and reset is not None and reset > now:
+            result[label] = (pct, int(reset.timestamp()))
+    return result
+
+
+def event_cost(delta: dict, model: Optional[str], prices: dict) -> Optional[float]:
+    price = prices.get(model or "")
+    if price is None:
+        return None
+    cached = delta.get("cached_input_tokens", 0)
+    fresh = max(delta.get("input_tokens", 0) - cached, 0)
+    output = delta.get("output_tokens", 0)
+    return (fresh * price["input"] + cached * price["cached"] + output * price["output"]) \
+        / TOKENS_PER_PRICE_UNIT
+
+
+def token_delta(total: dict, previous: Optional[dict]) -> dict:
+    keys = ("input_tokens", "cached_input_tokens", "output_tokens")
+    current = {k: finite_number(total.get(k)) or 0 for k in keys}
+    if previous is None or current["input_tokens"] < previous["input_tokens"]:
+        return current
+    return {k: max(current[k] - previous[k], 0) for k in keys}
+
+
+def collect(root: Path, now: dt.datetime, prices: dict) -> Optional[tuple]:
+    """(5h, 7d windows dict, today's USD text) or None without a sample in the last 24h."""
+    today = now.astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    files = recent_rollouts(root, now.timestamp() - SCAN_DAYS * 86400)
+    newest: Optional[tuple] = None
+    threads: dict = {}
+    for mtime, path in files:
+        need_usd = mtime >= today.timestamp()
+        if not need_usd and newest is not None and mtime < newest[0].timestamp():
+            break
+        thread, model = path.stem, None
+        for kind, payload, at in read_events(path):
+            if kind == "session_meta":
+                thread = str(payload.get("id") or thread)
+            elif kind == "turn_context":
+                model = payload.get("model") or model
+            elif kind == "token_count" and at is not None and at <= now:
+                limits = payload.get("rate_limits")
+                if isinstance(limits, dict) and (newest is None or at > newest[0]):
+                    newest = (at, limits)
+                info = payload.get("info")
+                total = info.get("total_token_usage") if isinstance(info, dict) else None
+                if need_usd and isinstance(total, dict):
+                    threads.setdefault(thread, {})[total.get("total_tokens")] = (at, total, model)
+    if newest is None or (now - newest[0]).total_seconds() >= FRESH_SECONDS:
+        return None
+    return sample_windows(newest[1], now), today_usd(threads, today, prices)
+
+
+def today_usd(threads: dict, today: dt.datetime, prices: dict) -> str:
+    """Sum of today's per-thread deltas; duplicate totals (resumed copies) count once."""
+    usd = 0.0
+    for events in threads.values():
+        previous = None
+        for at, total, model in sorted(events.values(), key=lambda e: e[0]):
+            delta = token_delta(total, previous)
+            previous = {k: finite_number(total.get(k)) or 0 for k in delta}
+            if at < today or not any(delta.values()):
+                continue
+            cost = event_cost(delta, model, prices)
             if cost is None:
-                usd_unknown = True
-            else:
-                usd_total += cost
-    if sample_ended is None or (now - sample_ended).total_seconds() >= FRESH_SECONDS:
-        return None
-    usd = UNKNOWN_USD if usd_unknown else USD_FORMAT.format(usd_total)
-    return (window_percent(sample_windows.get("5h"), now),
-            window_percent(sample_windows.get("7d"), now), usd)
+                return UNKNOWN_USD
+            usd += cost
+    return USD_FORMAT.format(usd)
 
 
 def main() -> int:
     now = dt.datetime.now(dt.timezone.utc)
-    data = collect(ledger_path(), now)
-    from shared_usage import account_windows
-    windows = account_windows(now.timestamp())
-    # Keep the ledger's schema/freshness checks; compare each rollout window independently.
-    latest = {}
-    for record in read_records(ledger_path()):
-        ended = parse_moment(record.get("ended")) if is_account_record(record) else None
-        if ended is None or not 0 <= (now - ended).total_seconds() < FRESH_SECONDS:
-            continue
-        raw = record.get("windows")
-        if not isinstance(raw, dict):
-            continue
-        for key, label in (("5h", "5h"), ("7d", "tuần")):
-            if key in raw and (label not in latest or ended.timestamp() > latest[label][1]):
-                latest[label] = (window_percent(raw[key], now), ended.timestamp())
-    for label, sample in windows.items():
-        if label not in latest or sample[1] >= latest[label][1]:
-            latest[label] = sample
-    if latest or data is not None:
-        data = (latest.get("5h", (None,))[0], latest.get("tuần", (None,))[0],
-                data[2] if data else UNKNOWN_USD)
+    data = collect(codex_dir(), now, load_prices())
     if data is None:
         return 0
-    five, seven, usd = data
-    cells = ("" if five is None else str(five), "" if seven is None else str(seven), usd)
+    windows, usd = data
+    five = windows.get("5h", ("", ""))
+    seven = windows.get("7d", ("", ""))
+    # Cells: 5h %, 7d %, today's USD, 5h reset, 7d reset (epoch); "" when unknown.
+    cells = (str(five[0]), str(seven[0]), usd, str(five[1]), str(seven[1]))
     sys.stdout.write(CELL_SEPARATOR.join(cells) + "\n")
     return 0
 

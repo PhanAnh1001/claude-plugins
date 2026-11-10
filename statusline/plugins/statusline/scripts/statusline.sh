@@ -8,10 +8,12 @@
 #      this machine's USD per 1% inside the 7d parentheses)
 #   3b. rows "· máy này" and "· máy khác": 7-day usage split by machine (per weekday for this
 #      one), from "week-split.sh --color"; none until its summary exists for this window
+#   3a. rows "Claude v1 ultra" (~/.claude) and "Claude v2 pro" (~/.claude-hand): the account this
+#      session runs on (CLAUDE_HOME) gets the live payload as above; the other one shows its own
+#      statusline cache with "~", "?" per cell when missing or past its reset
 #   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
-#      the estimated DS cells from hand-ext
-#   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from the hand-ext
-#      Codex ledger / local rollout; USD remains ledger-only
+#      the estimated DS cells from hand-ext; aligned with the table, printed as the LAST line
+#   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from ~/.codex rollouts
 #   3e. one line per main-session group (session-lines.sh): Claude and Go % of the group
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
@@ -28,7 +30,7 @@
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 # Last known rate-limit percentages/reset times, so line 3 shows real numbers on CLI startup
 # (before the first API response, when rate_limits is absent). Cached values are marked "~".
-CACHE_FILE="$CLAUDE_HOME/.statusline-cache.json"
+CACHE_FILE="$CLAUDE_HOME/.statusline-cache.json"  # = $CLAUDE_HOME/$CACHE_NAME
 
 case "${BASH_SOURCE[0]}" in
   */*) SCRIPTS_DIR="${BASH_SOURCE[0]%/*}" ;;
@@ -47,6 +49,15 @@ ESTIMATE_FRESH_SECONDS=1800
 ESTIMATE_SAME_WINDOW_SECONDS=3600
 # Shown when neither live payload nor a fresh shared 5-hour cache is usable.
 FIVE_ABSENT="-"
+# Row labels of the two Claude accounts: v1 = ~/.claude (ultra), v2 = ~/.claude-hand (pro). Each
+# account keeps its own CACHE_NAME under its home; the session's account is live, the other is
+# read from its cache. Unknown other-account / GPT cells show UNKNOWN_CELL.
+CLAUDE_V1_LABEL="Claude v1 ultra"
+CLAUDE_V2_LABEL="Claude v2 pro"
+CLAUDE_V1_HOME="$HOME/.claude"
+CLAUDE_V2_HOME="$HOME/.claude-hand"
+CACHE_NAME=".statusline-cache.json"
+UNKNOWN_CELL="?"
 # shellcheck source=go-segments.sh
 . "$SCRIPTS_DIR/go-segments.sh"
 
@@ -228,18 +239,48 @@ rate_limit_segment() {
   printf '%s' "$seg"
 }
 
+known_segment() {
+  # Args: label pct reset. rate_limit_segment for a known %, else "label:?".
+  if [ -n "$2" ]; then rate_limit_segment "$1" "$2" "$3" "" ""
+  else printf '%s' "${DIM}$1:${UNKNOWN_CELL}${RESET}"; fi
+}
+
 build_gpt_cells() {
-  # Cells from gpt_usage.py (5h, 7d, today's USD), or nothing when it has no fresh sample.
-  # The parser only prints validated numbers; the row label is added by build_limit_table.
-  local row five_pct seven_pct usd
+  # Cells from gpt_usage.py (5h, 7d, today's USD, 5h reset, 7d reset), or nothing when it has
+  # no fresh sample. The parser only prints validated numbers; the label is added later.
+  local row five_pct seven_pct usd five_at seven_at
   [ -f "$GPT_USAGE_SCRIPT" ] || return 0
   row=$(python3 "$GPT_USAGE_SCRIPT" 2>/dev/null) || return 0
   [ -n "$row" ] || return 0
-  IFS=$TABLE_US read -r five_pct seven_pct usd <<< "$row"
+  IFS=$TABLE_US read -r five_pct seven_pct usd five_at seven_at <<< "$row"
   [ -n "$usd" ] || return 0
-  join_cells "$(rate_limit_segment 5h "$five_pct" "" "" "")" \
-    "$(rate_limit_segment 7d "$seven_pct" "" "" "")" \
+  join_cells "$(known_segment 5h "$five_pct" "$five_at")" \
+    "$(known_segment 7d "$seven_pct" "$seven_at")" \
     "${DIM}hôm nay ${STALE_MARK}\$${usd}${RESET}"
+}
+
+on_v2_account() {
+  [ "$CLAUDE_HOME" -ef "$CLAUDE_V2_HOME" ]
+}
+
+cached_cell() {
+  # Args: label pct reset. A cached % with "~" while its reset is still ahead, else "label:?".
+  if [ -n "$2" ] && [[ "$3" =~ ^[0-9]+$ ]] && [ "$3" -gt "$(date +%s)" ]; then
+    rate_limit_segment "$1" "" "" "$2" "$3"
+  else
+    printf '%s' "${DIM}$1:${UNKNOWN_CELL}${RESET}"
+  fi
+}
+
+build_other_account_cells() {
+  # The account this session does NOT run on: 5h / 7d from that account's own statusline cache.
+  local other_cache="$CLAUDE_V2_HOME/$CACHE_NAME" row five_pct five_at week_pct week_at
+  [ "${STATUSLINE_CLAUDE_V2:-1}" = "0" ] && return 0
+  on_v2_account && other_cache="$CLAUDE_V1_HOME/$CACHE_NAME"
+  row=$(jq -r '[.five, .five_reset, .week, .week_reset] | map(. // "" | tostring) | join("\u001f")' \
+    "$other_cache" 2>/dev/null)
+  IFS=$TABLE_US read -r five_pct five_at week_pct week_at <<< "$row"
+  join_cells "$(cached_cell 5h "$five_pct" "$five_at")" "$(cached_cell 7d "$week_pct" "$week_at")"
 }
 
 save_cache() {
@@ -286,6 +327,11 @@ build_claude_row() {
   local usd=$1 est five_cell week_cell
   if [ -n "$five" ]; then
     five_cell=$(rate_limit_segment 5h "$five" "$five_reset" "" "")
+  elif [ -n "$cached_five" ] && [[ "$cached_five_reset" =~ ^[0-9]+$ ]] \
+      && [ "$cached_five_reset" -gt "$(date +%s)" ]; then
+    five_cell=$(rate_limit_segment 5h "" "" "$cached_five" "$cached_five_reset")
+  elif on_v2_account; then
+    five_cell="${DIM}5h:${FIVE_ABSENT}${RESET}"
   else
     local shared_five
     shared_five=$(python3 "$SCRIPTS_DIR/shared_usage.py" claude 2>/dev/null)
@@ -302,14 +348,21 @@ build_claude_row() {
 }
 
 build_limit_table() {
-  # Args: claude_cells local_cell other_cell go_cells gpt_cells. Builds the aligned rows and
-  # prints them; labels never start with a space because Claude Code trims leading whitespace.
-  local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 gpt_cells=$5 rows=""
-  rows="Claude${TABLE_US}${claude_cells}"
+  # Args: claude_cells local_cell other_cell go_cells gpt_cells other_account_cells. Builds the
+  # aligned rows (v1 then v2, whichever is live) and prints them, Go last (the caller moves it to
+  # the end of the status line); labels never start with a space (Claude Code trims it).
+  local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 gpt_cells=$5 account_cells=$6
+  local rows="${CLAUDE_V1_LABEL}${TABLE_US}${claude_cells}"
+  if on_v2_account; then
+    rows="${CLAUDE_V2_LABEL}${TABLE_US}${claude_cells}"
+    [ -n "$account_cells" ] && rows="${CLAUDE_V1_LABEL}${TABLE_US}${account_cells}"$'\n'"${rows}"
+  else
+    [ -n "$account_cells" ] && rows="${rows}"$'\n'"${CLAUDE_V2_LABEL}${TABLE_US}${account_cells}"
+  fi
   [ -n "$local_cell" ] && rows="${rows}"$'\n'"${DIM}· máy này${RESET}${TABLE_US}${TABLE_US}${local_cell}"
   [ -n "$other_cell" ] && rows="${rows}"$'\n'"${DIM}· máy khác${RESET}${TABLE_US}${TABLE_US}${other_cell}"
-  [ -n "$go_cells" ] && rows="${rows}"$'\n'"${DIM}Go${RESET}${TABLE_US}${go_cells}"
   [ -n "$gpt_cells" ] && rows="${rows}"$'\n'"${DIM}GPT${RESET}${TABLE_US}${gpt_cells}"
+  [ -n "$go_cells" ] && rows="${rows}"$'\n'"${DIM}Go${RESET}${TABLE_US}${go_cells}"
   printf '%s\n' "$rows" | table_print
 }
 
@@ -327,7 +380,15 @@ IFS=$TABLE_US read -r local_cell other_cell usd_text <<< "$week_split_row"
 claude_row=$(build_claude_row "$usd_text")
 go_row=$(build_go_row)
 gpt_row=$(build_gpt_cells)
-limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row" "$gpt_row")
+v2_row=$(build_other_account_cells)
+limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row" "$gpt_row" \
+  "$v2_row")
+# The Go row keeps the table's column widths but is printed as the last status-line line.
+go_line=""
+if [ -n "$go_row" ]; then
+  go_line=${limit_table##*$'\n'}
+  if [ "$go_line" = "$limit_table" ]; then limit_table=""; else limit_table=${limit_table%$'\n'*}; fi
+fi
 line_sessions=""
 [ -f "$SESSION_LINES_SCRIPT" ] && line_sessions=$(bash "$SESSION_LINES_SCRIPT" --color \
   "$session_id" 2>/dev/null)
@@ -352,4 +413,5 @@ printf "%b" "$out"
 [ -n "$line_hands" ] && printf '\n%s' "$line_hands"
 # printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
 [ -n "$skill_block" ] && printf '\n%s' "$skill_block"
+[ -n "$go_line" ] && printf '\n%s' "$go_line"
 exit 0
