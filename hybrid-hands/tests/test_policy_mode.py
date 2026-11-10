@@ -67,6 +67,7 @@ class PolicyModeTest(unittest.TestCase):
                 assert "Hand theo ext_hand.order" not in text and "| Sol |" not in text
                 if i == 0:
                     assert "ext_hand.max_parallel thực = 2" in text and "claude-opus-5-5" in text
+                    assert "effort `low`" in text and "pick --json --backend claude-v1" in text
                     assert all(law in text for law in ("LUẬT DỮ LIỆU", "LUẬT TIẾP VIỆC", "LUẬT TEST TỐI THIỂU", "LUẬT NGỮ CẢNH BRAIN"))
         for bad in ('{"parallel_subagents":{"enabled":"PRIVATE_VALUE"}}', '{broken'):
             config.write_text(bad)

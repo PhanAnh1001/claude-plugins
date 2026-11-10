@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 import os
 import sys
@@ -49,6 +50,7 @@ def _parser() -> argparse.ArgumentParser:
     parallel = sub.add_parser("parallel-subagents", aliases=["parallel"],
                               help="xem hoặc bật/tắt policy parallel của repo (parallel: alias cũ)")
     parallel.add_argument("action", nargs="?", choices=("on", "off"))
+    parallel.add_argument("--backend")
     parallel.add_argument("--cwd")
     parallel.add_argument("--json", action="store_true")
     provider = sub.add_parser("provider", help="cấu hình ACP provider bằng schema Paseo chính thức")
@@ -83,6 +85,7 @@ def _parser() -> argparse.ArgumentParser:
             command.add_argument("--brief", required=True, help="fresh self-contained brief file")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
+    pick.add_argument("--backend")
     pick.add_argument("--cwd")
     r = sub.add_parser("run", help="chạy một brief")
     r.add_argument("--brief", required=True, help="file brief hoặc - cho stdin")
@@ -130,6 +133,10 @@ def _names(cfg: ExtConfig, choice: str) -> List[str]:
 def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
     result = {"backend": None, "model": None, "effort": None, "account": None, "skipped": [],
               "native": False, "native_reason": "no backend available"}
+    choice = getattr(args, "backend", None)
+    if choice is not None:
+        from shared_config import canonical_backend
+        cfg = replace(cfg, order=[canonical_backend(choice)])
     for backend, name, reason in auto_preflight(cfg):
         if backend is None:
             result["skipped"].append({"backend": name, "reason": reason})

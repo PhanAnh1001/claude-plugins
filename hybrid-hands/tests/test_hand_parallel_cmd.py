@@ -23,7 +23,7 @@ class ParallelCommandTest(unittest.TestCase):
         linked = self.root / 'linked'; linked.mkdir()
         with patch('hand_ext.config.git_toplevel', return_value=linked), patch('hand_ext.config.main_repo_root', return_value=self.root):
             self.assertIn(str(self.config), self.run_cli('on')[1])
-            self.assertEqual(json.loads(self.run_cli('--json')[1]), {'parallel_subagents':True,'source':'repo','file':str(self.config)})
+            self.assertEqual(json.loads(self.run_cli('--json')[1]), {'parallel_subagents':True,'source':'repo','file':str(self.config), 'backend':'claude-v1','model':'claude-opus-5-5','effort':'low','backend_source':'plugin'})
         self.config.unlink(); (self.root / 'global.json').write_text('{"parallel_subagents":{"enabled":true}}')
         code, out, err = self.run_cli('--json')
         self.assertEqual((code, json.loads(out)['parallel_subagents'], json.loads(out)['source']), (0, False, 'global'))
@@ -42,3 +42,11 @@ class ParallelCommandTest(unittest.TestCase):
             self.config.write_bytes(raw); code, _, err = self.run_cli('on')
             self.assertNotEqual(code, 0); self.assertIn(str(self.config), err)
             self.assertEqual(self.config.read_bytes(), raw)
+
+    def test_backend_selection_and_invalid_no_write(self):
+        code, out, _ = self.run_cli('on', '--backend', 'claude-v2', '--json')
+        self.assertEqual((code, json.loads(out)['backend'], json.loads(out)['backend_source']), (0, 'claude-v2', 'repo'))
+        self.assertEqual(json.loads(self.config.read_text())['parallel_subagents']['backend'], 'claude-v2')
+        before = self.config.read_bytes()
+        self.assertEqual(self.run_cli('--backend', 'unknown')[0], 2)
+        self.assertEqual(self.config.read_bytes(), before)

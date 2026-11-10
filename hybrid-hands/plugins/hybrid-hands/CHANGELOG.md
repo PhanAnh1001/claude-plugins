@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.38.0 — 2026-11-10
+
+- Thêm `parallel_subagents.backend` mặc định `claude-v1`, đặt từ global/repo hoặc `parallel-subagents --backend NAME`; status hiện backend/model/effort và nguồn.
+- `pick --backend NAME` preflight đúng backend, giữ guard/native và không fallback; policy mode bật hướng dẫn giao theo backend đã giải, mode tắt giữ nguyên output. Slash command nhận cờ mới.
+- Sửa `run --mode auto` từ phiên ngoài Paseo (thiếu `PASEO_AGENT_ID`): preflight báo `PaseoUnavailable('PARENT_REQUIRED')` nên lùi về shell cùng backend thay vì exit 1; `paseo-required` vẫn báo lỗi.
+
 ## 0.37.3 — 2026-11-10
 
 - `hh-ps` nhanh hơn: nạp config và bảng giá một lần mỗi tiến trình (memo theo file stamp, trả bản sao), lọc literal trước regex khi đọc rollout. Đo thật `hh-ps --since 3h --json --ended --full`: ~13,5 s → ~8,5 s (n=3), output không đổi.
