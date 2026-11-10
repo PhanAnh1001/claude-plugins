@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.41.0 — 2026-11-10
+
+- Thêm kho chỉ mục `lib/hh_store/` (SQLite WAL `~/.hybrid-hands/state/hh-store.sqlite3`, quyền 0600; tự dựng lại khi hỏng hoặc đổi version). Kho ingest tăng dần rollout Codex và transcript/subagent Claude theo cursor và generation; rotate/truncate thì sinh generation mới, ghi đè tại chỗ thì phát hiện bằng fingerprint. Kho lỗi, khoá bận hoặc `HYBRID_HANDS_STORE=off` thì quay về đường đọc file cũ.
+- `codex.py`, `native_source.py`, `machine_usage.py`, `transcript_source.py` đọc từ kho. Rollout không đổi stat thì không ghi kho, không đọc lại. Tổng GPT tuần được cache theo thread, khoá gồm stamp file, cửa sổ, giá và options. Các lần đọc transcript Claude cho mốc tuần, live split và hiệu chỉnh dùng chung một lần parse. `claude auth status` được cache theo account trong một chu kỳ poll (chỉ lưu digest). Gộp các lần resolve đường dẫn lặp lại.
+- Ba writer (`run_registry`, `execution_state`, `side_session/state`) tăng `revision` của kho; lỗi kho không làm hỏng writer.
+- Hệ số Claude USD~/1% tuần tách theo account: file cũ thuộc v2, v1 hiện `?` cho tới khi có mẫu.
+- Đo thật `hh-ps --since 3h --json --ended --full`: kho tắt ~9 s → kho bật p50 0,70 s (n=5). JSON giống hệt giữa kho bật và tắt, và giống bản trước tối ưu, ngoài `duration_seconds`/`generated_at`.
+
 ## 0.40.0 — 2026-11-10
 
 - Thêm nhãn tài khoản thống nhất `{provider} {slot} {plan} {name}` qua helper `lib/account_label.py`: ưu tiên `plan`/`name` cấu hình, thiếu plan dùng plan phát hiện sẵn nếu có, thiếu name thì Claude lấy local-part của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json` (không in email đầy đủ), GPT hiện `?`; phần thiếu hiện `?`.

@@ -186,6 +186,29 @@ def _contained(root: Path, path: Path) -> Optional[Path]:
 
 def _iter_json_lines(path: Path, strict: bool = False) -> Iterable[dict]:
     """Decode only standard `event_msg`/`token_count` envelopes, never conversation JSON."""
+    from .native_source import _BAD_FLAG, _CODEX_FLAG, _PAYLOAD, stored_records
+    try:
+        stored = stored_records(path)
+    except OSError:
+        return
+    if stored is None:
+        yield from _iter_file_lines(path, strict)
+        return
+    for item in stored:
+        data = item.data
+        if not data.get(_CODEX_FLAG):
+            continue
+        if data.get(_BAD_FLAG):
+            if strict:
+                yield {}
+            continue
+        payload = data.get(_PAYLOAD)
+        if item.kind != EVENT_RECORD or not isinstance(payload, dict) or payload.get("type") != TOKEN_RECORD:
+            continue
+        yield {"type": item.kind, "timestamp": item.observed_at, "payload": dict(payload)}
+
+
+def _iter_file_lines(path: Path, strict: bool = False) -> Iterable[dict]:
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:
@@ -323,6 +346,8 @@ def _rollout_files(home: Path) -> Iterable[Path]:
                 found.append(resolved)
     except OSError:
         return found
+    from hh_store import codex_ingest
+    codex_ingest.forget(codex_ingest.SCOPE_SESSIONS, found)
     return found
 
 

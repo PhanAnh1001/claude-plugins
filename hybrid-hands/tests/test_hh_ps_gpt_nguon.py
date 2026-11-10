@@ -98,6 +98,21 @@ class GptSourcesTest(unittest.TestCase):
             write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
             self.assertIsNone(_gpt_usd(source,None,NOW-100,NOW))
 
+    def test_b2_store_cache_reuses_unchanged_and_follows_append(self):
+        from hh_ps import machine_usage as mu
+        with tempfile.TemporaryDirectory() as tmp:
+            home=Path(tmp); root=home/'sessions'; root.mkdir(); source=SimpleNamespace(home=home)
+            meta={'type':'session_meta','payload':{'id':'t','model':'gpt-6.1-sol','timestamp':iso(NOW-1000)}}
+            rows=[meta,event(NOW-200,count=100),event(NOW-50,count=150)]; write(root/'rollout-a.jsonl',rows)
+            first=_gpt_usd(source,None,NOW-100,NOW); _store_runtime._reset_for_tests()
+            with patch.object(mu,'_records',side_effect=AssertionError('reloaded') if _store_runtime.enabled() else mu._records):
+                self.assertEqual(_gpt_usd(source,None,NOW-100,NOW),first)
+            write(root/'rollout-a.jsonl',rows+[event(NOW-10,count=400)])
+            cached=_gpt_usd(source,None,NOW-100,NOW)
+            with patch.dict(os.environ,{'HYBRID_HANDS_STORE':'off'}):
+                self.assertEqual(cached,_gpt_usd(source,None,NOW-100,NOW))
+            self.assertGreater(cached,first)
+
     def test_c_real_five_hour_samples_only(self):
         for duration,pct,at,reset,expected in [(300,12,NOW-10,NOW+1000,12),
                 (10080,12,NOW-10,NOW+1000,None),(None,12,NOW-10,NOW+1000,12),
@@ -126,5 +141,28 @@ class GptSourcesTest(unittest.TestCase):
             enrich_snapshot(snapshot,None,NOW)
             self.assertEqual(session.usage.account_5h_pct,23)
             self.assertEqual(snapshot.limits[0].source,'claude_5h_cache')
+
+
+# Store isolation: rollout readers must never write the real ~/.hybrid-hands/state.
+import os as _os, shutil as _shutil, tempfile as _tempfile
+from hh_store import runtime as _store_runtime
+_STORE_PATCH = {}
+
+
+def setUpModule():
+    _STORE_PATCH["dir"] = _tempfile.mkdtemp()
+    _STORE_PATCH["old"] = _os.environ.get("HYBRID_HANDS_STATE_DIR")
+    _os.environ["HYBRID_HANDS_STATE_DIR"] = _STORE_PATCH["dir"]
+    _store_runtime._reset_for_tests()
+
+
+def tearDownModule():
+    _store_runtime._reset_for_tests()
+    if _STORE_PATCH["old"] is None:
+        _os.environ.pop("HYBRID_HANDS_STATE_DIR", None)
+    else:
+        _os.environ["HYBRID_HANDS_STATE_DIR"] = _STORE_PATCH["old"]
+    _shutil.rmtree(_STORE_PATCH["dir"], ignore_errors=True)
+
 
 if __name__ == '__main__': unittest.main()

@@ -9,9 +9,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "plugins/hybrid-han
 from hh_ps.models import Session, Snapshot
 from hh_ps.render import render_json, render_text
 from hh_ps.transcript_source import load_subagents
+from hh_store import runtime as store_runtime
+from unittest.mock import patch
 
 
 class RunningUsageTest(unittest.TestCase):
+    def setUp(self):
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        env = patch.dict("os.environ", {"HYBRID_HANDS_STATE_DIR": state.name})
+        env.start()
+        store_runtime._reset_for_tests()
+        self.addCleanup(store_runtime._reset_for_tests)
+        self.addCleanup(env.stop)
+
     def test_unfinished_claude_duration_advances(self):
         with tempfile.TemporaryDirectory() as temporary:
             folder = Path(temporary)

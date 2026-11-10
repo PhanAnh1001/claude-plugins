@@ -60,6 +60,31 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+_CALIBRATION_PATCHES: List[Any] = []
+_CALIBRATION_STATE: List[Path] = []
+
+
+def setUpModule() -> None:
+    """build_snapshot enriches with Claude calibration: keep its caches in a temp dir, never poll."""
+    from unittest.mock import patch
+    from hh_ps import claude_calibration
+    state = Path(tempfile.mkdtemp(prefix="hh-ps-limits-calibration-"))
+    _CALIBRATION_STATE.append(state)
+    _CALIBRATION_PATCHES.extend([
+        patch.object(claude_calibration, "cache_path", return_value=state / "calibration.json"),
+        patch.object(claude_calibration, "auth_cache_path", return_value=state / "auth.json"),
+        patch.object(claude_calibration, "command", side_effect=OSError("no real CLI in tests")),
+    ])
+    for item in _CALIBRATION_PATCHES:
+        item.start()
+
+
+def tearDownModule() -> None:
+    for item in _CALIBRATION_PATCHES:
+        item.stop()
+    __import__("shutil").rmtree(_CALIBRATION_STATE[0], ignore_errors=True)
+
+
 class LimitFixture:
     """A project, machine state and Claude home, all inside one temp dir."""
 

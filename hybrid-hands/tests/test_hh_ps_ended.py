@@ -17,6 +17,7 @@ sys.path.insert(0, str(TESTS / "fixtures" / "hh_ps"))
 
 from fixture import HhFixture, MAIN_SESSION  # noqa: E402
 from hh_ps import cli  # noqa: E402
+from hh_store import runtime as store_runtime  # noqa: E402
 from hh_ps.models import HandRun, Session, Snapshot, Subagent  # noqa: E402
 from hh_ps.text_render import render_text  # noqa: E402
 from hh_ps.timeutil import ended_text  # noqa: E402
@@ -107,6 +108,8 @@ class EndedCliTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = HhFixture()
         self.addCleanup(self.fx.close)
+        store_runtime._reset_for_tests()  # store follows each fixture HYBRID_HANDS_STATE_DIR
+        self.addCleanup(store_runtime._reset_for_tests)
 
     def run_cli(self, *args: str) -> str:
         out = io.StringIO()

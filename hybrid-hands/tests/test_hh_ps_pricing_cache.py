@@ -33,3 +33,25 @@ def test_many_threads_reuse_prices_and_config(tmp_path, monkeypatch):
     (tmp_path / 'prices.json').write_text('{')
     assert pricing.load_prices() == {}
     assert config._load_config_cached.cache_info().misses == pricing._load_prices_cached.cache_info().misses == 2
+
+
+# Store isolation: rollout readers must never write the real ~/.hybrid-hands/state.
+import os as _os, shutil as _shutil, tempfile as _tempfile
+from hh_store import runtime as _store_runtime
+_STORE_PATCH = {}
+
+
+def setup_module():
+    _STORE_PATCH["dir"] = _tempfile.mkdtemp()
+    _STORE_PATCH["old"] = _os.environ.get("HYBRID_HANDS_STATE_DIR")
+    _os.environ["HYBRID_HANDS_STATE_DIR"] = _STORE_PATCH["dir"]
+    _store_runtime._reset_for_tests()
+
+
+def teardown_module():
+    _store_runtime._reset_for_tests()
+    if _STORE_PATCH["old"] is None:
+        _os.environ.pop("HYBRID_HANDS_STATE_DIR", None)
+    else:
+        _os.environ["HYBRID_HANDS_STATE_DIR"] = _STORE_PATCH["old"]
+    _shutil.rmtree(_STORE_PATCH["dir"], ignore_errors=True)

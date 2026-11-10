@@ -257,9 +257,12 @@ class HhFixture:
             "CLAUDE_PID": str(self.main_pid),
         })
         os.environ.pop("NO_COLOR", None)
+        from hh_store import runtime as store_runtime
+        store_runtime._reset_for_tests()  # store follows this fixture's state dir
         try:
             yield
         finally:
+            store_runtime._reset_for_tests()
             os.environ.clear()
             os.environ.update(saved)
 

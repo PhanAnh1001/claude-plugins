@@ -22,6 +22,17 @@ from hh_ps.text_render import render_text  # noqa: E402
 from hh_ps.textwidth import display_width  # noqa: E402
 from hh_ps.timeutil import percent_text, token_text, usd_text  # noqa: E402
 from hh_ps.transcript_source import parse_transcript  # noqa: E402
+from hh_store import runtime as store_runtime  # noqa: E402
+from unittest.mock import patch  # noqa: E402
+
+
+def isolate_store(case: unittest.TestCase, state: Path) -> None:
+    """Point hh-store at a temp dir so tests never touch the real state."""
+    env = patch.dict("os.environ", {"HYBRID_HANDS_STATE_DIR": str(state)})
+    env.start()
+    store_runtime._reset_for_tests()
+    case.addCleanup(store_runtime._reset_for_tests)
+    case.addCleanup(env.stop)
 
 NOW = 1_800_000_000.0
 OPUS = "claude-opus-5-5"
@@ -61,6 +72,7 @@ class TranscriptUsageTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.path = Path(self.tmp.name) / "session.jsonl"
+        isolate_store(self, Path(self.tmp.name) / "state")
 
     def _parse(self, lines: list) -> object:
         self.path.write_text("\n".join(lines) + "\n", encoding="utf-8")

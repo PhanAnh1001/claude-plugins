@@ -18,6 +18,7 @@ sys.path.insert(0, str(TESTS / "fixtures" / "hh_ps"))
 
 from fixture import HhFixture, NOW, dead_pid, iso  # noqa: E402
 from hh_ps import cli, repos  # noqa: E402
+from hh_store import runtime as store_runtime  # noqa: E402
 
 OTHER_PARENT = "1da78d01-0000-4000-8000-000000000001"
 OTHER_SIDE = "6da49dbb-0000-4000-8000-000000000002"
@@ -76,6 +77,8 @@ class HhPsMultiRepoTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = OtherRepoFixture()
         self.addCleanup(self.fx.close)
+        store_runtime._reset_for_tests()  # store follows each fixture HYBRID_HANDS_STATE_DIR
+        self.addCleanup(store_runtime._reset_for_tests)
 
     def run_cli(self, *args: str) -> str:
         out = io.StringIO()
