@@ -253,10 +253,16 @@ def _patch(args, result, raw: dict) -> list[str]:
             continue
         if len(values) != 1:
             raise ValueError("mỗi tầng chỉ được truyền một lần")
-        match = re.fullmatch(r"(claude|codex):([^:@]+)(?::([^:@]+))?(?:@(v[1-9][0-9]*))?", values[0])
+        match = re.fullmatch(r"(?:(claude|codex):)?([^:@]+)(?::([^:@]+))?(?:@(v[1-9][0-9]*))?", values[0])
         if not match:
             raise ValueError("profile phải là PROVIDER:MODEL[:EFFORT][@vN]")
         provider, model, effort, account = match.groups()
+        if provider is None:
+            providers = [p for p, models in MODEL_CAPABILITIES.items() if model in models]
+            if len(providers) != 1 or providers[0] not in ("claude", "codex") or not effort:
+                raise ValueError("profile phải là MODEL:EFFORT[@vN] của Claude hoặc Codex")
+            provider = providers[0]
+        effort = EFFORT_ALIASES.get(provider, {}).get(effort, effort)
         if account and (provider != "claude" or account not in accounts):
             raise ValueError("account không hợp lệ")
         put(section + ".provider", provider)
@@ -277,7 +283,8 @@ def _patch(args, result, raw: dict) -> list[str]:
         seen.add(name)
         put(f"ext_hand.backends.{name}.model", model)
         if effort:
-            put(f"ext_hand.backends.{name}.effort", effort)
+            put(f"ext_hand.backends.{name}.effort", EFFORT_ALIASES.get(
+                "claude" if name.startswith("claude-") else name, {}).get(effort, effort))
     if args.hand_order:
         if len(args.hand_order) != 1:
             raise ValueError("order chỉ được truyền một lần")
@@ -350,8 +357,9 @@ def command(args) -> int:
             _validate_candidate(candidate)
             payload = _status(candidate)
             payload["warnings"].extend(warnings)
-            for warning in warnings:
-                print(warning, file=sys.stderr)
+            if getattr(args, "json", False):
+                for warning in warnings:
+                    print(warning, file=sys.stderr)
             changed = raw != before
             dry_run = getattr(args, "dry_run", False)
             if changed and not dry_run:

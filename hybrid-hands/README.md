@@ -187,7 +187,7 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 
 Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi đường dẫn bằng `HYBRID_HANDS_CONFIG`) → repo `.claude/hybrid-hands.json` → cờ CLI. Dict merge sâu; list/scalar thay nguyên. Global thiếu thì bỏ qua; global hỏng báo lỗi kèm đường dẫn và dừng. `hand-ext config --json` in cấu hình hiệu lực, nguồn từng key và đường dẫn file đã đọc. `ext_hand.claude_accounts` và `ext_hand.backends.*` đặt được ở global. Dưới Paseo, biến `HYBRID_HANDS_CONFIG` phải có trong môi trường daemon mới có tác dụng.
 
-### Model ba tầng theo repo — 0.45.0
+### Model ba tầng theo repo — 0.46.0
 
 `hand-ext models` xem model/effort/account và nguồn cấu hình của brain, phiên phụ và hand. Chỉ dùng `set`/`unset` khi người dùng chốt thay đổi cụ thể; ghi atomic vào cùng file repo đã resolve như `parallel-subagents`, kể cả fallback main worktree, không tạo config riêng cho worktree.
 
@@ -195,14 +195,14 @@ Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.j
 hand-ext models --json
 hand-ext models options --json
 hand-ext models set --tier brain --model claude-opus-5-5 --effort high --account v2
-hand-ext models set --brain claude:claude-opus-5-5:high@v1 --side codex:gpt-6.1-sol:high --dry-run
+hand-ext models set --brain claude-opus-5-5:high@v1 --side gpt-6.1-sol:high --dry-run
 hand-ext models set --hand codex=gpt-6.1-sol:low --hand-order dsh,codex,claude-v1,claude-v2
 hand-ext models unset hand --dry-run
 ```
 
-Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN]` suy provider từ capability của model và không dùng chung với `--brain`, `--side`, `--hand`, `--hand-order`. Codex chuẩn hoá effort `max` thành `xhigh`. Account chỉ áp cho Claude; GPT/DeepSeek bỏ qua và cảnh báo. Brain/side Claude không truyền account thì giữ account hiện tại; Hand Claude bắt buộc chọn account hợp lệ để xác định backend `claude-vN` (GPT dùng `codex`, DeepSeek dùng `dsh`). Trong màn hình chọn, model DeepSeek chỉ cho tầng Hand và effort `off` nhập qua “Other”; các danh sách quá bốn mục cũng dùng “Other”.
+Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN]` suy provider từ capability của model và không dùng chung với `--brain`, `--side`, `--hand`, `--hand-order`. Codex chuẩn hoá effort `max` thành `xhigh`. Account chỉ áp cho Claude; GPT/DeepSeek bỏ qua và cảnh báo. Brain/side Claude không truyền account thì giữ account hiện tại; Hand Claude bắt buộc chọn account hợp lệ để xác định backend `claude-vN` (GPT dùng `codex`, DeepSeek dùng `dsh`). Alias Codex `max` → `xhigh` áp dụng cho cả cờ phẳng và `--brain`/`--side`/`--hand`.
 
-Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `unset brain|side|hand` gỡ override cả tầng, giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) để chỉ xem, không hỏi hay ghi; `/hybrid-hands:models set` mở một màn hình gồm bốn câu Tầng, Model, Effort, Account trong một lần AskUserQuestion, rồi chạy một lệnh với `--tier`, `--model`, `--effort`, `--account`. Lựa chọn là xác nhận để ghi, không thêm dry-run hay hỏi xác nhận. `hand-ext models options --json` cung cấp danh sách chỉ đọc cho luồng chọn; slash command với đối số khác chuyển nguyên cho CLI. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
+`--brain MODEL:EFFORT[@vN]` và `--side MODEL:EFFORT[@vN]` không cần provider, suy từ capability model; dạng cũ `PROVIDER:MODEL[:EFFORT][@vN]` vẫn dùng được. Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `unset brain|side|hand` gỡ override cả tầng, giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) để chỉ xem, không hỏi hay ghi; `/hybrid-hands:models set` mở một màn hình bốn tab Brain chính, Phiên phụ, Hand Claude, Hand GPT/DeepSeek trong đúng một lần AskUserQuestion để sửa nhiều tầng cùng lúc. Mỗi tab có “Giữ nguyên” và tối đa ba preset; Other nhận `model:effort[@vN]` cho Brain/Phiên phụ, `claude-vN=model:effort` cho Hand Claude, `codex=model:effort` hoặc `dsh=model:effort` cho Hand GPT/DeepSeek (nhiều mục Hand cách nhau bằng dấu phẩy). Các lựa chọn được gộp thành đúng một lệnh `models set`, ghi atomic một lần; tất cả “Giữ nguyên” thì không ghi. Lựa chọn là xác nhận để ghi, không thêm dry-run hay hỏi xác nhận. `hand-ext models options --json` cung cấp các nhóm `presets.brain`, `presets.side`, `presets.hand_claude`, `presets.hand_other`, mỗi mục có `label`, `description`, `args`, cho luồng chọn chỉ đọc; slash command với đối số khác chuyển nguyên cho CLI. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
 
 ### Mode parallel-subagents
 

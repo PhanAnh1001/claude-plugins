@@ -38,6 +38,8 @@ def test_view(tmp_path, monkeypatch, capsys):
     assert [row["value"] for row in options["tiers"]] == ["brain", "side", "hand"]
     assert "claude-sonnet-5-5" in options["providers"]["claude"]["models"]
     assert [row["value"] for row in options["hand_backends"] if row["in_order"]] == data["hand"]["order"]["value"]
+    assert set(options["presets"]) == {"brain", "side", "hand_claude", "hand_other"}
+    assert all(rows[0]["args"] == [] and len(rows) <= 4 for rows in options["presets"].values())
     assert path.read_bytes() == original
 
 
@@ -51,7 +53,13 @@ def test_set_and_validation(tmp_path, monkeypatch, capsys):
     assert diff["main_session.claude_model"] == [None, "claude-sonnet-5-5"]
     assert diff["ext_hand.backends.claude-v1.effort"] == [None, "medium"]
     assert path.read_bytes() == original
-    for invalid in ("codex:missing:low", "codex:gpt-6.1-sol:max", "claude:claude-opus-5-5:high@v99"):
+    assert main(prefix + ["--brain", "claude-sonnet-5-5:high", "--side", "gpt-6.1-sol:max",
+                          "--hand", "claude-v2=claude-haiku-5-5:low", "--dry-run"]) == 0
+    diff = json.loads(capsys.readouterr().out)["diff"]
+    assert diff["main_session.claude_model"][1] == "claude-sonnet-5-5"
+    assert diff["side_session.codex_effort"][1] == "xhigh"
+    assert diff["ext_hand.backends.claude-v2.model"][1] == "claude-haiku-5-5"
+    for invalid in ("codex:missing:low", "codex:gpt-6.1-sol:invalid", "claude:claude-opus-5-5:high@v99"):
         assert main(prefix + ["--brain", invalid]) == 2
         assert path.read_bytes() == original
     capsys.readouterr()
