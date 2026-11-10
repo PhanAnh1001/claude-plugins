@@ -6,6 +6,8 @@ import os
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
+from hh_store import bump_revision
+
 from . import constants as C
 
 
@@ -67,6 +69,7 @@ def save(state_dir: Path, st: SessionState) -> None:
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(asdict(st), indent=2, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, path)
+    bump_revision()  # signal hh-ps/pane that side state changed; never raises
 
 
 def load(state_dir: Path, name: str) -> SessionState:

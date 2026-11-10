@@ -97,14 +97,27 @@ def _transcript_paths(config_dir: Path) -> Dict[str, Path]:
     return {key: value[0] for key, value in found.items()}
 
 
-def _in_project(cwd: str, slug: str, root: Path) -> bool:
+def _resolved(value: Path, memo: Optional[Dict[Path, Optional[Path]]]) -> Optional[Path]:
+    if memo is not None and value in memo:
+        return memo[value]
+    try:
+        result: Optional[Path] = value.resolve()
+    except (OSError, RuntimeError):
+        result = None
+    if memo is not None:
+        memo[value] = result
+    return result
+
+
+def _in_project(cwd: str, slug: str, root: Path,
+                memo: Optional[Dict[Path, Optional[Path]]] = None) -> bool:
+    """`memo` is scoped to one load so repeated cwd/root strings resolve once."""
     if cwd:
-        try:
-            path = Path(cwd).resolve()
-            root = root.resolve()
-        except (OSError, RuntimeError):
+        path = _resolved(Path(cwd), memo)
+        resolved_root = _resolved(root, memo)
+        if path is None or resolved_root is None:
             return False
-        return path == root or root in path.parents
+        return path == resolved_root or resolved_root in path.parents
     root_slug = slugify(root)
     return slug == root_slug or slug.startswith(root_slug + "-")
 
@@ -188,6 +201,7 @@ def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
     dead = {sid: data for sid, data in records.items() if not data.get("_alive")}
     sessions: Dict[str, Session] = {
         sid: _new_session(sid, data, main_session_id) for sid, data in live.items()}
+    resolve_memo: Dict[Path, Optional[Path]] = {}
     for session_id, path in _transcript_paths(config_dir).items():
         try:
             mtime = path.stat().st_mtime
@@ -202,7 +216,7 @@ def load_sessions(config_dir: Path, cutoff: float, project_root: Path,
             pulled = False
             if not all_projects:
                 inside = _in_project(info.cwd or str(old.get("cwd") or ""),
-                                     info.slug, project_root)
+                                     info.slug, project_root, resolve_memo)
                 if not inside and (include_ids is None or session_id not in include_ids):
                     continue
                 pulled = not inside

@@ -432,9 +432,67 @@ def _ledger_module(path_text: str, mtime_ns: int) -> Any:
     return module
 
 
+# Ledger helpers the in-process scan cache needs; a module without them uses window_messages.
+_SCAN_HELPERS = ("usage_record", "transcript_paths", "token_counts", "WindowMessage",
+                 "SUBAGENTS_DIR", "SUBAGENT", "MAIN", "session_id_for")
+
+
+@dataclass(frozen=True)
+class _ScannedRecord:
+    key: str
+    ts: float
+    message: Any
+
+
+@dataclass(frozen=True)
+class _ScannedFile:
+    mtime: float
+    records: tuple
+
+
+# (ledger module id, home, transcript path) -> parsed file; each transcript is parsed once per
+# process however many windows (week anchor, live split, calibration) ask for it.
+_SCAN_CACHE: Dict[tuple, _ScannedFile] = {}
+
+
+def _scan_file(module: Any, home: Path, path: Path, mtime: float) -> _ScannedFile:
+    """Every usage record of one transcript in file order, with its timestamp kept for filtering."""
+    kind = module.SUBAGENT if path.parent.name == module.SUBAGENTS_DIR else module.MAIN
+    session = (f"{home.name}/{path.relative_to(home / 'projects').parts[0]}/"
+               f"{module.session_id_for(path)[:8]}")
+    records = []
+    for line in path.read_bytes().split(b"\n"):
+        rec = module.usage_record(line, session)
+        if rec is None:
+            continue
+        usage = json.loads(line)["message"]["usage"]
+        records.append(_ScannedRecord(rec.key, rec.ts, module.WindowMessage(
+            rec.model, module.token_counts(usage), kind, session)))
+    return _ScannedFile(mtime, tuple(records))
+
+
+def window_messages(module: Any, home: Path, since: float, until: float) -> dict:
+    """Same result as ``module.window_messages([home], since, until)``, sharing one parse per file."""
+    if not all(hasattr(module, name) for name in _SCAN_HELPERS):
+        return module.window_messages([home], since, until)
+    found: dict = {}
+    for path in module.transcript_paths(home / "projects"):
+        mtime = path.stat().st_mtime
+        if mtime < since:
+            continue
+        cache_key = (id(module), home, path)
+        scanned = _SCAN_CACHE.get(cache_key)
+        if scanned is None or scanned.mtime != mtime:
+            scanned = _SCAN_CACHE[cache_key] = _scan_file(module, home, path, mtime)
+        for record in scanned.records:
+            if since <= record.ts <= until:
+                found[record.key] = record.message
+    return found
+
+
 def _window_usd(module: Any, claude_home: Path, since: float, until: float) -> float:
     """USD of this home's messages in [since, until], using statusline's own price table."""
-    messages = module.window_messages([claude_home], since, until)
+    messages = window_messages(module, claude_home, since, until)
     return sum(sum(module.model_usd(message.model, message.tokens).values())
                for message in messages.values())
 

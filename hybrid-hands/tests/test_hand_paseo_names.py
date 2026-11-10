@@ -74,3 +74,17 @@ for _name in list(vars(PaseoTransportTests)):
     if _name.startswith('test_'):
         setattr(ManagedNamesTests, _name, None)
 del PaseoTransportTests
+
+
+def setUpModule():  # keep hh-store revision bumps out of the real ~/.hybrid-hands
+    import os as _os, tempfile as _tempfile
+    from unittest import mock as _mock
+    global _STATE_TMP, _STATE_ENV
+    _STATE_TMP = _tempfile.TemporaryDirectory()
+    _STATE_ENV = _mock.patch.dict(_os.environ, {"HYBRID_HANDS_STATE_DIR": _STATE_TMP.name})
+    _STATE_ENV.start()
+
+
+def tearDownModule():
+    _STATE_ENV.stop()
+    _STATE_TMP.cleanup()

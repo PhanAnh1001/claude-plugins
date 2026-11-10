@@ -14,12 +14,26 @@ from .timeutil import to_epoch
 
 TTL = 300
 POLL = 120
+# `claude auth status` costs ~0.65 s; its logged-in identity is reused for one poll interval.
+AUTH_CACHE_TTL = POLL
+AUTH_CACHE_MODE = 0o600
 FAILED_POLL = 15
 AUTH_TIMEOUT = 3
 PASEO_TIMEOUT = 6
 RESET_TOLERANCE = 2
 WEEK = 604800
 KEYS = ('input', 'output', 'cache_read', 'cache_write_5m', 'cache_write_1h')
+# State file format (~/.hybrid-hands/claude-calibration.json):
+#   top level {polled_at, pricing, header, samples} = account v2 (~/.claude-hand), the only
+#   account sampled before per-account calibration, so a legacy file stays v2's data;
+#   accounts.<name> = the same keys for every other account (v1, v3...).
+# collect() returns v2's header at the top level plus accounts={name: header};
+# enrich() reads only that per-account map (a flat legacy shape is v2's header).
+LEGACY_ACCOUNT = 'v2'
+COMPAT_ACCOUNT = LEGACY_ACCOUNT
+ACCOUNTS = 'accounts'
+STATE_KEYS = ('polled_at', 'pricing', 'header', 'samples')
+LEGACY_BACKENDS = {'claude-main': 'v1', 'claude': 'v2'}
 
 
 def number(v):
@@ -66,10 +80,43 @@ def command(args, home):
     return json.loads(result.stdout)
 
 
-def quota(home, now):
-    began = time.monotonic()
-    def moment():
-        return now + max(0, time.monotonic() - began)
+def identity_digest(email):
+    return hashlib.sha256(email.strip().casefold().encode()).hexdigest()
+
+
+AUTH_CACHE_NAME = 'claude-auth-cache.json'
+
+
+def auth_cache_path():
+    return cache_path().parent / AUTH_CACHE_NAME
+
+
+def _auth_cache_key(home):
+    return hashlib.sha256(str(home).encode()).hexdigest()
+
+
+def _cached_auth(home, now):
+    entry = read(auth_cache_path()).get(_auth_cache_key(home))
+    if not isinstance(entry, dict) or not isinstance(entry.get('digest'), str):
+        return None
+    at = number(entry.get('at'))
+    return entry['digest'] if at is not None and 0 <= now - at < AUTH_CACHE_TTL else None
+
+
+def _store_auth(home, now, digest):
+    """Persist only the logged-in identity digest (already stored in samples), mode 0600."""
+    path = auth_cache_path()
+    state = read(path)
+    state[_auth_cache_key(home)] = dict(at=now, digest=digest)
+    write(path, state)
+    os.chmod(path, AUTH_CACHE_MODE)
+
+
+def auth_digest(home, now):
+    """Digest of the logged-in email; cached across processes for AUTH_CACHE_TTL, failures retry."""
+    cached_digest = _cached_auth(home, now)
+    if cached_digest is not None:
+        return cached_digest
     try:
         auth = command(['claude', 'auth', 'status', '--json'], home)
         if not isinstance(auth, dict) or auth.get('loggedIn') is not True:
@@ -77,9 +124,22 @@ def quota(home, now):
         email = auth.get('email') or (auth.get('account') or {}).get('email')
         if not isinstance(email, str) or not email.strip():
             return None
-        identity = email.strip().casefold()
-        digest = hashlib.sha256(identity.encode()).hexdigest()
+        digest = identity_digest(email)
     except (OSError, ValueError, TypeError, subprocess.SubprocessError, AttributeError):
+        return None
+    try:
+        _store_auth(home, now, digest)
+    except OSError:
+        pass  # cache is an optimisation only; the fresh digest is still valid
+    return digest
+
+
+def quota(home, now):
+    began = time.monotonic()
+    def moment():
+        return now + max(0, time.monotonic() - began)
+    digest = auth_digest(home, now)
+    if digest is None:
         return None
     # Local caches belong to the isolated config directory, never the brain cache.
     from .live_rate import read_live_window
@@ -111,7 +171,7 @@ def quota(home, now):
         if not isinstance(rows, list):
             return None
         matching = [r for r in rows if isinstance(r, dict) and r.get('sourceId') == 'claude'
-                    and str((r.get('account') or {}).get('label', '')).strip().casefold() == identity]
+                    and identity_digest(str((r.get('account') or {}).get('label', ''))) == digest]
         if len(matching) != 1:
             return None
         row = matching[0]
@@ -123,7 +183,7 @@ def quota(home, now):
         five = windows.get('five_hour', {})
         sample = dict(at=to_epoch(row.get('fetchedAt')), reset=to_epoch(week.get('resetsAt')),
                       pct=week.get('usedPct'), five=None, source='paseo_claude_account',
-                      identity=hashlib.sha256(identity.encode()).hexdigest())
+                      identity=digest)
         reset = to_epoch(five.get('resetsAt'))
         if reset is not None and now < reset <= now + 18000:
             sample['five'] = five.get('usedPct')
@@ -138,7 +198,7 @@ def quota(home, now):
 
 def costs(home, start, end):
     """Reuse ledger's streaming-message dedup and cache-duration token parsing."""
-    from .week import _locate_usage_ledger, _ledger_module, STATUSLINE_LEDGER_ENV
+    from .week import _locate_usage_ledger, _ledger_module, STATUSLINE_LEDGER_ENV, window_messages
     projects = home / 'projects'
     if not projects.is_dir() or not os.access(projects, os.R_OK | os.X_OK):
         return None, None
@@ -153,7 +213,7 @@ def costs(home, start, end):
             return None, None
         module = _ledger_module(str(path), path.stat().st_mtime_ns)
         module.refresh_prices()
-        messages = module.window_messages([home], math.nextafter(start, math.inf), end)
+        messages = window_messages(module, home, math.nextafter(start, math.inf), end)
         tokens = dict.fromkeys(KEYS, 0)
         usd = 0.0
         unpriced = False
@@ -220,8 +280,28 @@ def pricing_fingerprint():
     return hashlib.sha256(json.dumps(load_prices(), sort_keys=True).encode()).hexdigest()
 
 
-def cached(now):
-    state = read(cache_path())
+def account_state(state, account):
+    if account == LEGACY_ACCOUNT:
+        return {k: state[k] for k in STATE_KEYS if k in state}
+    nested = state.get(ACCOUNTS)
+    value = nested.get(account) if isinstance(nested, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def with_account_state(state, account, value):
+    merged = dict(state)
+    if account == LEGACY_ACCOUNT:
+        merged.update(value)
+        return merged
+    nested = merged.get(ACCOUNTS)
+    nested = dict(nested) if isinstance(nested, dict) else {}
+    nested[account] = value
+    merged[ACCOUNTS] = nested
+    return merged
+
+
+def cached(now, account=LEGACY_ACCOUNT):
+    state = account_state(read(cache_path()), account)
     if state.get('pricing') != pricing_fingerprint():
         return empty()
     header = state.get('header', {})
@@ -267,23 +347,22 @@ def retain(samples, sample):
     return rows if len(rows) <= 256 else [rows[0], *rows[-255:]]
 
 
-def _collect(now):
+def _collect(now, account, home):
     began = time.monotonic()
     def moment():
         return now + max(0, time.monotonic() - began)
     path = cache_path()
-    state = read(path)
+    state = account_state(read(path), account)
     if state.get('pricing') != pricing_fingerprint():
         state = {}
     previous_header = state.get('header')
     poll = (POLL if isinstance(previous_header, dict) and previous_header.get('sampled_at') is not None
             else FAILED_POLL)
     if number(state.get('polled_at')) is not None and 0 <= now-state['polled_at'] < poll:
-        previous = cached(moment())
+        previous = cached(moment(), account)
         # A successful cache expiring early may poll once before the normal interval.
         if previous['sampled_at'] is not None or poll == FAILED_POLL:
             return previous
-    home = Path.home() / '.claude-hand'
     sample = quota(home, moment()) if home.is_dir() else None
     header = empty()
     samples = state.get('samples', [])
@@ -298,50 +377,77 @@ def _collect(now):
                       precision='fractional' if float(sample['pct']) % 1 else 'integer',
                       status='ready' if value is not None else 'collecting')
         samples = retain(samples, sample)
-    write(path, dict(polled_at=moment(), pricing=pricing_fingerprint(), header=header, samples=samples))
-    return cached(moment())
+    value = dict(polled_at=moment(), pricing=pricing_fingerprint(), header=header, samples=samples)
+    write(path, with_account_state(read(path), account, value))
+    return cached(moment(), account)
+
+
+def _homes():
+    from hh_store.claude_ingest import account_homes
+    return account_homes()
+
+
+def _result(headers):
+    """Top level mirrors COMPAT_ACCOUNT; enrich() uses only the per-account map."""
+    result = dict(headers.get(COMPAT_ACCOUNT) or empty())
+    result[ACCOUNTS] = headers
+    return result
 
 
 def collect(now):
     began = time.monotonic()
+    homes = _homes()
     if os.environ.get("HYBRID_HANDS_CALIBRATION_CACHE_ONLY") == "1":
-        return cached(now)
+        return _result({account: cached(now, account) for account in homes})
     path = cache_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     with (path.parent / 'claude-calibration.lock').open('a') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return cached(now + max(0, time.monotonic() - began))
-        return _collect(now + max(0, time.monotonic() - began))
+            return _result({account: cached(now + max(0, time.monotonic() - began), account)
+                            for account in homes})
+        return _result({account: _collect(now + max(0, time.monotonic() - began), account, home)
+                        for account, home in homes.items()})
+
+
+def _backend_account(backend):
+    backend = LEGACY_BACKENDS.get(backend, backend)
+    return backend[len('claude-'):] if backend.startswith('claude-v') else None
+
+
+def _rate_for(headers, account):
+    value = number((headers.get(account) or {}).get('usd_per_pct')) if account else None
+    return value if value is not None and value > 0 else None
+
+
+def _apply(row, value):
+    usage = row.usage
+    if value is None or usage is None or usage.usd is None:
+        return
+    pct = usage.usd / value
+    row.usage = replace(usage, week_pct=pct, week_pct_estimated=True,
+                        week_pct_source='claude_hand_calibration')
 
 
 def enrich(snapshot, now):
+    """Each Claude row uses only its own account's USD~/1% factor (missing -> unchanged)."""
     try:
         snapshot.claude_calibration = collect(now)
     except (OSError, ValueError, TypeError):
         snapshot.claude_calibration = empty()
-    value = snapshot.claude_calibration.get('usd_per_pct')
-    if number(value) is None or value <= 0:
-        return
+    headers = snapshot.claude_calibration.get(ACCOUNTS)
+    if not isinstance(headers, dict):  # pre-account shape: the legacy header is v2
+        headers = {LEGACY_ACCOUNT: snapshot.claude_calibration}
+    from hh_store.claude_ingest import account_for_home
+    from .claude_source import claude_config_dir
+    session_rate = _rate_for(headers, account_for_home(claude_config_dir()))
     for session in snapshot.sessions:
         for row, provider in [(session, session.provider)] + [
                 (agent, agent.provider or session.provider) for agent in session.subagents]:
-            if provider != 'claude' or row.usage is None:
-                continue
-            usage = row.usage
-            if usage.usd is None:
-                continue
-            pct = usage.usd / value if value and usage.usd is not None else None
-            row.usage = replace(usage, week_pct=pct, week_pct_estimated=pct is not None,
-                                week_pct_source='claude_hand_calibration' if pct is not None else '')
-
+            if provider == 'claude':
+                _apply(row, session_rate)
     for run in snapshot.iter_runs():
-        if run.backend not in ('claude', 'claude-main', 'claude-v1', 'claude-v2') or run.usage is None:
-            continue
-        usage = run.usage
-        if usage.usd is None:
-            continue
-        pct = usage.usd / value if value and usage.usd is not None else None
-        run.usage = replace(usage, week_pct=pct, week_pct_estimated=pct is not None,
-                            week_pct_source='claude_hand_calibration' if pct is not None else '')
+        account = _backend_account(run.backend)
+        if account is not None:
+            _apply(run, _rate_for(headers, account))

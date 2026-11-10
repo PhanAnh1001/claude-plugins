@@ -19,12 +19,15 @@ from side_fixture import (  # noqa: E402
     DSH_SIDE, LOST_PARENT_SIDE, NESTED_SIDE, ORPHAN_SIDE, SideFixture, WT_SIDE,
 )
 from hh_ps import cli  # noqa: E402
+from hh_store import runtime as store_runtime  # noqa: E402
 
 
 class HhPsSideTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = SideFixture()
         self.addCleanup(self.fx.close)
+        store_runtime._reset_for_tests()  # store follows each fixture HYBRID_HANDS_STATE_DIR
+        self.addCleanup(store_runtime._reset_for_tests)
 
     def run_cli(self, *args: str) -> tuple:
         out = io.StringIO()

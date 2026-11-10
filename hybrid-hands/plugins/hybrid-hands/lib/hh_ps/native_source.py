@@ -27,7 +27,71 @@ _EVENT_KEYS = frozenset(("type", "started_at", "completed_at", "ended_at", "dura
     "exit_code", "exit", "status", "info", "rate_limits"))
 
 
+_LITERALS = ('"session_meta"', '"turn_context"', '"event_msg"')
+_HEADER_GROUP, _EVENT_FLAG, _TOKEN_FLAG, _CODEX_FLAG, _BAD_FLAG, _PAYLOAD = "g", "e", "t", "h", "bad", "p"
+
+
+def _classify(line):
+    """Stored form of one line: header flags plus allowlisted payload, or None.
+
+    Keeps every line either legacy reader could decode; a JSON error is kept as a
+    `bad` marker so strict readers still fail exactly where they did.
+    """
+    from .codex import EVENT_HEADER
+    if not any(literal in line for literal in _LITERALS):
+        return None
+    match = _HEADER.match(line)
+    if not match:
+        return None
+    flags = {_HEADER_GROUP: match[1], _EVENT_FLAG: bool(_EVENT.search(line)),
+             _TOKEN_FLAG: bool(_TOKEN_EVENT.search(line)),
+             _CODEX_FLAG: bool(EVENT_HEADER.match(line))}
+    if match[1] == "event_msg" and not flags[_EVENT_FLAG]:
+        return None
+    try:
+        row = json.loads(line)
+    except ValueError:
+        return {"kind": "", "observed_at": None, "data": {**flags, _BAD_FLAG: True}}
+    kind = row.get("type")
+    payload = row.get("payload")
+    kept = None
+    if isinstance(payload, dict):
+        keys = _EVENT_KEYS if kind == "event_msg" else _METADATA_KEYS
+        kept = {k: v for k, v in payload.items() if k in keys}
+    thread = str(kept.get("id") or "") if kept is not None and kind == "session_meta" else None
+    return {"kind": kind, "observed_at": to_epoch(row.get("timestamp")), "thread_id": thread,
+            "data": {**flags, _PAYLOAD: kept}}
+
+
+def stored_records(path):
+    """Store-backed classified records, or None when the store is unavailable."""
+    from hh_store import codex_ingest
+    return codex_ingest.records(path, _classify)
+
+
 def _records(path, token_only=False, strict=False):
+    try:
+        stored = stored_records(path)
+    except OSError:
+        if strict:
+            raise
+        return
+    if stored is None:
+        yield from _file_records(path, token_only, strict)
+        return
+    for record in stored:
+        data = record.data
+        if data[_HEADER_GROUP] == "event_msg" and not data[_TOKEN_FLAG if token_only else _EVENT_FLAG]:
+            continue
+        if data.get(_BAD_FLAG):
+            if strict:
+                raise ValueError("invalid rollout record")
+            continue
+        if isinstance(data.get(_PAYLOAD), dict):
+            yield record.kind, dict(data[_PAYLOAD]), record.observed_at
+
+
+def _file_records(path, token_only=False, strict=False):
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:

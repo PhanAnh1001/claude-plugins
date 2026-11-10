@@ -12,6 +12,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Optional
 
+from hh_store import bump_revision
+
 class StateConflict(RuntimeError): pass
 class StateCorrupt(RuntimeError): pass
 
@@ -119,6 +121,7 @@ def atomic_json(path, data):
         fd = os.open(path.parent, os.O_RDONLY)
         try: os.fsync(fd)
         finally: os.close(fd)
+        bump_revision()  # only after a durable replace; never raises
     finally:
         if os.path.exists(name): os.unlink(name)
 

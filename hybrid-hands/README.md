@@ -391,6 +391,10 @@ GPT phần riêng của session pinned rollout/native child dùng `rate_limits` 
 
 GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Giữ contract colors/layout/counts/pool và unknown legacy hiện có.
 
+### Kho chỉ mục hh-store — 0.41.0
+
+`hh-ps` ghi một chỉ mục SQLite (WAL, quyền 0600) tại `~/.hybrid-hands/state/hh-store.sqlite3` (theo `HYBRID_HANDS_STATE_DIR`). Mỗi lần chạy chỉ đọc phần mới thêm của rollout Codex và transcript Claude. File không đổi stat thì không đọc lại, và tổng GPT tuần được cache theo thread. File nguồn vẫn là nguồn sự thật: xoá kho thì lần sau tự dựng lại, kết quả giữ nguyên. Kho lỗi, khoá bận hoặc `HYBRID_HANDS_STORE=off` thì quay về đường đọc file cũ. Đo thật `hh-ps --since 3h --json --ended --full`: ~9 s → ~0,7 s (p50, n=5), output giống hệt khi tắt kho.
+
 ### Dữ liệu và contract
 
 `hh-ps` đọc metadata phiên, usage transcript và registry trên máy; không in nội dung hội thoại/prompt hay credential, không gọi mạng để tính USD. Snapshot JSON giữ `sessions[]` (có `subagents[]`, `hand_runs[]`), `orphan_runs[]`, `limits[]`, `totals`, `generated_at`, `since_seconds`, thông tin lọc project và phiên chính. `usage` giữ token/USD, phần tuần riêng và `account_plan`, `account_5h_pct`, `account_week_pct`; trường thiếu dùng null hoặc chuỗi rỗng theo model dữ liệu.

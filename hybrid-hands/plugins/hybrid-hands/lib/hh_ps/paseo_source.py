@@ -123,9 +123,24 @@ def managed_metadata(metadata, runs):
     cwd = metadata.get("cwd")
     if not isinstance(cwd, str) or not Path(cwd).is_absolute():
         return False
-    return any(run.execution_key and run.isolated_cwd
-               and Path(run.isolated_cwd).is_absolute()
-               and Path(cwd).resolve() == Path(run.isolated_cwd).resolve() for run in runs)
+    isolated = _isolated_roots(runs)
+    return bool(isolated) and Path(cwd).resolve() in isolated
+
+
+# Last (runs list, snapshot of its isolated cwds, resolved set): callers pass the
+# same runs list for every session of one build, so resolve its roots once.
+_ISOLATED_MEMO: list = [None, None, frozenset()]
+
+
+def _isolated_roots(runs):
+    raw = tuple(run.isolated_cwd for run in runs
+                if run.execution_key and run.isolated_cwd
+                and Path(run.isolated_cwd).is_absolute())
+    if _ISOLATED_MEMO[0] is runs and _ISOLATED_MEMO[1] == raw:
+        return _ISOLATED_MEMO[2]
+    resolved = frozenset(Path(value).resolve() for value in raw)
+    _ISOLATED_MEMO[:] = [runs, raw, resolved]
+    return resolved
 
 
 def dedup_native(sessions, runs):

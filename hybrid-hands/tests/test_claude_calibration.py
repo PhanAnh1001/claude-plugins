@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -17,6 +18,43 @@ import unittest
 
 
 class CalibrationTests(unittest.TestCase):
+    def setUp(self):
+        auth_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(auth_dir.cleanup)
+        self.auth_cache = Path(auth_dir.name) / 'auth.json'
+        auth_patch = patch.object(c, 'auth_cache_path', return_value=self.auth_cache)
+        auth_patch.start()
+        self.addCleanup(auth_patch.stop)
+
+    def test_auth_status_cached_across_processes_within_poll(self):
+        home = Path(self.auth_cache.parent)
+        with patch.object(c, 'command', return_value=dict(loggedIn=True, email='fake@example.test')) as run:
+            first = c.auth_digest(home, 1000)
+            self.assertEqual(c.auth_digest(home, 1000 + c.POLL - 1), first)  # new process: file only
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(self.auth_cache.stat().st_mode & 0o777, 0o600)
+            self.assertNotIn('fake@', self.auth_cache.read_text())
+            c.auth_digest(home, 1000 + c.POLL)
+            self.assertEqual(run.call_count, 2)
+
+    def test_one_scan_serves_week_and_live_windows(self):
+        from hh_ps import week
+        ledger = next(Path(__file__).resolve().parents[2].glob('statusline/**/usage_ledger.py'))
+        module = week._ledger_module(str(ledger), ledger.stat().st_mtime_ns)
+        home = self.auth_cache.parent / 'home'
+        line = lambda i, ts: json.dumps(dict(type='assistant', requestId=f'r{i}', timestamp=ts,
+            message=dict(id=f'm{i}', model='claude-opus-4-1', usage=dict(input_tokens=1000))))
+        (home / 'projects' / 'p').mkdir(parents=True)
+        (home / 'projects' / 'p' / 's.jsonl').write_text('\n'.join(
+            line(i, f'2026-11-10T00:00:0{i}Z') for i in range(3)) + '\n')
+        start = 1794268800.0  # 2026-11-10T00:00:00Z
+        windows = [(s, start + 9) for s in (start, math.nextafter(start + 1, math.inf))]
+        expected = [module.window_messages([home], *w) for w in windows]
+        with patch.object(module, 'usage_record', wraps=module.usage_record) as parse:
+            got = [week.window_messages(module, home, *w) for w in windows]
+        self.assertEqual(got, expected)
+        self.assertEqual([len(m) for m in got], [3, 1])  # since is inclusive; nextafter drops 1
+        self.assertEqual(parse.call_count, 4)  # 3 records + trailing blank, parsed once
     def test_rate_precision_reset_account_and_decrease(self):
         price = lambda *args: (10, {})
         assert c.rate([sample()], sample(12, 1100), Path('/fake'), 1100, price) == 5
@@ -56,6 +94,8 @@ class CalibrationTests(unittest.TestCase):
         path.write_text(json.dumps(dict(header=header, pricing=c.pricing_fingerprint())))
         with patch.object(c, 'cache_path', return_value=path), patch.object(c, 'command', side_effect=AssertionError):
             assert c.cached(1100)['usd_per_pct'] == 5
+            assert c.cached(1100, 'v2')['usd_per_pct'] == 5  # legacy file = v2
+            assert c.cached(1100, 'v1')['usd_per_pct'] is None  # v1 never borrows it
             assert c.cached(1500)['usd_per_pct'] is None
 
 
@@ -141,9 +181,14 @@ class CalibrationTests(unittest.TestCase):
         usage = Usage(usd=12, account_week_pct=80)
         session = SimpleNamespace(provider='claude', usage=usage, subagents=[])
         snapshot = SimpleNamespace(sessions=[session], iter_runs=lambda: [])
-        with patch.object(c, 'collect', return_value=c.empty() | dict(usd_per_pct=3)):
+        headers = dict(v1=c.empty() | dict(usd_per_pct=3))
+        with patch.dict(c.os.environ, {'CLAUDE_CONFIG_DIR': '~/.claude'}), patch.object(c, 'collect', return_value=c.empty() | dict(accounts=headers)):
             c.enrich(snapshot, 1000)
         self.assertEqual(session.usage.week_pct, 4)
+        legacy = SimpleNamespace(provider='claude', usage=Usage(usd=12), subagents=[])
+        with patch.dict(c.os.environ, {'CLAUDE_CONFIG_DIR': '~/.claude'}), patch.object(c, 'collect', return_value=c.empty() | dict(usd_per_pct=3)):
+            c.enrich(SimpleNamespace(sessions=[legacy], iter_runs=lambda: []), 1000)
+        self.assertIsNone(legacy.usage.week_pct)  # flat legacy header is v2, not v1
         self.assertEqual(session.usage.account_week_pct, 80)
         self.assertTrue(session.usage.week_pct_estimated)
 

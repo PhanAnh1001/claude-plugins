@@ -15,6 +15,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
+from hh_store import bump_revision
+
 from .backends.base import Usage
 from .constants import (
     HAND_RUN_STATUS_RUNNING, HAND_RUNS_RETENTION_SECONDS, HAND_RUNS_UPDATE_SECONDS,
@@ -155,6 +157,8 @@ class RunRegistry:
             except OSError as exc:
                 print(f"{RUN_REGISTRY_WARNING}: {exc}", file=sys.stderr)
                 success = False
+        if success:
+            bump_revision()  # signal hh-ps/pane that run state changed; never raises
         self._last_write = self.clock()
         return success
 

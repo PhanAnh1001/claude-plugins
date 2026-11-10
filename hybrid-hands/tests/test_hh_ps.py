@@ -20,6 +20,7 @@ from fixture import (  # noqa: E402
     SECRET_SOCKET,
 )
 from hh_ps import cli  # noqa: E402
+from hh_store import runtime as store_runtime  # noqa: E402
 from hh_ps.timeutil import parse_since  # noqa: E402
 
 ARGPARSE_EXIT = 2
@@ -29,6 +30,8 @@ class HhPsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = HhFixture()
         self.addCleanup(self.fx.close)
+        store_runtime._reset_for_tests()  # store follows each fixture HYBRID_HANDS_STATE_DIR
+        self.addCleanup(store_runtime._reset_for_tests)
 
     def run_cli(self, *args: str) -> tuple:
         out = io.StringIO()

@@ -1,6 +1,7 @@
 """Offline worker ownership/settlement contract; no real CLI, auth or daemon."""
 import dataclasses
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -39,6 +40,8 @@ class ExecutionTests(unittest.TestCase):
         scan.start(); self.addCleanup(scan.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
+        env = patch.dict(os.environ, {'HYBRID_HANDS_STATE_DIR': str(self.root / 'hh-state')})
+        env.start(); self.addCleanup(env.stop)
         self.source = self.root / 'source'; self.source.mkdir()
         self.isolated = self.root / 'isolated'; self.isolated.mkdir()
         self.pool = patch.object(parallel, 'pool_root', return_value=self.root / 'pool')

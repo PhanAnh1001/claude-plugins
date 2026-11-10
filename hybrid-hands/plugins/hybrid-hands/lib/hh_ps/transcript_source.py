@@ -15,6 +15,10 @@ from .models import Subagent, Usage
 from .pricing import SYNTHETIC_MODEL, price_for, usage_usd
 from .timeutil import to_epoch
 
+# Store scopes (hh-store files.scope / claude_usage_lines.scope).
+SCOPE_TRANSCRIPT = "claude_transcript"
+SCOPE_SUBAGENT = "claude_subagent"
+
 
 @dataclass
 class TranscriptInfo:
@@ -79,6 +83,111 @@ def _usage_key(message: dict, item: dict) -> Optional[str]:
     return f"{message_id or ''}|{request_id or ''}"
 
 
+@dataclass(frozen=True)
+class UsageRecord:
+    """Usage-bearing fields of one assistant line; no message text."""
+    at: Optional[float]
+    key: Optional[str]
+    usage: dict
+    model: str
+
+
+def usage_record(item: dict) -> Optional[UsageRecord]:
+    message = item.get("message")
+    if not isinstance(message, dict):
+        return None
+    usage = message.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    return UsageRecord(at=to_epoch(item.get("timestamp")), key=_usage_key(message, item),
+                       usage=usage, model=str(message.get("model") or ""))
+
+
+@dataclass
+class FileFold:
+    """Metadata folded over every JSON object of one transcript/subagent file."""
+    cwd: str = ""
+    first: Optional[float] = None
+    last: Optional[float] = None
+    model: str = ""
+    effort: str = ""
+    finished: bool = False
+    finished_at: Optional[float] = None
+    custom_title: str = ""
+    ai_title: str = ""
+    context: Optional[int] = None
+    agent_type: str = ""
+
+    def add(self, item: dict) -> None:
+        cwd = item.get("cwd")
+        if isinstance(cwd, str) and cwd:
+            self.cwd = cwd
+        moment = to_epoch(item.get("timestamp"))
+        if moment is not None:
+            self.first = moment if self.first is None else min(self.first, moment)
+            self.last = moment if self.last is None else max(self.last, moment)
+        model, effort = _model_effort(item)
+        self.model = model or self.model
+        self.effort = effort or self.effort
+        if item.get("agentType"):
+            self.agent_type = str(item.get("agentType"))
+        if _finished(item):
+            self.finished = True
+            self.finished_at = moment or self.finished_at
+        kind = item.get("type")
+        if kind == TRANSCRIPT_TITLE_TYPE:
+            title = item.get("customTitle")
+            if isinstance(title, str) and title:
+                self.custom_title = title
+        elif kind == TRANSCRIPT_AI_TITLE_TYPE:
+            title = item.get("aiTitle")
+            if isinstance(title, str):
+                self.ai_title = title
+        elif kind == TRANSCRIPT_ASSISTANT_TYPE:
+            context = _usage_context(item.get("message"))
+            if context is not None:
+                self.context = context
+
+
+@dataclass
+class FileScan:
+    fold: FileFold
+    records: List[UsageRecord]
+
+
+def parse_object(line: str) -> Optional[dict]:
+    line = line.strip()
+    if not line.startswith("{"):
+        return None
+    try:
+        item = json.loads(line)
+    except ValueError:
+        return None
+    return item if isinstance(item, dict) else None
+
+
+def is_usage_line(item: dict) -> bool:
+    return item.get("type") == TRANSCRIPT_ASSISTANT_TYPE
+
+
+def _scan_legacy(path: Path) -> FileScan:
+    scan = FileScan(FileFold(), [])
+    for item in _iter_objects(path):
+        scan.fold.add(item)
+        if is_usage_line(item):
+            record = usage_record(item)
+            if record is not None:
+                scan.records.append(record)
+    return scan
+
+
+def scan_file(path: Path, scope: str) -> FileScan:
+    """Fold + usage records from the hh-store when available, else the whole file."""
+    from hh_store.claude_ingest import scan_stored
+    stored = scan_stored(path, scope)
+    return stored if stored is not None else _scan_legacy(path)
+
+
 class _UsageAccumulator:
     """Sum assistant usage in one stream; the last record per message id wins."""
 
@@ -88,24 +197,20 @@ class _UsageAccumulator:
         self._since = since
 
     def add(self, item: dict) -> None:
+        record = usage_record(item)
+        if record is not None:
+            self.add_record(record)
+
+    def add_record(self, record: "UsageRecord") -> None:
         if self._since is not None:
-            moment = to_epoch(item.get("timestamp"))
-            if moment is not None and moment < self._since:
+            if record.at is not None and record.at < self._since:
                 return
-        message = item.get("message")
-        if not isinstance(message, dict):
+        if record.model == SYNTHETIC_MODEL:
             return
-        usage = message.get("usage")
-        if not isinstance(usage, dict):
-            return
-        model = str(message.get("model") or "")
-        if model == SYNTHETIC_MODEL:
-            return
-        key = _usage_key(message, item)
-        if key is None:
-            self._extra.append((usage, model))
+        if record.key is None:
+            self._extra.append((record.usage, record.model))
         else:
-            self._by_key[key] = (usage, model)
+            self._by_key[record.key] = (record.usage, record.model)
 
     def result(self) -> Optional[Usage]:
         records = list(self._by_key.values()) + self._extra
@@ -132,14 +237,8 @@ def _iter_objects(path: Path):
     try:
         with path.open(encoding="utf-8", errors="replace") as handle:
             for line in handle:
-                line = line.strip()
-                if not line.startswith("{"):
-                    continue
-                try:
-                    item = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(item, dict):
+                item = parse_object(line)
+                if item is not None:
                     yield item
     except OSError:
         return
@@ -152,61 +251,31 @@ def parse_transcript(path: Path, since: Optional[float] = None) -> TranscriptInf
     except OSError:
         mtime = 0.0
     info = TranscriptInfo(mtime=mtime, slug=path.parent.name)
-    usage = _UsageAccumulator(since)
-    for item in _iter_objects(path):
-        cwd = item.get("cwd")
-        if isinstance(cwd, str) and cwd:
-            info.cwd = cwd
-        moment = to_epoch(item.get("timestamp"))
-        if moment is not None:
-            info.started_at = moment if info.started_at is None else min(
-                info.started_at, moment)
-            info.last_activity = moment if info.last_activity is None else max(
-                info.last_activity, moment)
-        model, effort = _model_effort(item)
-        info.model = model or info.model
-        info.effort = effort or info.effort
-        if _finished(item):
-            info.finished_at = moment or info.finished_at
-        kind = item.get("type")
-        if kind == TRANSCRIPT_TITLE_TYPE:
-            title = item.get("customTitle")
-            if isinstance(title, str) and title:
-                info.custom_title = title
-        elif kind == TRANSCRIPT_AI_TITLE_TYPE:
-            title = item.get("aiTitle")
-            if isinstance(title, str):
-                info.ai_title = title
-        elif kind == TRANSCRIPT_ASSISTANT_TYPE:
-            context = _usage_context(item.get("message"))
-            if context is not None:
-                info.context_tokens = context
-            usage.add(item)
-    info.usage = usage.result()
+    scan = scan_file(path, SCOPE_TRANSCRIPT)
+    fold = scan.fold
+    info.cwd, info.started_at, info.last_activity = fold.cwd, fold.first, fold.last
+    info.model, info.effort = fold.model, fold.effort
+    info.finished_at = fold.finished_at
+    info.custom_title, info.ai_title = fold.custom_title, fold.ai_title
+    info.context_tokens = fold.context
+    info.usage = _usage_from(scan.records, since)
     info.last_activity = info.last_activity or info.mtime
     return info
 
 
-def _parse_agent(
-        path: Path, since: Optional[float] = None
-) -> Tuple[Optional[int], Optional[float], Optional[float], Optional[Usage]]:
-    context: Optional[int] = None
-    first: Optional[float] = None
-    last: Optional[float] = None
+def _usage_from(records: Iterable[UsageRecord], since: Optional[float]) -> Optional[Usage]:
     usage = _UsageAccumulator(since)
+    for record in records:
+        usage.add_record(record)
+    return usage.result()
+
+
+def _parse_agent(path: Path, since: Optional[float] = None
+                 ) -> Tuple[Optional[FileFold], Optional[Usage]]:
     if not path.is_file():
-        return context, first, last, None
-    for item in _iter_objects(path):
-        moment = to_epoch(item.get("timestamp"))
-        if moment is not None:
-            first = moment if first is None else min(first, moment)
-            last = moment if last is None else max(last, moment)
-        if item.get("type") == TRANSCRIPT_ASSISTANT_TYPE:
-            found = _usage_context(item.get("message"))
-            if found is not None:
-                context = found
-            usage.add(item)
-    return context, first, last, usage.result()
+        return None, None
+    scan = scan_file(path, SCOPE_SUBAGENT)
+    return scan.fold, _usage_from(scan.records, since)
 
 
 def _model_effort(item: dict) -> Tuple[str, str]:
@@ -238,16 +307,14 @@ def load_subagents(dirs: Iterable[Path], cutoff: float, now: float,
             meta_path = folder / (stem + SUBAGENT_META_SUFFIX)
             jsonl = folder / (stem + SUBAGENT_JSONL_SUFFIX)
             meta = _read_json(meta_path) or {}
-            context, first, last, usage = _parse_agent(jsonl, since)
+            fold, usage = _parse_agent(jsonl, since)
+            fold = fold or FileFold()
+            context, first, last = fold.context, fold.first, fold.last
             first = to_epoch(meta.get("started_at") or meta.get("startedAt")) or first
-            finished = _finished(meta)
             model, effort = _model_effort(meta)
-            agent_type = str(meta.get("agentType") or "")
-            for item in _iter_objects(jsonl):
-                found_model, found_effort = _model_effort(item)
-                model, effort = found_model or model, found_effort or effort
-                agent_type = str(item.get("agentType") or agent_type)
-                finished = finished or _finished(item)
+            model, effort = fold.model or model, fold.effort or effort
+            agent_type = fold.agent_type or str(meta.get("agentType") or "")
+            finished = _finished(meta) or fold.finished
             finished = finished or parent_ended is not None
             try:
                 mtime = (jsonl if jsonl.is_file() else meta_path).stat().st_mtime
