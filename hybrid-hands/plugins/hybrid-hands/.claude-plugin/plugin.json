@@ -1,6 +1,6 @@
 {
   "name": "hybrid-hands",
-  "version": "0.48.0",
+  "version": "0.48.1",
   "description": "Điều phối brain/hand lai cho Claude Code: brain chạy trên gói Claude chính; hand ngoài (lệnh hand-ext) mặc định cho việc code/tài liệu tự chứa, chạy trên gói subscription thứ hai (auto theo order dsh → codex → claude-v1 → claude-v2; dsh dùng DeepSeek V4.1 Flash qua DeepSeek Harness trên gói OpenCode Go; tuỳ chọn --browser cho dsh qua Playwright MCP cô lập) trong git worktree sạch (file bị ignore như .env không có trong workspace), tự áp changes.patch về repo; không giao hand ngoài việc phải đọc/gửi secret hay dữ liệu khách hàng; không API key, theo dõi token, hạn mức và mức USD~ Go ước tính qua sổ toàn máy cùng lệnh hand-ext usage; lệnh hh-ps xem cây phiên mọi provider/backend → subagent → lượt hand ngoài kèm sổ lượt đang chạy toàn máy; chọn subagent native cùng tài khoản khi đủ capability, gồm hand Claude (agent hybrid-hands:hand); hand khác tài khoản chạy hand-ext theo order; phiên phụ (lệnh side-session) cho gói việc dài. Bật/tắt theo dự án, thay thế parallel-subagents.",
   "author": {
     "name": "hybrid-hands"
