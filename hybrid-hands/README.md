@@ -493,3 +493,134 @@ Sau khi sửa: `paseo reload`, rồi `paseo run --provider claude-tee ...` để
 ## 9. Cập nhật
 
 Tăng `version` trong `plugins/hybrid-hands/.claude-plugin/plugin.json`, chạy `claude plugin validate`, rồi `claude plugin marketplace update hybrid-hands-local` và `claude plugin update hybrid-hands@hybrid-hands-local`.
+
+## Đồng bộ tài sản tài khoản: status và sync
+
+`hand-ext accounts status [--account vN|--all] [--json]` chỉ đọc.
+`hand-ext accounts sync [--account vN|--all] [--apply] [--json]` mặc định
+DRY-RUN: không tạo home, backup, lock file hoặc gọi CLI ghi. `--cwd` chọn repo.
+Không selector tương đương `--all`; `--account` chỉ nhận Claude đích đã khai báo,
+không nhận nguồn; hai selector loại trừ nhau. `--all` còn báo Codex hand blocked.
+Nguồn Claude mặc định v1, đích từ `ext_hand.claude_accounts`, không quét home.
+
+Gói này **chưa được apply home thật**. Sol chỉ thực hiện status/sync DRY-RUN để
+người dùng duyệt manifest và ownership floor cụ thể. Không suy rằng code tồn tại
+là runtime đã nạp hoặc test thật đã pass. Xem [quyết định](../docs/work-in-progress/dong-bo-tai-khoan/spec.md),
+[tiến độ](../docs/work-in-progress/dong-bo-tai-khoan/plan.md) và
+[nghiên cứu chính thức ngày 2026-11-10](../docs/work-in-progress/dong-bo-tai-khoan/verification.md).
+
+Ví dụ chỉ dùng repo và tên giả, không phải lệnh apply account thật:
+
+```sh
+hand-ext accounts status --cwd /tmp/example-repo --all --json
+hand-ext accounts sync --cwd /tmp/example-repo --account v2 --json
+```
+
+Exit 0: mọi mục `in_sync`/`applied`; exit 1: còn missing/drift, hành động dự kiến,
+conflict hoặc blocked; exit 2: có error hoặc cấu hình/selector/I/O lỗi. Apply có
+thể thành công một phần; phải đọc từng item, không tự retry CLI khi ACK mơ hồ.
+JSON schema_version=1 xuất items (provider/account/path/key/action/reason),
+provenance `sources` đã lọc và backup_path nếu có. Không xuất giá trị settings,
+env, payload MCP, raw stdout/stderr. Global config lỗi trả reason cố định
+`global_config_error` và `config_path` normalize; path unsafe/quá dài được thay
+bằng `[redacted_config_path]`, không dùng nội dung parser exception. Text cũng
+hiện diagnostic path.
+
+### Schema và quyền sở hữu
+
+Nguồn chuẩn schema là [manifest](plugins/hybrid-hands/lib/hand_ext/account_sync_manifest.py),
+[mặc định](plugins/hybrid-hands/lib/hand_ext/constants.py),
+[settings](plugins/hybrid-hands/lib/hand_ext/account_sync_settings.py) và
+[official CLI adapter](plugins/hybrid-hands/lib/hand_ext/account_sync_official.py).
+Khoá `ext_hand.account_sync` nhận alias `account_sync`; trong mỗi tầng alias
+được merge trước khoá nested. Thứ tự: plugin → global (HYBRID_HANDS_CONFIG đổi
+đường dẫn; relative tính từ repo root) → repo → override CLI nội bộ của manifest.
+CLI công khai hiện chỉ có selector, cwd, json, apply; không có cờ sửa manifest.
+Dict merge sâu, list/scalar thay nguyên; output chỉ chiếu provenance của
+sources.claude/items/exclude/settings.shared_keys. `hand-ext config --json`
+phục vụ provenance cấu hình chung, không dùng để dump dữ liệu private.
+
+Ví dụ cấu hình synthetic, mọi approval vẫn false:
+
+```json
+{
+  "ext_hand": {
+    "claude_accounts": {
+      "v1": {"config_dir": "/tmp/example-accounts/source"},
+      "v2": {"config_dir": "/tmp/example-accounts/target"}
+    },
+    "account_sync": {
+      "sources": {"claude": "v1"},
+      "source_override_approved": false,
+      "items": [{"provider": "claude", "path": "skills/example-skill", "type": "symlink", "approved": false}],
+      "exclude": ["commands"],
+      "settings": {"shared_keys": ["statusLine", "hooks"], "approved_keys": [], "ownership": {}},
+      "plugins": {"marketplaces": {}, "items": []},
+      "mcp": []
+    }
+  }
+}
+```
+
+`sources.claude` khác v1 cần explicit `source_override_approved: true` sau duyệt;
+homes không được trùng/lồng nhau hoặc tạo vòng. `sources.codex` được schema nhận
+nhưng không mở overlay Codex. `targets` chưa được hỗ trợ (chỉ rỗng); đích lấy từ
+registry. `items` chỉ provider/path/type(import|symlink)/approved; danh sách rỗng
+khám phá tên Claude mặc định, không tự duyệt tài sản con. Exclude chỉ thu hẹp,
+không mở denylist. Mỗi file/child cần approval riêng, không duyệt cả root.
+
+Claude CLAUDE.md thiếu được tạo một dòng import tuyệt đối (escape dấu cách).
+Skills/agents/commands chỉ symlink từng mục con; giữ link paseo nếu đúng nguồn.
+**Symlink cho phép các account cùng sửa nội dung nguồn**, không phải snapshot;
+không symlink whole-root/home hay nguyên plugins/. Mục thật/link sai là conflict,
+không ghi đè. Nguồn thiếu blocked, không xoá đích; nguồn symlink/ancestry không
+an toàn bị chặn. Apply lại khi khớp là no-op, không thêm backup/cài lại plugin.
+Hook script hiện luôn `hook_evidence_required`: từng hook phải duyệt code,
+đích ghi, env và dependency; approved tên asset không vượt chặn này.
+
+Settings chỉ sở hữu `statusLine` và `hooks`. `approved_keys` là field schema tương
+thích, không đủ cấp quyền: mỗi `ownership.<key>` phải có đúng `approved: true`,
+`verified: true`, `sha256` của toàn giá trị nguồn canonical JSON UTF-8, sorted keys,
+compact separators, ensure_ascii=false. Giá trị thay đổi làm hash hết hiệu lực.
+Giữ nguyên toàn env, model, effort, permissions, auth và khoá lạ; không copy
+`enabledPlugins`/`extraKnownMarketplaces` qua settings. Khoá nguồn thiếu giữ đích.
+JSON lỗi hoặc settings symlink bị chặn; không in giá trị command/hook.
+
+Trước ghi settings, backup đầu ở `$HOME/.hybrid-hands/backups/<sha256 đường dẫn
+settings đích tuyệt đối>/original.json`; file đích chưa có dùng marker `absent`.
+Thư mục 0700, file backup/marker `complete` 0600; không ghi đè bản đầu. Backup lỗi
+hoặc chưa complete chặn ghi. Khoá parent, fingerprint nguồn/đích, file tạm + fsync
+và atomic replace giữ mode đích (file mới 0600); concurrent edit thành conflict.
+`commit_durability_unknown` có thể xảy ra sau replace, phải kiểm tra riêng, không
+retry mù. Backup có thể chứa secret, không đọc/dump/đưa vào repo. Khôi phục là thao
+tác riêng chờ brain/người dùng duyệt; không tự rollback batch hay thay đổi mới.
+
+### Plugin, MCP và các phần blocked
+
+Plugin policy có `marketplaces.<name>`: approved và đúng một url HTTPS sạch hoặc
+absolute path đã duyệt; `items`: id dạng example-plugin@example-market, scope
+user/project/local, approved, verified và repo_used. Scope phải tường minh;
+project/local cần repo_used=true, không tự bật repo chưa dùng. Chỉ nguồn bật đúng
+scope, đích thiếu, marketplace tin cậy khớp mới được add/install qua official CLI.
+CLAUDE_CONFIG_DIR chọn đích; v1 unset theo contract launcher. Disabled/version/scope
+drift báo conflict, không autoenable/upgrade/downgrade. Không sửa sổ cài đặt.
+
+Adapter chỉ giữ metadata id/version/enabled/scope/path cần đối chiếu; chọn
+readFromFolder/folderVersion khi có, kiểm schema/path, bỏ field lạ và không xuất
+raw MCP/diagnostics/message/URL/hosted IDs. Status/dry-run có thể gọi CLI list chỉ
+đọc; lỗi capability/schema bị chặn, không fallback đọc installed_plugins.json.
+Apply xác minh lại metadata sau mutation; partial/error không tự sửa sổ để chữa.
+
+MCP policy chỉ name/approved, không chứa payload. Chưa server nào được duyệt;
+server chưa duyệt báo mcp_approval_required, approved vẫn
+mcp_safe_transport_unverified. Docs chỉ xác nhận add-json positional payload,
+chưa transport an toàn; không gửi secret qua argv, không phát minh stdin/file flag.
+Phương án phiên --plugin-dir/--settings/--mcp-config cần duyệt riêng.
+
+Codex AGENTS.md/rules/agents/skills overlay đều blocked vì chưa đủ bằng chứng
+path + symlink discovery cho custom home. User skills được tài liệu hóa ở
+`$HOME/.agents/skills` không chứng minh overlay account này. `config.toml`,
+`hooks.json`, `.system` ngoài phạm vi. Credential, permissions/trust, sessions,
+transcript/history, cache/quota/ledger/state giữ riêng tuyệt đối; không chia sẻ
+whole-root để chữa thiếu asset. Research không chứng minh runtime cài thực tế đã
+nạp. Release, version/path thực nạp và reload thuộc bước brain tiếp theo.

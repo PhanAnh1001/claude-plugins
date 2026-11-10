@@ -45,6 +45,8 @@ def _parser() -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=text)
         s.add_argument("--backend", default=ALL_BACKENDS)
         s.add_argument("--cwd")
+    from .accounts_cmd import register as register_accounts
+    register_accounts(sub)
     from .models_cmd import register
     register(sub)
     inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
@@ -376,8 +378,26 @@ COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick, 
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    args = _parser().parse_args(argv)
+    actual = list(sys.argv[1:] if argv is None else argv)
+    if actual[:1] == ["accounts"]:
+        import contextlib
+        import io
+        from .account_sync_manifest import ManifestError
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                args = _parser().parse_args(actual)
+        except (ManifestError, SystemExit) as exc:
+            if isinstance(exc, SystemExit) and exc.code == 0:
+                return EXIT_OK
+            print(json.dumps({"schema_version": 1, "items": [], "reason": "invalid_arguments"})
+                  if "--json" in actual else "invalid_arguments")
+            return EXIT_USAGE
+    else:
+        args = _parser().parse_args(actual)
     try:
+        if args.cmd == "accounts":
+            from .accounts_cmd import command
+            return command(args)
         if args.cmd == "models":
             from .models_cmd import command
             return command(args)

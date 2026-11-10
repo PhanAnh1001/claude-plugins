@@ -2,10 +2,10 @@
 
 ## Tóm tắt
 
-- **Mục đích:** thực hiện [spec](spec.md) qua **5 pha, 10 task**, ưu tiên **CAO**, L2, ngày **10/11/2026**, trạng thái **chờ duyệt**.
-- **Kết luận chính:** người dùng đã chốt hướng tách credential/state và overlay tài sản; phiên sau cần duyệt chi tiết trước code/apply. P0 chỉ đọc; P1 → P2 → P3 tuần tự theo phụ thuộc; P4 phát hành sau review.
-- **Số chính:** tối đa 3 ca kiểm chứng quan trọng mỗi pha, chỉ fixtures thư mục tạm giả; không full suite. Lượt này không viết code/test hoặc đổi runtime.
-- **Người đọc phải làm:** chốt mục 7 của spec và ngoại lệ AGENTS.md; brain giao brief có phạm vi ghi cụ thể cho từng task, review rồi phát hành. Hand không commit/cài runtime.
+- **Mục đích:** thực hiện [spec](spec.md) qua **5 pha, 10 task**, ưu tiên **CAO**, L2, ngày **10/11/2026**, trạng thái **đã duyệt thiết kế 10/11/2026**.
+- **Kết luận chính:** người dùng đã chốt hướng tách credential/state và overlay tài sản; manifest/floor cụ thể vẫn cần duyệt trước apply thật. P0 status/dry-run chỉ đọc; P1 → P2 → P3 tuần tự theo phụ thuộc; P4 phát hành sau review.
+- **Số chính:** tối đa 3 ca kiểm chứng quan trọng mỗi pha, chỉ fixtures thư mục tạm giả; không full suite. Lượt P4.1 có sửa QA hẹp P0; không đổi runtime.
+- **Người đọc phải làm:** theo quyết định mục 6/7 của spec; brain giao brief có phạm vi ghi cụ thể cho từng task, review rồi phát hành. Hand không commit/cài runtime.
 
 Không có nguồn internet, nguồn nội bộ: [AGENTS.md](../../../AGENTS.md), [nghiên cứu switch](../../research/2026-11-10-switch-model-provider-account/report.md), [thư mục](../../research/2026-11-10-switch-model-provider-account/notes/thu-muc-chung-vs-tach.md), [bảo mật](../../research/2026-11-10-openmausbot-bao-mat/report.md). Khuôn theo [hh-store spec](../hh-store/spec.md) và [plan](../hh-store/plan.md); không kế thừa quyền song song hay trạng thái hoàn thành của tài liệu mẫu.
 
@@ -17,8 +17,8 @@ Mỗi pha chỉ tối đa 3 ca nêu dưới; ưu tiên tham số hoá, không te
 
 ## P0 — manifest, status và dry-run chỉ đọc
 
-- [ ] **P0.1 — chốt contract và schema:** file dự kiến `lib/hand_ext/config.py`, `constants.py`, module mới `lib/hand_ext/account_sync_manifest.py`, `hybrid-hands/tests/test_account_sync.py`. Xong khi cấu hình 4 tầng giữ provenance/merge, source/target/allowlist/exclude rõ ràng, denylist không thể bị manifest mở lại; câu hỏi scope/Codex có quyết định hoặc trạng thái blocked. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k manifest`.
-- [ ] **P0.2 — planner và CLI:** file dự kiến `lib/hand_ext/cli.py`, module mới `lib/hand_ext/accounts_cmd.py`, `account_sync_plan.py`, test chung trên. Xong khi status/sync mặc định dry-run, selector và mã thoát theo spec, text/JSON chỉ tên/action, không tạo backup/lock/home, không gọi CLI ghi. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k dry_run`.
+- [x] **P0.1 — chốt contract và schema:** file dự kiến `lib/hand_ext/config.py`, `constants.py`, module mới `lib/hand_ext/account_sync_manifest.py`, `hybrid-hands/tests/test_account_sync.py`. Xong khi cấu hình 4 tầng giữ provenance/merge, source/target/allowlist/exclude rõ ràng, denylist không thể bị manifest mở lại; câu hỏi scope/Codex có quyết định hoặc trạng thái blocked. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k manifest`.
+- [x] **P0.2 — planner và CLI:** file dự kiến `lib/hand_ext/cli.py`, module mới `lib/hand_ext/accounts_cmd.py`, `account_sync_plan.py`, test chung trên. Xong khi status/sync mặc định dry-run, selector và mã thoát theo spec, text/JSON chỉ tên/action, không tạo backup/lock/home, không gọi CLI ghi. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k dry_run`.
 
 **Tối đa 3 ca P0:** (1) manifest 4 tầng + denylist trong cùng test tham số; (2) status/dry-run snapshot cây fixture trước/sau giống hệt và không có subprocess ghi; (3) selector lỗi/JSON không chứa sentinel giá trị env. Chưa apply lên home thật.
 
@@ -26,8 +26,8 @@ Mỗi pha chỉ tối đa 3 ca nêu dưới; ưu tiên tham số hoá, không te
 
 Phụ thuộc P0; phần Codex chờ xác minh tài liệu chính thức trong câu hỏi 4 của spec. Không có bằng chứng thì blocked riêng Codex, không nhận xét rằng link tạo được đồng nghĩa CLI nạp được.
 
-- [ ] **P1.1 — overlay Claude:** file dự kiến module mới `lib/hand_ext/account_sync_assets.py`, `accounts_cmd.py`, test chung. Xong khi CLAUDE.md mới chỉ có một dòng import tuyệt đối; skills/agents/commands/hooks symlink từng mục con, giữ link paseo đúng nguồn, mục thật/sai link thành conflict; không sửa script. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k assets`.
-- [ ] **P1.2 — overlay Codex và ranh giới:** file dự kiến `account_sync_manifest.py`, `account_sync_assets.py`, test chung. Xong khi AGENTS.md symlink file và rules/agents/skills symlink con theo cơ chế đã xác minh; bỏ qua .system, config.toml, state; kiểm đường dẫn lại lúc ghi, nguồn thiếu blocked; không tự copy hooks.json. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k assets`.
+- [x] **P1.1 — overlay Claude:** file dự kiến module mới `lib/hand_ext/account_sync_assets.py`, `accounts_cmd.py`, test chung. Xong khi CLAUDE.md mới chỉ có một dòng import tuyệt đối; skills/agents/commands/hooks symlink từng mục con, giữ link paseo đúng nguồn, mục thật/sai link thành conflict; không sửa script. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k assets`.
+- [ ] **P1.2 — overlay Codex và ranh giới:** file dự kiến `account_sync_manifest.py`, `account_sync_assets.py`, test chung. **Blocked Codex** theo verification: chưa chứng minh path/symlink discovery. Chỉ mở lại khi có bằng chứng và duyệt thiết kế; bỏ qua .system, config.toml, state; kiểm đường dẫn lại lúc ghi, nguồn thiếu blocked; không tự copy hooks.json. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k assets`.
 
 **Tối đa 3 ca P1:** (1) apply Claude/Codex bằng fixture tham số rồi apply lần hai không đổi; (2) mục thật/sai link conflict không ghi đè; (3) cây giữ riêng + .system/config.toml có sentinel không bị đọc hoặc sửa, đường dẫn thoát vùng bị chặn. Gộp assert vào cùng ca, không thêm test cho mỗi tên file.
 
@@ -35,17 +35,17 @@ Phụ thuộc P0; phần Codex chờ xác minh tài liệu chính thức trong c
 
 Phụ thuộc P1 và duyệt allowlist/ngoại lệ luật. Không áp settings thật trong hand ngoài; kiểm chứng thật nếu cần do brain/runtime tin cậy thực hiện theo quyền đã duyệt.
 
-- [ ] **P2.1 — reconcile chọn khoá:** file dự kiến module mới `lib/hand_ext/account_sync_settings.py`, `account_sync_manifest.py`, test chung. Xong khi chỉ khoá được duyệt thay đổi; env/model/effort/auth/unknown nguyên vẹn; nguồn thiếu không xoá đích; enabledPlugins chưa cài không được bật; output chỉ tên khoá. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k settings`.
-- [ ] **P2.2 — ghi an toàn:** file dự kiến `account_sync_settings.py`, `accounts_cmd.py`, test chung. Xong khi backup đầu theo hash đường dẫn, thư mục 0700/backup 0600, atomic replace giữ mode, khoá và fingerprint chặn concurrent edit, symlink/JSON lỗi blocked; backup lỗi thì đích nguyên vẹn; apply lại không ghi thêm. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k settings`.
+- [x] **P2.1 — reconcile chọn khoá:** file dự kiến module mới `lib/hand_ext/account_sync_settings.py`, `account_sync_manifest.py`, test chung. Xong khi chỉ khoá được duyệt thay đổi; env/model/effort/auth/unknown nguyên vẹn; nguồn thiếu không xoá đích; enabledPlugins chưa cài không được bật; output chỉ tên khoá. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k settings`.
+- [x] **P2.2 — ghi an toàn:** file dự kiến `account_sync_settings.py`, `accounts_cmd.py`, test chung. Xong khi backup đầu theo hash đường dẫn, thư mục 0700/backup 0600, atomic replace giữ mode, khoá và fingerprint chặn concurrent edit, symlink/JSON lỗi blocked; backup lỗi thì đích nguyên vẹn; apply lại không ghi thêm. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k settings`.
 
 **Tối đa 3 ca P2:** (1) floor + backup + mode + idempotence; (2) JSON lỗi/symlink/concurrent edit không ghi; (3) lỗi backup/replace giữ file cũ và output không lộ sentinel. Tham số hoá các lỗi trong cùng ca.
 
 ## P3 — plugin và MCP qua CLI chính thức
 
-Phụ thuộc P2 và xác minh scope install/cách truyền MCP an toàn. Tài liệu tham chiếu cần kiểm lại: [Claude CLI](https://code.claude.com/docs/en/cli-reference), [MCP](https://code.claude.com/docs/en/mcp) (11/2026); hiện chỉ kế thừa câu hỏi mở từ nghiên cứu, chưa xác minh mới.
+Phụ thuộc P2; scope đã xác minh, transport MCP vẫn blocked theo [verification](verification.md), ngày 2026-11-10. Tài liệu tham chiếu: [Claude CLI](https://code.claude.com/docs/en/cli-reference), [MCP](https://code.claude.com/docs/en/mcp) (11/2026); kết luận nghiên cứu không cấp quyền apply thật.
 
-- [ ] **P3.1 — reconcile plugin:** file dự kiến module mới `lib/hand_ext/account_sync_official.py`, `accounts_cmd.py`, test chung. Xong khi marketplace add/install chỉ cho nguồn tin cậy đã duyệt và plugin bật ở nguồn nhưng thiếu ở đích, account env đúng (v1 unset tương thích), scope tường minh đã xác minh; khác version/tắt ở đích báo drift, không sửa sổ hoặc symlink plugins/; lỗi/ACK mơ hồ không retry mù. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k official`.
-- [ ] **P3.2 — MCP và phương án theo phiên:** file dự kiến `account_sync_official.py`, `accounts_cmd.py`; nếu dự phòng được duyệt thêm `lib/hand_ext/backends/claude.py` và `lib/side_session/` (chỉ launcher xác định sau khảo sát), test chung. Xong khi MCP chỉ báo tên; add-json yêu cầu duyệt server cụ thể, payload không qua argv/log lộ secret; không đọc .claude.json thủ công; dự phòng --plugin-dir/--settings/--mcp-config không tự bật và không sửa model/effort toàn cục. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k official`.
+- [x] **P3.1 — reconcile plugin:** file dự kiến module mới `lib/hand_ext/account_sync_official.py`, `accounts_cmd.py`, test chung. Xong khi marketplace add/install chỉ cho nguồn tin cậy đã duyệt và plugin bật ở nguồn nhưng thiếu ở đích, account env đúng (v1 unset tương thích), scope tường minh đã xác minh; khác version/tắt ở đích báo drift, không sửa sổ hoặc symlink plugins/; lỗi/ACK mơ hồ không retry mù. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k official`.
+- [ ] **P3.2 — MCP và phương án theo phiên:** file dự kiến `account_sync_official.py`, `accounts_cmd.py`; nếu dự phòng được duyệt thêm `lib/hand_ext/backends/claude.py` và `lib/side_session/` (chỉ launcher xác định sau khảo sát), test chung. **Blocked MCP apply**: chưa server nào được duyệt, chưa transport an toàn; MCP chỉ báo tên; add-json yêu cầu duyệt server cụ thể, payload không qua argv/log lộ secret; không đọc .claude.json thủ công; dự phòng --plugin-dir/--settings/--mcp-config không tự bật và không sửa model/effort toàn cục. Kiểm chứng: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q -k official`.
 
 **Tối đa 3 ca P3:** (1) plugin thiếu chạy đúng CLI/scope/env rồi lần hai no-op; (2) CLI lỗi trả partial/error không ghi sổ trực tiếp; (3) MCP chưa duyệt không gọi CLI, đã duyệt truyền an toàn với fixture giả và không lộ sentinel. Nếu truyền an toàn chưa có thì đánh dấu blocked, không cài thử trên account thật.
 
@@ -53,11 +53,20 @@ Phụ thuộc P2 và xác minh scope install/cách truyền MCP an toàn. Tài l
 
 Phụ thuộc P0–P3; bước phát hành do Opus/Sol điều phối theo luật repo. Không chọn version trước khi đối chiếu main lúc phát hành.
 
-- [ ] **P4.1 — hướng dẫn và luật:** file dự kiến `hybrid-hands/README.md`, `AGENTS.md`, `commands/` và `skills/ext-hand/` nếu cần mục lệnh mới, hai tài liệu spec/plan này. Xong khi người dùng duyệt câu bổ sung luật, có dry-run/apply/conflict/backup/khôi phục, phạm vi account/repo, cảnh báo symlink/hook; ghi rõ Codex hooks.json và config.toml ngoài phạm vi. Kiểm chứng: `git diff --check`; dùng `python3 -I` kiểm mọi link nội bộ tương đối trong các Markdown đã sửa tồn tại, không test text tài liệu.
+- [x] **P4.1 — hướng dẫn và luật:** file dự kiến `hybrid-hands/README.md`, `AGENTS.md`, hai tài liệu spec/plan này. Câu luật đã duyệt 10/11/2026; code diagnostic và AGENTS đã được Sol review; tài liệu đã sửa schema/trạng thái theo review, link nội bộ và diff được kiểm trong lượt P4.2; có dry-run/apply/conflict/backup/khôi phục, phạm vi account/repo, cảnh báo symlink/hook; ghi rõ Codex hooks.json và config.toml ngoài phạm vi. Kiểm chứng: `git diff --check`; dùng `python3 -I` kiểm mọi link nội bộ tương đối trong các Markdown đã sửa tồn tại, không test text tài liệu.
 - [ ] **P4.2 — review, version và cập nhật cài đặt:** file dự kiến `.claude-plugin/plugin.json`, `CHANGELOG.md`, `hybrid-hands/README.md` nếu cần release note. Xong khi brain review diff và test hẹp xanh, tăng version thích hợp + changelog; validate plugin bằng CLI chính thức đã xác minh; cập nhật qua công cụ chính thức cho repo hiện tại và mọi repo/account đang dùng plugin, không tự bật repo mới, không sửa sổ/settings thủ công. Xác minh version và đường dẫn plugin thực nạp theo từng cặp repo/account, báo phiên cần reload; brain xử lý commit/push/merge theo AGENTS.md, hand không làm. Kiểm chứng hẹp cuối: `python3 -I -m pytest hybrid-hands/tests/test_account_sync.py -q`; thêm `git diff --check`, kiểm JSON manifest bằng `python3 -I`. Lệnh update/validate cụ thể phải lấy từ CLI chính thức và hướng dẫn cài tại thời điểm phát hành, ghi vào bàn giao; không đoán scope hoặc chạy installer trong lượt tài liệu này.
 
 **Tối đa 3 kiểm tra P4:** (1) test file account_sync cuối đúng một lượt, nếu đỏ chỉ chạy lại test hỏng; (2) diff/JSON/link hợp lệ; (3) brain xác minh bảng repo × account × version × đường dẫn nạp, ghi cần reload khi có. Không full suite, không tuyên bố đã cập nhật khi chưa quan sát runtime.
 
 ## Bàn giao cần có
 
-Báo cáo task đã xong/chặn, câu hỏi người dùng còn phải chốt, file chạm, lệnh/kết quả thật và version/path theo repo/account. Không in credential, account id đăng nhập, settings/env hoặc payload MCP; không đưa backup thật vào artifacts. Lượt viết tài liệu hiện tại chỉ hoàn thành khi spec và plan tồn tại, link tương đối được kiểm bằng `python3 -I`; mọi checkbox triển khai tiếp tục để trống.
+Báo cáo task đã xong/chặn, câu hỏi người dùng còn phải chốt, file chạm, lệnh/kết quả thật và version/path theo repo/account. Không in credential, account id đăng nhập, settings/env hoặc payload MCP; không đưa backup thật vào artifacts. Lượt viết tài liệu hiện tại chỉ hoàn thành khi spec và plan tồn tại, link tương đối được kiểm bằng `python3 -I`; checkbox không thay thế bằng chứng QA; phần chưa kiểm chứng và phát hành tiếp tục để trống.
+
+## Trạng thái chuẩn bị release P4.2 ngày 10/11/2026
+
+- Metadata do Sol cung cấp: P0 3 passed, P1 assets 5 passed, P2 settings 12 passed, P3 official 17 passed; mỗi pha giữ 3 logical tests, tất cả đã review. Đây không phải pytest do hand P4 chạy và không khẳng định các lệnh dự kiến ở trên đã chạy nguyên văn.
+- Sol đã review code diagnostic và AGENTS; test_manifest sau sửa diagnostic do Sol thực chạy: 1 passed / 36 deselected. P4.1 đã sửa schema/trạng thái theo review; kiểm link nội bộ và `git diff --check` trong lượt chuẩn bị release này.
+- P1.2 Codex overlay và P3.2 MCP/phương án theo phiên vẫn blocked theo [verification](verification.md). Từng hook cụ thể chưa được phép apply; plugin enabledPlugins/extraKnownMarketplaces do CLI quản lý, không raw copy. Chưa server MCP nào được duyệt, transport payload an toàn chưa verified.
+- Metadata release chuẩn bị từ version hiện tại `0.48.3` lên minor kế tiếp `0.49.0`, changelog ngày 2026-11-10; đây chưa phải xác nhận phát hành. P4.2 giữ chưa tick: Sol còn chạy test toàn file đúng một lượt cuối, validate, review cuối, commit/push/merge và cập nhật/xác minh runtime theo repo/account. Kết quả cuối do Sol ghi sau phát hành tại [bàn giao](../handoffs/dong-bo-tai-khoan.md).
+- Chưa apply home thật trong gói này; manifest và ownership floor cụ thể vẫn cần người dùng duyệt. Restore là thao tác riêng chờ duyệt. Hand P4 không validate/install plugin thật, không commit/push/merge và không chạy pytest.
+- Thử slot mới: claim normal running chờ 3 phút, 20 lần/mỗi gói; unresolved/pending không tiến triển 30 phút mới dừng. Không sửa AGENTS cho quy tắc này.

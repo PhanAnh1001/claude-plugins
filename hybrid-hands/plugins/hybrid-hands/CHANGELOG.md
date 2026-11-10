@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.49.0 — 2026-11-10
+
+- Thêm `hand-ext accounts status/sync`: mặc định chỉ đọc/dry-run, nguồn Claude v1; apply cần manifest và approval cụ thể. Tạo import CLAUDE.md và symlink từng asset được duyệt khi thiếu; conflict không overwrite.
+- Settings chỉ reconcile `statusLine`/`hooks` có ownership hash approved + verified, backup và atomic write; permissions/env/model/effort/credential/state giữ riêng từng tài khoản.
+- Plugin qua CLI chính thức với scope tường minh và marketplace được duyệt; không autoenable hoặc upgrade. Theo verification công khai ngày 10/11/2026, Codex overlay và hook cụ thể còn blocked; MCP apply blocked vì chưa server nào được duyệt và chưa xác minh transport payload an toàn. Không khẳng định `mcp add-json` đã chạy được hoặc đã apply home thật.
+
 ## 0.48.3 — 2026-11-10
 
 - Gateway `hand-paseo-acp` chấp nhận `session/new`/`session/load` có `mcpServers` là list (kể cả có phần tử) và bỏ qua hoàn toàn (không lưu, không log, không kết nối, không truyền xuống backend); không phải list vẫn bị từ chối `MCP servers unsupported`. Nguyên nhân managed create lỗi `AGENT_NOT_FOUND`/`errorCode=unknown`: Paseo daemon `mcp.injectIntoAgents=true` chèn MCP server của nó, gateway cũ chỉ nhận `[]` nên từ chối.
