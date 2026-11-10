@@ -1,0 +1,35 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=1215425, cached_input=1136256, output=9805
+hạn mức: used_percent=9.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 277.6 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211010-971016-usage-panel-pricing-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: xong phần được giao.
+
+2. **Đã thay đổi gì** — dưới `hybrid-hands/`:
+   - `plugins/hybrid-hands/config/model-prices.json:1`: bảng giá chung, nguồn/ngày giá, ghi rõ DeepSeek ước tính.
+   - `plugins/hybrid-hands/lib/usage_pricing.py:1`: loader offline, kiểm số hữu hạn, override invalid trả unknown.
+   - `plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py:1`: USD ước tính và quota đúng nhóm tài khoản.
+   - `plugins/hybrid-hands/lib/hh_ps/pricing.py:23`: giữ API ModelPrice, tính cache theo bảng chung, bỏ family fallback.
+   - `plugins/hybrid-hands/lib/hh_ps/codex.py:100`: tính lại USD từ token thay ledger cost cũ.
+   - `plugins/hybrid-hands/lib/hand_ext/codex_usage.py:45`, `go_usage.py:67`: dùng bảng chung, giữ override explicit.
+   - `tests/test_hand_usage_panel.py:1`, `test_hh_ps_codex.py:27`, `test_hh_ps_usage.py:120`: thêm hai test và cập nhật expectation.
+
+3. **Kiểm chứng**:
+   - `unittest discover` hẹp từng file: panel **2/2**, Codex **1/1**, hand-ext usage **21/21** qua.
+   - hh-ps usage: 16 test qua ban đầu; 5 test lỗi expectation đã sửa và chạy lại đều qua.
+   - `test_hand_ext_codex.CodexRunTest.test_usage_ledger_keeps_both_windows_and_estimates_once`: qua.
+   - `git diff --check`: qua.
+   - Thêm **2 test**; **52 dòng test / 201 dòng code thêm**, không tính JSON. Không chạy full suite.
+
+4. **Ghi chú cho brain**:
+   - Không sửa models/tree/render; dùng contract đang được hand khác bổ sung.
+   - Helper đọc config explicit tại `cfg.root`; trường hợp worktree kế thừa config repo chính chưa được kiểm chứng.
+   - Có vài lệnh test gọi sai đường dẫn/tên class; đã sửa lệnh và chạy thành công.
+   - Không commit/push, không đọc secret hay log thật.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

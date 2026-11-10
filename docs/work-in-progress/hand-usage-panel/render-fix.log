@@ -1,0 +1,39 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=858798, cached_input=815616, output=5948
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 192.4 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-212014-481307-usage-panel-render-fix-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: xong một phần. Đã sửa renderer; typecheck bị chặn do thiếu dependency.
+
+2. **Đã thay đổi gì**:
+
+- `hybrid-hands/paseo-hh-tree/server/agent-record.ts:38`: fallback `persistence.nativeHandle`, kiểm UUID, không dùng agent UUID.
+- `hybrid-hands/paseo-hh-tree/client/ChildRows.tsx:30`: luôn hiện loại `?`, model/effort; xoá OrphanBlock.
+- `hybrid-hands/paseo-hh-tree/client/TreeView.tsx:9`: xoá import và biến chết.
+- `hybrid-hands/hh-tree-pane/hooks/tree.ts:34`: xoá hằng fold 3 không dùng.
+- `hybrid-hands/plugins/hybrid-hands/lib/hh_ps/selection.py:7`: xoá import chết.
+- `hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py:1`: cập nhật docstring.
+- `hybrid-hands/tests/test_hh_ps_select.py:1`: cập nhật kỳ vọng đủ children, USD/quota chưa biết; giữ ordering/nesting.
+- `hybrid-hands/tests/test_hh_ps.py:129`: bổ sung trường JSON `usd_estimated`.
+
+3. **Kiểm chứng**:
+
+- `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hh_ps*.py'`: 88 test, ban đầu 8 ca lỗi. Chạy lại hai file đã sửa: 9/9 và 13/13 pass.
+- `python3 -m unittest discover -s hybrid-hands/tests -p 'test_hand_usage*.py'`: 3/3 acceptance pass.
+- `node --experimental-strip-types --test hybrid-hands/hh-tree-pane/tests/*.test.ts hybrid-hands/paseo-hh-tree/client/*.test.ts`: 15/15 pass.
+- `npm run typecheck` dùng compiler có sẵn: lỗi TS2688, thiếu type definition `react`.
+- `git diff --check` các file chạm: pass.
+- Thêm **0 test mới, 0 dòng test mới**; chỉ cập nhật test hiện có.
+
+4. **Ghi chú cho brain**:
+
+- Còn `test_git_runs_once_per_session_directory` đỏ: 10 lệnh git, chỉ 4 lệnh khác nhau. Giữ assertion; implementation `repos.py` ngoài phạm vi.
+- npm install lỗi `ENOTFOUND registry.npmjs.org`; offline lỗi `ENOTCACHED`. Chưa xác nhận typecheck pass.
+- Không chạy full suite, reload/RPC, commit/push; tiến trình npm đã dừng.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

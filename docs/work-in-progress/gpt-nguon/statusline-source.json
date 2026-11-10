@@ -1,0 +1,12 @@
+{
+  "command": [
+    "python3",
+    "statusline/plugins/statusline/scripts/gpt_usage.py"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 0.227,
+  "five_hour": "",
+  "weekly": "18.0",
+  "today_ledger_usd": "0.05",
+  "source_checkout_only": true
+}

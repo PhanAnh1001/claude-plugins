@@ -1,0 +1,5 @@
+{"type":"step_start","timestamp":1762243200000,"sessionID":"ses_fx","part":{"id":"prt_1","sessionID":"ses_fx","messageID":"msg_1","type":"step-start"}}
+{"type":"tool_use","timestamp":1762243201000,"sessionID":"ses_fx","part":{"id":"prt_2","type":"tool","tool":"read","state":{"status":"completed"}}}
+{"type":"step_finish","timestamp":1762243202000,"sessionID":"ses_fx","part":{"id":"prt_3","type":"step-finish","reason":"tool-calls","cost":0.001,"tokens":{"input":1000,"output":50,"reasoning":200,"cache":{"read":3000,"write":0}}}}
+{"type":"text","timestamp":1762243203000,"sessionID":"ses_fx","part":{"id":"prt_4","type":"text","text":"1. **Kết quả**: xong"}}
+{"type":"step_finish","timestamp":1762243204000,"sessionID":"ses_fx","part":{"id":"prt_5","type":"step-finish","reason":"stop","cost":0.002,"tokens":{"input":500,"output":100,"reasoning":0,"cache":{"read":4000,"write":10}}}}

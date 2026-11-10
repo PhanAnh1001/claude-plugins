@@ -1,0 +1,26 @@
+▾ ● Phiên 1 · claude-opus-5-5·high · 6p · ~$0.84 · Claude 5h ? · tuần 13.5% · GPT 5h ? · tuần 14.0%
+  ● Phụ 12 · gpt-6.1-sol·high · 4p · ~$0.39
+    ✓ Hand 1 · gpt-6.1-sol·low · 16s · ~$0.06
+  ● Phụ 11 · gpt-6.1-sol·high · 4p · ~$0.41
+▾ ● Phiên 2 · claude-opus-5-5·high · 2g41p · ~$2.93 · Claude 5h ? · tuần 13.5% · GPT 5h ? · tuần 14.0%
+  ✓ Subagent 1 · claude-opus-5-5·low · 1p · ~$0.41
+  ✓ Subagent 2 · claude-opus-5-5·low · 1p · ~$0.39
+  ? Phụ 13 · ?·? · 16p · ~$?
+    8 subagent: 8✓ 0✗
+  ? Phụ 10 · ?·? · 33p · ~$?
+    8 subagent: 8✓ 0✗
+  ? Phụ 20 · ?·? · 6p · ~$?
+  ? Phụ 9 · ?·? · 14p · ~$?
+▾ ● Phiên 4 · claude-opus-5-5·high · 3g11p · ~$5.00 · Claude 5h ? · tuần 13.5% · GPT 5h ? · tuần 14.0%
+  1 subagent: 1✓ 0✗
+  ● Phụ 3 · claude-opus-5-5·high · 1g45p · ~$7.31
+  ● Phụ 17 · gpt-6.1-sol·high · 1g58p · ~$5.63
+  ? Phụ 19 · gpt-6.1-sol·high · ? · ~$0.59
+  ✓ Phụ 18 · ?·? · ? · ~$?
+  +3 cũ: 2✓ 0✗ ?1
+▾ ? Phiên 5 · claude-opus-5-5·high · 5p · ~$0.51 · Claude 5h ? · tuần 13.5%
+  ✓ Subagent 1 · claude-opus-5-5·low · 3p · ~$0.67
+▾ ? Phiên 6 · claude-opus-5-5·high · 3g26p · ~$0.69 · Claude 5h ? · tuần 13.5%
+▾ ? Phiên 7 · claude-opus-5-5·high · 1p · ~$0.27 · Claude 5h ? · tuần 13.5%
+  ✓ Subagent 1 · claude-opus-5-5·low · 30s · ~$0.19
+▾ ? Phiên 8 · claude-opus-5-5·high · 4g48p · ~$5.65 · Claude 5h ? · tuần 13.5%

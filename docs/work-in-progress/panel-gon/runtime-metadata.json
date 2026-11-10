@@ -1,0 +1,24 @@
+{
+  "rpc_ok": true,
+  "sessions": 20,
+  "subagents": 5,
+  "hand_runs": 17,
+  "orphan_count": 61,
+  "native_error": false,
+  "native_count": 1,
+  "native_fields": [
+    "id",
+    "parentAgentId",
+    "provider",
+    "title",
+    "description",
+    "status",
+    "createdAt",
+    "updatedAt",
+    "toolCallId",
+    "cwd",
+    "subtitle",
+    "parentSubagentId"
+  ],
+  "native_in_tree": 0
+}

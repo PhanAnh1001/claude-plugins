@@ -1,0 +1,11 @@
+{
+  "changed_source_files": [
+    "hybrid-hands/plugins/hybrid-hands/CHANGELOG.md",
+    "hybrid-hands/plugins/hybrid-hands/lib/hand_ext/backends/dsh.py",
+    "hybrid-hands/tests/test_hh_ps_codex.py"
+  ],
+  "missing_source_files": [],
+  "only_allowed_changed": true,
+  "diff_check_exit_code": 0,
+  "diff_check_output": ""
+}

@@ -1,0 +1,13 @@
+{
+  "run": "own completed codex hand",
+  "backend": "codex",
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "status": "ok",
+  "exit_code": 0,
+  "has_started": true,
+  "has_ended": true,
+  "duration_seconds": 192.4174997806549,
+  "has_parent": true,
+  "parent_is_cap_key": false
+}

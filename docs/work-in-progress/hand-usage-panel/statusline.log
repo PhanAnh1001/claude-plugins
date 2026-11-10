@@ -1,0 +1,28 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=352367, cached_input=324736, output=4861
+hạn mức: used_percent=9.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 134.3 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211010-979421-usage-panel-statusline-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: xong trong phạm vi `statusline/`, phiên bản `0.20.0`.
+
+2. **Đã thay đổi gì**:
+   - `statusline/plugins/statusline/scripts/hand_lines.py:1`: adapter hh-ps chỉ đọc, timeout/fail-open; render session và descendants, model/effort, USD~, quota, ended/elapsed; không hiện started.
+   - `statusline/plugins/statusline/scripts/statusline.sh:328`: nối khối hand sau nhóm phiên, giữ bảng cũ.
+   - `statusline/plugins/statusline/.claude-plugin/plugin.json:3`: bump `0.20.0`.
+   - `statusline/README.md:345`, `statusline/plugins/statusline/CHANGELOG.md:1`: ghi hành vi, cấu hình, dry-run.
+   - `statusline/tests/test_session_lines.py:130`, `statusline/tests/_support.py:20`: fixture hh-ps giả và cô lập môi trường test.
+
+3. **Kiểm chứng**:
+   - `python3 -m unittest discover -s statusline/tests -p test_session_lines.py`: 17 test PASS.
+   - `python3 -m unittest discover -s statusline/tests -p test_statusline.py`: 10 test PASS.
+   - `bash -n statusline/plugins/statusline/scripts/statusline.sh`, `git diff --check -- statusline`: PASS.
+   - Thêm **0 test function**; 29 dòng test thêm / 141 dòng code thêm.
+
+4. **Ghi chú cho brain**: CLI hiện chưa có `--once`; adapter fallback sang `--json` khi nhận đúng lỗi không hỗ trợ cờ. Chưa chạy với dữ liệu thật, full suite hoặc install/update. Không sửa ngoài phạm vi, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

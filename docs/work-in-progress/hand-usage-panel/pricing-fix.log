@@ -1,0 +1,30 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=553510, cached_input=483328, output=4868
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 134.3 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211735-966166-usage-panel-pricing-fix-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: xong phần sửa giá/quota trong phạm vi.
+
+2. **Đã thay đổi gì**:
+   - `lib/hh_ps/usage_enrichment.py:23`: gắn account cho Claude cùng nguồn và row chưa có token; đọc cache 5h offline; giữ USD unknown, không tính lại mixed Claude theo model cuối.
+   - `lib/hand_ext/constants.py:49`: lấy giá mặc định từ canonical JSON.
+   - `lib/hh_ps/week.py:223`: không dùng giá mặc định cho Go model unknown.
+   - `tests/test_hand_usage_panel.py:40`: mở rộng test cũ kiểm tra quota và USD unknown.
+   - `tests/test_hh_ps_usage.py:219`, `tests/test_hh_ps_limits.py:459`: cập nhật expectation theo contract mới.
+
+3. **Kiểm chứng**:
+   - Chạy `python3 -m unittest discover -s hybrid-hands/tests -p <file>` cho panel, codex, usage, limits, hand-ext usage.
+   - Codex **1**, hand-ext usage **21**, panel **2** test pass. Usage/limits ban đầu đỏ expectation cũ; các test hỏng đã chạy lại và pass. Go limits chạy hẹp **4** test pass.
+   - Không thêm test case mới; thêm khoảng **25 dòng test / 90 dòng code**. Không chạy full suite.
+
+4. **Ghi chú cho brain**:
+   - Ledger statusline version 3 chưa được rescan; ranh giới calibration giá cũ/mới vẫn cần xử lý bên statusline.
+   - Claude run có cache creation chưa đủ breakdown được giữ USD unknown.
+   - Không sửa model/tree/render/statusline, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

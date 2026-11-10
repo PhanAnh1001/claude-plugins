@@ -1,0 +1,29 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=625954, cached_input=569344, output=8897
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 209.9 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211735-966136-usage-panel-docs-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong tài liệu và manifest 0.26.0; giữ phần 0.25.3, không sửa code/tests.
+
+2. **Đã thay đổi gì**:
+
+- `AGENTS.md:1`: thêm layout, luật dữ liệu nguyên văn, vai trò Sol/hand và datacontract.
+- `hybrid-hands/README.md:209`: cập nhật usage panel, giá canonical, quota, elapsed, `--once`, orphan.
+- `hybrid-hands/plugins/hybrid-hands/CHANGELOG.md:3`: thêm 0.26.0.
+- `hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json:3`: bump 0.26.0.
+- `hybrid-hands/plugins/hybrid-hands/skills/ext-hand/SKILL.md:6`: cập nhật contract, bỏ giá backend obsolete.
+- `hybrid-hands/plugins/hybrid-hands/skills/paseo/SKILL.md:6`: bổ sung contract panel.
+- `hybrid-hands/plugins/hybrid-hands/skills/side-session/SKILL.md:6`: bổ sung contract và phân biệt executor/Sol.
+- `hybrid-hands/hh-tree-pane/README.md:5`: sửa mô tả hiển thị.
+- `hybrid-hands/paseo-hh-tree/OVERVIEW.md:3`: sửa mô tả panel/sidebar.
+
+3. **Kiểm chứng**: Chạy `python3` kiểm manifest JSON/version, 8 đường dẫn link nội bộ, Markdown fences, frontmatter và giữ mục 0.25.3: đạt. `git diff --check -- <9 file phạm vi>`: đạt. Thêm 0 test; dòng test/code thêm: 0/0. Không chạy full suite hay cài plugin.
+
+4. **Ghi chú cho brain**: Hiểu `skills/...` trong brief là dưới thư mục plugin vì root không có các đường dẫn đó. Tài liệu ghi contract FINAL đã giao; chưa xác nhận UI/runtime đồng bộ vì các hand khác đang sửa. Chưa kiểm URL ngoài qua mạng. Không tạo handoff/.done, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

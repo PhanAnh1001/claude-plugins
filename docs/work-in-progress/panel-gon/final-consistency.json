@@ -1,0 +1,11 @@
+{
+  "handoff_links_broken": [],
+  "source_changed_since_final_build_full": [],
+  "full_runs": 1,
+  "full_tests": 415,
+  "full_exit": 1,
+  "summary_lines": 12,
+  "native_hand_completed": true,
+  "build_client_server_ok": true,
+  "install_update_reload_executed": false
+}

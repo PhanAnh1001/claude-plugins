@@ -1,0 +1,4 @@
+LOẠI / TÊN  MODEL/EFFORT  THỜI GIAN  KẾT THÚC (local)  USD  TÀI KHOẢN 5h / tuần
+hand-ext/codex [hand] | gpt-6.1-sol/low | 1p | 2026-11-07 21:31 | ~$0.07 | GPT 5h ? · tuần 11.0%
+side/codex [Sol] | gpt-6.1-sol/high | 30p | đang chạy | ~$2.86 | GPT 5h ? · tuần 11.0%
+subagent/Claude [ẩn tên] | claude-opus-5-5/low | 1p | 2026-11-07 20:32 | ~$0.41 | Claude 5h ? · tuần 13.1% · riêng ~<0.1% tuần

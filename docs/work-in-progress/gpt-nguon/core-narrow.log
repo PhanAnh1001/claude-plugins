@@ -1,0 +1,28 @@
+$ python3 -m unittest discover -s hybrid-hands/tests -p test_hh_ps_gpt_nguon.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 0.015s
+
+OK
+exit_code=0
+$ python3 -m unittest discover -s hybrid-hands/tests -p test_hh_ps_codex.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.063s
+
+OK
+exit_code=0
+$ python3 -m unittest discover -s hybrid-hands/tests -p test_hh_ps_native.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.143s
+
+OK
+exit_code=0
+$ python3 -m unittest discover -s hybrid-hands/tests -p test_hh_ps_limits.py
+...............
+----------------------------------------------------------------------
+Ran 15 tests in 0.454s
+
+OK
+exit_code=0

@@ -1,0 +1,1 @@
+{"command":"update","outcome":"ok","plugin":"hybrid-hands@hybrid-hands-local","pluginId":"hybrid-hands@hybrid-hands-local","scope":"local","message":"Plugin \"hybrid-hands\" updated from 0.25.3 to 0.26.0 for scope local (/Users/anhtp/app/ai-luxian). Restart to apply changes.","updateOutcome":"updated","oldVersion":"0.25.3","newVersion":"0.26.0"}

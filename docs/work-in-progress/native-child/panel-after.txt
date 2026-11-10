@@ -1,0 +1,36 @@
+Claude máy này tuần ~$195.77 · Claude 5h ? · tuần 14.0%
+GPT máy này tuần ~$? · GPT 5h ? · tuần 16.0%
+▾ ● Session 2 · claude-opus-5-5·high · 44p · ~$1.66 · Claude riêng ~0.1% tuần
+  ● Sol · gpt-6.1-sol·high · 16p · ~$1.58 · GPT riêng ? tuần
+    ✓ native-codex · gpt-6.1-sol·low · 10s · 23:48 · ~$0.02 · GPT riêng ? tuần
+    ✓ native-codex · gpt-6.1-sol·low · 12p · 23:47 · ~$0.31 · GPT riêng ? tuần
+    ✓ native-codex · gpt-6.1-sol·low · 11p · 23:46 · ~$0.47 · GPT riêng ? tuần
+    ✓ native-codex · gpt-6.1-sol·low · 10p · 23:46 · ~$0.18 · GPT riêng ? tuần
+    1 subagent: 1✓ 0✗
+  ✓ Side 15 · ?·? · 8p · 23:32 · ~$? · GPT riêng ? tuần
+  ✓ Side 13 · ?·? · 15p · 23:23 · ~$? · GPT riêng ? tuần
+  ✓ Side 14 · ?·? · 7p · 23:14 · ~$? · GPT riêng ? tuần
+    1 subagent: 1✓ 0✗
+▾ ● Session 4 · claude-opus-5-5·high · 3g48p · ~$7.28 · Claude riêng ~0.5% tuần
+  1 subagent: 1✓ 0✗
+  ● Side 23 · gpt-6.1-sol·high · 20p · ~$1.78 · GPT riêng ? tuần
+    3 subagent: 1✓ 0✗ ●2
+  ● Side 1 · claude-opus-5-5·high · 22p · ~$4.08 · Claude riêng ~0.3% tuần
+  ● Side 3 · claude-opus-5-5·high · 2g23p · ~$7.31 · Claude riêng ~0.5% tuần
+  ? Side 22 · gpt-6.1-sol·high · ? · ~$0.59 · GPT riêng ? tuần
+  +5 cũ: 4✓ 0✗ ?1
+▾ ● Session 5 · claude-opus-5-5·high · 3g18p · ~$2.93 · Claude riêng ~0.2% tuần
+  ✓ subagent · claude-opus-5-5·low · 1p · 20:32 · ~$0.41 · Claude riêng ~<0.1% tuần
+  ✓ subagent · claude-opus-5-5·low · 1p · 20:32 · ~$0.39 · Claude riêng ~<0.1% tuần
+  ? Side 16 · ?·? · 16p · 21:56 · ~$? · GPT riêng ? tuần
+    8 subagent: 8✓ 0✗
+  ? Side 11 · ?·? · 33p · 21:39 · ~$? · GPT riêng ? tuần
+    8 subagent: 8✓ 0✗
+  ? Side 24 · ?·? · 6p · 21:01 · ~$? · GPT riêng ? tuần
+  ? Side 10 · ?·? · 14p · 20:52 · ~$? · GPT riêng ? tuần
+▾ ? Session 6 · claude-opus-5-5·high · 5p · 20:20 · ~$0.51 · Claude riêng ~<0.1% tuần
+  ✓ subagent · claude-opus-5-5·low · 3p · 20:18 · ~$0.67 · Claude riêng ~0.1% tuần
+▾ ? Session 7 · claude-opus-5-5·high · 3g26p · 20:02 · ~$0.69 · Claude riêng ~0.1% tuần
+▾ ? Session 8 · claude-opus-5-5·high · 1p · 19:48 · ~$0.27 · Claude riêng ~<0.1% tuần
+  ✓ subagent · claude-opus-5-5·low · 30s · 19:48 · ~$0.19 · Claude riêng ~<0.1% tuần
+▾ ? Session 9 · claude-opus-5-5·high · 4g48p · 19:40 · ~$5.65 · Claude riêng ~0.4% tuần

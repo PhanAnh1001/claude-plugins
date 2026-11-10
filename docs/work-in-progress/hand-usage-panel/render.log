@@ -1,0 +1,37 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=1491352, cached_input=1405440, output=16317
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 406.5 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211010-970987-usage-panel-render-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong phần triển khai; còn giới hạn kiểm chứng và expectation ngoài phạm vi cần brain xử lý.
+
+2. **Đã thay đổi gì** — dưới `hybrid-hands/`:
+
+   - `plugins/hybrid-hands/lib/hh_ps/cli.py:48`: thêm `--once`, mặc định giữ phiên đã kết thúc.
+   - `plugins/hybrid-hands/lib/hh_ps/compact.py:48`, `render.py:15`: MODEL/EFFORT đầy đủ, quota tài khoản, duration theo snapshot; lost thiếu end trả unknown.
+   - `plugins/hybrid-hands/lib/hh_ps/text_render.py:128`, `selection.py:42`, `constants.py:73`: hiện đủ rows, header rõ, kết thúc local datetime, không hiện giờ start.
+   - `hh-tree-pane/hooks/tree.ts:316`, `hooks/register.tsx:12`: ẩn orphan, bỏ gấp/cắt rows, tìm plugin installed mới nhất.
+   - `paseo-hh-tree/shared/tree.ts:10`, `server/hh-ps.ts:97`: bổ sung schema và gọi JSON đầy đủ ended/full.
+   - `paseo-hh-tree/client/{ChildRows.tsx:18,SessionBlock.tsx:55,TreeView.tsx:61,format.ts:65}`: đủ trường, mặc định mở children, ẩn orphan.
+   - Cập nhật expectations trong ba test Python được giao và hai TS test hiện có; thêm `tests/test_hand_usage_running.py:15`.
+
+3. **Kiểm chứng**:
+
+   - Test hẹp Python: columns **13 pass**, ended **7 pass**, running mới **1 pass**. `test_hh_ps.py`: lỗi schema cũ đã sửa, chạy lại ca lỗi **pass**; ca `--once` **pass**.
+   - `node --experimental-strip-types --test …`: **15 TS tests pass**.
+   - Shim với filesystem giả: chọn **0.25.3** trước **0.9.0**, giữ nguyên tham số.
+   - `git diff --check`: pass.
+   - `npm run typecheck --prefix hybrid-hands/paseo-hh-tree`: chưa chạy được, `tsc: command not found`.
+   - Đúng **1 test function mới**; **64 dòng test thêm / 201 dòng code thêm**. Không chạy full suite.
+
+4. **Ghi chú cho brain**:
+
+   - `tests/test_hh_ps_select.py` ngoài phạm vi ghi vẫn chứa expectation gấp 3 done, USD `-` và cột cũ; cần cập nhật trước full suite.
+   - Chưa kiểm chứng UI Paseo thật hoặc typecheck hh-tree-pane do thiếu compiler. Không cài thêm dependency, không đọc secret/log thật, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

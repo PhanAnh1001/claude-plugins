@@ -1,0 +1,26 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=393642, cached_input=349696, output=3715
+hạn mức: used_percent=11.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 100.5 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-212531-470004-usage-panel-docs-final-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong phần tài liệu/manifest trong phạm vi; giữ thay đổi 0.25.3 và manifest 0.26.0.
+
+2. **Đã thay đổi gì**:
+   - `AGENTS.md:17`: làm rõ quyền Sol/runtime đọc metadata và usage tổng hợp; giữ nguyên luật cấm lộ secret.
+   - `AGENTS.md:28`, `hybrid-hands/README.md:219`: bỏ giá chép rời, dẫn nguồn canonical.
+   - `hybrid-hands/README.md:225`: bổ sung ledger v4/fingerprint.
+   - `hybrid-hands/README.md:231`: làm rõ sid cha, HAND_SCOPE và mọi agent/backend.
+   - `hybrid-hands/plugins/hybrid-hands/CHANGELOG.md:3`: hoàn thiện 0.26.0, giữ 0.25.3 và ghi chú `user`.
+   - `hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json:4`: chuẩn hoá USD~ và mô tả mọi provider/backend.
+   - `hybrid-hands/plugins/hybrid-hands/skills/{ext-hand,paseo,side-session}/SKILL.md:10`: liên kết giá canonical, bỏ giá rời và làm rõ gắn cha.
+
+3. **Kiểm chứng**: Script Python kiểm 8 Markdown, 13 liên kết/anchor nội bộ, 5 JSON fence, manifest và JSON giá: đạt. `git diff --check -- <các file phạm vi>`: đạt. Thêm 0 test, 0 dòng test/0 dòng code.
+
+4. **Ghi chú cho brain**: Hai tài liệu pane đã phù hợp, không cần sửa thêm. Không chạy test suite, cài đặt hay kiểm runtime; ngày xác minh nguồn giá theo brief, không xác minh web lại. Không sửa code/tests/statusline, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

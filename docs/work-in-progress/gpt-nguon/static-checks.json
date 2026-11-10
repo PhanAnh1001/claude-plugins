@@ -1,0 +1,12 @@
+{
+  "new_acceptance_test_methods": [
+    "test_a_measured_session_native_and_unknown_boundaries",
+    "test_b_observed_machine_deltas_dedup_empty_and_unknown",
+    "test_c_real_five_hour_samples_only"
+  ],
+  "versions": {
+    "hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json": "0.30.0",
+    "statusline/plugins/statusline/.claude-plugin/plugin.json": "0.21.0"
+  },
+  "diff_check_exit": 0
+}

@@ -1,0 +1,5 @@
+Command: hh-ps --once --main-session <canonical-parent>
+exit_code: 0
+GPT tuần   tổng 14.0% · reset 09/11 13:19
+│ └ ● phụ:plan-con-mo (side session)   gpt-6.1-sol/high             2p  đang chạy          ~$0.25                         GPT 5h ? · tuần 14.0%  running
+│   └ ✓ codex                          gpt-6.1-sol/low             16s  2026-11-07 23:08   ~$0.06                         GPT 5h ? · tuần 14.0%  plan-con-mo-rea…

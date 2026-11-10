@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "compiler": "Paseo 0.15.0 compileDirectoryPlugin",
+  "id": "hh-tree",
+  "elapsed_ms": 542,
+  "clientBundle": {
+    "bytes": 25066,
+    "sha256": "8d18dafc4e0fca0f8c110c9a9f58ca0017b9c729e4e198fc9fd92cc83029eb4f"
+  },
+  "serverBundle": {
+    "bytes": 16067,
+    "sha256": "d0cbc3c1ea10fdd7eb9f664bb808a23818b83e6f486a30ed4ad5169802ea7ad8"
+  }
+}

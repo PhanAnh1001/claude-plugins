@@ -1,0 +1,30 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=860536, cached_input=810880, output=8866
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 240.7 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211735-966148-usage-panel-statusline-fix-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong phần sửa code; kiểm chứng còn một test hiệu năng đỏ.
+
+2. **Đã thay đổi gì**:
+   - `statusline/plugins/statusline/scripts/shared_prices.py:1`: tìm giá canonical qua override, source sibling hoặc installed mới nhất; không fallback giá.
+   - `statusline/plugins/statusline/scripts/usage_ledger.py:36`: bỏ giá hardcode/family fallback; ledger v4 có fingerprint giá.
+   - `statusline/plugins/statusline/scripts/go_sessions.py:106`: dùng giá chung cho Go, bỏ model không biết khỏi USD ước tính.
+   - `statusline/plugins/statusline/scripts/hand_lines.py:67`: sửa hand lost, duration thiếu end; truyền UUID hiện tại qua `--main-session`.
+   - `statusline/tests/{test_week_split.py,test_go_sessions.py,test_session_lines.py,_support.py}`: cập nhật expectation và assert trong test sẵn có.
+   - `statusline/README.md:139`, `statusline/plugins/statusline/CHANGELOG.md:11`: cập nhật tài liệu giá chung.
+
+3. **Kiểm chứng**:
+   - Tại `statusline/tests`, chạy `python3 -m unittest test_week_split test_estimates test_estimates_shell test_week_split_shell test_week_split_calib test_statusline test_session_lines`: **92/93 pass**.
+   - Test `test_build_summary_scales` chạy lại riêng vẫn **fail: 7,45s > 2s**.
+   - Test hẹp sau sửa: pricing/fingerprint/session **8 pass**; Go **6 pass**, assert unknown model **pass**.
+   - Fixture giả: override, standalone thiếu giá, installed latest, UUID Codex đều pass. `git diff --check -- statusline` pass.
+   - **0 hàm test mới**; khoảng **18 dòng test / 115 dòng code thêm**. Không chạy full discover.
+
+4. **Ghi chú cho brain**: Chưa xác định nguyên nhân test hiệu năng đỏ; không nới ngưỡng hay sửa phần calibration. Giữ nguyên thay đổi có sẵn; không sửa hybrid-hands, cài đặt, settings, secret hoặc commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

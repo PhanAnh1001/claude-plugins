@@ -1,0 +1,436 @@
+{
+  "exit": 0,
+  "generated_at": "2026-11-08T00:02:20+07:00",
+  "machine_usage": [
+    {
+      "plan": "Claude",
+      "window": "tu\u1ea7n",
+      "usd": 199.98558605500037,
+      "source": "claude_machine_week"
+    },
+    {
+      "plan": "GPT",
+      "window": "tu\u1ea7n",
+      "usd": null,
+      "source": "codex_rollout_deltas"
+    }
+  ],
+  "limits": [
+    {
+      "plan": "Claude",
+      "window": "tu\u1ea7n",
+      "this_machine_pct": 18.62546170187266,
+      "other_pct": 0.0,
+      "total_pct": 14.33546170187266,
+      "resets_at": "2026-11-13T13:00:00+07:00",
+      "source": "statusline_cache+week_split+extrapolated",
+      "estimated": true
+    },
+    {
+      "plan": "GPT",
+      "window": "tu\u1ea7n",
+      "this_machine_pct": null,
+      "other_pct": null,
+      "total_pct": 17.0,
+      "resets_at": "2026-11-09T13:19:15+07:00",
+      "source": "codex_rollout",
+      "estimated": false
+    },
+    {
+      "plan": "Go",
+      "window": "tu\u1ea7n",
+      "this_machine_pct": 40.866631999999974,
+      "other_pct": 0.0,
+      "total_pct": 28.0,
+      "resets_at": "2026-11-09T07:00:00+07:00",
+      "source": "go_live+ledger",
+      "estimated": false
+    }
+  ],
+  "codex_rows": [
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 66571,
+        "cache_read": 410112,
+        "cache_write": null,
+        "out": 3696,
+        "usd": 0.211113,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 17.0
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 968714,
+        "cache_read": 64982656,
+        "cache_write": null,
+        "out": 239018,
+        "usd": 10.825874,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 17.0
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 93651,
+        "cache_read": 2595968,
+        "cache_write": null,
+        "out": 13897,
+        "usd": 0.585869,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 10.0
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 180007,
+        "cache_read": 16254592,
+        "cache_write": null,
+        "out": 41456,
+        "usd": 2.400033,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 17.0
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 41670,
+        "cache_read": 3735552,
+        "cache_write": null,
+        "out": 14019,
+        "usd": 0.597085,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 98754,
+        "cache_read": 8290816,
+        "cache_write": null,
+        "out": 17608,
+        "usd": 1.20267,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 136055,
+        "cache_read": 4490368,
+        "cache_write": null,
+        "out": 30363,
+        "usd": 1.024777,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 108783,
+        "cache_read": 5673088,
+        "cache_write": null,
+        "out": 11000,
+        "usd": 0.894875,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 17.0
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 58981,
+        "cache_read": 2272384,
+        "cache_write": null,
+        "out": 7398,
+        "usd": 0.41918,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 35785,
+        "cache_read": 1475328,
+        "cache_write": null,
+        "out": 4396,
+        "usd": 0.263063,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 44439,
+        "cache_read": 1591552,
+        "cache_write": null,
+        "out": 5818,
+        "usd": 0.306213,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 17.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c",
+  "command": [
+    "claude",
+    "plugin",
+    "update",
+    "hybrid-hands@hybrid-hands-local",
+    "--scope",
+    "project",
+    "--json"
+  ],
+  "cwd_environment_normalized": true,
+  "exit_code": 0,
+  "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+  "stderr": ""
+}

@@ -1,0 +1,28 @@
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+======================================================================
+FAIL: test_user_agent_matches_plugin_version (test_hand_ext_dsh.VersionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_hand_ext_dsh.py", line 475, in test_user_agent_matches_plugin_version
+    self.assertEqual(dsh.USER_AGENT, f"hybrid-hands-hand-ext/{version}")
+AssertionError: 'hybrid-hands-hand-ext/0.25.3' != 'hybrid-hands-hand-ext/0.26.0'
+- hybrid-hands-hand-ext/0.25.3
+?                          ^ ^
++ hybrid-hands-hand-ext/0.26.0
+?                          ^ ^
+
+
+----------------------------------------------------------------------
+Ran 411 tests in 49.588s
+
+FAILED (failures=1)
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpk98ak9yn worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpk98ak9yn/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpk98ak9yn branch -D side/n

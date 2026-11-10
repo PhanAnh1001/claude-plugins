@@ -1,0 +1,23 @@
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+======================================================================
+FAIL: test_missing_quota_is_unknown (test_hand_usage_panel.HandUsagePanelTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_hand_usage_panel.py", line 65, in test_missing_quota_is_unknown
+    self.assertIsNone(session.usage.account_5h_pct)
+AssertionError: 23.0 is not None
+
+----------------------------------------------------------------------
+Ran 420 tests in 63.656s
+
+FAILED (failures=1)
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp0ddb0uqx worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp0ddb0uqx/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp0ddb0uqx branch -D side/n

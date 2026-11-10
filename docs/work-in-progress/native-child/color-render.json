@@ -1,0 +1,1698 @@
+{
+  "input": "runtime-sanitized.json only",
+  "method": "Actual baseline/final SessionBlock JSX bundled with installed esbuild; React/native host stubs, nested Text effective colors, paddingLeft retained in pixels; no device screenshot or automated color assertions",
+  "themes": {
+    "light": {
+      "theme": {
+        "colors": {
+          "surface0": "#FFFFFF",
+          "foreground": "#202020",
+          "foregroundMuted": "#666666",
+          "accent": "#AA44EE",
+          "statusSuccess": "#218739",
+          "statusDanger": "#C62828",
+          "statusWarning": "#976500",
+          "border": "#DDDDDD"
+        }
+      },
+      "actualSanitizedRows": [
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "Claude máy này tuần ~$195.77 · Claude 5h ? · tuần 14.0%",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "GPT máy này tuần ~$? · GPT 5h ? · tuần 16.0%",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#976500"
+            },
+            {
+              "text": " Session 2 · claude-opus-5-5·high · 44p · ~$1.66 · Claude riêng ~0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#1565C0"
+            },
+            {
+              "text": " Sol · gpt-6.1-sol·high · 16p · ~$1.58 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 10s · 23:48 · ~$0.02 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 12p · 23:47 · ~$0.31 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 11p · 23:46 · ~$0.47 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 10p · 23:46 · ~$0.18 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "1 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "1✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " Side 15 · ?·? · 8p · 23:32 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " Side 13 · ?·? · 15p · 23:23 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " Side 14 · ?·? · 7p · 23:14 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "1 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "1✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#976500"
+            },
+            {
+              "text": " Session 4 · claude-opus-5-5·high · 3g48p · ~$7.28 · Claude riêng ~0.5% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "1 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "1✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#1565C0"
+            },
+            {
+              "text": " Side 23 · gpt-6.1-sol·high · 20p · ~$1.78 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "3 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "1✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "●2",
+              "color": "#1565C0"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#1565C0"
+            },
+            {
+              "text": " Side 1 · claude-opus-5-5·high · 22p · ~$4.08 · Claude riêng ~0.3% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#976500"
+            },
+            {
+              "text": " Side 3 · claude-opus-5-5·high · 2g23p · ~$7.31 · Claude riêng ~0.5% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Side 22 · gpt-6.1-sol·high · ? · ~$0.59 · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "+5 cũ: ",
+              "color": "#666666"
+            },
+            {
+              "text": "4✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "?1",
+              "color": "#666666"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#976500"
+            },
+            {
+              "text": " Session 5 · claude-opus-5-5·high · 3g18p · ~$2.93 · Claude riêng ~0.2% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 1p · 20:32 · ~$0.41 · Claude riêng ~<0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 1p · 20:32 · ~$0.39 · Claude riêng ~<0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Side 16 · ?·? · 16p · 21:56 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "8 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "8✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Side 11 · ?·? · 33p · 21:39 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "8 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "8✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "0✗",
+              "color": "#C62828"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Side 24 · ?·? · 6p · 21:01 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Side 10 · ?·? · 14p · 20:52 · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Session 6 · claude-opus-5-5·high · 5p · 20:20 · ~$0.51 · Claude riêng ~<0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 3p · 20:18 · ~$0.67 · Claude riêng ~0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Session 7 · claude-opus-5-5·high · 3g26p · 20:02 · ~$0.69 · Claude riêng ~0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Session 8 · claude-opus-5-5·high · 1p · 19:48 · ~$0.27 · Claude riêng ~<0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 30s · 19:48 · ~$0.19 · Claude riêng ~<0.1% tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " Session 9 · claude-opus-5-5·high · 4g48p · 19:40 · ~$5.65 · Claude riêng ~0.4% tuần",
+              "color": "#202020"
+            }
+          ]
+        }
+      ],
+      "syntheticStatesAndCounts": [
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "●",
+              "color": "#1565C0"
+            },
+            {
+              "text": " fixture-running · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✓",
+              "color": "#218739"
+            },
+            {
+              "text": " fixture-completed · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "✗",
+              "color": "#C62828"
+            },
+            {
+              "text": " fixture-failed · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#976500"
+            },
+            {
+              "text": " fixture-idle · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#976500"
+            },
+            {
+              "text": " fixture-silent · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " fixture-unknown · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#202020"
+            },
+            {
+              "text": "?",
+              "color": "#666666"
+            },
+            {
+              "text": " fixture-lost · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#202020"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "7 subagent: ",
+              "color": "#666666"
+            },
+            {
+              "text": "2✓",
+              "color": "#218739"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "1✗",
+              "color": "#C62828"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "●1",
+              "color": "#1565C0"
+            },
+            {
+              "text": " ",
+              "color": "#666666"
+            },
+            {
+              "text": "?3",
+              "color": "#666666"
+            },
+            {
+              "text": "",
+              "color": "#666666"
+            }
+          ]
+        }
+      ]
+    },
+    "dark": {
+      "theme": {
+        "colors": {
+          "surface0": "#171717",
+          "foreground": "#EEEEEE",
+          "foregroundMuted": "#AAAAAA",
+          "accent": "#AA44EE",
+          "statusSuccess": "#66BB6A",
+          "statusDanger": "#EF5350",
+          "statusWarning": "#FFD54F",
+          "border": "#444444"
+        }
+      },
+      "actualSanitizedRows": [
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "Claude máy này tuần ~$195.77 · Claude 5h ? · tuần 14.0%",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "GPT máy này tuần ~$? · GPT 5h ? · tuần 16.0%",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#FFD54F"
+            },
+            {
+              "text": " Session 2 · claude-opus-5-5·high · 44p · ~$1.66 · Claude riêng ~0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#64B5F6"
+            },
+            {
+              "text": " Sol · gpt-6.1-sol·high · 16p · ~$1.58 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 10s · 23:48 · ~$0.02 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 12p · 23:47 · ~$0.31 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 11p · 23:46 · ~$0.47 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " native-codex · gpt-6.1-sol·low · 10p · 23:46 · ~$0.18 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "1 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "1✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " Side 15 · ?·? · 8p · 23:32 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " Side 13 · ?·? · 15p · 23:23 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " Side 14 · ?·? · 7p · 23:14 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "1 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "1✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#FFD54F"
+            },
+            {
+              "text": " Session 4 · claude-opus-5-5·high · 3g48p · ~$7.28 · Claude riêng ~0.5% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "1 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "1✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#64B5F6"
+            },
+            {
+              "text": " Side 23 · gpt-6.1-sol·high · 20p · ~$1.78 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "3 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "1✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "●2",
+              "color": "#64B5F6"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#64B5F6"
+            },
+            {
+              "text": " Side 1 · claude-opus-5-5·high · 22p · ~$4.08 · Claude riêng ~0.3% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#FFD54F"
+            },
+            {
+              "text": " Side 3 · claude-opus-5-5·high · 2g23p · ~$7.31 · Claude riêng ~0.5% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Side 22 · gpt-6.1-sol·high · ? · ~$0.59 · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "+5 cũ: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "4✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "?1",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#FFD54F"
+            },
+            {
+              "text": " Session 5 · claude-opus-5-5·high · 3g18p · ~$2.93 · Claude riêng ~0.2% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 1p · 20:32 · ~$0.41 · Claude riêng ~<0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 1p · 20:32 · ~$0.39 · Claude riêng ~<0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Side 16 · ?·? · 16p · 21:56 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "8 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "8✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Side 11 · ?·? · 33p · 21:39 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 32,
+          "spans": [
+            {
+              "text": "8 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "8✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "0✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Side 24 · ?·? · 6p · 21:01 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Side 10 · ?·? · 14p · 20:52 · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Session 6 · claude-opus-5-5·high · 5p · 20:20 · ~$0.51 · Claude riêng ~<0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 3p · 20:18 · ~$0.67 · Claude riêng ~0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Session 7 · claude-opus-5-5·high · 3g26p · 20:02 · ~$0.69 · Claude riêng ~0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Session 8 · claude-opus-5-5·high · 1p · 19:48 · ~$0.27 · Claude riêng ~<0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 16,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " subagent · claude-opus-5-5·low · 30s · 19:48 · ~$0.19 · Claude riêng ~<0.1% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "▾ ",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " Session 9 · claude-opus-5-5·high · 4g48p · 19:40 · ~$5.65 · Claude riêng ~0.4% tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        }
+      ],
+      "syntheticStatesAndCounts": [
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "●",
+              "color": "#64B5F6"
+            },
+            {
+              "text": " fixture-running · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " fixture-completed · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": " fixture-failed · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#FFD54F"
+            },
+            {
+              "text": " fixture-idle · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#FFD54F"
+            },
+            {
+              "text": " fixture-silent · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " fixture-unknown · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "",
+              "color": "#EEEEEE"
+            },
+            {
+              "text": "?",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": " fixture-lost · fixture-model·low · ? · ~$? · GPT riêng ? tuần",
+              "color": "#EEEEEE"
+            }
+          ]
+        },
+        {
+          "indentPx": 0,
+          "spans": [
+            {
+              "text": "7 subagent: ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "2✓",
+              "color": "#66BB6A"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "1✗",
+              "color": "#EF5350"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "●1",
+              "color": "#64B5F6"
+            },
+            {
+              "text": " ",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "?3",
+              "color": "#AAAAAA"
+            },
+            {
+              "text": "",
+              "color": "#AAAAAA"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

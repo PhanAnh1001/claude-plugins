@@ -1,0 +1,19 @@
+Command: HYBRID_HANDS_HAND_SCOPE=<Sol Paseo id> hybrid-hands/plugins/hybrid-hands/bin/hand-ext run --backend auto --brief <evidence>/read-only-brief.md --label plan-con-mo-readonly --cwd <repo> --isolation worktree --timeout-min 10
+exit_code: 0
+backend: codex; model: gpt-6.1-sol; effort: low
+tokens: input=89543; cached_input=62464; output=264
+quota sample: week=14%; 5h=?
+USD~: 0.063044 (offline estimate from canonical pricing, not invoice)
+run_dir: output/llm/hand-ext/20261107-230817-631024-plan-con-mo-readonly-codex/
+
+hybrid-hands điều phối ba tầng Opus lập kế hoạch, Sol dẫn dắt kỹ thuật và kiểm chứng, hand thực thi code/test/tài liệu theo brief trên gói subscription.
+Plugin cung cấp hand-ext chạy hand trong worktree cách ly, side-session mở phiên phụ, cc-switch chuyển phiên terminal/Paseo và hh-ps cùng giao diện cây để theo dõi công việc.
+README hướng dẫn cài đặt, cấu hình backend, bảo vệ bí mật và quản lý hạn mức; USD~ là ước tính offline, quota thiếu nguồn hiện `?`, không suy đoán.
+
+## Cách ly worktree
+- Chế độ: `worktree`
+- Nguồn: `<repo>`
+- Worktree: `<worktree-root>/claude-plugins-20261107-230817-631024-plan-con-mo-readonly-codex`
+- Patch: `<repo>/output/llm/hand-ext/20261107-230817-631024-plan-con-mo-readonly-codex/changes.patch` (0 file)
+- Áp về gốc: bỏ qua (patch rỗng)
+- Worktree: đã dọn

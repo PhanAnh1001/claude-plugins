@@ -1,0 +1,36 @@
+(node:83363) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/client/compact.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:83363) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/anhtp/app/claude-plugins/docs/work-in-progress/panel-gon/baseline/hybrid-hands/paseo-hh-tree/client/format.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/anhtp/app/claude-plugins/docs/work-in-progress/panel-gon/baseline/hybrid-hands/paseo-hh-tree/package.json.
+FIXTURE ONLY: model/plan/name placeholders; no runtime rendering or reload.
+BEFORE (reconstructed baseline row template + baseline format functions):
+● main-fixture (root session) MODEL/EFFORT fixture-model/low · ~$0.12 · Fixture 5h 12.0% · tuần 34.0% · chạy 10p · kết thúc đang chạy
+  • old-worker MODEL/EFFORT fixture-model/low · Synthetic fixture task · xong · ~$0.01 · TK 5h ? · tuần ? · 10p · 2026-11-07 07:12
+● phiên phụ side-0 (side session) MODEL/EFFORT fixture-model/low · ~$0.01 · TK 5h ? · tuần ? · chạy 10p · kết thúc đang chạy
+  • worker-0 MODEL/EFFORT fixture-model/low · Synthetic fixture task · đang chạy · ~$0.01 · TK 5h ? · tuần ? · 10p · đang chạy
+  • worker-1 MODEL/EFFORT fixture-model/low · Synthetic fixture task · xong · ~$0.01 · TK 5h ? · tuần ? · 10p · 2026-11-07 07:31
+  • worker-2 MODEL/EFFORT fixture-model/low · Synthetic fixture task · xong · ~$0.01 · TK 5h ? · tuần ? · 10p · 2026-11-07 07:32
+  • worker-3 MODEL/EFFORT fixture-model/low · Synthetic fixture task · xong · ~$0.01 · TK 5h ? · tuần ? · 10p · 2026-11-07 07:33
+  • worker-4 MODEL/EFFORT fixture-model/low · Synthetic fixture task · xong · ~$0.01 · TK 5h ? · tuần ? · 10p · 2026-11-07 07:34
+  • worker-5 MODEL/EFFORT fixture-model/low · Synthetic fixture task · xong · ~$0.01 · TK 5h ? · tuần ? · 10p · 2026-11-07 07:35
+○ phiên phụ side-1 (side session) MODEL/EFFORT fixture-model/low · ~$0.01 · TK 5h ? · tuần ? · chạy 10p · kết thúc 2026-11-07 07:11
+○ phiên phụ side-2 (side session) MODEL/EFFORT fixture-model/low · ~$0.01 · TK 5h ? · tuần ? · chạy 10p · kết thúc 2026-11-07 07:12
+○ phiên phụ side-3 (side session) MODEL/EFFORT fixture-model/low · ~$0.01 · TK 5h ? · tuần ? · chạy 10p · kết thúc 2026-11-07 07:13
+○ phiên phụ side-4 (side session) MODEL/EFFORT fixture-model/low · ~$0.01 · TK 5h ? · tuần ? · chạy 10p · kết thúc 2026-11-07 07:14
+○ phiên phụ side-5 (side session) MODEL/EFFORT fixture-model/low · ~$0.01 · TK 5h ? · tuần ? · chạy 10p · kết thúc 2026-11-07 07:15
+AFTER (same compactTree/rowText/summaryText used by SessionBlock UI):
+● main-fixture · fixture-model·low · 1g · ~$0.12 · Fixture 5h 12.0% · tuần 34.0%
+    1 subagent: 1✓ 0✗
+  ● side-0 · fixture-model·low · 1g · ~$0.01
+    ● worker-0 · fixture-model·low · 40p · ~$0.01
+    ✓ worker-5 · fixture-model·low · 15p · ~$0.01
+    ✓ worker-4 · fixture-model·low · 14p · ~$0.01
+    ✓ worker-3 · fixture-model·low · 13p · ~$0.01
+    2 subagent: 2✓ 0✗
+  ✓ side-5 · fixture-model·low · 15p · ~$0.01
+  ✓ side-4 · fixture-model·low · 14p · ~$0.01
+  ✓ side-3 · fixture-model·low · 13p · ~$0.01
+  +2 cũ: 1✓ 1✗

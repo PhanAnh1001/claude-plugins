@@ -1,0 +1,393 @@
+## Hand run 20261107-170657-510649-sol-idle-codex
+
+Command: /bin/zsh -lc 'python3 -m unittest hybrid-hands.tests.test_side_session_codex.DoneContractTest.test_watch_flags_codex_idle_without_done hybrid-hands.tests.test_side_session_codex.DoneContractTest.test_watch_done_quits_codex_screen hybrid-hands.tests.test_side_session_paseo.PaseoStartTest.test_watch_flags_idle_without_done_and_closes_done_agent'
+Exit: 1
+FFF
+======================================================================
+FAIL: test_watch_flags_codex_idle_without_done (hybrid-hands.tests.test_side_session_codex.DoneContractTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261107-170657-510649-sol-idle-codex/hybrid-hands/tests/test_side_session_codex.py", line 173, in test_watch_flags_codex_idle_without_done
+    self.assertEqual(state.load(cfg.state_dir, st.name).status, expected)
+AssertionError: 'running' != 'idle_no_done'
+- running
++ idle_no_done
+
+
+======================================================================
+FAIL: test_watch_done_quits_codex_screen (hybrid-hands.tests.test_side_session_codex.DoneContractTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261107-170657-510649-sol-idle-codex/hybrid-hands/tests/test_side_session_codex.py", line 204, in test_watch_done_quits_codex_screen
+    quit_session.assert_called_once_with("side-done-test")
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/unittest/mock.py", line 918, in assert_called_once_with
+    raise AssertionError(msg)
+AssertionError: Expected '_quit' to be called once. Called 0 times.
+
+======================================================================
+FAIL: test_watch_flags_idle_without_done_and_closes_done_agent (hybrid-hands.tests.test_side_session_paseo.PaseoStartTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261107-170657-510649-sol-idle-codex/hybrid-hands/tests/test_side_session_paseo.py", line 123, in test_watch_flags_idle_without_done_and_closes_done_agent
+    self.assertEqual(state.load(cfg.state_dir, st.name).status, "idle_no_done")
+AssertionError: 'idle' != 'idle_no_done'
+- idle
++ idle_no_done
+
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.009s
+
+FAILED (failures=3)
+
+
+Command: /bin/zsh -lc "python3 -m unittest hybrid-hands.tests.test_side_session_codex.DoneContractTest hybrid-hands.tests.test_side_session_paseo.PaseoStartTest.test_watch_flags_idle_without_done_and_closes_done_agent; node --check hybrid-hands/plugins/hybrid-hands/lib/side_session/paseo_bridge.mjs; cat hybrid-hands/.claude-plugin/marketplace.json; sed -n '30,65p' /Users/anhtp/.nvm/versions/node/v24.19.0/lib/node_modules/@getpaseo/cli/node_modules/@getpaseo/server/dist/server/server/agent/lifecycle-command.js; sed -n '1175,1205p' /Users/anhtp/.nvm/versions/node/v24.19.0/lib/node_modules/@getpaseo/cli/node_modules/@getpaseo/server/dist/server/server/agent/agent-manager.js; sed -n '1319,1345p' /Users/anhtp/.nvm/versions/node/v24.19.0/lib/node_modules/@getpaseo/cli/node_modules/@getpaseo/server/dist/server/server/agent/agent-manager.js"
+Exit: 0
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.020s
+
+OK
+{
+  "name": "hybrid-hands-local",
+  "owner": {
+    "name": "hybrid-hands"
+  },
+  "description": "Marketplace tự host chứa plugin hybrid-hands (brain gói Claude, hand ngoài chạy gói subscription thứ hai, hand Claude, phiên phụ) cho Claude Code.",
+  "plugins": [
+    {
+      "name": "hybrid-hands",
+      "source": "./plugins/hybrid-hands",
+      "description": "Brain/hand lai: hand ngoài qua lệnh hand-ext (gói thứ hai, mặc định DeepSeek V4.1 Flash qua dsh trên gói OpenCode Go; Codex/Claude gọi tường minh; --browser cho dsh qua Playwright MCP cô lập; không API), hand Claude (hybrid-hands:hand), phiên phụ qua lệnh side-session, hh-ps xem cây phiên → subagent → lượt hand ngoài; policy chọn hand và luật hạn mức bơm qua hook; sổ Go toàn máy và lệnh hand-ext usage."
+    }
+  ]
+}
+    return { agent: result.agent, cancelled: result.cancelled };
+}
+export async function archiveAgentCommand(dependencies, agentId) {
+    const liveAgent = dependencies.agentManager.getAgent(agentId);
+    let record;
+    if (liveAgent) {
+        await requestAgentRunCancellation(dependencies, agentId);
+        await dependencies.agentManager.clearAgentAttention(agentId).catch(() => undefined);
+        const archived = await dependencies.agentManager.archiveAgent(agentId);
+        if (liveAgent.internal) {
+            return { agentId, archivedAt: archived.archivedAt, record: null };
+        }
+        record = await dependencies.agentStorage.get(agentId);
+    }
+    else {
+        record = await archiveStoredAgent(dependencies, agentId);
+    }
+    if (!record) {
+        throw new Error(`Agent not found in storage after archive: ${agentId}`);
+    }
+    if (!record.archivedAt) {
+        throw new Error(`Agent missing archivedAt after archive: ${agentId}`);
+    }
+    return {
+        agentId,
+        archivedAt: record.archivedAt,
+        record,
+    };
+}
+export async function closeAgentCommand(dependencies, agentId) {
+    await dependencies.agentManager.closeAgent(agentId);
+}
+export async function updateAgentCommand(dependencies, input) {
+    const title = input.name?.trim();
+    const labels = input.labels && Object.keys(input.labels).length > 0 ? input.labels : undefined;
+    if (!title && !labels) {
+    async closeAgentRuntime(agentId, canClose) {
+        const agent = this.requireAgent(agentId);
+        this.logger.trace({
+            agentId,
+            provider: agent.provider,
+            sessionId: agent.persistence?.sessionId ?? undefined,
+            turnId: agent.activeForegroundTurnId ?? undefined,
+            lifecycle: agent.lifecycle,
+            activeForegroundTurnId: agent.activeForegroundTurnId,
+            pendingPermissions: agent.pendingPermissions.size,
+        }, "agent.manager.close.start");
+        await this.drainSessionEvents(agentId);
+        if (canClose && !canClose())
+            return false;
+        // Retain ownership until shutdown succeeds. A failed close may still own a
+        // native writer, so publishing a resumable closed snapshot would orphan it.
+        await agent.session.close();
+        this.cancelRunningProviderSubagents(agentId);
+        const closedAgent = this.prepareAgentForClosure(agent, "agent closed");
+        let persistError;
+        try {
+            await this.persistSnapshot(closedAgent);
+        }
+        catch (error) {
+            persistError = error;
+        }
+        this.detachPluginTools(agentId);
+        this.emitClosedAgent(closedAgent, { persist: false });
+        this.logger.trace({
+            agentId,
+            provider: closedAgent.provider,
+    async markRecordArchived(record, archivedAt = new Date().toISOString()) {
+        const archivedRecord = await this.persistArchivedRecord(record, {
+            archivedAt,
+            updatedAt: archivedAt,
+        });
+        if (this.agents.has(record.id)) {
+            this.notifyAgentState(record.id);
+        }
+        else if (!archivedRecord.internal) {
+            this.dispatchStoredAgentState(archivedRecord);
+        }
+        await this.fireAgentArchived(record.id);
+        return archivedRecord;
+    }
+    async persistArchivedRecord(record, options) {
+        const archivedRecord = buildArchivedAgentRecord(record, options);
+        await this.requireRegistry().upsert(archivedRecord);
+        if (!record.archivedAt && !record.internal) {
+            this.pluginLifecycle?.emit("agent.archive.after", {
+                agent: describeHookAgent(archivedRecord),
+                archivedAt: archivedRecord.archivedAt,
+            });
+        }
+        return archivedRecord;
+    }
+    async fireAgentArchived(agentId) {
+        const callback = this.onAgentArchived;
+
+
+Command: /bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+p=Path('hybrid-hands/plugins/hybrid-hands/lib/side_session/actions.py');s=p.read_text().replace('''            if paseo.refresh(cfg, st) "'!= "dead":'"''','''            if (st.provider == C.PROVIDER_CODEX and K.done_path(st.handoff).is_file()) \\\\
+                    or paseo.refresh(cfg, st) "'!= "dead":'"''');s=s.replace('''        if st.transport == C.TRANSPORT_PASEO:
+            live = paseo.refresh(cfg, st)
+        if not done''','''        if st.transport == C.TRANSPORT_PASEO:
+            # Pending .done retains its slot even if archive partially closed the agent.
+            live = (\"unknown\" if done and st.provider == C.PROVIDER_CODEX
+                    and st.status in C.ACTIVE_STATUSES else paseo.refresh(cfg, st))
+        if not done''');p.write_text(s)
+p=Path('hybrid-hands/plugins/hybrid-hands/lib/side_session/paseo_bridge.mjs');s=p.read_text().replace('request.command === \"finish\" && "'!fetched.agent.archivedAt'"','request.command === \"finish\"');p.write_text(s)
+p=Path('hybrid-hands/tests/test_side_session_codex.py');s=p.read_text();s=s.replace('''                for event, expected in ((\"task_complete\", \"idle_no_done\"),''','''                self.assertFalse(tokens.codex_turn_idle(None))
+                self.assertFalse(tokens.codex_turn_idle(rollout.with_suffix(\".missing\")))
+                self.assertTrue(actions.watch_tick(cfg, st.name))
+                self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_RUNNING)
+                for event, expected in ((\"task_complete\", \"idle_no_done\"),
+                                        (\"token_count\", \"idle_no_done\"),''');s=s.replace('''                quit_session.assert_not_called()
+
+    def test_watch_done_quits''','''                with mock.patch.object(Path, \"open\", side_effect=PermissionError):
+                    self.assertFalse(tokens.codex_turn_idle(rollout))
+                quit_session.assert_not_called()
+
+    def test_watch_done_quits''');p.write_text(s)
+p=Path('hybrid-hands/tests/test_side_session_paseo.py');s=p.read_text();s=s.replace('''return_value={\"status\": \"idle\"}), \\\\
+                    mock.patch.object(actions.paseo, \"_call\"''','''return_value={\"status\": \"idle\"}) as agent_status, \\\\
+                    mock.patch.object(actions.paseo, \"_call\"''',1);s=s.replace('''                call.assert_not_called()
+                handoff =''','''                call.assert_not_called()
+                for raw in (\"initializing\", \"running\"):
+                    agent_status.return_value = {\"status\": raw}
+                    self.assertTrue(actions.watch_tick(cfg, st.name))
+                    self.assertEqual(state.load(cfg.state_dir, st.name).status, C.STATUS_RUNNING)
+                handoff =''',1);s=s.replace('''                self.assertEqual(len(actions._running(cfg)), 1)
+                call.side_effect = None''','''                self.assertEqual(len(actions._running(cfg)), 1)
+                listing = io.StringIO()
+                with redirect_stdout(listing):
+                    actions.ls(cfg, None)
+                self.assertNotRegex(listing.getvalue(), r\"(?m)"'^idle-done'"\\\\s+codex\\\\s+no\\\\s+done\\\\s+\")
+                call.side_effect = actions.paseo.PaseoError(C.PASEO_AGENT_NOT_FOUND)
+                self.assertFalse(actions.watch_tick(cfg, st.name))
+                pending = state.load(cfg.state_dir, st.name)
+                pending.status = C.STATUS_RUNNING
+                state.save(cfg.state_dir, pending)
+                call.side_effect = None''',1);p.write_text(s)
+PY
+python3 -m unittest hybrid-hands.tests.test_side_session_codex.DoneContractTest hybrid-hands.tests.test_side_session_paseo.PaseoStartTest.test_watch_flags_idle_without_done_and_closes_done_agent"
+Exit: 0
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.023s
+
+OK
+idle-test: 0/272000 context tokens
+
+
+Command: /bin/zsh -lc 'python3 -m unittest hybrid-hands/tests/test_side_session_codex.py hybrid-hands/tests/test_side_session_paseo.py'
+Exit: 0
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 1.020s
+
+OK
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpz4aydwui worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpz4aydwui/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpz4aydwui branch -D side/n
+
+
+## Hand run 20261107-171110-835945-sol-idle-review-codex
+
+Command: /bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+p = Path('hybrid-hands/tests/test_side_session_codex.py')
+s = p.read_text()
+s = s.replace('''            with mock.patch.object(actions, \"_quit\") as quit_session, \\\\
+                    redirect_stdout(io.StringIO()):
+                self.assertFalse(actions.watch_tick(cfg, \"done-test\"))
+''', '''            with mock.patch.object(actions.screen, \"quit\", side_effect=[False, True]) as quit_session, \\\\
+                    mock.patch.object(actions.screen, \"is_alive\", return_value=True), \\\\
+                    mock.patch.object(actions.screen, \"screen_names\", return_value={\"side-done-test\"}), \\\\
+                    redirect_stdout(io.StringIO()) as out:
+                self.assertTrue(actions.watch_tick(cfg, \"done-test\"))
+                self.assertIn(state.load(cfg.state_dir, \"done-test\").status, C.ACTIVE_STATUSES)
+                self.assertEqual(len(actions._running(cfg)), 1)
+                self.assertIn(\"warning\", out.getvalue())
+                quit_session.assert_called_once_with(\"side-done-test\")
+                self.assertFalse(actions.watch_tick(cfg, \"done-test\"))
+''')
+s = s.replace('''            quit_session.assert_called_once_with(\"side-done-test\")
+            self.assertEqual(state.load(cfg.state_dir, \"done-test\").status, C.STATUS_DONE)
+''', '''            self.assertEqual(state.load(cfg.state_dir, \"done-test\").status, C.STATUS_DONE)
+''')
+p.write_text(s)
+PY
+python3 -m unittest hybrid-hands/tests/test_side_session_codex.py -k test_watch_done_quits_codex_screen"
+Exit: 1
+F
+======================================================================
+FAIL: test_watch_done_quits_codex_screen (hybrid-hands.tests.test_side_session_codex.DoneContractTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261107-171110-835945-sol-idle-review-codex/hybrid-hands/tests/test_side_session_codex.py", line 212, in test_watch_done_quits_codex_screen
+    self.assertTrue(actions.watch_tick(cfg, "done-test"))
+AssertionError: False is not true
+
+----------------------------------------------------------------------
+Ran 1 test in 0.005s
+
+FAILED (failures=1)
+
+
+Command: /bin/zsh -lc "python3 - <<'PY'
+from pathlib import Path
+p = Path('hybrid-hands/plugins/hybrid-hands/lib/side_session/actions.py')
+s = p.read_text()
+marker = 'def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:\\n'
+helper = '''def _close_codex_screen(st: state.SessionState) -> bool:
+    \"\"\"Confirm screen cleanup; an unavailable screen command requires a retry.\"\"\"
+    try:
+        if _quit(st.screen):
+            return True
+        # A failed quit can also mean the runtime exited before the command.
+        if not screen.is_alive(st.screen):
+            return True
+    except OSError as exc:
+        print(f\"{st.name}: warning: .done cleanup lỗi ({exc}); giữ active và thử lại\")
+        return False
+    print(f\"{st.name}: warning: .done cleanup screen còn sống; giữ active và thử lại\")
+    return False
+
+
+'''
+s = s.replace(marker, helper + marker)
+s = s.replace('''    elif st.screen:
+        _quit(st.screen)
+    st.status = C.STATUS_DONE
+''', '''    elif st.screen and not _close_codex_screen(st):
+        state.save(cfg.state_dir, st)
+        return False
+    st.status = C.STATUS_DONE
+''')
+s = s.replace('''def _quit(name: str) -> None:
+    screen.quit(name)
+''', '''def _quit(name: str) -> bool:
+    return screen.quit(name)
+''')
+p.write_text(s)
+PY
+python3 -m unittest hybrid-hands/tests/test_side_session_codex.py -k test_watch_done_quits_codex_screen"
+Exit: 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.006s
+
+OK
+
+
+Command: /bin/zsh -lc "PYTHONPATH=hybrid-hands/plugins/hybrid-hands/lib python3 - <<'PY'
+import io
+from contextlib import redirect_stdout
+from types import SimpleNamespace
+from unittest import mock
+from side_session import actions
+st = SimpleNamespace(name='cleanup-check', screen='mock-screen')
+with mock.patch.object(actions.screen, 'quit', return_value=False), mock.patch.object(actions.screen, 'is_alive', return_value=False):
+    assert actions._close_codex_screen(st) is True
+for target in ('quit', 'is_alive'):
+    with mock.patch.object(actions.screen, 'quit', return_value=False), mock.patch.object(actions.screen, 'is_alive', return_value=True), mock.patch.object(actions.screen, target, side_effect=OSError('screen unavailable')), redirect_stdout(io.StringIO()) as out:
+        assert actions._close_codex_screen(st) is False
+        assert 'warning' in out.getvalue()
+print('Mock checks: gone and OSError cleanup paths OK; no real screen commands.')
+PY
+python3 -m unittest hybrid-hands/tests/test_side_session_codex.py hybrid-hands/tests/test_side_session_paseo.py"
+Exit: 0
+Mock checks: gone and OSError cleanup paths OK; no real screen commands.
+..................
+----------------------------------------------------------------------
+Ran 18 tests in 0.706s
+
+OK
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpx_iu1a00 worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpx_iu1a00/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpx_iu1a00 branch -D side/n
+
+
+## Full suite — executed exactly once on main tree
+Command: python3 -m unittest discover -s hybrid-hands/tests
+Exit: 1
+.............................................................................................................................................F.......................................................................................................................................................................................................................................................................
+======================================================================
+FAIL: test_user_agent_matches_plugin_version (test_hand_ext_dsh.VersionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_hand_ext_dsh.py", line 475, in test_user_agent_matches_plugin_version
+    self.assertEqual(dsh.USER_AGENT, f"hybrid-hands-hand-ext/{version}")
+AssertionError: 'hybrid-hands-hand-ext/0.25.0' != 'hybrid-hands-hand-ext/0.25.1'
+- hybrid-hands-hand-ext/0.25.0
+?                            ^
++ hybrid-hands-hand-ext/0.25.1
+?                            ^
+
+
+----------------------------------------------------------------------
+Ran 405 tests in 47.079s
+
+FAILED (failures=1)
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpg4q3xebr worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpg4q3xebr/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpg4q3xebr branch -D side/n
+
+
+## Version sync after full suite
+Changed only dsh.USER_AGENT 0.25.0 -> 0.25.1.
+First module-form invocation could not resolve hand_ext_case; corrected test path:
+Command: PYTHONPATH=hybrid-hands/tests python3 -m unittest test_hand_ext_dsh.VersionTest
+Observed exit: 0; Ran 1 test; OK.
+No second full suite run.

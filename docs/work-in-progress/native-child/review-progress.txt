@@ -1,0 +1,1 @@
+Sol reviewed native_panel baseline diff (compact.ts, shared/tree.ts, compact.test.ts, OVERVIEW.md); pane compatibility diff; native_docs four-file diff. Accepted exact three new test cases total. Requested Python legacy exit JSON + exact-key assertion repair before final suite. Build Paseo compiler exit 0 recorded in paseo-build.json. No runtime installation yet.

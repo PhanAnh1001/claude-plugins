@@ -1,0 +1,5 @@
+Claude máy này tuần ~$201.33 · Claude 5h ? · tuần 14.4%
+GPT máy này tuần ~$75.60 · GPT 5h ? · tuần 18.0%
+● Codex 1 · gpt-6.1-sol·high · ? · ~$1.08 · GPT riêng (đo) 1.0% tuần
+✓ Codex 2 · gpt-6.1-sol·low · ? · ~$0.33 · GPT riêng (đo) 1.0% tuần
+✓ Codex 3 · gpt-6.1-sol·low · ? · ~$0.31 · GPT riêng (đo) 0.0% tuần

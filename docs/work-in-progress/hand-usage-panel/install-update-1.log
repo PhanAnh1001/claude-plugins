@@ -1,0 +1,1 @@
+{"command":"update","outcome":"ok","plugin":"statusline@statusline-local","pluginId":"statusline@statusline-local","scope":"user","message":"Plugin \"statusline\" updated from 0.19.0 to 0.20.0 for scope user. Restart to apply changes.","updateOutcome":"updated","oldVersion":"0.19.0","newVersion":"0.20.0"}

@@ -1,0 +1,76 @@
+{
+  "sanitized_excerpt": true,
+  "rows": [
+    {
+      "kind": "side/codex",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "running",
+      "live": true,
+      "started_at": "2026-11-07T21:06:33+07:00",
+      "ended_at": null,
+      "duration_seconds": 1830.795594215393,
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 11.0,
+        "read": 259599,
+        "cache_read": 17208576,
+        "cache_write": null,
+        "out": 62432,
+        "usd": 2.864376,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 11.0
+      }
+    },
+    {
+      "kind": "hand-ext/codex",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "ok",
+      "started_at": "2026-11-07T21:30:51+07:00",
+      "ended_at": "2026-11-07T21:31:56+07:00",
+      "duration_seconds": 64.22736692428589,
+      "backend": "codex",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 11.0,
+        "read": 16739,
+        "cache_read": 203776,
+        "cache_write": null,
+        "out": 1904,
+        "usd": 0.072896,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 11.0
+      }
+    },
+    {
+      "kind": "subagent/Claude",
+      "model": "claude-opus-5-5",
+      "effort": "low",
+      "status": "finished",
+      "started_at": "2026-11-07T20:31:10+07:00",
+      "ended_at": "2026-11-07T20:32:33+07:00",
+      "duration_seconds": 83.54299998283386,
+      "agent_type": "parallel-subagents:hand",
+      "usage": {
+        "account_plan": "Claude",
+        "account_5h_pct": null,
+        "account_week_pct": 13.136245671910112,
+        "read": 22,
+        "cache_read": 338044,
+        "cache_write": 45356,
+        "out": 5826,
+        "usd": 0.41099679999999994,
+        "week_pct": 0.03078627715355805,
+        "week_pct_estimated": true,
+        "usd_estimated": true
+      }
+    }
+  ]
+}

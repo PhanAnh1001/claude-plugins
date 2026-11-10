@@ -1,0 +1,143 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index ee08b9e..ef17ced 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -23,18 +23,18 @@ Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/a
+ | Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
+ 
+ Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
+-Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Plugin parallel-subagents cũ luôn tắt ở mọi repo; mode `parallel_subagents.enabled` của hybrid-hands chỉ thay đổi qua `hand-ext parallel on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật; không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
++Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Plugin parallel-subagents cũ luôn tắt ở mọi repo; mode `parallel_subagents.enabled` của hybrid-hands chỉ thay đổi qua `hand-ext parallel-subagents on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật; không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
+ 
+ Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
+ 
+ 
+-Xong một tính năng (test hẹp xanh, đã review) thì Opus/Sol điều phối commit, push nhánh rồi merge ngay vào `main` và push `main` (người dùng chốt 08/11/2026); hand executor không commit/merge. Ngoài trường hợp đó không commit/push mặc định; không chạy lệnh phá hoại. Riêng công việc usage panel: không sửa `.claude/hybrid-hands.json`, `~/.codex-hand/config.toml`, `~/.claude/settings.json`, `installed_plugins.json`, credential/settings. Plugin parallel-subagents cũ luôn tắt, mode `parallel_subagents.enabled` chỉ thay đổi qua `hand-ext parallel on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật. Không xoá/di chuyển/dọn `output/llm/`. Shell dùng cwd/workdir hoặc đường dẫn tuyệt đối, không `cd <dir> && ...`. Không vòng chờ vô hạn; kết thúc tiến trình nền mình tạo trước báo cáo. Không tải/mua/gọi API trả phí hay tạo/dùng API key nếu brief không giao rõ và có trần chi phí.
++Xong một tính năng (test hẹp xanh, đã review) thì Opus/Sol điều phối commit, push nhánh rồi merge ngay vào `main` và push `main` (người dùng chốt 08/11/2026); hand executor không commit/merge. Ngoài trường hợp đó không commit/push mặc định; không chạy lệnh phá hoại. Riêng công việc usage panel: không sửa `.claude/hybrid-hands.json`, `~/.codex-hand/config.toml`, `~/.claude/settings.json`, `installed_plugins.json`, credential/settings. Plugin parallel-subagents cũ luôn tắt, mode `parallel_subagents.enabled` chỉ thay đổi qua `hand-ext parallel-subagents on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật. Không xoá/di chuyển/dọn `output/llm/`. Shell dùng cwd/workdir hoặc đường dẫn tuyệt đối, không `cd <dir> && ...`. Không vòng chờ vô hạn; kết thúc tiến trình nền mình tạo trước báo cáo. Không tải/mua/gọi API trả phí hay tạo/dùng API key nếu brief không giao rõ và có trần chi phí.
+ 
+ Sau mỗi lần sửa plugin, Opus/Sol phải validate, chạy test hẹp phù hợp và hoàn tất review, tăng version thích hợp cùng changelog, rồi cập nhật cài đặt plugin vừa sửa cho repo hiện tại và mọi repo khác đang dùng plugin đó qua công cụ chính thức. Không tự bật plugin ở repo chưa dùng; không sửa thủ công credential/settings hay sổ cài đặt. Kiểm chứng version và đường dẫn plugin được nạp thực tế ở các repo đã cập nhật; nếu phiên đang mở không hot load được thì báo rõ cần reload. Giữ nguyên luật commit/push/merge ở trên; hand executor chỉ làm phần được giao, không tự cập nhật runtime khi brief dành việc đó cho brain.
+ 
+ Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi bằng `HYBRID_HANDS_CONFIG`) → repo → cờ CLI. Dict merge sâu; list/scalar thay nguyên.
+ `hand-ext config --json` in cấu hình hiệu lực và nguồn từng key; global hỏng báo lỗi kèm đường dẫn.
+-`parallel_subagents.enabled=false` mặc định; chỉ bool thật hợp lệ, sai kiểu về false kèm warning. True chỉ hiệu lực từ repo (giữ provenance và fallback worktree); global true bị bỏ qua kèm warning. Dùng `hand-ext parallel` để xem trạng thái; chỉ dùng `hand-ext parallel on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật; mở phiên mới để hook nạp luật.
++`parallel_subagents.enabled=false` mặc định; chỉ bool thật hợp lệ, sai kiểu về false kèm warning. True chỉ hiệu lực từ repo (giữ provenance và fallback worktree); global true bị bỏ qua kèm warning. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`, trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. Dùng `hand-ext parallel-subagents` để xem trạng thái; chỉ dùng `hand-ext parallel-subagents on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật; mở phiên mới để hook nạp luật.
+ `ext_hand.native.{claude,codex}=auto|off`; `pick --json` trả `native`/`native_reason`, caller vẫn kiểm capability. Claude chính/phụ mặc định transport Paseo; có thể chọn `screen` qua cấu hình.
+ 
+ ## Luật dữ liệu chung (chép nguyên văn vào brief hand ngoài)
+diff --git a/hybrid-hands/README.md b/hybrid-hands/README.md
+index 7354e8e..62fd4aa 100644
+--- a/hybrid-hands/README.md
++++ b/hybrid-hands/README.md
+@@ -187,13 +187,13 @@ Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.j
+ 
+ `parallel_subagents.enabled` mặc định `false`, chỉ chấp nhận bool JSON thật (`true`/`false`); sai kiểu về `false` và warning stderr. `true` chỉ hiệu lực khi provenance là repo `.claude/hybrid-hands.json` (kể cả fallback config main worktree); global `true` bị bỏ qua kèm warning, consumer chỉ thấy `false`. `hand-ext config --json` giữ nguồn và đường dẫn config. Hook gặp config lỗi sẽ warning không hiện giá trị, dùng policy thường và exit 0; CLI giữ cách báo lỗi cấu hình hiện có.
+ 
+-Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Dùng lệnh thay vì sửa JSON thủ công:
++Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`; trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. `parallel` là alias cũ tương thích. Dùng lệnh thay vì sửa JSON thủ công:
+ 
+ ```bash
+-hand-ext parallel                         # trạng thái, nguồn và file
+-hand-ext parallel --json                  # chỉ trạng thái dạng JSON
+-hand-ext parallel on --cwd /duong/dan/repo
+-hand-ext parallel off --cwd /duong/dan/repo
++hand-ext parallel-subagents                         # trạng thái, nguồn và file
++hand-ext parallel-subagents --json                  # chỉ trạng thái dạng JSON
++hand-ext parallel-subagents on --cwd /duong/dan/repo
++hand-ext parallel-subagents off --cwd /duong/dan/repo
+ ```
+ 
+ Lệnh on/off giữ các key khác, ghi bool vào config repo và in đường dẫn đã ghi. Trong linked worktree chưa có config riêng, nếu loader dùng config main checkout thì lệnh ghi đúng file fallback đó (ảnh hưởng các worktree dùng chung file). Chưa có file thì tạo `.claude/hybrid-hands.json` tại repo hiện tại. JSON lỗi hoặc section không phải object bị từ chối, giữ nguyên file. Luôn **mở phiên mới để hook nạp luật**; luật đã nạp trong phiên cũ vẫn còn hiệu lực.
+diff --git a/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json b/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+index 3db8661..08c198b 100644
+--- a/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
++++ b/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "hybrid-hands",
+-  "version": "0.37.1",
++  "version": "0.37.2",
+   "description": "Điều phối brain/hand lai cho Claude Code: brain chạy trên gói Claude chính; hand ngoài (lệnh hand-ext) mặc định cho việc code/tài liệu tự chứa, chạy trên gói subscription thứ hai (auto theo order dsh → codex → claude-v1 → claude-v2; dsh dùng DeepSeek V4.1 Flash qua DeepSeek Harness trên gói OpenCode Go; tuỳ chọn --browser cho dsh qua Playwright MCP cô lập) trong git worktree sạch (file bị ignore như .env không có trong workspace), tự áp changes.patch về repo; không giao hand ngoài việc phải đọc/gửi secret hay dữ liệu khách hàng; không API key, theo dõi token, hạn mức và mức USD~ Go ước tính qua sổ toàn máy cùng lệnh hand-ext usage; lệnh hh-ps xem cây phiên mọi provider/backend → subagent → lượt hand ngoài kèm sổ lượt đang chạy toàn máy; chọn subagent native cùng tài khoản khi đủ capability, gồm hand Claude (agent hybrid-hands:hand); hand khác tài khoản chạy hand-ext theo order; phiên phụ (lệnh side-session) cho gói việc dài. Bật/tắt theo dự án, thay thế parallel-subagents.",
+   "author": {
+     "name": "hybrid-hands"
+diff --git a/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md b/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+index 7d00f48..4d29bdd 100644
+--- a/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
++++ b/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+@@ -1,5 +1,10 @@
+ # Changelog
+ 
++## 0.37.2 — 2026-11-10
++
++- Đổi tên lệnh chính thành `hand-ext parallel-subagents [on|off]`, giữ `parallel` làm alias cũ cùng flags và hành vi.
++- Thêm slash command `/hybrid-hands:parallel-subagents [on|off]` cho Claude Code; không đối số chỉ xem, chỉ đổi mode khi người dùng chốt và mở phiên mới để hook nạp luật.
++
+ ## 0.37.1 — 2026-11-10
+ 
+ - Thêm `hand-ext parallel [on|off]`, `--cwd`, `--json`: trạng thái kèm nguồn/file, ghi bool atomic đúng config repo/fallback worktree, giữ key và thứ tự, từ chối file lỗi.
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hand_ext/cli.py b/hybrid-hands/plugins/hybrid-hands/lib/hand_ext/cli.py
+index c4837a7..684d51f 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hand_ext/cli.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hand_ext/cli.py
+@@ -46,7 +46,8 @@ def _parser() -> argparse.ArgumentParser:
+     inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
+     inspect.add_argument("--json", action="store_true")
+     inspect.add_argument("--cwd")
+-    parallel = sub.add_parser("parallel", help="xem hoặc bật/tắt policy parallel của repo")
++    parallel = sub.add_parser("parallel-subagents", aliases=["parallel"],
++                              help="xem hoặc bật/tắt policy parallel của repo (parallel: alias cũ)")
+     parallel.add_argument("action", nargs="?", choices=("on", "off"))
+     parallel.add_argument("--cwd")
+     parallel.add_argument("--json", action="store_true")
+@@ -349,7 +350,7 @@ COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick,
+ def main(argv: Optional[List[str]] = None) -> int:
+     args = _parser().parse_args(argv)
+     try:
+-        if args.cmd == "parallel":
++        if args.cmd in ("parallel-subagents", "parallel"):
+             from .parallel_cmd import command
+             return command(args)
+         if args.cmd == "config":
+diff --git a/hybrid-hands/tests/test_hand_parallel_cmd.py b/hybrid-hands/tests/test_hand_parallel_cmd.py
+index 76d1215..fe7d331 100644
+--- a/hybrid-hands/tests/test_hand_parallel_cmd.py
++++ b/hybrid-hands/tests/test_hand_parallel_cmd.py
+@@ -14,7 +14,7 @@ class ParallelCommandTest(unittest.TestCase):
+     def run_cli(self, *args):
+         out, err = io.StringIO(), io.StringIO()
+         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+-            code = main(['parallel', '--cwd', str(self.root), *args])
++            code = main(['parallel-subagents', '--cwd', str(self.root), *args])
+         return code, out.getvalue(), err.getvalue()
+     def test_on_preserves_order_and_fallback_status(self):
+         self.config.parent.mkdir(); self.config.write_text('{"before":{},"parallel_subagents":{"sibling":"Việt","enabled":false},"after":{}}')
+@@ -30,6 +30,8 @@ class ParallelCommandTest(unittest.TestCase):
+         self.assertIn('bỏ qua global', err)
+     def test_off_creates_and_is_idempotent(self):
+         self.assertIn('nguồn: default', self.run_cli()[1])
++        with contextlib.redirect_stdout(io.StringIO()):
++            self.assertEqual(main(['parallel', '--cwd', str(self.root), '--json']), 0)
+         self.assertIn('mở phiên mới để hook nạp luật', self.run_cli('off')[1])
+         before = self.config.read_bytes(); self.assertEqual(self.run_cli('off')[0], 0)
+         self.assertEqual(self.config.read_bytes(), before)
+diff --git a/hybrid-hands/plugins/hybrid-hands/commands/parallel-subagents.md b/hybrid-hands/plugins/hybrid-hands/commands/parallel-subagents.md
+new file mode 100644
+index 0000000..23ae8fd
+--- /dev/null
++++ b/hybrid-hands/plugins/hybrid-hands/commands/parallel-subagents.md
+@@ -0,0 +1,16 @@
++---
++description: Xem hoặc bật/tắt mode parallel-subagents của repo sau khi người dùng chốt
++argument-hint: "[on|off]"
++allowed-tools: Bash
++---
++
++Chạy đúng lệnh sau bằng tool Bash tại cwd repo hiện tại:
++
++```sh
++"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" parallel-subagents $ARGUMENTS
++```
++
++Không đối số chỉ xem trạng thái. Chỉ chạy on/off khi người dùng đã chốt cho repo đó; không tự bật và không tự ghi config bằng logic riêng.
++
++In kết quả lệnh. Nếu đã đổi mode thành công, nhắc mở phiên mới để hook nạp luật.
++Nếu lệnh báo lỗi, báo thông báo lỗi; không tự sửa config hay chạy lại.

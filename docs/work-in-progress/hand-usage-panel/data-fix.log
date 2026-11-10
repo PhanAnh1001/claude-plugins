@@ -1,0 +1,34 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=537627, cached_input=499072, output=4297
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 128.4 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211735-966138-usage-panel-data-fix-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong một phần; còn 1 test multirepo đỏ.
+
+2. **Đã thay đổi gì**:
+   - `lib/hand_ext/run_registry.py:95`: bỏ HAND_SCOPE khỏi nguồn parent.
+   - `lib/hand_ext/run_cmd.py:190`: ánh xạ thread/agent sang UUID side state.
+   - `lib/hh_ps/registry_source.py:148`: lấy end từ `.done`; giữ metadata nonnull; hồi phục từ ledger/report JSON, bỏ suy luận report tồn tại là finished.
+   - `lib/hh_ps/tree.py:93`: hiện Claude side thiếu transcript, giữ end unknown; bổ sung metadata rollout.
+   - `lib/hh_ps/transcript_source.py:256`: ưu tiên timestamp transcript, không dùng mtime làm end subagent.
+   - `lib/hh_ps/repos.py:77`: chuẩn hóa khóa cache đường dẫn.
+   - `tests/test_hand_ext_registry.py:64`: bổ sung kiểm chứng HAND_SCOPE không thành parent.
+
+3. **Kiểm chứng**:
+   - Chạy `python3 -m unittest discover -s hybrid-hands/tests -p <file>` với môi trường bỏ `CODEX_THREAD_ID`, `PASEO_AGENT_ID`, `HYBRID_HANDS_HAND_SCOPE`.
+   - Registry **9/9**, rundir **4/4**, side **6/6**, side_session_ext **15/15**; multirepo **2/3**.
+   - Test multirepo hỏng chạy lại vẫn đỏ: Git bị gọi lặp, `10 != 4`.
+   - Không thêm hàm test; thêm 2 dòng test, code thêm trên 50 dòng. Không chạy full suite.
+
+4. **Ghi chú cho brain**:
+   - Git còn gọi lặp qua các luồng nạp config; chuẩn hóa cache chưa giải quyết hết.
+   - Chỉ hồi phục report dạng `report.json`; không đọc report prose.
+   - Logic duration HandRun đã đúng trong thay đổi có sẵn, giữ nguyên.
+   - Không đọc auth/secret, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

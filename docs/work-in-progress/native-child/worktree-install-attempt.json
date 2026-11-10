@@ -1,0 +1,15 @@
+{
+  "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c",
+  "command": [
+    "claude",
+    "plugin",
+    "install",
+    "hybrid-hands@hybrid-hands-local",
+    "--scope",
+    "project",
+    "--json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"command\":\"install\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"Plugin \\\"hybrid-hands@hybrid-hands-local\\\" is already installed (scope: project) \u2014 it loads in place from /Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands, so edits there take effect at the next session start or /reload-plugins; `claude plugin update hybrid-hands@hybrid-hands-local --scope project` re-records its version, 0.27.0 to 0.29.0\",\"installedVersion\":\"0.27.0\",\"availableVersion\":\"0.29.0\"}\n",
+  "stderr": ""
+}

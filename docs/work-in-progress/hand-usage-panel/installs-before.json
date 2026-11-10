@@ -1,0 +1,65 @@
+[
+  {
+    "plugin": "statusline@statusline-local",
+    "scope": "user",
+    "projectPath": null,
+    "installPath": "/Users/anhtp/.claude/plugins/cache/statusline-local/statusline/0.19.0",
+    "version": "0.19.0"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "project",
+    "projectPath": "/Users/anhtp/app/ai-comic-video",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "project",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "local",
+    "projectPath": "/Users/anhtp/app/ai-luxian",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "user",
+    "projectPath": null,
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "project",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "project",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-10b",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "project",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/WP-11",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  },
+  {
+    "plugin": "hybrid-hands@hybrid-hands-local",
+    "scope": "project",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-10c",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.25.3",
+    "version": "0.25.3"
+  }
+]

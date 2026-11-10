@@ -1,0 +1,12 @@
+{
+  "command": [
+    "paseo",
+    "plugin",
+    "reload",
+    "hh-tree",
+    "--json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"id\": \"hh-tree\",\n  \"path\": \"/Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree\",\n  \"enabled\": true,\n  \"status\": \"running\",\n  \"name\": \"C\u00e2y phi\u00ean hybrid-hands\",\n  \"description\": \"Hi\u1ec7n c\u00e2y phi\u00ean Claude, subagent v\u00e0 l\u01b0\u1ee3t hand ngo\u00e0i ngay trong Paseo.\",\n  \"media\": [],\n  \"installation\": {\n    \"identity\": {\n      \"kind\": \"directory\",\n      \"path\": \"/Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree\"\n    }\n  }\n}\n",
+  "stderr": ""
+}

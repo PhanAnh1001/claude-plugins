@@ -1,0 +1,15 @@
+{
+  "hybrid-hands": {
+    "lib/hh_ps/tree.py": true,
+    "lib/hh_ps/usage_enrichment.py": true,
+    "lib/hand_ext/backends/dsh.py": true,
+    "config/model-prices.json": true,
+    "lib/hand_ext/run_cmd.py": true
+  },
+  "statusline": {
+    "scripts/hand_lines.py": true,
+    "scripts/shared_prices.py": true,
+    "scripts/usage_ledger.py": true,
+    "scripts/week_split.py": true
+  }
+}

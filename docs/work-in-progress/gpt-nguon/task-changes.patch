@@ -1,0 +1,954 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index d7d5135..ae42936 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -31,7 +31,7 @@ Nguồn giá DUY NHẤT: `hybrid-hands/plugins/hybrid-hands/config/model-prices.
+ 
+ Mọi USD~ là ước tính offline subscription, không phải hoá đơn. Quota tài khoản 5h/tuần lấy cache/sample sẵn có, thiếu `?`; không suy token/USD thành quota GPT. Phần riêng hand tuần chỉ hiện khi có nguồn và nhãn riêng.
+ 
+-## Contract dữ liệu và hiển thị 0.29.0
++## Contract dữ liệu và hiển thị 0.30.0
+ 
+ Bổ sung cuối dataclass với default để giữ tương thích:
+ 
+@@ -56,6 +56,14 @@ Giữ tối đa 4 phiên phụ, pool chung 4 agent, lựa chọn phiên gần nh
+ 
+ Mỗi cây chính flatten tối đa 4 phiên phụ (running trước, rồi ended/started mới nhất); phần dư gộp số done/error/running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây mở tối đa 4 subagent/hand có cha; các agent khác gộp số, kể cả phiên bị ẩn. Tie giữ thứ tự duyệt cây/agent đầu vào; không ưu tiên is_main. Duration đang chạy tăng theo thời gian, xong cố định theo ended. KHÔNG hiện giờ bắt đầu trong text hh-ps, panel, statusline; meta/JSON vẫn giữ started. `hh-ps --once` chạy một lần; mặc định đủ việc chạy/vừa xong theo since, không fold 3/hide-ended. Cả hai giao diện cây (`hh-tree-pane`, panel agent/sidebar `paseo-hh-tree`) tuyệt đối không hiện nhóm orphan hand-ext; hh-ps text/JSON vẫn giữ orphan.
+ 
++### Nguồn usage 0.30.0
++
++GPT machine `USD~` cộng các token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại từ hai đường dẫn cố định `~/.codex-hand/sessions` và `~/.codex-hand/archived_sessions`, khử trùng thread/event, không cộng trùng ledger. Thread chỉ có metadata, chưa có token event không làm tổng observed thành unknown. Không có token event trong cửa sổ thì hiện `?`; token event thiếu baseline/timestamp/model-price hợp lệ, file không đọc được hoặc thiếu cửa sổ hiện tại cũng giữ `?`. Model lạ không fallback; giá duy nhất từ file canonical. Tổng chỉ phản ánh token events cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; đây là ước tính offline subscription, không phải hoá đơn. Riêng gắn native child vào cây vẫn chỉ đọc `sessions`.
++
++GPT phần riêng của session pinned rollout/native child dùng `rate_limits` weekly `used_percent` cuối trừ đầu: cần ít nhất hai sample có timestamp hợp lệ, không giảm, cùng reset và reset đó còn hiện tại. Thiếu điều kiện hoặc qua reset thì `?`. Bổ sung cuối `Usage` với default `week_pct_source: str = ""`; khi đo được, source là `codex_rate_limits_delta`, `week_pct_estimated` là false và nhãn `GPT riêng (đo) N% tuần`. Đây là biến động quota tài khoản trong khoảng phiên, có thể gồm phiên chạy đồng thời, không phải phần sử dụng quy riêng độc quyền cho phiên. Không suy quota từ token/USD.
++
++GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Giữ contract colors/layout/counts/pool và unknown legacy hiện có.
++
+ ## Kiểm chứng
+ 
+ Chỉ chạy test hẹp phần đang sửa; full suite chỉ khi brief giao, một lần cuối. Tài liệu/manifest: kiểm JSON hợp lệ và link nội bộ, không thêm test cho text tài liệu, không claim cài đặt/test chưa chạy. Giữ mức test tối thiểu theo brief; chỉ hai nhóm cần mức kỹ là tính năng giữ chân/chi tiêu và bảo mật chống tấn công từ ngoài. Báo rõ lệnh/kết quả thật và phần còn chưa kiểm chứng.
+diff --git a/hybrid-hands/README.md b/hybrid-hands/README.md
+index 931fe20..d15814c 100644
+--- a/hybrid-hands/README.md
++++ b/hybrid-hands/README.md
+@@ -226,6 +226,14 @@ Phần trăm **tài khoản** 5h/tuần lấy từ cache/sample sẵn có của
+ 
+ Sổ usage của statusline dùng version 4 và fingerprint để nhận biết dữ liệu cần tính lại. USD~ Claude vẫn là ước tính offline, không phải chi phí chính xác hay hoá đơn.
+ 
++### Nguồn usage 0.30.0
++
++GPT machine `USD~` cộng các token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại từ hai đường dẫn cố định `~/.codex-hand/sessions` và `~/.codex-hand/archived_sessions`, khử trùng thread/event, không cộng trùng ledger. Thread chỉ có metadata, chưa có token event không làm tổng observed thành unknown. Không có token event trong cửa sổ thì hiện `?`; token event thiếu baseline/timestamp/model-price hợp lệ, file không đọc được hoặc thiếu cửa sổ hiện tại cũng giữ `?`. Model lạ không fallback; giá duy nhất từ file canonical. Tổng chỉ phản ánh token events cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; đây là ước tính offline subscription, không phải hoá đơn. Riêng gắn native child vào cây vẫn chỉ đọc `sessions`.
++
++GPT phần riêng của session pinned rollout/native child dùng `rate_limits` weekly `used_percent` cuối trừ đầu: cần ít nhất hai sample có timestamp hợp lệ, không giảm, cùng reset và reset đó còn hiện tại. Thiếu điều kiện hoặc qua reset thì `?`. Bổ sung cuối `Usage` với default `week_pct_source: str = ""`; khi đo được, source là `codex_rate_limits_delta`, `week_pct_estimated` là false và nhãn `GPT riêng (đo) N% tuần`. Đây là biến động quota tài khoản trong khoảng phiên, có thể gồm phiên chạy đồng thời, không phải phần sử dụng quy riêng độc quyền cho phiên. Không suy quota từ token/USD.
++
++GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Giữ contract colors/layout/counts/pool và unknown legacy hiện có.
++
+ ### Dữ liệu và contract
+ 
+ `hh-ps` đọc metadata phiên, usage transcript và registry trên máy; không in nội dung hội thoại/prompt hay credential, không gọi mạng để tính USD. Snapshot JSON giữ `sessions[]` (có `subagents[]`, `hand_runs[]`), `orphan_runs[]`, `limits[]`, `totals`, `generated_at`, `since_seconds`, thông tin lọc project và phiên chính. `usage` giữ token/USD, phần tuần riêng và `account_plan`, `account_5h_pct`, `account_week_pct`; trường thiếu dùng null hoặc chuỗi rỗng theo model dữ liệu.
+diff --git a/hybrid-hands/paseo-hh-tree/client/compact.test.ts b/hybrid-hands/paseo-hh-tree/client/compact.test.ts
+index 484d18a..29d801e 100644
+--- a/hybrid-hands/paseo-hh-tree/client/compact.test.ts
++++ b/hybrid-hands/paseo-hh-tree/client/compact.test.ts
+@@ -134,6 +134,8 @@ test("panel row list starts with machine summaries; own share and local finish e
+   assert.equal(rows[0].kind === "summary" && rows[0].text, "Claude máy này tuần ~$? · Claude 5h ? · tuần 33.0%");
+   assert.equal(rows[1].kind === "summary" && rows[1].text, "GPT máy này tuần ~$7.00 · GPT 5h 11.0% · tuần 22.0%");
+   assert.match(rowText(done, "root", now), /14:30.*GPT riêng 2.5% tuần/);
++  assert.match(rowText({ ...done, usage: { ...done.usage, week_pct_source: "codex_rate_limits_delta" } }, "root", now), /GPT riêng \(đo\) 2.5% tuần/);
++  assert.match(rowText({ ...done, usage: { account_plan: "GPT", week_pct_source: "codex_rate_limits_delta" } }, "root", now), /GPT riêng \? tuần/);
+   assert.doesNotMatch(rowText(done, "root", now), /11.0%|22.0%|5h/);
+   assert.match(rowText({ ...done, ended_at: new Date(2026, 10, 6, 14, 30).toISOString() }, "root", now), /06\/11 14:30/);
+   assert.doesNotMatch(rowText({ ...done, status: "running", live: true }, "root", now), /14:30/);
+diff --git a/hybrid-hands/paseo-hh-tree/client/compact.ts b/hybrid-hands/paseo-hh-tree/client/compact.ts
+index 5c6706a..df65d5b 100644
+--- a/hybrid-hands/paseo-hh-tree/client/compact.ts
++++ b/hybrid-hands/paseo-hh-tree/client/compact.ts
+@@ -4,7 +4,7 @@ import type {
+ import type { PluginTheme } from "@getpaseo/plugin";
+ import type { NestedSession } from "./nest";
+ // @ts-ignore -- Also run directly with Node strip-types.
+-import { durationText, limitPercentText, truncate, usdText } from "./format.ts";
++import { ownShareLabel, durationText, limitPercentText, truncate, usdText } from "./format.ts";
+ 
+ export const MAX_SIDE_SESSIONS = 4;
+ export const MAX_SUBAGENTS = 4;
+@@ -222,7 +222,7 @@ export function rowText(
+   return `${statusIcon(item)} ${truncate(name || "?", 32)} · ` +
+     `${item.model || "?"}·${item.effort || "?"} · ` +
+     `${elapsedText(item, now)}${ended ? ` · ${ended}` : ""} · ${cost} · ` +
+-    `${providerLabel(item)} riêng ${limitPercentText(item.usage?.week_pct, item.usage?.week_pct_estimated === true)} tuần`;
++    `${providerLabel(item)} ${ownShareLabel(item.usage)} ${limitPercentText(item.usage?.week_pct, item.usage?.week_pct_estimated === true)} tuần`;
+ }
+ 
+ /** Render order shared by the panel and sidebar: machine summaries precede trees. */
+diff --git a/hybrid-hands/paseo-hh-tree/client/format.ts b/hybrid-hands/paseo-hh-tree/client/format.ts
+index 5e77984..e94d9ae 100644
+--- a/hybrid-hands/paseo-hh-tree/client/format.ts
++++ b/hybrid-hands/paseo-hh-tree/client/format.ts
+@@ -62,11 +62,16 @@ export function gptShareText(usage: TreeUsage): string {
+ }
+ 
+ /** `$0.78 · 1.6% tuần`, only the parts the row has; "" when it has neither. */
++export function ownShareLabel(usage: TreeUsage): string {
++  return usage?.week_pct != null && Number.isFinite(usage.week_pct) &&
++    usage.week_pct_source === "codex_rate_limits_delta" ? "riêng (đo)" : "riêng";
++}
++
+ export function costText(usage: TreeUsage): string {
+   const five = usage?.account_5h_pct ?? usage?.gpt_5h_pct;
+   const week = usage?.account_week_pct ?? usage?.gpt_week_pct;
+   const own = percentText(usage?.week_pct, usage?.week_pct_estimated === true);
+-  return `${usage?.usd == null ? '~$?' : usdText(usage.usd, true)} · ${usage?.account_plan || 'TK'} 5h ${limitPercentText(five)} · tuần ${limitPercentText(week)}${own ? ` · riêng ${own} tuần` : ''}`;
++  return `${usage?.usd == null ? '~$?' : usdText(usage.usd, true)} · ${usage?.account_plan || 'TK'} 5h ${limitPercentText(five)} · tuần ${limitPercentText(week)}${own ? ` · ${ownShareLabel(usage)} ${own} tuần` : ''}`;
+ 
+ }
+ 
+diff --git a/hybrid-hands/paseo-hh-tree/shared/tree.ts b/hybrid-hands/paseo-hh-tree/shared/tree.ts
+index d0d4f7b..ed5c19b 100644
+--- a/hybrid-hands/paseo-hh-tree/shared/tree.ts
++++ b/hybrid-hands/paseo-hh-tree/shared/tree.ts
+@@ -16,6 +16,7 @@ const usageSchema = z
+     usd_estimated: z.boolean().optional(),
+     week_pct: z.number().nullable().optional(),
+     week_pct_estimated: z.boolean().optional(),
++    week_pct_source: z.string().optional(),
+     gpt_5h_pct: z.number().nullable().optional(),
+     gpt_week_pct: z.number().nullable().optional(),
+   })
+diff --git a/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json b/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+index a26f574..bfb279f 100644
+--- a/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
++++ b/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "hybrid-hands",
+-  "version": "0.29.0",
++  "version": "0.30.0",
+   "description": "Điều phối brain/hand lai cho Claude Code: brain chạy trên gói Claude chính; hand ngoài (lệnh hand-ext) mặc định cho việc code/tài liệu tự chứa, chạy trên gói subscription thứ hai (mặc định DeepSeek V4.1 Flash qua DeepSeek Harness dsh trên gói OpenCode Go; Codex/Claude gọi tường minh; tuỳ chọn --browser cho dsh qua Playwright MCP cô lập) trong git worktree sạch (file bị ignore như .env không có trong workspace), tự áp changes.patch về repo; không giao hand ngoài việc phải đọc/gửi secret hay dữ liệu khách hàng; không API key, theo dõi token, hạn mức và mức USD~ Go ước tính qua sổ toàn máy cùng lệnh hand-ext usage; lệnh hh-ps xem cây phiên mọi provider/backend → subagent → lượt hand ngoài kèm sổ lượt đang chạy toàn máy; hand Claude (agent hybrid-hands:hand) cho việc cần tool riêng của Claude Code hoặc khi gói thứ hai hết hạn mức; phiên phụ (lệnh side-session) cho gói việc dài. Bật/tắt theo dự án, thay thế parallel-subagents.",
+   "author": {
+     "name": "hybrid-hands"
+diff --git a/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md b/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+index 7147811..9e935c8 100644
+--- a/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
++++ b/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+@@ -1,5 +1,12 @@
+ # Changelog
+ 
++## 0.30.0
++
++- GPT machine USD~ dùng token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại ở `~/.codex-hand/sessions` và `archived_sessions`, khử trùng thread/event, không cộng ledger trùng. Metadata-only thread không làm tổng observed thành unknown; không có event trong cửa sổ, event thiếu baseline/timestamp/giá hợp lệ hoặc file không đọc được thì `?`. Tổng chỉ phản ánh nguồn cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; USD~ là ước tính offline subscription, không phải hoá đơn.
++- Phần riêng session pinned rollout/native child đo biến động quota tuần từ ít nhất hai sample `rate_limits` hợp lệ, không giảm trong cùng reset hiện tại. `Usage.week_pct_source` mặc định rỗng; nguồn known `codex_rate_limits_delta`, `week_pct_estimated=false`, nhãn `GPT riêng (đo) N% tuần`. Khoảng đo có thể gồm phiên đồng thời, không quy riêng độc quyền; thiếu nguồn/qua reset hiện `?`, không suy quota từ token/USD.
++- GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`, không đổi nhãn primary tuần `10080`; source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần. Phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h kiểm freshness/reset numeric hoặc ISO của cache/live sẵn có; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage và bump phiên bản riêng.
++- Giữ nguồn giá canonical duy nhất, không fallback model lạ; giữ colors/layout/counts/pool và unknown legacy.
++
+ ## 0.29.0
+ 
+ - hh-ps đọc metadata native Codex child từ rollout cục bộ trong đường dẫn cố định ~/.codex-hand/sessions (không dùng override CODEX_HOME để giữ cô lập tài khoản), không gọi daemon RPC/API; đối chiếu parent thread qua pinned Sol rollout về sid canonical và xuất trong Session.subagents với provider codex, agent_type native-codex.
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/codex.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/codex.py
+index d25ef54..e4474dc 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/codex.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/codex.py
+@@ -10,7 +10,7 @@ is ignored).
+ USD is re-estimated from the central table and the ledger/registry token totals.
+ An explicit backend price overrides the table; unknown models stay unknown.
+ GPT percentages are account samples, kept in their own Usage fields; they are never
+-derived from USD and never written to the Claude/Go `week_pct`.
++derived from USD. Measured same-rollout weekly movement uses `week_pct`.
+ """
+ from __future__ import annotations
+ 
+@@ -18,11 +18,10 @@ import json
+ import math
+ import os
+ import re
+-from dataclasses import dataclass, field
++from dataclasses import dataclass, field, replace
+ from pathlib import Path
+ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+ 
+-from hand_ext.backends.codex import windows_from_rate_limits
+ from hand_ext.codex_usage import price_for
+ from usage_pricing import explicit_options
+ from hand_ext.constants import CODEX_USAGE_LEDGER_NAME, DEFAULTS
+@@ -45,7 +44,7 @@ ROLLOUT_GLOB = "rollout-*.jsonl"
+ # A rollout envelope is exactly `{timestamp?, ordinal?, type: "event_msg", payload: {...}}`;
+ # numeric `ordinal` is metadata, and only a payload whose first key is
+ # `type: "token_count"` is usage, never chat.
+-_HEADER_META = (r'(?:"timestamp"\s*:\s*"[^"]*"\s*,\s*)?'
++_HEADER_META = (r'(?:"timestamp"\s*:\s*(?:"[^"]*"|-?\d+(?:\.\d+)?|null|true|false)\s*,\s*)?'
+                 r'(?:"ordinal"\s*:\s*-?\d+\s*,\s*)?')
+ EVENT_HEADER = re.compile(
+     r'^\s*\{\s*' + _HEADER_META +
+@@ -64,9 +63,11 @@ class GptWindow:
+     resets_at: Optional[float]
+     at: float
+     source: str
++    duration: float = 604800
+ 
+     def usable(self, now: float) -> bool:
+-        return self.resets_at is not None and self.resets_at > now
++        return (self.resets_at is not None and self.resets_at > now
++                and self.resets_at - self.duration <= self.at <= now)
+ 
+ 
+ @dataclass
+@@ -121,8 +122,18 @@ class CodexData:
+         if not tokens and not windows:
+             return None
+         priced = _priced_tokens(tokens)
+-        usd = estimate_cost(priced, self.price) if tokens else None
+-        return _usage(priced, windows, usd, now)
++        # Resolve the actual rollout model; a default model must not price an
++        # unknown or missing one. Import locally to keep metadata parsing shared.
++        from .native_source import _records
++        model = ""
++        for kind, payload, _ in _records(path, token_only=True):
++            if kind in ("session_meta", "turn_context"):
++                model = str(payload.get("model") or model)
++        usd = estimate_cost(priced, price_for(self.price_options, model)) if tokens else None
++        usage = _usage(priced, windows, usd, now)
++        measured = rollout_week(path, now)
++        return replace(usage, week_pct=measured,
++                       week_pct_source="codex_rate_limits_delta" if measured is not None else "")
+ 
+ 
+ def _options(cfg: Any) -> Dict[str, Any]:
+@@ -173,7 +184,7 @@ def _contained(root: Path, path: Path) -> Optional[Path]:
+     return resolved if resolved.is_file() else None
+ 
+ 
+-def _iter_json_lines(path: Path) -> Iterable[dict]:
++def _iter_json_lines(path: Path, strict: bool = False) -> Iterable[dict]:
+     """Decode only standard `event_msg`/`token_count` envelopes, never conversation JSON."""
+     try:
+         with path.open(encoding="utf-8", errors="replace") as handle:
+@@ -183,6 +194,8 @@ def _iter_json_lines(path: Path) -> Iterable[dict]:
+                 try:
+                     record = json.loads(line)
+                 except ValueError:
++                    if strict:
++                        yield {}
+                     continue
+                 if not isinstance(record, dict) or record.get("type") != EVENT_RECORD:
+                     continue
+@@ -203,7 +216,7 @@ def _number(value: Any) -> Optional[float]:
+ 
+ def _pct(value: Any) -> Optional[float]:
+     number = _number(value)
+-    return max(0.0, number) if number is not None else None
++    return number if number is not None and number <= 100 else None
+ 
+ 
+ def _token_count(value: Any) -> int:
+@@ -245,7 +258,7 @@ def _ledger_windows(record: Optional[dict],
+         if pct is None:
+             continue
+         found[label] = GptWindow(pct, to_epoch(window.get("resets_at")),
+-                                 at, SOURCE_LEDGER)
++                                 at, SOURCE_LEDGER, 18000 if label == WINDOW_5H else 604800)
+     return found
+ 
+ 
+@@ -278,22 +291,23 @@ def _ledger(path: Path) -> Tuple[Dict[str, dict], Dict[str, GptWindow]]:
+     return records, samples
+ 
+ 
+-def _rate_limit_windows(limits: Any, at: float) -> Dict[str, GptWindow]:
+-    try:
+-        windows = windows_from_rate_limits(limits if isinstance(limits, dict) else {})
+-    except (ValueError, OverflowError, OSError):
+-        # A malformed resets_at (nan/inf/out of range) drops that sample only.
+-        return {}
++def _rate_limit_windows(limits: Any, at: float, explicit_only: bool = False) -> Dict[str, GptWindow]:
+     found: Dict[str, GptWindow] = {}
+-    for key, label in ROLLOUT_WINDOWS:
+-        window = windows.get(key)
+-        if not isinstance(window, dict):
+-            continue
+-        pct = _pct(window.get("used_percent"))
+-        if pct is None:
++    if not isinstance(limits, dict):
++        return found
++    for name in ("primary", "secondary"):
++        raw = limits.get(name)
++        if not isinstance(raw, dict):
+             continue
+-        found[label] = GptWindow(pct, to_epoch(window.get("resets_at")),
+-                                 at, SOURCE_ROLLOUT)
++        duration = raw.get("window_minutes")
++        if duration is None and not explicit_only:
++            duration = 300 if name == "primary" else 10080
++        label = ({300: WINDOW_5H, 10080: WINDOW_WEEK}.get(duration)
++                 if isinstance(duration, (int, float)) and not isinstance(duration, bool) else None)
++        pct = _pct(raw.get("used_percent"))
++        reset = to_epoch(raw.get("resets_at"))
++        if label and pct is not None and reset is not None:
++            found[label] = GptWindow(pct, reset, at, SOURCE_ROLLOUT, duration * 60)
+     return found
+ 
+ 
+@@ -331,6 +345,26 @@ def _read_rollout(path: Path) -> Tuple[Optional[dict], Dict[str, GptWindow]]:
+     return tokens, windows
+ 
+ 
++def measured_week(records, now: float) -> Optional[float]:
++    """Account movement during one rollout, possibly including concurrent usage."""
++    samples = []
++    for payload, at in records:
++        sample = _rate_limit_windows(payload.get("rate_limits"), at or 0, explicit_only=True).get(WINDOW_WEEK)
++        if (sample is None or at is None or at > now or sample.resets_at <= now
++                or not sample.resets_at - 604800 <= at <= now):
++            return None
++        if samples and (sample.resets_at != samples[-1].resets_at
++                        or at < samples[-1].at or sample.pct < samples[-1].pct):
++            return None
++        samples.append(sample)
++    return samples[-1].pct - samples[0].pct if len(samples) >= 2 else None
++
++
++def rollout_week(path, now):
++    return measured_week(((r.get("payload", {}), to_epoch(r.get("timestamp")))
++                          for r in _iter_json_lines(path, strict=True)), now)
++
++
+ def _scan_rollouts(home: Path) -> Dict[str, GptWindow]:
+     """Newest account sample per window across every contained rollout."""
+     samples: Dict[str, GptWindow] = {}
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py
+index a2b3b79..cc6cada 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py
+@@ -84,7 +84,8 @@ def usage_cells(usage: Optional[Usage]) -> List[Cell]:
+     plan = getattr(usage, "account_plan", "") or "TK"
+     share = f"{plan} 5h {percent_text(five) or '?'} · tuần {percent_text(week) or '?'}"
+     if usage is not None and usage.week_pct is not None:
+-        share += f" · riêng {percent_text(usage.week_pct, usage.week_pct_estimated)} tuần"
++        label = "riêng (đo)" if usage.week_pct_source == "codex_rate_limits_delta" else "riêng"
++        share += f" · {label} {percent_text(usage.week_pct, usage.week_pct_estimated)} tuần"
+     return [Cell(usd, align_right=True), Cell(share, align_right=True)]
+ 
+ 
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/live_rate.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/live_rate.py
+index 0fe20d8..0568b89 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/live_rate.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/live_rate.py
+@@ -7,6 +7,8 @@ from dataclasses import dataclass
+ from pathlib import Path
+ from typing import Any, Optional
+ 
++from .timeutil import to_epoch
++
+ STATE_NAME = ".hh-claude-rate-limit.json"
+ STATE_VERSION = 1
+ PERCENT = 100.0
+@@ -44,11 +46,11 @@ def read_live_window(claude_home: Path, window: str, now: float) -> Optional[Liv
+     if not isinstance(entry, dict):
+         return None
+     utilization = _number(entry.get("utilization"))
+-    resets_at = _number(entry.get("resets_at"))
++    resets_at = to_epoch(entry.get("resets_at"))
+     ts = _number(entry.get("ts"))
+     if utilization is None or resets_at is None or ts is None:
+         return None
+-    if resets_at <= now:
++    if resets_at <= now or not 0 <= utilization <= 1 or not 0 <= now - ts < 1800:
+         return None
+     pct = max(0.0, min(PERCENT, utilization * PERCENT))
+     return LiveSample(pct=pct, resets_at=resets_at, ts=ts)
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/machine_usage.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/machine_usage.py
+index 870e121..529f181 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/machine_usage.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/machine_usage.py
+@@ -81,8 +81,11 @@ def _gpt_usd(codex, cfg, start, now):
+     if not threads:
+         return None
+     total_usd = 0.0
++    observed = False
+     for merged in threads.values():
+         records = list(merged.values())
++        if not any(kind == "event_msg" for kind, _, _ in records):
++            continue
+         born = next((to_epoch(p.get("timestamp")) or at for kind, p, at in records
+                      if kind == "session_meta"), None)
+         undated_models = {str(p.get("model")) for kind, p, stamp in records
+@@ -92,7 +95,6 @@ def _gpt_usd(codex, cfg, start, now):
+             return None
+         model = ""
+         previous = None
+-        seen_tokens = False
+         # Metadata without a timestamp precedes events, preserving file order for ties.
+         for kind, p, stamp in sorted(records, key=lambda row: row[2] if row[2] is not None else float("-inf")):
+             if kind in ("session_meta", "turn_context"):
+@@ -106,7 +108,7 @@ def _gpt_usd(codex, cfg, start, now):
+             if stamp < start:
+                 previous = current
+                 continue
+-            seen_tokens = True
++            observed = True
+             if current is None or (previous is None and (born is None or born < start)):
+                 return None
+             decreases = previous is not None and any(a < b for a, b in zip(current, previous))
+@@ -124,11 +126,7 @@ def _gpt_usd(codex, cfg, start, now):
+             if cost is None:
+                 return None
+             total_usd += cost
+-        recent_metadata = any(kind == "turn_context" and stamp is not None
+-                              and start <= stamp <= now for kind, _, stamp in records)
+-        if not seen_tokens and (born is None or start <= born <= now or recent_metadata):
+-            return None
+-    return round(total_usd, 8)
++    return round(total_usd, 8) if observed else None
+ 
+ 
+ def machine_usage(home, claude_week, codex, cfg, now):
+@@ -144,4 +142,4 @@ def machine_usage(home, claude_week, codex, cfg, now):
+     return [{"plan": "Claude", "window": "tuần", "usd": claude_usd,
+              "source": "claude_machine_week"},
+             {"plan": "GPT", "window": "tuần", "usd": gpt_usd,
+-             "source": "codex_rollout_deltas"}]
++             "source": "codex_rollout_observed_deltas"}]
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py
+index ff86289..1e3fb45 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py
+@@ -31,6 +31,7 @@ class Usage:
+     account_plan: str = ""
+     account_5h_pct: Optional[float] = None
+     account_week_pct: Optional[float] = None
++    week_pct_source: str = ""
+ 
+ 
+ @dataclass(frozen=True)
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/native_source.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/native_source.py
+index 69605b0..393e2b4 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/native_source.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/native_source.py
+@@ -1,12 +1,14 @@
+ """Local Codex child metadata only; never decode response/chat records."""
+ from __future__ import annotations
+ 
++from dataclasses import replace
++
+ import json
+ import math
+ import re
+ from pathlib import Path
+ 
+-from .codex import _HEADER_META, _contained, _sessions_root, _priced_tokens, codex_home
++from .codex import _HEADER_META, _contained, _sessions_root, _priced_tokens, codex_home, rollout_week
+ from .models import Subagent, Usage
+ from .registry_source import _exit_code
+ from .timeutil import to_epoch
+@@ -35,7 +37,7 @@ def _records(path, token_only=False, strict=False):
+                     continue
+                 payload = row.get("payload")
+                 if isinstance(payload, dict):
+-                    keys = {"id", "parent_thread_id", "source", "timestamp", "model", "effort", "reasoning_effort"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info"}
++                    keys = {"id", "parent_thread_id", "source", "timestamp", "model", "effort", "reasoning_effort"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info", "rate_limits"}
+                     yield row["type"], {k: v for k, v in payload.items() if k in keys}, to_epoch(row.get("timestamp"))
+     except OSError:
+         if strict:
+@@ -93,6 +95,10 @@ def _read(path, now):
+     if tokens is not None:
+         usage = Usage(read=max(0, tokens["input"] - tokens["cached_input"]),
+                       cache_read=tokens["cached_input"], out=tokens["output"])
++    measured = rollout_week(path, now)
++    if measured is not None:
++        usage = usage or Usage(usd=None)
++        usage = replace(usage, week_pct=measured, week_pct_source="codex_rate_limits_delta")
+     agent = Subagent(sid, "native-codex", name, status not in ("running", "unknown"),
+                      False, None, duration, activity, usage, start, model, effort,
+                      "codex", status, exit_code, end)
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py
+index ee21183..7091422 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py
+@@ -28,6 +28,8 @@ def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
+         "week_pct_estimated": usage.week_pct_estimated,
+     }
+     # Codex-only keys stay absent on Claude/Go rows, whose JSON shape is unchanged.
++    if usage.week_pct_source:
++        data["week_pct_source"] = usage.week_pct_source
+     if usage.usd_estimated:
+         data["usd_estimated"] = True
+     if usage.gpt_5h_pct is not None:
+diff --git a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py
+index e730efe..7d15e56 100644
+--- a/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py
++++ b/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py
+@@ -10,7 +10,8 @@ from hand_ext.codex_usage import price_for as codex_price
+ from hand_ext.go_usage import estimate_cost, price_for as go_price
+ from usage_pricing import explicit_options, token_price
+ 
+-from .models import Usage
++from .models import Usage, Limit
++from .timeutil import to_epoch
+ from .pricing import hand_usage
+ from .live_rate import read_live_window
+ from .week import (read_json, _number, _path_mtime, SUMMARY_STALE_SECONDS,
+@@ -32,19 +33,28 @@ def _account(usage: Usage, plan: str, snapshot: Any, now: float, five: dict) ->
+                    account_week_pct=week)
+ 
+ 
++def _claude_five(home: Path, now: float):
++    path = home / ".statusline-cache.json"
++    cache = read_json(path) or {}
++    stamp = _path_mtime(path)
++    raw_pct = _number(cache.get("five"))
++    pct = raw_pct if raw_pct is not None and 0 <= raw_pct <= 100 else None
++    reset = to_epoch(cache.get("five_reset"))
++    candidate = ((pct, reset, "claude_5h_cache")
++                 if pct is not None and reset is not None and now < reset <= now + 18000
++                 and 0 <= now - stamp < SUMMARY_STALE_SECONDS else None)
++    live = read_live_window(home, "five_hour", now)
++    if live is not None and live.resets_at <= now + 18000 and (candidate is None or live.ts > stamp):
++        candidate = (live.pct, live.resets_at, "claude_5h_live")
++    return candidate
++
++
+ def _five_hour(plan: str, now: float) -> Optional[float]:
+     home = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR")
+                                  or os.environ.get("CLAUDE_HOME") or "~/.claude"))
+     if plan == "Claude":
+-        path = home / ".statusline-cache.json"
+-        cache = read_json(path) or {}
+-        stamp = _path_mtime(path)
+-        pct, reset = _percent(cache.get("five")), _number(cache.get("five_reset"))
+-        live = read_live_window(home, "five_hour", now)
+-        if live is not None and live.ts > stamp:
+-            pct, reset, stamp = _percent(live.pct), live.resets_at, live.ts
+-        return (pct if reset is not None and reset > now
+-                and 0 <= now - stamp < SUMMARY_STALE_SECONDS else None)
++        sample = _claude_five(home, now)
++        return sample[0] if sample is not None else None
+     if plan == "Go":
+         cache = read_json(home / ".statusline-go-usage.json") or {}
+         windows = cache.get("windows")
+@@ -106,6 +116,17 @@ def _go_run_week_pct(backend: str, usd: Optional[float], limit: Any) -> Optional
+ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
+     """Mutate rows only; no network, ledger writes, or inferred account percentages."""
+     five: dict = {}
++    # These rows are derived from the current cache/live sample, not durable
++    # account facts. Rebuild them on every pass, including invalidation.
++    snapshot.limits[:] = [row for row in snapshot.limits
++                          if row.source not in ("claude_5h_cache", "claude_5h_live")]
++    home = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR")
++                                 or os.environ.get("CLAUDE_HOME") or "~/.claude"))
++    sample = _claude_five(home, now)
++    if sample is not None and not any(r.plan == "Claude" and r.window == "5h" for r in snapshot.limits):
++        pct, reset, source = sample
++        snapshot.limits.append(Limit("Claude", "5h", None, None, pct, reset, source))
++    five["Claude"] = sample[0] if sample is not None else None
+     for session in snapshot.sessions:
+         provider = session.provider
+         plan = ("GPT" if provider == "codex" else "Go" if provider in GO_BACKENDS
+@@ -138,6 +159,8 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
+                        or tokens.get("cache_creation_input_tokens") or tokens.get("cache_creation"))
+                else estimate_cost(tokens, price) if run.tokens or any(
+                    (usage.read, usage.cache_read, usage.out)) else None)
+-        week = _go_run_week_pct(backend, usd, run.week_limit_usd)
++        week = (usage.week_pct if backend == "codex"
++                else _go_run_week_pct(backend, usd, run.week_limit_usd))
+         run.usage = _account(replace(usage, usd=usd, usd_estimated=usd is not None,
+-            week_pct=week, week_pct_estimated=week is not None), plan, snapshot, now, five)
++            week_pct=week, week_pct_estimated=(usage.week_pct_estimated if backend == "codex"
++                                            else week is not None)), plan, snapshot, now, five)
+diff --git a/statusline/plugins/statusline/.claude-plugin/plugin.json b/statusline/plugins/statusline/.claude-plugin/plugin.json
+index f577f91..8c00cc8 100644
+--- a/statusline/plugins/statusline/.claude-plugin/plugin.json
++++ b/statusline/plugins/statusline/.claude-plugin/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "statusline",
+-  "version": "0.20.0",
+-  "description": "Claude Code status line: user@host dir (git branch); model (effort), session tokens, context %; an aligned limit table whose Claude row shows the 5-hour (live payload only, \"5h:-\" without it) and 7-day rate limits with reset times, the 7-day % estimated to 0.1 with \"~\" (integer plus this machine's USD since it last changed, kept inside the integer's range) and the USD-per-1% rate inside the 7d parentheses (pinnable in statusline-usd-per-pct.txt, label \"pin\"); its · máy này (per weekday) and · máy khác rows split the 7-day % (USD of local transcript usage over the calibrated rate) and its Go row shows live OpenCode Go usage (5h/wk/mo, reset times) from the OpenCode Zen usage API, shown to 0.1 with \"~\" from the hand-ext estimate clamped to the API integer, with the hand-ext DS estimate as fallback; its GPT row shows the newest 5-hour/weekly quota sample for the .codex-hand account from the hand-ext Codex ledger (hidden when that sample ended over 24 hours ago) and today's estimated USD, with \"?\" when a today cost is unknown; rows are padded by display width so no line starts with whitespace; one line per open main-session group (main session, its subagents and claude side sessions; only groups with a live process in Claude Code's session registry, named from it) with its Claude and Go %, aligned in columns (name, dimmed alias, padded percentages), the current group first with \"▶\"; then one \"🔧 <skill> (main)\" line for the skill most recently loaded by the main agent and one per recent subagent. The statusline:setup skill installs a stable shim in the Claude config dir that always runs the installed plugin version.",
++  "version": "0.21.0",
++  "description": "Claude Code status line: user@host dir (git branch); model (effort), session tokens, context %; an aligned limit table whose Claude row shows the 5-hour (live payload or fresh shared cache, \"5h:-\" without it) and 7-day rate limits with reset times, the 7-day % estimated to 0.1 with \"~\" (integer plus this machine's USD since it last changed, kept inside the integer's range) and the USD-per-1% rate inside the 7d parentheses (pinnable in statusline-usd-per-pct.txt, label \"pin\"); its · máy này (per weekday) and · máy khác rows split the 7-day % (USD of local transcript usage over the calibrated rate) and its Go row shows live OpenCode Go usage (5h/wk/mo, reset times) from the OpenCode Zen usage API, shown to 0.1 with \"~\" from the hand-ext estimate clamped to the API integer, with the hand-ext DS estimate as fallback; its GPT row shows the newest 5-hour/weekly quota sample for the .codex-hand account from the shared local ledger/rollout reader (hidden when that sample ended over 24 hours ago) and today's estimated USD, with \"?\" when a today cost is unknown; rows are padded by display width so no line starts with whitespace; one line per open main-session group (main session, its subagents and claude side sessions; only groups with a live process in Claude Code's session registry, named from it) with its Claude and Go %, aligned in columns (name, dimmed alias, padded percentages), the current group first with \"▶\"; then one \"🔧 <skill> (main)\" line for the skill most recently loaded by the main agent and one per recent subagent. The statusline:setup skill installs a stable shim in the Claude config dir that always runs the installed plugin version.",
+   "author": {
+     "name": "statusline"
+   }
+diff --git a/statusline/plugins/statusline/CHANGELOG.md b/statusline/plugins/statusline/CHANGELOG.md
+index 3de5346..b772224 100644
+--- a/statusline/plugins/statusline/CHANGELOG.md
++++ b/statusline/plugins/statusline/CHANGELOG.md
+@@ -1,5 +1,11 @@
+ # Changelog
+ 
++## 0.21.0 — 2026-11-08
++
++- GPT quota dùng nguồn account chung từ ledger và rollout local cố định `.codex-hand`, chọn sample mới nhất riêng từng cửa sổ; USD hôm nay vẫn chỉ thuộc ledger.
++- Claude 5h thiếu payload dùng cache chung còn mới và reset hợp lệ; thiếu nguồn giữ dấu thiếu.
++- Dòng hand hiện nhãn `GPT riêng (đo)` khi có weekly delta rate-limit đo được; không suy quota từ token/USD.
++
+ ## 0.20.0 — 2026-11-07
+ 
+ - Thêm khối phiên hiện tại và descendants từ JSON hh-ps: session, subagent, hand-ext,
+diff --git a/statusline/plugins/statusline/scripts/gpt_usage.py b/statusline/plugins/statusline/scripts/gpt_usage.py
+index 7ffffd6..091ad1d 100644
+--- a/statusline/plugins/statusline/scripts/gpt_usage.py
++++ b/statusline/plugins/statusline/scripts/gpt_usage.py
+@@ -1,11 +1,8 @@
+ """GPT (Codex) cells for the statusline limit table.
+ 
+-Reads the hand-ext Codex ledger (`codex_usage.jsonl`, schema 1) and prints three US-separated
+-fields: the newest valid 5h/7d percentages and today's estimated USD. Only validated numbers
+-leave this script, so ledger data never becomes ANSI or shell code. Missing, stale or broken data
+-is silent: no output means no GPT row.
+-
+-The ledger is written by hand-ext, never by this script: read-only, no cache, no network.
++Reads local shared Codex account samples (ledger and fixed .codex-hand rollouts).
++Today's estimated USD remains ledger-only. Read-only, no network or credentials.
++Missing shared sources fail open; collect() remains a deterministic ledger-only helper.
+ """
+ from __future__ import annotations
+ 
+@@ -140,7 +137,28 @@ def collect(path: Path, now: dt.datetime) -> Optional[Tuple[Optional[float], Opt
+ 
+ 
+ def main() -> int:
+-    data = collect(ledger_path(), dt.datetime.now(dt.timezone.utc))
++    now = dt.datetime.now(dt.timezone.utc)
++    data = collect(ledger_path(), now)
++    from shared_usage import account_windows
++    windows = account_windows(now.timestamp())
++    # Keep the ledger's schema/freshness checks; compare each rollout window independently.
++    latest = {}
++    for record in read_records(ledger_path()):
++        ended = parse_moment(record.get("ended")) if is_account_record(record) else None
++        if ended is None or not 0 <= (now - ended).total_seconds() < FRESH_SECONDS:
++            continue
++        raw = record.get("windows")
++        if not isinstance(raw, dict):
++            continue
++        for key, label in (("5h", "5h"), ("7d", "tuần")):
++            if key in raw and (label not in latest or ended.timestamp() > latest[label][1]):
++                latest[label] = (window_percent(raw[key], now), ended.timestamp())
++    for label, sample in windows.items():
++        if label not in latest or sample[1] >= latest[label][1]:
++            latest[label] = sample
++    if latest or data is not None:
++        data = (latest.get("5h", (None,))[0], latest.get("tuần", (None,))[0],
++                data[2] if data else UNKNOWN_USD)
+     if data is None:
+         return 0
+     five, seven, usd = data
+diff --git a/statusline/plugins/statusline/scripts/hand_lines.py b/statusline/plugins/statusline/scripts/hand_lines.py
+index 0ac37c8..47b577e 100644
+--- a/statusline/plugins/statusline/scripts/hand_lines.py
++++ b/statusline/plugins/statusline/scripts/hand_lines.py
+@@ -75,10 +75,14 @@ def row(item: dict, kind: str, label: object, prefix: str) -> str:
+         five = usage.get("gpt_5h_pct")
+     if week is None:
+         week = usage.get("gpt_week_pct")
++    own_label = "riêng (đo)" if (number(usage.get("week_pct")) is not None and
++                                    usage.get("week_pct_source") == "codex_rate_limits_delta") else "riêng"
++    plan = clean(usage.get("account_plan")) or ("GPT" if item.get("provider") == "codex" or item.get("backend") == "codex" else UNKNOWN)
+     fields = [f"{prefix}{clean(kind)} {clean(label)}", f"model:{clean(item.get('model')) or UNKNOWN}",
+               f"effort:{clean(item.get('effort')) or UNKNOWN}", cost,
+               f"account:{clean(usage.get('account_plan')) or UNKNOWN}",
+-              f"5h:{percent(five)}", f"tuần:{percent(week)}", f"ended:{ended}", f"elapsed:{elapsed}"]
++              f"5h:{percent(five)}", f"tuần:{percent(week)}",
++              f"{plan} {own_label} {percent(usage.get('week_pct'))} tuần", f"ended:{ended}", f"elapsed:{elapsed}"]
+     return " | ".join(fields)
+ 
+ 
+diff --git a/statusline/plugins/statusline/scripts/statusline.sh b/statusline/plugins/statusline/scripts/statusline.sh
+index 36f51b9..fac2c6e 100755
+--- a/statusline/plugins/statusline/scripts/statusline.sh
++++ b/statusline/plugins/statusline/scripts/statusline.sh
+@@ -3,7 +3,7 @@
+ #   1. user@host  current-dir (basename, ~ for $HOME)  (git-branch in green)
+ #      - mirrors the zsh PROMPT "%n@%m %1~%F{green}$(parse_git_branch)%f %# "
+ #   2. model name (+ reasoning effort) | cumulative session tokens | context-window used %
+-#   3. an aligned limit table: row "Claude" (5h / 7d + reset times; 5h only from the live payload,
++#   3. an aligned limit table: row "Claude" (5h / 7d + reset times; 5h from the live payload or a valid shared cache,
+ #      "5h:-" without it; 7d estimated to 0.1, "~4.3%", from week_split.py's summary when valid;
+ #      this machine's USD per 1% inside the 7d parentheses)
+ #   3b. rows "· máy này" and "· máy khác": 7-day usage split by machine (per weekday for this
+@@ -11,7 +11,7 @@
+ #   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
+ #      the estimated DS cells from hand-ext
+ #   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from the hand-ext
+-#      Codex ledger, when that sample ended within 24h
++#      Codex ledger / local rollout; USD remains ledger-only
+ #   3e. one line per main-session group (session-lines.sh): Claude and Go % of the group
+ #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
+ #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
+@@ -45,7 +45,7 @@ WEEK_SPLIT_SUMMARY="$CLAUDE_HOME/.statusline-week-split.json"
+ WEEK_SPLIT_SUMMARY_VERSION=2
+ ESTIMATE_FRESH_SECONDS=1800
+ ESTIMATE_SAME_WINDOW_SECONDS=3600
+-# Shown when the live payload has no 5-hour data (cached 5h values are never shown).
++# Shown when neither live payload nor a fresh shared 5-hour cache is usable.
+ FIVE_ABSENT="-"
+ # shellcheck source=go-segments.sh
+ . "$SCRIPTS_DIR/go-segments.sh"
+@@ -287,7 +287,13 @@ build_claude_row() {
+   if [ -n "$five" ]; then
+     five_cell=$(rate_limit_segment 5h "$five" "$five_reset" "" "")
+   else
+-    five_cell="${DIM}5h:${FIVE_ABSENT}${RESET}"
++    local shared_five
++    shared_five=$(python3 "$SCRIPTS_DIR/shared_usage.py" claude 2>/dev/null)
++    if [ -n "$shared_five" ]; then
++      five_cell=$(rate_limit_segment 5h "" "" "$shared_five" "")
++    else
++      five_cell="${DIM}5h:${FIVE_ABSENT}${RESET}"
++    fi
+   fi
+   est=$(week_estimate "${week:-$cached_week}" "${week_reset:-$cached_week_reset}")
+   week_cell=$(rate_limit_segment 7d "$week" "$week_reset" "$cached_week" "$cached_week_reset" \
+diff --git a/statusline/tests/test_limit_table.py b/statusline/tests/test_limit_table.py
+index cd48414..848aa7a 100644
+--- a/statusline/tests/test_limit_table.py
++++ b/statusline/tests/test_limit_table.py
+@@ -162,6 +162,17 @@ class LimitTableTest(unittest.TestCase):
+         rows = self.table_rows(self.render())
+         self.assertFalse(any(row.startswith("GPT") for row in rows), rows)
+ 
++        # A weekly-only local rollout needs no ledger and must never become a 5h sample.
++        sessions = self.home / ".codex-hand" / "sessions"
++        sessions.mkdir(parents=True)
++        rollout = sessions / "rollout-fixture.jsonl"
++        rollout.write_text(json.dumps({"timestamp": iso(now - dt.timedelta(seconds=1)),
++            "type": "event_msg", "payload": {"type": "token_count", "rate_limits": {
++                "secondary": {"used_percent": 23, "window_minutes": 10080,
++                              "resets_at": int(now.timestamp()) + 86400}}}}) + "\n", encoding="utf-8")
++        rows = self.table_rows(self.render())
++        self.assertRegex(rows[-1], r"^GPT\s+5h:--\s+\| 7d:23%\s+\| hôm nay ~\$\?$")
++
+     def test_missing_go_keeps_the_other_rows_aligned(self) -> None:
+         self.write_summary()
+         rows = self.table_rows(self.render())
+diff --git a/statusline/tests/test_statusline.py b/statusline/tests/test_statusline.py
+index fadef9e..12950a8 100644
+--- a/statusline/tests/test_statusline.py
++++ b/statusline/tests/test_statusline.py
+@@ -131,8 +131,16 @@ class StatuslineTest(unittest.TestCase):
+         cache = json.loads((self.claude_home / CACHE_NAME).read_text(encoding="utf-8"))
+         self.assertEqual(cache["five"], str(FIVE_PCT))
+         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
+-        # 5h comes only from the live payload: a cached five is never shown.
++        # The original fixture's expired reset stays absent.
+         self.assertRegex(plain, r"^Claude\s+5h:- \| 7d:~85% \(reset .+\)$")
++        import time
++        cache["five_reset"] = str(int(time.time()) + 3600)
++        (self.claude_home / CACHE_NAME).write_text(json.dumps(cache), encoding="utf-8")
++        plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
++        self.assertRegex(plain, r"^Claude\s+5h:~12% \|")
++        cache["five_reset"] = str(int(time.time()) - 1)
++        (self.claude_home / CACHE_NAME).write_text(json.dumps(cache), encoding="utf-8")
++        self.assertIn("5h:-", ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2]))
+ 
+     def test_placeholders_without_rate_limits_or_cache(self) -> None:
+         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
+diff --git a/hybrid-hands/tests/test_hh_ps_gpt_nguon.py b/hybrid-hands/tests/test_hh_ps_gpt_nguon.py
+new file mode 100644
+index 0000000..1d2e422
+--- /dev/null
++++ b/hybrid-hands/tests/test_hh_ps_gpt_nguon.py
+@@ -0,0 +1,129 @@
++"""Synthetic GPT sources: measured quota, observed costs, validated account samples."""
++import datetime as dt
++import json
++import os
++from pathlib import Path
++import sys
++import tempfile
++from types import SimpleNamespace
++import unittest
++from unittest.mock import patch
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'))
++from hh_ps.codex import CodexData, _rate_limit_windows, _usage
++from hh_ps.native_source import _read
++from hh_ps.machine_usage import _gpt_usd
++from hh_ps.render import _usage_json
++from hh_ps.compact import usage_cells
++from hh_ps.usage_enrichment import _five_hour, enrich_snapshot
++from hh_ps.models import Usage
++from hand_ext.codex_usage import price_for
++from hand_ext.go_usage import estimate_cost
++
++NOW = 1800000000
++
++def iso(at):
++    return dt.datetime.fromtimestamp(at, dt.timezone.utc).isoformat()
++
++def event(at, pct=10, reset=NOW+1000, count=100, duration=10080):
++    return {'timestamp': iso(at) if at is not None else None, 'type': 'event_msg',
++            'payload': {'type': 'token_count', 'info': {'total_token_usage': {
++                'input_tokens': count, 'cached_input_tokens': 0, 'output_tokens': count}},
++                'rate_limits': {'primary': {'used_percent': pct,
++                    'window_minutes': duration, 'resets_at': reset}}}}
++
++def write(path, rows):
++    path.write_text('\n'.join(json.dumps(r) for r in rows)+'\n')
++
++class GptSourcesTest(unittest.TestCase):
++    def test_a_measured_session_native_and_unknown_boundaries(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            home = Path(tmp); root = home/'sessions'; root.mkdir()
++            path = root/'rollout-child.jsonl'
++            meta = {'type':'session_meta', 'payload':{'id':'child','parent_thread_id':'parent','model':'gpt-6.1-sol'}}
++            source = CodexData(home, {}, {}, price_for({}))
++            for first, last, expected in [(event(NOW-20),event(NOW-10,15),5),
++                    (event(NOW-20),event(NOW-10),0),
++                    (event(NOW-20),event(NOW-10,15,NOW+2000),None),
++                    (event(NOW-20),event(NOW+1,15),None),
++                    (event(NOW-20),event(None,15),None),
++                    (event(NOW-20),event(NOW-10,101),None),
++                    (event(NOW-20),event(NOW-10,9),None)]:
++                with self.subTest(expected=expected,last=last):
++                    write(path,[meta,first,last]); source._rollouts.clear()
++                    usage=source.rollout_usage(str(path),NOW)
++                    self.assertEqual(usage.week_pct,expected)
++                    child=_read(path,NOW)[2]
++                    self.assertEqual(child.usage.week_pct,expected)
++                    if expected is not None:
++                        self.assertEqual(_usage_json(usage)['week_pct_source'],'codex_rate_limits_delta')
++                        self.assertFalse(usage.week_pct_estimated)
++                        self.assertIn('riêng (đo)',str(usage_cells(usage)))
++                        snapshot=SimpleNamespace(sessions=[SimpleNamespace(provider='codex',usage=usage,model='gpt-6.1-sol',subagents=[])],limits=[],iter_runs=lambda:[])
++                        with patch('hh_ps.usage_enrichment._claude_five',return_value=None):
++                            enrich_snapshot(snapshot,None,NOW)
++                        self.assertEqual(snapshot.sessions[0].usage.week_pct,expected)
++                    else:
++                        self.assertNotIn('week_pct_source',_usage_json(usage))
++            write(path,[meta,event(NOW-30),event(NOW-20,12,NOW+2000),event(NOW-10,15)])
++            source._rollouts.clear()
++            self.assertIsNone(source.rollout_usage(str(path),NOW).week_pct)
++            legacy = [event(NOW-20), event(NOW-10,15)]
++            for row in legacy:
++                window = row['payload']['rate_limits'].pop('primary')
++                window.pop('window_minutes')
++                row['payload']['rate_limits']['secondary'] = window
++            write(path,[meta]+legacy);source._rollouts.clear()
++            legacy_usage=source.rollout_usage(str(path),NOW)
++            self.assertEqual(legacy_usage.gpt_week_pct,15)
++            self.assertIsNone(legacy_usage.week_pct)
++            self.assertIsNone(_read(path,NOW)[2].usage.week_pct)
++
++    def test_b_observed_machine_deltas_dedup_empty_and_unknown(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            home=Path(tmp); root=home/'sessions'; root.mkdir(); archive=home/'archived_sessions';archive.mkdir()
++            meta={'type':'session_meta','payload':{'id':'thread','model':'gpt-6.1-sol','timestamp':iso(NOW-1000)}}
++            rows=[meta,event(NOW-200,count=100),event(NOW-50,count=150)]
++            write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
++            write(root/'rollout-empty.jsonl',[{'type':'session_meta','payload':{'id':'empty','timestamp':iso(NOW-10)}}])
++            source=SimpleNamespace(home=home)
++            expected=estimate_cost({'input':50,'cached_input':0,'output':50},price_for({},'gpt-6.1-sol'))
++            self.assertAlmostEqual(_gpt_usd(source,None,NOW-100,NOW),expected)
++            rows[0]['payload']['model']='unknown-model'
++            write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
++            self.assertIsNone(_gpt_usd(source,None,NOW-100,NOW))
++            self.assertIsNone(_gpt_usd(source,None,NOW-10,NOW))
++            rows=[meta,event(NOW-50,count=150)]
++            write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
++            self.assertIsNone(_gpt_usd(source,None,NOW-100,NOW))
++
++    def test_c_real_five_hour_samples_only(self):
++        for duration,pct,at,reset,expected in [(300,12,NOW-10,NOW+1000,12),
++                (10080,12,NOW-10,NOW+1000,None),(None,12,NOW-10,NOW+1000,12),
++                (300,101,NOW-10,NOW+1000,None),(300,12,NOW+1,NOW+1000,None),
++                (300,12,NOW-10,NOW-1,None),(300,12,0,NOW+1000,None),(300,True,NOW-10,NOW+1000,None),
++                (300,float("nan"),NOW-10,NOW+1000,None),([],12,NOW-10,NOW+1000,None)]:
++            with self.subTest(duration=duration,pct=pct,at=at,reset=reset):
++                limits=event(NOW,duration=duration,pct=pct,reset=reset)['payload']['rate_limits']
++                usage=_usage({},_rate_limit_windows(limits,at),None,NOW)
++                self.assertEqual(usage.gpt_5h_pct,expected)
++        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ,{'CLAUDE_CONFIG_DIR':tmp}):
++            cache=Path(tmp)/'.statusline-cache.json'
++            for reset,expected in [(iso(NOW+1000),23),(str(NOW+1000),23),(NOW-1,None),('bad',None)]:
++                write(cache,[{'five':23,'five_reset':reset}]);os.utime(cache,(NOW-10,NOW-10))
++                self.assertEqual(_five_hour('Claude',NOW),expected)
++            cache.unlink()
++            live=Path(tmp)/'.hh-claude-rate-limit.json'
++            for stamp,pct,reset,expected in [(NOW-10,.31,iso(NOW+1000),31),(NOW+1,.31,NOW+1000,None),
++                    (NOW-2000,.31,NOW+1000,None),(NOW-10,1.1,NOW+1000,None),(NOW-10,.31,NOW-1,None)]:
++                write(live,[{'version':1,'windows':{'five_hour':{'ts':stamp,'utilization':pct,'resets_at':reset}}}])
++                self.assertEqual(_five_hour('Claude',NOW),expected)
++            live.unlink();self.assertIsNone(_five_hour('Claude',NOW))
++            write(cache,[{'five':23,'five_reset':iso(NOW+1000)}]);os.utime(cache,(NOW-10,NOW-10))
++            session=SimpleNamespace(provider='claude',usage=None,subagents=[],model='')
++            snapshot=SimpleNamespace(sessions=[session],limits=[],iter_runs=lambda:[])
++            enrich_snapshot(snapshot,None,NOW)
++            self.assertEqual(session.usage.account_5h_pct,23)
++            self.assertEqual(snapshot.limits[0].source,'claude_5h_cache')
++
++if __name__ == '__main__': unittest.main()
+diff --git a/statusline/plugins/statusline/scripts/shared_usage.py b/statusline/plugins/statusline/scripts/shared_usage.py
+new file mode 100644
+index 0000000..0263f9c
+--- /dev/null
++++ b/statusline/plugins/statusline/scripts/shared_usage.py
+@@ -0,0 +1,70 @@
++"""Bounded read-only access to shared validated quota sources; never reads credentials."""
++from __future__ import annotations
++
++import importlib
++import math
++import signal
++import sys
++import time
++from contextlib import contextmanager
++
++from shared_prices import plugin_candidates
++
++
++@contextmanager
++def bounded():
++    def expired(_signum, _frame):
++        raise TimeoutError("local usage deadline")
++    old_handler = signal.signal(signal.SIGALRM, expired)
++    old_timer = signal.setitimer(signal.ITIMER_REAL, 0.75)
++    try:
++        yield
++    finally:
++        signal.setitimer(signal.ITIMER_REAL, *old_timer)
++        signal.signal(signal.SIGALRM, old_handler)
++
++
++def shared_module(name):
++    for plugin in plugin_candidates():
++        lib = plugin / "lib"
++        if (lib / "hh_ps" / "codex.py").is_file():
++            sys.path.insert(0, str(lib))
++            return importlib.import_module("hh_ps." + name)
++    raise ImportError("shared usage unavailable")
++
++
++def percent(value):
++    if isinstance(value, (int, float)) and not isinstance(value, bool):
++        if math.isfinite(value) and 0 <= value <= 100:
++            return float(value)
++    return None
++
++
++def account_windows(now):
++    try:
++        with bounded():
++            account = shared_module("codex").load_codex(None, now).account
++            result = {}
++            for label in ("5h", "tuần"):
++                sample = account.get(label)
++                if sample is not None and sample.source == "codex_rollout" and 0 <= now - sample.at < 86400 and sample.usable(now):
++                    value = percent(sample.pct)
++                    if value is not None:
++                        result[label] = (value, sample.at)
++            return result
++    except Exception:
++        return {}
++
++
++def claude_five(now):
++    try:
++        with bounded():
++            return percent(shared_module("usage_enrichment")._five_hour("Claude", now))
++    except Exception:
++        return None
++
++
++if __name__ == "__main__":
++    value = claude_five(time.time()) if sys.argv[1:] == ["claude"] else None
++    if value is not None:
++        print(value)

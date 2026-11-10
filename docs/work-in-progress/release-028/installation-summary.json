@@ -1,0 +1,8 @@
+{
+  "records": 10,
+  "registered_028": 4,
+  "registered_other": 6,
+  "folder_028": 10,
+  "all_updated": false,
+  "cli_limitation": "worktree records remain 0.27.0 after per-worktree update --scope project returns up_to_date 0.28.0; no manual registry/settings edits"
+}

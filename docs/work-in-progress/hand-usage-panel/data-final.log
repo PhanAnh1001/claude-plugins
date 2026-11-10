@@ -1,0 +1,32 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=381495, cached_input=321536, output=5037
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 144.2 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-212114-672695-usage-panel-data-final-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong.
+
+2. **Đã thay đổi gì** (đường dẫn tính từ `hybrid-hands/`):
+   - `plugins/hybrid-hands/lib/hh_ps/tree.py:218`: nhận metadata có ordinal; hỗ trợ ba dạng effort, vẫn lọc trước khi decode.
+   - `plugins/hybrid-hands/lib/hh_ps/repos.py:71`: lưu mapping config/main root theo snapshot.
+   - `plugins/hybrid-hands/lib/hh_ps/registry_source.py:188`: tái dùng config/root đã biết.
+   - `plugins/hybrid-hands/lib/hand_ext/config.py:67`: own-config fast path; giữ fallback worktree.
+   - `tests/hand_ext_case.py:12`: cô lập và khôi phục biến parent/scope từ môi trường.
+   - `tests/test_hh_ps_side.py:55`: bổ sung fixture metadata giả vào test sẵn có.
+
+3. **Kiểm chứng**:
+   - Chạy `python3 -m unittest discover -s hybrid-hands/tests -p <file>.py` cho sáu file được giao: **25 test đều qua**.
+   - Multirepo thực đo: **4 lệnh git, không trùng**, giữ nguyên giới hạn ≤6.
+   - Không thêm test function; thêm 12 dòng fixture/assert, dưới nửa số dòng code thêm.
+   - `git diff --check` trong phạm vi sửa: qua.
+
+4. **Ghi chú cho brain**:
+   - Không chạy full suite, không đọc rollout thật; kết quả parser dựa trên fixture synthetic.
+   - `git diff --check` toàn repo báo dòng trắng cuối `paseo-hh-tree/client/ChildRows.tsx:112`; ngoài phạm vi nên giữ nguyên.
+   - Không commit/push; giữ các thay đổi có sẵn.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

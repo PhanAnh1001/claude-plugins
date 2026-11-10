@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "hybrid-hands/tests",
+    "-q"
+  ],
+  "exit_code": 1,
+  "elapsed_seconds": 63.995,
+  "output": "b\u1ecf qua codex: doctor ch\u01b0a \u0111\u1ea1t (`hand-ext doctor --backend codex`)\nb\u1ecf qua codex: doctor ch\u01b0a \u0111\u1ea1t (`hand-ext doctor --backend codex`)\n======================================================================\nFAIL: test_missing_quota_is_unknown (test_hand_usage_panel.HandUsagePanelTest)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_hand_usage_panel.py\", line 65, in test_missing_quota_is_unknown\n    self.assertIsNone(session.usage.account_5h_pct)\nAssertionError: 23.0 is not None\n\n----------------------------------------------------------------------\nRan 420 tests in 63.656s\n\nFAILED (failures=1)\nidle-test: 0/272000 context tokens\nn: 50/272000 context tokens\nn: warning: turn k\u1ebft th\u00fac nh\u01b0ng thi\u1ebfu .done; gi\u1eef slot v\u00e0 watch\nn: 50/272000 context tokens\nn: done\nlate: ? context tokens\nlate: 77/272000 context tokens\nstopped n (context 272000 (t\u1ef1 n\u00e9n))\nworktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp0ddb0uqx worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp0ddb0uqx/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp0ddb0uqx branch -D side/n\n"
+}

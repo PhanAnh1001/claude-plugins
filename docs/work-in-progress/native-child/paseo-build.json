@@ -1,0 +1,18 @@
+{
+  "exit_code": 0,
+  "source": "same installed Paseo 0.15.0 compileDirectoryPlugin verifier from release-028",
+  "result": {
+    "ok": true,
+    "compiler": "Paseo 0.15.0 compileDirectoryPlugin",
+    "id": "hh-tree",
+    "elapsed_ms": 220,
+    "clientBundle": {
+      "bytes": 21076,
+      "sha256": "a0407506aa594f10e2cfa13602cb03f2e0b6f6a0f18339037481f97cdf781f63"
+    },
+    "serverBundle": {
+      "bytes": 15766,
+      "sha256": "9456b3ae11604457a1941ded94934f85dce7c737f6f4a1acb92c6069c2812cbe"
+    }
+  }
+}
