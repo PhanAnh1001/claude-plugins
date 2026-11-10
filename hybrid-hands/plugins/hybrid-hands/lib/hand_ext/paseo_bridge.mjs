@@ -304,7 +304,13 @@ async function creationFailure(client, r, target) {
   check(await client.fetchAgent({agentId:r.agentId, timeout:3000}) === null, 'CHILD_ABSENCE_UNCONFIRMED');
   return {ok:true, targetKey:r.targetKey, agentId:r.agentId, agentKey:r.agentKey,
     workspaceId:r.workspaceId, phase:'failed', outcomeUnknown:false, inFlight:null,
-    absence:'AGENT_NOT_FOUND'};
+    absence:'AGENT_NOT_FOUND', failedStage:snapshot.failedStage, errorCode:safeErrorCode(snapshot.errorCode)};
+}
+// Diagnostic code only; the upstream error message may carry paths or secrets.
+const ERROR_CODE = /^[A-Za-z0-9_.:-]{1,64}$/;
+function safeErrorCode(code) {
+  if (code === undefined || code === null) return null;
+  return typeof code === 'string' && ERROR_CODE.test(code) ? code : 'OTHER';
 }
 const methods = ['fetchAgent','fetchAgents','archiveWorkspace','fetchWorkspaces','listAvailableProviders','createWorkspace','createAgent',
   'sendMessage','fetchAgentTimeline','cancelAgent','archiveAgent','inspectWorkspaceRecovery','restoreWorkspace','refreshAgent'];

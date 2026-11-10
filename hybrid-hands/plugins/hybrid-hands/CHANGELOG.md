@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.48.2 — 2026-11-10
+
+- `hand-ext managed recover` nhận execution create-failed (`pending=create`) có `receipt.naming` (retry đặt tên chưa xong, `done=false`, `attempts ≤ 3`, warning `NAME_UNRESOLVED` hoặc rỗng) và metadata ghi trước create `title`/`settled`/`lifecycle` (kiểm kiểu, đúng khóa) khi proof `creation-failure` khớp chính xác; rồi ghi `failed_child_creation` và release reservation. Bằng chứng gửi (`sendConfirmed`, `messageId`, `briefDigest`, `createConfirmed`, gateway, writer, process) vẫn chặn.
+- Bridge `creation-failure` trả thêm `failedStage` và `errorCode` đã lọc (chỉ mã `[A-Za-z0-9_.:-]{1,64}`, khác thì `OTHER`, không có thì `null`, không bao giờ trả message); lưu trong proof và hiện ở `create_failure` của execution trong JSON recover/ls.
+
 ## 0.48.1 — 2026-11-10
 
 - `hand-ext managed recover` thêm nhánh `operator_reconcile` cho execution `unresolved` kẹt vì containment incomplete dính vĩnh viễn: dry-run in `eligible`/`blocked`/`evidence`; `--apply --reason` chỉ settle khi root đã reap, owner/root/mọi pid đã theo dõi đã mất hoặc bị tái dùng, nhóm tiến trình vắng, quét toàn bộ tiến trình cùng uid không thấy marker và không có env đọc lỗi, agent Paseo `closed`. Outcome ghi `provenance=operator_reconcile`, release reservation qua CompletionService/AdmissionController chính thức; idempotent; supervisor tự động vẫn fail-closed.

@@ -258,6 +258,7 @@ class PaseoTransportTests(unittest.TestCase):
         result=json.loads(run.stdout)
         self.assertEqual([x['ok'] for x in result['results']],[True,False,False,False,False,False,True,False])
         self.assertEqual(result['released'],4); self.assertNotIn('PRIVATE',run.stdout)
+        self.assertEqual((result['results'][0]['failedStage'],result['results'][0]['errorCode']),('agent',None))
 
     def test_official_schema_preflight_without_network(self):
         executable=shutil.which('paseo')

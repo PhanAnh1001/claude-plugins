@@ -1,6 +1,7 @@
 """Fail closed, offline proof and atomic settlement for never-dispatched attempts."""
 from dataclasses import asdict
 import json
+import re
 import os
 from pathlib import Path
 import subprocess
@@ -32,11 +33,40 @@ def consistent_bindings(record, transport):
             raise StateConflict('transport cwd binding mismatch')
 
 
+BASE_RECEIPT = frozenset({'controller', 'completion', 'transport', 'brief_digest'})
+NAMING_KEYS = frozenset({'attempts', 'done', 'warning'})
+LIFECYCLE_KEYS = frozenset({'package_root', 'target', 'node'})
+TITLE_MAX = 60  # Same ceiling the bridge enforces for agent/workspace names.
+
+
+def _harmless_naming(naming):
+    """retry_names output on an absent child: unfinished, bounded, warning only."""
+    from .paseo_names import NAME_RETRIES
+    attempts = naming.get('attempts') if isinstance(naming, dict) else None
+    return (isinstance(naming, dict) and set(naming) == NAMING_KEYS
+            and type(attempts) is int and 0 <= attempts <= NAME_RETRIES
+            and naming['done'] is False and naming['warning'] in (None, 'NAME_UNRESOLVED'))
+
+
+def _pre_create_metadata_ok(t):
+    """title/settled/lifecycle are written before create and never prove dispatch."""
+    if 'title' in t and not (isinstance(t['title'], str) and len(t['title']) <= TITLE_MAX):
+        return False
+    if 'settled' in t and not isinstance(t['settled'], bool):
+        return False
+    return 'lifecycle' not in t or (isinstance(t['lifecycle'], dict) and set(t['lifecycle']) == LIFECYCLE_KEYS)
+
+
 def untouched(record, *, recovery=False):
     receipt = record.receipt or {}
-    if set(receipt) - {'controller', 'completion', 'transport', 'brief_digest'} or record.settle_keys:
-        raise StateConflict('other dispatch evidence present')
     t = receipt.get('transport', {})
+    allowed = BASE_RECEIPT
+    if recovery and t.get('pending') == 'create' and 'naming' in receipt:
+        if not _harmless_naming(receipt['naming']):
+            raise StateConflict('naming evidence malformed')
+        allowed = BASE_RECEIPT | {'naming'}
+    if set(receipt) - allowed or record.settle_keys:
+        raise StateConflict('other dispatch evidence present')
     if (record.state != 'admitted' or not record.reservation or record.writer is not None
             or record.process is not None or record.outcome is not None
             or record.pending_outcome is not None or record.started_at is not None
@@ -49,8 +79,9 @@ def untouched(record, *, recovery=False):
     known = {'pending', 'workspaceConfirmed', 'agentKey', 'createConfirmed', 'targetKey',
              'projectId', 'workspaceId', 'agentId', 'workspaceKey', 'parentAgentId', 'cwd',
              'sourceCwd', 'providerId', 'revision', 'requestKey', 'admitted', 'expectedProviderId', 'model',
-             'effort', 'gatewayEnv', 'quiescent', 'freshDispatch', 'reviewed'}
-    if recovery and set(t) - known:
+             'effort', 'gatewayEnv', 'quiescent', 'freshDispatch', 'reviewed',
+             'title', 'settled', 'lifecycle'}
+    if recovery and (set(t) - known or not _pre_create_metadata_ok(t)):
         raise StateConflict('unknown transport evidence')
     if recovery:
         consistent_bindings(record, t)
@@ -229,7 +260,11 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
                         'workspaceId': r.attempt.workspace_id, 'phase': 'failed',
                         'outcomeUnknown': False, 'inFlight': None,
                         'absence': 'AGENT_NOT_FOUND'}
-            if proof != expected:
+            if not isinstance(proof, dict) or {k: v for k, v in proof.items()
+                                               if k not in CREATE_DIAGNOSTICS} != expected:
+                raise StateConflict('failed exact creation not proved')
+            if (proof.get('failedStage', 'agent') != 'agent'
+                    or not _diagnostic_code(proof.get('errorCode'))):
                 raise StateConflict('failed exact creation not proved')
             return admission.fail(key, proof, 'failed_child_creation', recovery=True,
                                   expected_revision=r.revision) if apply else r
@@ -251,6 +286,14 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
             raise StateConflict('invalid bound workspace not proved')
         return admission.fail(key, proof, 'invalid_bound_workspace_id', recovery=True,
                               expected_revision=r.revision) if apply else r
+
+
+CREATE_DIAGNOSTICS = ('failedStage', 'errorCode')
+ERROR_CODE = re.compile(r'[A-Za-z0-9_.:-]{1,64}')  # Mirrors bridge sanitizer; never a message.
+
+
+def _diagnostic_code(code):
+    return code is None or (isinstance(code, str) and ERROR_CODE.fullmatch(code) is not None)
 
 
 def creation_proof(request, package_root, validator):
