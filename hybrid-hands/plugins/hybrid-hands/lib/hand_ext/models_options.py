@@ -38,10 +38,12 @@ def build_options(result, status: dict) -> dict:
                 for slot in sorted(ext["claude_accounts"], key=lambda s: int(s[1:]))]
     backends = [dict(value=name, provider="claude" if row.get("account") else name,
                      model=row["model"]["value"], effort=row["effort"]["value"],
-                     account=row.get("account"), in_order=name in order)
+                     account=row.get("account"), in_order=name in order, mode=row["mode"]["value"])
                 for name, row in status["hand"]["backends"].items() if row["supported"]]
     return dict(tiers=tiers, providers=providers, profiles=profiles,
                 accounts=accounts, hand_backends=backends,
+                hand_modes={provider: "native" if ext["native"].get(provider) == "auto" else "terminal"
+                            for provider in ("claude", "codex", "dsh")},
                 presets=_presets(profiles, backends, providers))
 
 
@@ -100,6 +102,6 @@ def print_options(payload: dict) -> None:
     for row in payload["accounts"]:
         print(f"{'*' if row['selected'] else ' '} {row['slot']}: {row['label']}")
     for row in payload["hand_backends"]:
-        print(f"{'*' if row['in_order'] else ' '} {row['value']}: {row['model']}:{row['effort']}")
+        print(f"{'*' if row['in_order'] else ' '} {row['value']}: {row['model']}:{row['effort']} [{row['mode']}]")
     for group, rows in payload["presets"].items():
         print(f"{group} presets: " + " | ".join(row["label"] for row in rows))

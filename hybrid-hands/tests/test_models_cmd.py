@@ -54,10 +54,13 @@ def test_set_and_validation(tmp_path, monkeypatch, capsys):
     assert diff["ext_hand.backends.claude-v1.effort"] == [None, "medium"]
     assert path.read_bytes() == original
     assert main(prefix + ["--brain", "claude-sonnet-5-5:high", "--side", "gpt-6.1-sol:max",
-                          "--hand", "claude-v2=claude-haiku-5-5:low", "--dry-run"]) == 0
+                          "--hand", "claude-v2=claude-haiku-5-5:low", "--hand-mode", "terminal", "--dry-run"]) == 0
     diff = json.loads(capsys.readouterr().out)["diff"]
     assert diff["main_session.claude_model"][1] == "claude-sonnet-5-5"
     assert diff["side_session.codex_effort"][1] == "xhigh"
+    assert diff["ext_hand.native.claude"][1] == "off"
+    assert main(prefix + ["--hand", "dsh=deepseek-v4.1-flash:high", "--hand-mode", "native", "--dry-run"]) == 2
+    assert "dsh không có native subagent" in capsys.readouterr().err
     assert diff["ext_hand.backends.claude-v2.model"][1] == "claude-haiku-5-5"
     for invalid in ("codex:missing:low", "codex:gpt-6.1-sol:invalid", "claude:claude-opus-5-5:high@v99"):
         assert main(prefix + ["--brain", invalid]) == 2
@@ -87,12 +90,15 @@ def test_unset_hand(tmp_path, monkeypatch, capsys):
     raw = json.loads(path.read_text())
     ext = raw["ext_hand"]
     ext["order"] = ["codex"]
+    ext["native"] = {"claude": "off", "codex": "auto"}
     ext["backends"]["codex"].update(model="bad", effort="bad")
     ext["claude_accounts"]["v1"].update(model="bad", effort="bad")
     ext["backends"]["claude-main"] = {"model": "bad", "effort": "bad", "max_day_pct": 5}
     path.write_text(json.dumps(raw))
     assert main(["models", "unset", "hand", "--cwd", str(repo), "--json", "--dry-run"]) == 0
-    assert json.loads(capsys.readouterr().out)["diff"]["ext_hand.backends.codex.model"] == ["bad", None]
+    diff = json.loads(capsys.readouterr().out)["diff"]
+    assert diff["ext_hand.backends.codex.model"] == ["bad", None]
+    assert diff["ext_hand.native.claude"] == ["off", None] and diff["ext_hand.native.codex"] == ["auto", None]
     assert json.loads(path.read_text()) == raw
     assert main(["models", "unset", "hand", "--cwd", str(repo), "--json"]) == 0
     ext = json.loads(path.read_text())["ext_hand"]
