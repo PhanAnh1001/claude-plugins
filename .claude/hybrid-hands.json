@@ -1,10 +1,21 @@
 {
   "ext_hand": {
-    "order": ["codex", "dsh", "claude-v1", "claude-v2"],
+    "order": [
+      "codex",
+      "dsh",
+      "claude-v1",
+      "claude-v2"
+    ],
     "mode": "auto",
     "paseo": {
       "package_root": "/Users/anhtp/.nvm/versions/node/v24.19.0/lib/node_modules/@getpaseo/cli",
-      "target": {"kind": "instance", "home": "/Users/anhtp/.paseo"}
+      "target": {
+        "kind": "instance",
+        "home": "/Users/anhtp/.paseo"
+      }
     }
+  },
+  "parallel_subagents": {
+    "enabled": true
   }
 }
