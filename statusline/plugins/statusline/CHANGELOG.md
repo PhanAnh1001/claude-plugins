@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.1 — 2026-11-10
+
+- Nhóm hand: mỗi phiên chỉ hiện tối đa 3 subagent (đang chạy trước, rồi mới nhất). Phần còn lại gộp thành một dòng `+N subagent (M đang chạy)`; bỏ ngoặc khi M=0. Output `hh-ps` không đổi.
+
 ## 0.23.0 — 2026-11-10
 
 - Dòng Claude đổi nhãn `Claude v1 ultra` (`~/.claude`); thêm dòng `Claude v2 pro` (`~/.claude-hand`) ngay dưới, cùng cột 5h/7d. Hai dòng lấy số cùng một cách: tài khoản của phiên đang vẽ (theo `CLAUDE_HOME`) dùng `rate_limits` live và lưu vào cache riêng `<home tài khoản>/.statusline-cache.json`; tài khoản còn lại đọc cache riêng của nó, có `~`, ô thiếu hoặc đã qua reset hiện `?`. Không còn đọc cache hiệu chỉnh 5 phút của hybrid-hands cho v2. Ô 5h của tài khoản đang vẽ dùng cache của chính nó (có `~`) khi payload chưa có `rate_limits` và reset còn ở tương lai.

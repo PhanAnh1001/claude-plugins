@@ -13,6 +13,9 @@ from uuid import UUID
 
 TIMEOUT_SECONDS = 2
 UNKNOWN = "?"
+# Max subagent rows per session; the rest fold into one count line to save status-line space.
+MAX_SUBAGENT_ROWS = 3
+RUNNING_STATUSES = ("running", "silent")
 
 
 def executable() -> Path | None:
@@ -58,6 +61,25 @@ def moment(value: object) -> str:
         return UNKNOWN
 
 
+def is_running(item: dict) -> bool:
+    return item.get("state") != "lost" and (item.get("live") is True or item.get("status") in RUNNING_STATUSES)
+
+
+def recency(item: dict) -> float:
+    return max((number(item.get(k)) or 0.0) for k in ("started_at", "updated_at"))
+
+
+def pick_subagents(agents: list[dict]) -> tuple[list[dict], int, int]:
+    """Running first, then newest; returns (shown, hidden count, hidden running count)."""
+    ordered = sorted(agents, key=lambda a: (is_running(a), recency(a)), reverse=True)
+    shown, hidden = ordered[:MAX_SUBAGENT_ROWS], ordered[MAX_SUBAGENT_ROWS:]
+    return shown, len(hidden), sum(1 for a in hidden if is_running(a))
+
+
+def summary_row(hidden: int, running: int, prefix: str) -> str:
+    return f"{prefix}+{hidden} subagent" + (f" ({running} đang chạy)" if running else "")
+
+
 def row(item: dict, kind: str, label: object, prefix: str) -> str:
     usage = item.get("usage") or {}
     usd = number(usage.get("usd"))
@@ -65,7 +87,7 @@ def row(item: dict, kind: str, label: object, prefix: str) -> str:
     duration = number(item.get("duration_seconds"))
     elapsed = UNKNOWN if duration is None else f"{max(0, int(duration))}s"
     lost = item.get("state") == "lost"
-    running = not lost and (item.get("live") is True or item.get("status") in ("running", "silent"))
+    running = is_running(item)
     if lost and not item.get("ended_at"):
         elapsed = UNKNOWN
     ended = "đang chạy" if running else moment(item.get("ended_at"))
@@ -103,9 +125,13 @@ def render(snapshot: dict, sid: str) -> list[str]:
         lines.append(row(session, f"session/{session.get('provider') or UNKNOWN}",
                          session.get("name") or session_id[:8], prefix))
         child_prefix = "· " + "↳" * (depth + 1) + " "
-        for agent in session.get("subagents") or []:
+        agents = [a for a in session.get("subagents") or [] if isinstance(a, dict)]
+        shown, hidden, hidden_running = pick_subagents(agents)
+        for agent in shown:
             lines.append(row(agent, f"subagent/{agent.get('agent_type') or UNKNOWN}",
                              agent.get("agent_id", ""), child_prefix))
+        if hidden:
+            lines.append(summary_row(hidden, hidden_running, child_prefix))
         for run in session.get("hand_runs") or []:
             lines.append(row(run, f"hand-ext/{run.get('backend') or UNKNOWN}",
                              run.get("label") or run.get("run_id"), child_prefix))
