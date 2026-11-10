@@ -395,6 +395,12 @@ GPT account có duration tường minh phân loại 5h bằng `window_minutes=30
 
 `hh-ps` ghi một chỉ mục SQLite (WAL, quyền 0600) tại `~/.hybrid-hands/state/hh-store.sqlite3` (theo `HYBRID_HANDS_STATE_DIR`). Mỗi lần chạy chỉ đọc phần mới thêm của rollout Codex và transcript Claude. File không đổi stat thì không đọc lại, và tổng GPT tuần được cache theo thread. File nguồn vẫn là nguồn sự thật: xoá kho thì lần sau tự dựng lại, kết quả giữ nguyên. Kho lỗi, khoá bận hoặc `HYBRID_HANDS_STORE=off` thì quay về đường đọc file cũ. Đo thật `hh-ps --since 3h --json --ended --full`: ~9 s → ~0,7 s (p50, n=5), output giống hệt khi tắt kho.
 
+### Làm mới trực tiếp hh-store — 0.42.0
+
+Daemon `hh-indexer` giữ kho luôn mới giữa các lần chạy hh-ps. Nó theo dõi file nguồn bằng kqueue, ingest sau 300 ms debounce và chỉ tăng `revision` khi có thay đổi thật. Hook Claude và hh-ps chạy từ terminal tự khởi nó; nó tự thoát sau 10 phút không có reader. Pane `hh-tree-pane` và Paseo `paseo-hh-tree` theo dõi `revision` và chỉ chạy hh-ps khi số đổi; chu kỳ cũ giữ làm lưới an toàn. Pane cần phiên Claude mới để nạp `watchPaths`. Tắt bằng `HYBRID_HANDS_INDEXER=off`.
+
+Đo thật (10/11/2026): dữ liệu đổi → revision đổi p50 0,39 s, max 2,33 s (n=9). CPU nền indexer 0,37–0,50%. Hook trả về ~7 ms. Xem trạng thái bằng `hh-store status`.
+
 ### Dữ liệu và contract
 
 `hh-ps` đọc metadata phiên, usage transcript và registry trên máy; không in nội dung hội thoại/prompt hay credential, không gọi mạng để tính USD. Snapshot JSON giữ `sessions[]` (có `subagents[]`, `hand_runs[]`), `orphan_runs[]`, `limits[]`, `totals`, `generated_at`, `since_seconds`, thông tin lọc project và phiên chính. `usage` giữ token/USD, phần tuần riêng và `account_plan`, `account_5h_pct`, `account_week_pct`; trường thiếu dùng null hoặc chuỗi rỗng theo model dữ liệu.

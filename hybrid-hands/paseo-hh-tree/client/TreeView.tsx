@@ -2,14 +2,22 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
 import { Loading, ScrollView } from "@getpaseo/plugin/client/ui";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
+import { MAX_REFRESH_MS } from "../shared/refresh";
+import { REVISION_POLL_MS, revisionRpc } from "../shared/revision";
 import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
 import { panelRows } from "./compact";
+import { createRevisionGate } from "./revision-gate";
 import { SessionBlock } from "./SessionBlock";
 
-const REFRESH_INTERVAL_MS = 30_000;
+// Old servers without hh-tree.revision: poll the tree like before.
+const LEGACY_REFRESH_MS = 30_000;
+// With revision support the tree is refetched on change; this is only the safety net.
+const SAFETY_REFRESH_MS = MAX_REFRESH_MS;
+// While the revision RPC fails, retry it so a reloaded server switches back automatically.
+const REVISION_RETRY_MS = 60_000;
 
 interface TreeViewProps {
   agentId?: string;
@@ -21,11 +29,24 @@ interface TreeViewProps {
 export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps) {
   const getTree = useRpc(treeRpc);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const getRevision = useRpc(revisionRpc);
+  const gate = useRef(createRevisionGate()).current;
+  // react-query skips interval refetches while the app is hidden (refetchIntervalInBackground=false).
+  const revision = useQuery({
+    queryKey: ["hh-tree-revision"],
+    queryFn: () => getRevision({}),
+    refetchInterval: (q) => (q.state.status === "error" ? REVISION_RETRY_MS : REVISION_POLL_MS),
+    retry: false,
+  });
   const query = useQuery<TreeResult>({
     queryKey: ["hh-tree", agentId ?? "all", all],
     queryFn: () => getTree({ agentId, all }),
-    refetchInterval: REFRESH_INTERVAL_MS,
+    refetchInterval: revision.isError ? LEGACY_REFRESH_MS : SAFETY_REFRESH_MS,
   });
+  const refetchTree = query.refetch;
+  useEffect(() => {
+    if (revision.data && gate(revision.data.revision)) void refetchTree();
+  }, [revision.data, gate, refetchTree]);
 
   if (query.isPending) {
     return <Loading />;

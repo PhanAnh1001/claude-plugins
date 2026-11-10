@@ -189,6 +189,19 @@ def scan_stored(path: Path, scope: str) -> Optional[Any]:
         return None
 
 
+def sync(path: Path, scope: str) -> None:
+    """Ingest `path` without building a FileScan (the indexer needs no rows)."""
+    conn = runtime.connection()
+    if conn is None:
+        return
+    try:
+        _ingest(conn, path, scope, _account_for_file(path, scope))
+    except sqlite3.Error as exc:
+        runtime.disable_after_error(exc)
+    except OSError:
+        return
+
+
 def account_rows(conn: sqlite3.Connection, account: str) -> List[sqlite3.Row]:
     """Stored usage lines of one account (for tests/diagnostics)."""
     return conn.execute("SELECT scope, message_id, request_id, at, model, input, output"

@@ -1,7 +1,11 @@
 # Cây phiên hybrid-hands
 
-Plugin hiện panel cạnh agent và màn hình “Cây phiên”, mở bằng nút trên header sidebar Paseo, lấy JSON `hh-ps` và làm mới theo chu kỳ max(30 giây, 3 × thời gian chạy trước), tối đa 120 giây; lỗi/timeout giãn gấp đôi tới trần. Client poll mỗi 30 giây; server chia sẻ lần chạy đang dở và cache cả kết quả lỗi theo chu kỳ thích nghi cho cùng bộ lọc agent/all, tính từ lúc chạy xong. Không hiện nhóm orphan hand-ext.
+Plugin hiện panel cạnh agent và màn hình “Cây phiên”, mở bằng nút trên header sidebar Paseo, lấy JSON `hh-ps` và làm mới theo chu kỳ max(30 giây, 3 × thời gian chạy trước), tối đa 120 giây; lỗi/timeout giãn gấp đôi tới trần. Client hỏi `hh-tree.revision` mỗi 2 giây và chỉ gọi `hh-tree.get` khi revision đổi hoặc lưới an toàn 120 giây tới hạn (server cũ: poll 30 giây); server chia sẻ lần chạy đang dở và cache cả kết quả lỗi theo chu kỳ thích nghi cho cùng bộ lọc agent/all, tính từ lúc chạy xong. Không hiện nhóm orphan hand-ext.
 
+
+## Luồng revision hh-store
+
+Panel cập nhật ≤ 3–5 giây sau khi kho hh-store đổi mà không chạy `hh-ps` mỗi nhịp. Server `fs.watch` thư mục `$HYBRID_HANDS_STATE_DIR` (mặc định `~/.hybrid-hands/state`), lọc tên `revision` (file thay bằng rename), số đổi thì huỷ cache `hh-tree.get`. RPC rẻ `hh-tree.revision` trả `{revision}` (thiếu/hỏng = 0) và cứ ≥ 60 giây spawn `<plugin>/bin/hh-store touch` không chờ để giữ indexer sống; thiếu lệnh thì bỏ qua. Client hỏi revision mỗi 2 giây (react-query dừng khi app ẩn), chỉ gọi `hh-tree.get` khi số khác lần trước hoặc lưới an toàn 120 giây tới hạn; server cũ không có RPC revision thì client quay về poll 30 giây và thử lại RPC revision mỗi 60 giây. Test: `node --experimental-strip-types --test client/revision-gate.test.ts server/cache.test.ts`.
 ## Managed hand Paseo opt-in
 
 `shell` vẫn default; chỉ repo operator bật `auto`/`paseo-required` mới dùng managed hand. Intent mới vốn native Sol low phải đi `hand-ext run --backend auto --mode paseo-required` khi daemon/provider/capability sẵn sàng; native hiện có không migrate. Thiếu capability trước dispatch: auto fallback shell, required fail; ACK mơ hồ sau dispatch giữ exact execution, không writer thứ hai. Pick/account/model/effort guards và pool chung 1..4 giữ nguyên.
@@ -56,4 +60,4 @@ Plugin chỉ đọc dữ liệu trên máy và chỉ gửi kết quả qua kênh
 
 ## Giới hạn
 
-Cây phụ thuộc vào `hh-ps`: thiếu lệnh, lệnh lỗi, quá 15 giây hoặc trả JSON sai định dạng thì panel hiện thông báo lỗi thay vì cây. Kết quả được cache 3 giây để nhiều client hỏi cùng lúc không chạy `hh-ps` dồn dập.
+Cây phụ thuộc vào `hh-ps`: thiếu lệnh, lệnh lỗi, quá 15 giây hoặc trả JSON sai định dạng thì panel hiện thông báo lỗi thay vì cây. Kết quả được cache theo chu kỳ thích nghi (30–120 giây) và bị huỷ khi revision hh-store đổi, nên nhiều client hỏi cùng lúc không chạy `hh-ps` dồn dập.

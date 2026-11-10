@@ -64,7 +64,15 @@ def disable_after_error(exc: BaseException) -> None:
     _release()
 
 
-def _reset_for_tests() -> None:
+def release() -> None:
+    """Close the connection and free the ingest lock; the next connection() reopens.
+
+    Long-running writers (hh-indexer) call this after each cycle so hh-ps never waits.
+    """
     global _conn
-    disable_after_error(RuntimeError("reset"))
+    disable_after_error(RuntimeError("release"))
     _conn = _UNSET
+
+
+def _reset_for_tests() -> None:
+    release()

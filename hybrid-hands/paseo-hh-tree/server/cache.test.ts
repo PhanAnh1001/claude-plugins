@@ -12,3 +12,16 @@ test("concurrent requests spawn once and reuse the cached result", async () => {
   await load("same");
   assert.equal(spawns, 1);
 });
+
+test("missing or malformed revision file reads as 0", async () => {
+  // @ts-ignore -- Node strip-types requires an explicit extension.
+  const { readRevision } = await import("./revision.ts");
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join((await import("node:os")).tmpdir(), "hh-rev-"));
+  assert.equal(readRevision(join(dir, "none")), 0);
+  writeFileSync(join(dir, "revision"), "garbage\n");
+  assert.equal(readRevision(dir), 0);
+  writeFileSync(join(dir, "revision"), "7\n");
+  assert.equal(readRevision(dir), 7);
+});

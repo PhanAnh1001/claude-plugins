@@ -7,6 +7,8 @@ import { findAgentSession } from "./agent-record";
 import { findHhPs, HH_PS_MISSING_ERROR, runHhPs } from "./hh-ps";
 
 import { createCachedLoader } from "./cache";
+import { revisionRpc } from "../shared/revision";
+import { createRevisionTracker, TOUCH_INTERVAL_MS, touchStore } from "./revision";
 
 async function configuredPath(
   settings: PluginSettings<HhTreeSettingsSchema>,
@@ -41,6 +43,24 @@ export function createTreeHandler(settings: PluginSettings<HhTreeSettingsSchema>
     key => loadTree(JSON.parse(key) as RpcInput<typeof treeRpc>, settings),
     value => !value.ok,
   );
-  return (input: RpcInput<typeof treeRpc>): Promise<TreeResult> =>
+  const tracker = createRevisionTracker(load.invalidate);
+  const tree = (input: RpcInput<typeof treeRpc>): Promise<TreeResult> =>
     load(JSON.stringify({ agentId: input.agentId, all: input.all === true }));
+  return { tree, revision: createRevisionHandler(settings, tracker.read), close: tracker.close };
+}
+
+/** Cheap RPC: reads the revision file; at most once per minute touches hh-store. */
+function createRevisionHandler(
+  settings: PluginSettings<HhTreeSettingsSchema>,
+  readRevision: () => number,
+) {
+  let lastTouch = 0;
+  return async (_input: RpcInput<typeof revisionRpc>): Promise<{ revision: number }> => {
+    if (Date.now() - lastTouch >= TOUCH_INTERVAL_MS) {
+      lastTouch = Date.now();
+      const command = await findHhPs(await configuredPath(settings)).catch(() => null);
+      if (command) touchStore(command);
+    }
+    return { revision: readRevision() };
+  };
 }
