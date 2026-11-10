@@ -1,13 +1,15 @@
 {
-  "command": "hand-ext gc --cwd /Users/anhtp/app/live-tiktok-games --json",
+  "command": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.50.0/bin/hand-ext gc --cwd /Users/anhtp/app/live-tiktok-games --json",
+  "cwd": "/Users/anhtp/app/live-tiktok-games",
+  "plugin_version": "0.50.0",
   "exit": 0,
-  "elapsed_s": 2.84,
+  "elapsed_s": 2.72,
   "branch_count_before": 252,
   "branch_count_after": 252,
   "classes": {
-    "unknown": 89
+    "unknown": 94
   },
+  "timestamp": "2026-11-10T19:48:59+0700",
   "eligible": 0,
-  "bytes": 0,
-  "timestamp": "2026-11-10T19:20:07+0700"
+  "bytes": 0
 }

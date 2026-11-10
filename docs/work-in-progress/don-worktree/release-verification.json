@@ -1,0 +1,52 @@
+{
+  "version": "0.50.0",
+  "feature_commit": "e01814c",
+  "merge_commit": "e85b80d03169aa44539a66ca3dc07439e73a6f7d",
+  "main_pushed": true,
+  "validation": {
+    "command": "claude plugin validate /Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands --json",
+    "exit": 0,
+    "success": true,
+    "manifest_errors": 0,
+    "manifest_warnings": 0,
+    "directory_findings": [
+      "LICENSE_MISSING",
+      "ICON_MISSING"
+    ],
+    "directory_profile_required": false
+  },
+  "updates": [
+    {
+      "account": "v1",
+      "marketplace_update_exit": 0,
+      "plugin_update_exit": 0,
+      "old_version": "0.49.0",
+      "new_version": "0.50.0",
+      "scope": "user"
+    },
+    {
+      "account": "v2",
+      "marketplace_update_exit": 0,
+      "plugin_update_exit": 0,
+      "old_version": "0.49.0",
+      "new_version": "0.50.0",
+      "scope": "user"
+    }
+  ],
+  "cache_checks": [
+    {
+      "path": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.50.0",
+      "version": "0.50.0",
+      "code_matches_merged_source": true
+    },
+    {
+      "path": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.50.0",
+      "version": "0.50.0",
+      "code_matches_merged_source": true
+    }
+  ],
+  "installation_inventory_checks": 32,
+  "reload_required": true,
+  "relative_file_links_checked": 22,
+  "missing_links": 0
+}

@@ -319,6 +319,42 @@
       "branch": ""
     },
     {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-192309-868135-brief-p3-codex",
+      "name": "don-worktree-20261110-192309-868135-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-192643-537083-brief-p3-codex",
+      "name": "don-worktree-20261110-192643-537083-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-192914-899402-brief-p3-codex",
+      "name": "don-worktree-20261110-192914-899402-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-193301-066874-brief-p6-codex",
+      "name": "don-worktree-20261110-193301-066874-brief-p6-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
       "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
       "name": "dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
       "classification": "unknown",
@@ -447,6 +483,15 @@
     {
       "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
       "name": "dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-192219-929019-brief-final-source-missing-dsh",
+      "name": "dong-bo-tai-khoan-20261110-192219-929019-brief-final-source-missing-dsh",
       "classification": "unknown",
       "reason": "no exact registry ownership",
       "bytes": 0,

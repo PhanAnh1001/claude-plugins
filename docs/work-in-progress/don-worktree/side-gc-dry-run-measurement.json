@@ -1,8 +1,9 @@
 {
-  "command": "side-session gc --json",
+  "command": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.50.0/bin/side-session gc --json",
   "cwd": "/Users/anhtp/app/live-tiktok-games",
+  "plugin_version": "0.50.0",
   "exit": 0,
-  "elapsed_s": 40.87,
+  "elapsed_s": 37.12,
   "branch_count_before": 252,
   "branch_count_after": 252,
   "classes": {
@@ -12,9 +13,9 @@
     "B": 6,
     "A": 1
   },
+  "timestamp": "2026-11-10T19:48:43+0700",
   "totals": {
     "eligible": 1,
     "eligible_bytes": 65181552
-  },
-  "timestamp": "2026-11-10T19:17:56+0700"
+  }
 }

@@ -1,15 +1,17 @@
 {
-  "command": "hand-ext gc --cwd /Users/anhtp/app/claude-plugins --json",
+  "command": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.50.0/bin/hand-ext gc --cwd /Users/anhtp/app/claude-plugins --json",
+  "cwd": "/Users/anhtp/app/claude-plugins",
+  "plugin_version": "0.50.0",
   "exit": 0,
-  "elapsed_s": 12.96,
+  "elapsed_s": 13.27,
   "branch_count_before": 86,
   "branch_count_after": 86,
   "classes": {
-    "unknown": 72,
-    "dirty": 16,
+    "unknown": 75,
+    "dirty": 18,
     "finished": 1
   },
+  "timestamp": "2026-11-10T19:48:56+0700",
   "eligible": 1,
-  "bytes": 6437025,
-  "timestamp": "2026-11-10T19:20:04+0700"
+  "bytes": 6437025
 }

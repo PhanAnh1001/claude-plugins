@@ -409,9 +409,9 @@
     {
       "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
       "name": "don-worktree-20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
-      "classification": "dirty",
-      "reason": "unpreserved working changes",
-      "bytes": 6624374,
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6625401,
       "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
       "branch": "HEAD",
       "registry_revision": "f5f92eb34c2ab4462c44a63e9fa8362f69bd367546f9539142b9105319d6f6e2",
@@ -429,6 +429,54 @@
       "bytes": 0,
       "head": "",
       "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-192309-868135-brief-p3-codex",
+      "name": "don-worktree-20261110-192309-868135-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-192643-537083-brief-p3-codex",
+      "name": "don-worktree-20261110-192643-537083-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-192914-899402-brief-p3-codex",
+      "name": "don-worktree-20261110-192914-899402-brief-p3-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6908865,
+      "head": "c210946c1c860272e87f7e963593a2c36ff41684",
+      "branch": "HEAD",
+      "registry_revision": "08d575642d71a45bb2b7ce868da140c14a67b19e134c24b1cabc5b981bc244e8",
+      "run_id": "20261110-192914-899402-brief-p3-codex",
+      "identity": [
+        16777233,
+        69319199
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-193301-066874-brief-p6-codex",
+      "name": "don-worktree-20261110-193301-066874-brief-p6-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6921174,
+      "head": "c210946c1c860272e87f7e963593a2c36ff41684",
+      "branch": "HEAD",
+      "registry_revision": "ffcf0f771391ef16c2235f51486b4a82289c2cc76c77ba16192a69748672829a",
+      "run_id": "20261110-193301-066874-brief-p6-codex",
+      "identity": [
+        16777233,
+        69325885
+      ]
     },
     {
       "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
@@ -591,7 +639,7 @@
       "name": "dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
       "classification": "unknown",
       "reason": "managed execution not settled",
-      "bytes": 6591727,
+      "bytes": 6593494,
       "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
       "branch": "HEAD",
       "registry_revision": "cd69b038e1057ab3b8d764a936ee318cca877beab3af71468fb035b0c655ef89",
@@ -599,6 +647,21 @@
       "identity": [
         16777233,
         69281429
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-192219-929019-brief-final-source-missing-dsh",
+      "name": "dong-bo-tai-khoan-20261110-192219-929019-brief-final-source-missing-dsh",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6601319,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "bc7079b80be17aa7e7710fb6d2021667ce3473cc85dc1538b6f32039891d457a",
+      "run_id": "20261110-192219-929019-brief-final-source-missing-dsh",
+      "identity": [
+        16777233,
+        69303203
       ]
     },
     {

@@ -1,6 +1,6 @@
 # Bảng GC thật để duyệt
 
-Chỉ dry-run; chưa xoá worktree, chưa prune nhánh thật. Số byte là kích thước metadata file (không phải số block filesystem, không hứa thu hồi thực tế). Sẽ đo lại bằng plugin đã cài trước bàn giao.
+Chỉ dry-run; chưa xoá worktree, chưa prune nhánh thật. Số byte là kích thước metadata file (không phải số block filesystem, không hứa thu hồi thực tế). Số đo cuối dùng cache plugin 0.50.0 đã cài, ngày 10/11/2026 19:48–19:49 +07.
 
 | Công cụ/lớp | Repo | Tên | Nhánh/HEAD | Tracked byte | Ignored byte | Tổng byte | Quyết định |
 |---|---|---|---|---:|---:|---:|---|

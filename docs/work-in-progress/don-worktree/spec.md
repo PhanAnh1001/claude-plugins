@@ -146,4 +146,4 @@ Cập nhật trong cùng bản phát hành:
 
 ### 5.4 Trạng thái phát hành
 
-Dự kiến 0.50.0 sau account sync 0.49.0: P1/P2/P3/P5 đã được Sol review và test hẹp đạt theo plan. P6 xong một phần tài liệu; full suite, cài đặt, merge và dry-run cuối do Sol thực hiện, chưa claim hoàn tất. P4 blocked bởi S0 FAIL; số đo apply thật chờ duyệt, không có bằng chứng apply trong gói này.
+Đã phát hành 0.50.0 sau account sync 0.49.0, merge `e85b80d` và push main. P1/P2/P3/P5 đã review và test hẹp đạt; P6 đã validate/cài v1/v2 và đo GC thật chỉ dry-run. Full suite chạy đúng một lần (575 tests, failures=2/errors=3); hai errors auto-GC được sửa và test hẹp xanh lại, ba lỗi ngoài phạm vi còn lại không sửa, không chạy lại full suite. Xem số đo thật và giới hạn ở [plan](plan.md). P4 blocked do S0 FAIL. Không có GC apply thật, không có đo sparse <=15 MB, không ghi config live-tiktok-games.

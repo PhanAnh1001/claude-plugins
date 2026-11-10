@@ -2,7 +2,7 @@
 
 ## Tóm tắt
 
-- **Thực hiện [spec](spec.md)** qua 1 spike (S0) và 6 gói cỡ L1, phát hành **một bản minor**: dự kiến 0.50.0 sau account sync 0.49.0 (merge c210946); Sol re-fetch và điều chỉnh nếu main đổi.
+- **Thực hiện [spec](spec.md)** qua 1 spike (S0) và 6 gói cỡ L1, phát hành **một bản minor**: đã phát hành 0.50.0 sau account sync 0.49.0 (merge c210946); merge release e85b80d, đã push main.
 - **Thứ tự:**
   - P1 → P2 → P3 phải tuần tự vì cùng sửa `lib/side_session/`.
   - S0 → P4 tuần tự.
@@ -32,7 +32,10 @@
 - [x] P3 tự dọn khi start và disk guard của side-session — covers: spec 3.1, 3.3, 5.1 ca 3 (disk) — estimate: 1,5 h
 - [ ] P4 sparse exclude và `--no-sparse` — covers: spec 3.2, 5.1 ca 3 (sparse) — estimate: 1,5 h
 - [x] P5 `hand-ext gc` và disk guard ở `hand-ext run` — covers: spec 3.3, 4, 5.1 ca 3 (hand-ext) — estimate: 1,5 h
-- [ ] P6 tài liệu, phát hành, cài, kiểm chứng GC thật chỉ dry-run (không apply thật, không thử sparse trên repo thật), ghi số đo vào plan — covers: spec 5.2, 5.3 — estimate: 1 h AI + 30 phút người dùng
+- [x] P6 tài liệu, phát hành, cài, kiểm chứng GC thật chỉ dry-run (không apply thật, không thử sparse trên repo thật), ghi số đo vào plan — covers: spec 5.2, 5.3 — estimate: 1 h AI + 30 phút người dùng
+  - **Số đo thật P6 (0.50.0 đã cài, 10/11/2026 19:48–19:49 +07):** side-session GC live: 137 worktree, A1/B6/C20/D69/E41, eligible 65.181.552 byte, 37,12s, nhánh 252→252; hand-ext GC claude-plugins: finished1/dirty18/unknown75, 6.437.025 byte, 13,27s, nhánh 86→86; hand-ext GC live: unknown94/eligible0, 2,72s, nhánh 252→252. Cả ba exit0, không apply thật.
+  - **Cài/kiểm:** official marketplace/plugin update v1/v2 exit0; 32 kiểm tra cài đặt exit0, version/folderVersion 0.50.0, cache code khớp source merge; cần reload. Validate plugin exit0/success=true, manifest 0 lỗi/0 cảnh báo; directory advisory LICENSE_MISSING/ICON_MISSING còn nguyên. 22 relative file links hợp lệ.
+  - **Giới hạn:** full suite chạy đúng một lần: 575 tests, failures2/errors3, exit1; hai errors mới đã sửa + test hẹp3 OK, không chạy lại full suite. Còn pytest thiếu và hai assert policy có trên main. Đối chiếu tay 10 mẫu có 1A/2B/2C/2D/3E, chưa đủ 2A vì thực tế chỉ có 1A. Không kiểm số byte thu hồi thật hoặc sparse <=15MB. Xem gc-approval-table.md, các *-measurement.json và full-suite-result.json.
 
 ## Kiểm chứng mỗi gói
 
@@ -56,9 +59,9 @@
 
 - P3: Sol review central start gate trước tạo handoff/state/worktree, auto chỉ A và gc lỗi không bỏ disk check đạt. `test_side_session_gc_start.py`: 3 tests OK (Sol chạy lại); không auto-GC trong dry-run/resume/non-worktree.
 
-### P6 — xong một phần
+### P6 — hoàn tất phạm vi dry-run và phát hành, toàn gói xong một phần
 
-Đã cập nhật tài liệu và manifest/changelog dự kiến 0.50.0 cho P1–P3/P5; P4 chưa phát hành do S0 FAIL đã review. Không tick P6: Sol còn chạy full suite đúng một lần, review tài liệu, re-fetch trước merge, cài/kiểm đường dẫn phiên bản và GC thật dry-run cuối. Không apply GC thật hoặc thử sparse trên repo thật; số đo apply chờ duyệt, Sol tự ghi bằng chứng thực tế. JSON sparse tương lai chỉ bàn giao để Sol/Opus cân nhắc sau khi S0 đạt, không ghi config hiện tại.
+Đã review tài liệu, phát hành 0.50.0 (e85b80d) và cập nhật plugin v1/v2 chính thức; P6 tick sau kiểm tra hẹp/review và số đo trên. Full suite không xanh, các giới hạn được giữ nguyên trong bàn giao. S0/P4 vẫn blocked, không cấu hình sparse hay apply GC thật. JSON patterns đã duyệt chỉ bàn giao cho Opus sau khi S0/P4 được xử lý.
 
 - P5 mở lại review cuối: cần giữ candidate chứa registry run_dir (artifacts) hoặc machine_state_dir (registry/journal), đã giao lại Claude-v2 lượt 1; chưa tick lại.
 
