@@ -48,11 +48,13 @@ class BrainContextPolicyTest(unittest.TestCase):
         self.assertIn("tạo hứng thú", preamble)
 
     def test_inject_policy_has_short_form_and_stays_short(self) -> None:
-        text = subprocess.run(["bash", str(INJECT)], capture_output=True, text=True, check=True).stdout
-        for marker in ("SessionStart", "AGENTS.md", "ext_hand.order", "không tự tra cứu", ".env/token/credential"):
-            self.assertIn(marker, text)
-        self.assertLessEqual(len(text), 300)
         with tempfile.TemporaryDirectory() as directory:
+            # Hermetic: normal mode in a temp cwd, not the checkout's own .claude/hybrid-hands.json.
+            text = subprocess.run(["bash", str(INJECT)], input=json.dumps({"cwd": directory}),
+                                  capture_output=True, text=True, check=True).stdout
+            for marker in ("SessionStart", "AGENTS.md", "ext_hand.order", "không tự tra cứu", ".env/token/credential"):
+                self.assertIn(marker, text)
+            self.assertLessEqual(len(text), 300)
             full = self._session_start_context(directory)
             self.assertIn("hand-ext pick --json", full)
             self.assertIn("LUẬT NGỮ CẢNH BRAIN", full)

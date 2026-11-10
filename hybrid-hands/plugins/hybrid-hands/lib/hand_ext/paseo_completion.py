@@ -251,6 +251,9 @@ class CompletionService:
                 entries = read_json(Path(c['ledger']), [])
                 if [x for x in entries if x.get('execution_key') == _plain(r.key)] != [self._entry(r, token)]: return None
                 return dict(path=c['ledger'], key=token)
+            if kind == 'go_ledger' and r.invocation.backend != 'dsh':
+                # Mirrors _go_ledger: no side effect exists outside dsh, so nothing to prove.
+                return dict(not_applicable=True)
             if kind == 'go_ledger' and r.invocation.backend == 'dsh':
                 records = go_usage._read_records_unlocked(Path(c['go_ledger']))
                 matches = [x for x in records if x.get('execution_key') == _plain(r.key)]

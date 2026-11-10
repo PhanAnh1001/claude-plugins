@@ -6,6 +6,8 @@ from .execution_state import StateConflict
 from .process_containment import merge_evidence
 
 STATE_CAS_ATTEMPTS = 8
+# Quiescence evidence when sticky incomplete containment is re-proved stale.
+STALE_UNCERTAINTY_METHOD = 'stale_uncertainty_reproved'
 
 @dataclass(frozen=True)
 class ProcessIdentity:
@@ -33,9 +35,38 @@ class ConservativeProcessOps:
         return self.reconcile(identity)
 
 class ExecutionSupervisor:
-    def __init__(self, store, process_ops=None):
+    # Read-only OS view for re-proving stale uncertainty; None means the live table.
+    table = None
+
+    def __init__(self, store, process_ops=None, table=None):
         self.store = store
         self.process_ops = process_ops or ConservativeProcessOps()
+        if table is not None:
+            self.table = table
+
+    def _reprove_stale(self, r, containment):
+        """Fresh proof that every incomplete observation is stale; None keeps fail-closed.
+
+        Requires reaped root, root/owner/group/every tracked pid gone or reused, and a
+        whole same-uid marker scan with no marker and no unreadable live environment.
+        """
+        if (not r.process or not isinstance(containment, dict)
+                or containment.get('inventory_complete') is not False
+                or containment.get('root_reaped') is not True):
+            return None
+        from .operator_reconcile import check_processes, scan_markers
+        from .post_hoc_reverify import bindings
+        if not containment.get('binding') or containment['binding'] != bindings(r):
+            return None
+        from .process_containment import ProcessTable
+        table = self.table or ProcessTable()
+        try:
+            evidence = check_processes(r, containment, table)
+            evidence.update(scan_markers(r, table))
+        except Exception:
+            return None  # any doubt (live pid, marker, unreadable env, OS error) blocks
+        return Quiescence(True, STALE_UNCERTAINTY_METHOD, time.time(),
+                          dict(containment, inventory_complete=True, stale_resolution=evidence))
     def register_writer(self, key, process_identity, owner_id):
         if not isinstance(process_identity, ProcessIdentity) or process_identity.pid <= 0 or process_identity.pgid <= 0 or not process_identity.start_identity:
             raise ValueError('verified process identity required')
@@ -67,12 +98,14 @@ class ExecutionSupervisor:
             r = self.store.get(key)
             if r.process != process or r.writer != writer:
                 raise StateConflict('observation binding changed')
-            prior = (r.receipt or {}).get('containment')
+            prior = containment = (r.receipt or {}).get('containment')
             if prior and q.details:
-                merged = merge_evidence(prior, q.details)
-                r.receipt = dict(r.receipt, containment=merged)
-                if merged['inventory_complete'] is False:
-                    q = Quiescence(False, 'retained containment incomplete', q.observed_at, merged)
+                containment = merge_evidence(prior, q.details)
+                r.receipt = dict(r.receipt, containment=containment)
+                if containment['inventory_complete'] is False:
+                    q = Quiescence(False, 'retained containment incomplete', q.observed_at, containment)
+            if not q.confirmed:
+                q = self._reprove_stale(r, containment) or q
             r.quiescence = asdict(q)
             if not q.confirmed:
                 r.state = 'unresolved'

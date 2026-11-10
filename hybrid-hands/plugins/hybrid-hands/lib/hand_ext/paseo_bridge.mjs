@@ -133,8 +133,12 @@ async function agentTerminal(client, r, fingerprint) {
   const labels = a.labels ?? {};
   const hasParent = Object.prototype.hasOwnProperty.call(labels, 'paseo.parent-agent-id');
   check(!hasParent || labels['paseo.parent-agent-id'] === r.parentAgentId, 'PLACEMENT_MISMATCH');
-  return {ok:true, targetKey:fingerprint, agentId:a.id, workspaceId:a.workspaceId,
+  const out = {ok:true, targetKey:fingerprint, agentId:a.id, workspaceId:a.workspaceId,
     status:a.status, archived:archived(a), parentLabel:hasParent ? 'match' : 'absent'};
+  // Sanitized liveness only (never turn/permission content); absent fields stay absent.
+  if (Object.prototype.hasOwnProperty.call(a, 'activeTurn')) out.activeTurn = a.activeTurn == null ? null : true;
+  if (Array.isArray(a.pendingPermissions)) out.pendingPermissionCount = a.pendingPermissions.length;
+  return out;
 }
 async function recoveryPlan(client, r) {
   const plan = await client.inspectWorkspaceRecovery(r.workspaceId);

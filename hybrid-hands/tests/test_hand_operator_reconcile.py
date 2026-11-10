@@ -16,6 +16,8 @@ from hand_ext.process_containment import OSIdentity
 from hand_ext.operator_reconcile import (recover_unresolved, OperatorSupervisor, STICKY_EVIDENCE,
                                          ReconcilePlan, AGENT_PROBE_COMMAND)
 from hand_ext.execution_worker import ExecutionWorker
+from hand_ext.execution_supervisor import STALE_UNCERTAINTY_METHOD
+from hand_ext.paseo_recovery import recover
 
 UID = os.getuid()
 ROOT_PID, DIAG_PID, OTHER_PID = 37664, 42185, 900
@@ -51,7 +53,9 @@ def completion(store):
     return Sinks(store, supervisor, AdmissionController(store, supervisor, None)).attach(worker)
 
 
-class OperatorReconcileTests(unittest.TestCase):
+class _Fixture:
+    EPOCH = 1
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory(); self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
@@ -59,7 +63,7 @@ class OperatorReconcileTests(unittest.TestCase):
         self.store = ExecutionStore(self.root / 'state')
         i = Invocation('inv', parallel.scope_digest(self.root), 'parent', parent_paseo_agent_id='parent-agent',
                        source_cwd=str(self.root))
-        a = Attempt('inv', 'att', 1, 'req', target_key='tk', project_id='p', workspace_id='ws', agent_id='ag')
+        a = Attempt('inv', 'att', self.EPOCH, 'req', target_key='tk', project_id='p', workspace_id='ws', agent_id='ag')
         AdmissionController(self.store, ExecutionSupervisor(self.store), lambda i, a: True).admit(i, a, max_parallel=1)
         self.key = a.key
         ExecutionSupervisor(self.store).register_writer(a.key, ProcessIdentity(ROOT_PID, ROOT_PID, 's'), 'worker')
@@ -84,6 +88,9 @@ class OperatorReconcileTests(unittest.TestCase):
                                  archived=True, parentLabel='absent') if req['command'] == AGENT_PROBE_COMMAND else None
         return recover_unresolved(self.store, self.store.get(self.key), table=table, probe=probe,
                                   clock=lambda: 5.0, completion_factory=completion, **kw)
+
+
+class OperatorReconcileTests(_Fixture, unittest.TestCase):
 
     def test_dead_writer_settles_and_releases_idempotently(self):
         before = self.store.get(self.key).revision
@@ -128,6 +135,69 @@ class OperatorReconcileTests(unittest.TestCase):
         def broken(_): raise TimeoutError('bridge timeout')
         plan = recover_unresolved(self.store, self.store.get(self.key), table=Table(), probe=broken)
         self.assertEqual((plan.eligible, plan.blocked), (False, 'exact agent status unavailable'))
+
+
+def stale_completion(store, table):
+    supervisor = ExecutionSupervisor(store)
+    supervisor.table = table  # attribute, so the pre-fix supervisor fails by assertion
+    worker = ExecutionWorker(store, supervisor)
+    return Sinks(store, supervisor, AdmissionController(store, supervisor, None)).attach(worker)
+
+
+class StaleUnavailableTests(_Fixture, unittest.TestCase):
+    """Sticky 'unavailable' env read must not hold the slot once provably stale."""
+    EPOCH = 2
+
+    def test_automatic_reconcile_releases_once_unavailable_pid_is_gone(self):
+        service = stale_completion(self.store, Table())
+        self.assertTrue(service.reconcile(self.key))
+        done = self.store.get(self.key)
+        self.assertIsNone(done.reservation)
+        self.assertEqual(done.quiescence['evidence'], STALE_UNCERTAINTY_METHOD)
+        self.assertEqual(done.quiescence['details']['stale_resolution']['marker_matches'], 0)
+        self.assertFalse(done.receipt['containment']['inventory_complete'])  # history kept
+        self.assertFalse(self.pool.exists())
+
+    def test_live_marker_unreadable_env_or_live_owner_still_blocks(self):
+        for table in (Table(marker=True), Table(unreadable=True), Table(owner_alive=True)):
+            with self.subTest(marker=table.marker, unreadable=table.unreadable):
+                self.assertFalse(stale_completion(self.store, table).reconcile(self.key))
+                r = self.store.get(self.key)
+                self.assertEqual((r.state, r.quiescence['confirmed']), ('unresolved', False))
+                self.assertIsNotNone(r.reservation)
+                self.assertTrue(self.pool.exists())
+
+    def recover_(self, active_turn=None, **kw):
+        status = lambda req: dict(ok=True, targetKey='tk', agentId='ag', workspaceId='ws', status='error',
+                                  activeTurn=active_turn, pendingPermissionCount=0, parentLabel='absent')
+        real = CompletionService._recover_refs
+        sinks = lambda svc, r, kind, token: real(svc, r, kind, token) if kind == 'go_ledger' else {}
+        with patch.object(CompletionService, '_recover_refs', sinks), \
+                patch.object(CompletionService, '_after_release', lambda *a: None):
+            return recover(self.store, self.key, str(self.root), None, validator=status,
+                           process_table=Table(), **kw)
+
+    def test_recover_settled_outcome_epoch2_keeps_outcome(self):
+        r = self.store.get(self.key)
+        outcome = dict(status='ok', backend_exit_code=0, quiescent=True, provenance='runner')
+        r.outcome, r.pending_outcome = outcome, None
+        r.settle_keys = {k: dict(key=k, state='completed') for k in ('finalize', 'report', 'ledger', 'usage_state')}
+        r.settle_keys['go_ledger'] = dict(key='tok', state='in_progress')  # no proof file, backend not dsh
+        self.store.compare_and_swap(self.key, r.revision, r)
+        before = self.store.get(self.key).revision
+        blocked = self.recover_(active_turn=True)
+        self.assertEqual((blocked.eligible, blocked.blocked), (False, 'agent not closed'))
+        plan = self.recover_()
+        self.assertTrue(plan.eligible, plan.blocked)
+        self.assertEqual(self.store.get(self.key).revision, before)
+        done = self.recover_(apply=True, reason='writer gone, agent errored')
+        self.assertIsNone(done.reservation)
+        self.assertEqual(done.state, 'awaiting_review')
+        self.assertEqual(done.outcome, outcome)
+        self.assertEqual(done.settle_keys['go_ledger']['state'], 'completed')
+        self.assertEqual(done.receipt['operator_reconcile']['reason'], 'writer gone, agent errored')
+        self.assertFalse(self.pool.exists())
+        self.assertEqual(self.recover_(apply=True, reason='again').revision, done.revision)
 
 
 def setUpModule():  # keep hh-store revision bumps out of the real ~/.hybrid-hands

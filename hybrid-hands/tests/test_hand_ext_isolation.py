@@ -339,7 +339,8 @@ class IsolationFailureTest(IsolationCase):
 class PolicyTextTest(HandExtTestCase):
     def test_data_rule_is_present_in_policy_surfaces(self) -> None:
         files = [
-            PLUGIN / "scripts" / "session-start-policy.sh",
+            # session-start-policy.sh renders this shared rules file via lib/policy_mode.py.
+            PLUGIN / "lib" / "policy_rules.txt",
             PLUGIN / "skills" / "ext-hand" / "SKILL.md",
             PLUGIN / "templates" / "ext-hand-preamble.md",
             HYBRID_HANDS / "README.md",
@@ -347,7 +348,7 @@ class PolicyTextTest(HandExtTestCase):
         for path in files:
             self.assertIn("dữ liệu khách hàng", path.read_text(encoding="utf-8"), str(path))
             self.assertIn("hand Claude", path.read_text(encoding="utf-8"), str(path))
-        inject = (PLUGIN / "scripts" / "inject-policy.sh").read_text(encoding="utf-8")
+        inject = (PLUGIN / "lib" / "policy_mode.py").read_text(encoding="utf-8")  # inject-policy.sh renders NORMAL_PROMPT
         self.assertIn("xem SessionStart và AGENTS.md", inject)
 
 
