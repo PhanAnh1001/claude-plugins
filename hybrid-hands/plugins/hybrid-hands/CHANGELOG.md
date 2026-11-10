@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.44.0 — 2026-11-10
+
+- `/hybrid-hands:models` không đối số chỉ xem; `set` không cờ dùng AskUserQuestion chọn tầng, model, effort và tài khoản Claude khi cần rồi ghi theo lựa chọn. Các đối số khác tiếp tục chuyển nguyên cho CLI; lỗi thì dừng, không tự sửa config hay chạy lại.
+- Thêm `hand-ext models options --json` cung cấp tiers, providers, profiles, accounts và hand_backends cho luồng chọn; bản text in danh sách gọn. Ghi thành công nhắc mở phiên mới để áp dụng.
+
 ## 0.43.0 — 2026-11-10
 
 - Thêm `hand-ext models` và `/hybrid-hands:models`: xem model/effort/account cùng nguồn của brain, phiên phụ và hand; `set` và `unset brain|side|hand` theo repo, hỗ trợ `--json`, `--cwd`, `--dry-run`.

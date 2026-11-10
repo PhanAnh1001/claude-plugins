@@ -187,18 +187,19 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 
 Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi đường dẫn bằng `HYBRID_HANDS_CONFIG`) → repo `.claude/hybrid-hands.json` → cờ CLI. Dict merge sâu; list/scalar thay nguyên. Global thiếu thì bỏ qua; global hỏng báo lỗi kèm đường dẫn và dừng. `hand-ext config --json` in cấu hình hiệu lực, nguồn từng key và đường dẫn file đã đọc. `ext_hand.claude_accounts` và `ext_hand.backends.*` đặt được ở global. Dưới Paseo, biến `HYBRID_HANDS_CONFIG` phải có trong môi trường daemon mới có tác dụng.
 
-### Model ba tầng theo repo — 0.43.0
+### Model ba tầng theo repo — 0.44.0
 
 `hand-ext models` xem model/effort/account và nguồn cấu hình của brain, phiên phụ và hand. Chỉ dùng `set`/`unset` khi người dùng chốt thay đổi cụ thể; ghi atomic vào cùng file repo đã resolve như `parallel-subagents`, kể cả fallback main worktree, không tạo config riêng cho worktree.
 
 ```sh
 hand-ext models --json
+hand-ext models options --json
 hand-ext models set --brain claude:claude-opus-5-5:high@v1 --side codex:gpt-6.1-sol:high --dry-run
 hand-ext models set --hand codex=gpt-6.1-sol:low --hand-order dsh,codex,claude-v1,claude-v2
 hand-ext models unset hand --dry-run
 ```
 
-Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `unset brain|side|hand` gỡ override cả tầng, giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) với cùng đối số. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
+Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `unset brain|side|hand` gỡ override cả tầng, giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) để chỉ xem, không hỏi hay ghi; `/hybrid-hands:models set` mở danh sách chọn tầng, model, effort và tài khoản Claude khi cần. Lựa chọn là xác nhận để ghi. `hand-ext models options --json` cung cấp danh sách chỉ đọc cho luồng chọn; slash command với đối số khác chuyển nguyên cho CLI. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
 
 ### Mode parallel-subagents
 
