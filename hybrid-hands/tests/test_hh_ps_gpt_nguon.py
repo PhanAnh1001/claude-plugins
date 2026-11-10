@@ -1,4 +1,5 @@
 """Synthetic GPT sources: measured quota, observed costs, validated account samples."""
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import datetime as dt
 import json
 import os

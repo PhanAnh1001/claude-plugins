@@ -1,6 +1,7 @@
 """`hh-ps` usage: dedupe/price transcripts, Go hand estimates, USD and limit-% columns."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import json
 import re
 import sys
@@ -254,7 +255,7 @@ class JsonUsageTest(unittest.TestCase):
             sessions=[main], orphan_runs=[orphan], since_seconds=3600, cwd="",
             all_projects=False, main_session_id=None, generated_at=NOW))
         session = data["sessions"][0]
-        self.assertEqual(session["usage"], {"account_plan": "", "account_5h_pct": None,
+        self.assertEqual(session["usage"], {"account_plan": "", "account_label": "", "account_5h_pct": None,
                                             "account_week_pct": None, "read": 1000, "cache_read": 2000,
                                             "cache_write": 300, "out": 40,
                                             "usd": 0.42, "week_pct": None,

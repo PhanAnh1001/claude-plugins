@@ -1,4 +1,5 @@
 """Native child metadata, using isolated fake homes only."""
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import json
 import sys
 import unittest

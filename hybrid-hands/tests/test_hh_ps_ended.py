@@ -1,6 +1,7 @@
 """`hh-ps` default view hides ended trees; end times in text and JSON."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import datetime as dt
 import io
 import json

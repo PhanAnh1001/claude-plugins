@@ -1,4 +1,5 @@
 """Only synthetic rollout/config/pricing sources are used here."""
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 from test_hh_ps_gpt_nguon import NOW, event, iso, write
 from pathlib import Path
 from types import SimpleNamespace

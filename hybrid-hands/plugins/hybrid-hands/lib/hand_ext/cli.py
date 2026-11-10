@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
+from account_label import backend_account_label
 from shared_config import GlobalConfigError, load_config as load_shared
 
 from . import go_live, go_usage, measure, quota_state, render, report
@@ -49,7 +50,7 @@ def _parser() -> argparse.ArgumentParser:
     inspect.add_argument("--cwd")
     parallel = sub.add_parser("parallel-subagents", aliases=["parallel"],
                               help="xem hoặc bật/tắt policy parallel của repo (parallel: alias cũ)")
-    parallel.add_argument("action", nargs="?", choices=("on", "off"))
+    parallel.add_argument("action", nargs="?", choices=("on", "off", "accounts"))
     parallel.add_argument("--backend")
     parallel.add_argument("--account", help="tài khoản Claude vN dùng chung cho brain và subagent")
     parallel.add_argument("--cwd")
@@ -132,7 +133,7 @@ def _names(cfg: ExtConfig, choice: str) -> List[str]:
 
 
 def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
-    result = {"backend": None, "model": None, "effort": None, "account": None, "skipped": [],
+    result = {"backend": None, "model": None, "effort": None, "account": None, "account_label": None, "skipped": [],
               "native": False, "native_reason": "no backend available"}
     choice = getattr(args, "backend", None)
     if choice is not None:
@@ -145,7 +146,8 @@ def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
         options = cfg.options(name)
         account = {"codex": "gpt", "claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
         result.update(backend=name, model=options.get("model", ""),
-                      effort=options.get("effort", options.get("variant", "")), account=account)
+                      effort=options.get("effort", options.get("variant", "")), account=account,
+                      account_label=backend_account_label(name, cfg))
         native, reason = native_selection(cfg, name)
         result.update(native=native, native_reason=reason)
         break
@@ -154,7 +156,7 @@ def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
     else:
         for skipped in result["skipped"]:
             print(f"bỏ qua {skipped['backend']}: {skipped['reason']}")
-        print(f"{result['backend']} model={result['model']} effort={result['effort']} account={result['account']}"
+        print(f"{result['backend']} model={result['model']} effort={result['effort']} account={result.get('account_label') or result['account']}"
               if result["backend"] else "Không backend nào dùng được.")
     return EXIT_OK if result["backend"] else EXIT_ALL_UNAVAILABLE
 

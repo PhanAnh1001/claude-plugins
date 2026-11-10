@@ -1,6 +1,7 @@
 """`hh-ps` side-session v2: worktree scope, synthetic rows and nested text tree."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import io
 import json
 import sys
