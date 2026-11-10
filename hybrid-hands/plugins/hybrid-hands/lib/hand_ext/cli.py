@@ -51,6 +51,7 @@ def _parser() -> argparse.ArgumentParser:
                               help="xem hoặc bật/tắt policy parallel của repo (parallel: alias cũ)")
     parallel.add_argument("action", nargs="?", choices=("on", "off"))
     parallel.add_argument("--backend")
+    parallel.add_argument("--account", help="tài khoản Claude vN dùng chung cho brain và subagent")
     parallel.add_argument("--cwd")
     parallel.add_argument("--json", action="store_true")
     provider = sub.add_parser("provider", help="cấu hình ACP provider bằng schema Paseo chính thức")

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.0 — 2026-11-10
+
+- Thêm `parallel-subagents --account vN`: validate theo `ext_hand.claude_accounts` hiệu lực, ghi atomic cùng lúc `parallel_subagents.backend = "claude-vN"` và `main_session.claude_account = "vN"`; account lạ hoặc `--backend` khác `claude-vN` thì exit 2, không ghi. Slash command nhận cờ mới.
+- Status text/JSON thêm `brain_account`, `brain_account_source`, `account_mismatch` và cảnh báo khi backend subagent khác tài khoản brain; policy mode bật nêu tài khoản brain, hướng dẫn `hand-ext run --backend claude-vN` và mở brain mới bằng `side-session start --main --provider claude --account vN` khi khác account. Mode tắt giữ nguyên output.
+
 ## 0.38.0 — 2026-11-10
 
 - Thêm `parallel_subagents.backend` mặc định `claude-v1`, đặt từ global/repo hoặc `parallel-subagents --backend NAME`; status hiện backend/model/effort và nguồn.

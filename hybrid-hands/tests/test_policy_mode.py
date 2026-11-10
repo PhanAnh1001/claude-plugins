@@ -69,6 +69,12 @@ class PolicyModeTest(unittest.TestCase):
                     assert "ext_hand.max_parallel thực = 2" in text and "claude-opus-5-5" in text
                     assert "effort `low`" in text and "pick --json --backend claude-v1" in text
                     assert all(law in text for law in ("LUẬT DỮ LIỆU", "LUẬT TIẾP VIỆC", "LUẬT TEST TỐI THIỂU", "LUẬT NGỮ CẢNH BRAIN"))
+        config.write_text('{"parallel_subagents":{"enabled":true,"backend":"claude-v2"},"main_session":{"claude_account":"v2"}}')
+        for i, result in enumerate(hooks(tmp_path)):
+            assert "hand-ext run --backend claude-v2" in context(result, i) and "--account v2" in context(result, i)
+        config.write_text('{"parallel_subagents":{"enabled":true,"backend":"claude-v2"}}')
+        for i, result in enumerate(hooks(tmp_path)):
+            assert "khác backend subagent" in context(result, i) and "--backend claude-v1`" not in context(result, i)
         for bad in ('{"parallel_subagents":{"enabled":"PRIVATE_VALUE"}}', '{broken'):
             config.write_text(bad)
             for i, result in enumerate(hooks(tmp_path)):
