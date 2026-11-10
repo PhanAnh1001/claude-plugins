@@ -81,7 +81,7 @@ def usage_cells(usage: Optional[Usage]) -> List[Cell]:
             five = usage.gpt_5h_pct
         if week is None:
             week = usage.gpt_week_pct
-    plan = getattr(usage, "account_plan", "") or "TK"
+    plan = getattr(usage, "account_label", "") or getattr(usage, "account_plan", "") or "TK"
     share = f"{plan} 5h {percent_text(five) or '?'} · tuần {percent_text(week) or '?'}"
     if usage is not None and usage.week_pct is not None:
         label = "riêng (đo)" if usage.week_pct_source == "codex_rate_limits_delta" else "riêng"

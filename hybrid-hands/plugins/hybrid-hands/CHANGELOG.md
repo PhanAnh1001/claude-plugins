@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.40.0 — 2026-11-10
+
+- Thêm nhãn tài khoản thống nhất `{provider} {slot} {plan} {name}` qua helper `lib/account_label.py`: ưu tiên `plan`/`name` cấu hình, thiếu plan dùng plan phát hiện sẵn nếu có, thiếu name thì Claude lấy local-part của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json` (không in email đầy đủ), GPT hiện `?`; phần thiếu hiện `?`.
+- Cấu hình mới: `ext_hand.claude_accounts.vN.plan|name`, section `ext_hand.gpt_accounts` (mặc định `v1` home `~/.codex-hand`, chỉ phục vụ nhãn) và `ext_hand.account_label_format`; format sai placeholder thì cảnh báo không in giá trị và dùng mặc định.
+- `parallel-subagents` status dùng nhãn ở dòng brain/backend, JSON thêm `brain_account_label`, `backend_account_label`; `pick --json` thêm `account_label`; hh-ps JSON usage thêm `account_label` và cột tài khoản dùng nhãn khi biết slot. Field cũ giữ nguyên.
+- Thêm `parallel-subagents accounts [--json]` liệt kê đánh số tài khoản Claude rồi GPT theo nhãn, `*` ở backend đang chọn; `on` không cờ trên TTY hỏi chọn (Enter giữ hiện tại, sai exit 2 không ghi), slash command hỏi bằng AskUserQuestion. Plan GPT tự lấy từ `rate_limits.plan_type` của rollout mới nhất trong `~/.codex-hand/sessions` khi chưa cấu hình; `HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE=1` (chỉ cho test) tắt mọi lần đọc file tài khoản.
+
 ## 0.39.0 — 2026-11-10
 
 - Thêm `parallel-subagents --account vN`: validate theo `ext_hand.claude_accounts` hiệu lực, ghi atomic cùng lúc `parallel_subagents.backend = "claude-vN"` và `main_session.claude_account = "vN"`; account lạ hoặc `--backend` khác `claude-vN` thì exit 2, không ghi. Slash command nhận cờ mới.

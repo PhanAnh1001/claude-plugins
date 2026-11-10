@@ -47,7 +47,7 @@ class GlobalConfigError(Exception):
 FILE_SOURCES = ("global", "repo")
 # Sections whose child keys are registry entries: unknown names allowed, each entry a dict.
 # Tuples, not sets: a set of strings also matches a list/str by containment.
-REGISTRY_SECTIONS = ("ext_hand.backends", "ext_hand.claude_accounts")
+REGISTRY_SECTIONS = ("ext_hand.backends", "ext_hand.claude_accounts", "ext_hand.gpt_accounts")
 # Sections which are always objects. Their own leaves are replaceable, so an explicit
 # ``price_per_mtok: null`` or ``monthly_limit_usd`` stays allowed.
 OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.go_usage", "ext_hand.paseo",

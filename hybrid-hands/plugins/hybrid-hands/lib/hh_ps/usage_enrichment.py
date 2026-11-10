@@ -9,6 +9,7 @@ from typing import Any, Optional
 from hand_ext.codex_usage import price_for as codex_price
 from hand_ext.go_usage import estimate_cost, price_for as go_price
 from usage_pricing import explicit_options, token_price
+from account_label import backend_account_label
 
 from .models import Usage, Limit
 from .timeutil import to_epoch
@@ -21,7 +22,12 @@ GO_BACKENDS = frozenset(("dsh", "opencode"))
 WEEK_WINDOWS = frozenset(("tuần", "7d", "week"))
 
 
-def _account(usage: Usage, plan: str, snapshot: Any, now: float, five: dict) -> Usage:
+def _label(backend: str, cfg: Any) -> str:
+    return (backend_account_label(backend, cfg) or "") if cfg is not None else ""
+
+
+def _account(usage: Usage, plan: str, snapshot: Any, now: float, five: dict,
+             label: str = "") -> Usage:
     windows = {row.window: row.total_pct for row in snapshot.limits
                if row.plan == plan and row.source != "ledger"
                and _percent(row.total_pct) is not None
@@ -30,7 +36,7 @@ def _account(usage: Usage, plan: str, snapshot: Any, now: float, five: dict) -> 
     if plan not in five:
         five[plan] = _five_hour(plan, now)
     return replace(usage, account_plan=plan, account_5h_pct=windows.get("5h", five[plan]),
-                   account_week_pct=week)
+                   account_week_pct=week, account_label=label)
 
 
 def _claude_five(home: Path, now: float):
@@ -132,12 +138,14 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
                 else "Claude" if provider == "claude" else "")
         usage = _row_usage(session, cfg)
         if usage is not None:
-            session.usage = _account(usage, plan, snapshot, now, five)
+            session.usage = _account(usage, plan, snapshot, now, five,
+                                     _label("codex", cfg) if provider == "codex" else "")
         for agent in session.subagents:
             usage = _row_usage(agent, cfg, provider)
             if usage is not None:
                 agent_plan = "GPT" if agent.provider == "codex" else plan
-                agent.usage = _account(usage, agent_plan, snapshot, now, five)
+                agent.usage = _account(usage, agent_plan, snapshot, now, five,
+                                       _label("codex", cfg) if agent_plan == "GPT" else "")
     for run in snapshot.iter_runs():
         backend = run.backend
         try:
@@ -171,4 +179,5 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
                 else _go_run_week_pct(backend, usd, run.week_limit_usd))
         run.usage = _account(replace(usage, usd=usd, usd_estimated=usd is not None,
             week_pct=week, week_pct_estimated=(usage.week_pct_estimated if backend == "codex"
-                                            else week is not None)), plan, snapshot, now, five)
+                                            else week is not None)), plan, snapshot, now, five,
+            _label(backend, cfg) if options is not None or backend == "codex" else "")

@@ -32,6 +32,8 @@ class Usage:
     account_5h_pct: Optional[float] = None
     account_week_pct: Optional[float] = None
     week_pct_source: str = ""
+    # Unified account label (account_label.py); empty when the account slot is unknown.
+    account_label: str = ""
 
 
 @dataclass(frozen=True)

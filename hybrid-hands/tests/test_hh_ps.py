@@ -1,6 +1,7 @@
 """`hh-ps`: live Claude sessions, subagents, external hand runs and the text/JSON trees."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import io
 import json
 import os
@@ -127,7 +128,7 @@ class HhPsTest(unittest.TestCase):
         self.assertEqual(set(session["usage"]),
                          {"read", "cache_read", "cache_write", "out", "usd",
                           "week_pct", "week_pct_estimated", "usd_estimated",
-                          "account_plan", "account_5h_pct", "account_week_pct"})
+                          "account_plan", "account_label", "account_5h_pct", "account_week_pct"})
         self.assertIn("ai_title", session)
         self.assertEqual(set(run["tokens"]), {"input", "cached_input", "output"})
         self.assertEqual(len(data["orphan_runs"]), 1)

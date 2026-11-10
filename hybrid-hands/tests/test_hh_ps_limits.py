@@ -8,6 +8,7 @@ Cross-checked against the statusline plugin itself:
 """
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import json
 import hashlib
 import os
@@ -467,7 +468,7 @@ class ConfigAndJsonTest(unittest.TestCase):
                           "total_pct", "resets_at", "source", "estimated"})
         self.assertEqual(set(data["sessions"][0]["usage"]),
                          {"read", "cache_read", "cache_write", "out", "usd",
-                          "week_pct", "week_pct_estimated", "account_plan",
+                          "week_pct", "week_pct_estimated", "account_plan", "account_label",
                           "account_5h_pct", "account_week_pct"})
         self.assertEqual(data["sessions"][0]["usage"]["week_pct"], 6.2)
 

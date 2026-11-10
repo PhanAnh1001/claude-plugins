@@ -47,6 +47,8 @@ Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… h
 
 Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
+Nhãn tài khoản thống nhất dạng `{provider} {slot} {plan} {name}` (ví dụ `claude v1 Max anhtp`, `gpt v1 Plus anhtp`), đổi bằng `ext_hand.account_label_format` (chỉ 4 placeholder đó). Mỗi `ext_hand.claude_accounts.vN` và `ext_hand.gpt_accounts.vN` (mặc định `v1` home `~/.codex-hand`, chỉ phục vụ nhãn) nhận `plan`/`name` tuỳ chọn; thiếu `name` thì Claude lấy phần trước `@` của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json`, GPT hiện `?`. Nhãn xuất hiện ở `parallel-subagents` status, `pick` và hh-ps (JSON thêm `account_label`, giữ field cũ). Plan GPT thiếu cấu hình lấy từ `rate_limits.plan_type` của rollout mới nhất. `hand-ext parallel-subagents accounts [--json]` liệt kê tài khoản đánh số; `on` không cờ trên terminal hỏi chọn, slash command hỏi bằng AskUserQuestion.
+
 Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |

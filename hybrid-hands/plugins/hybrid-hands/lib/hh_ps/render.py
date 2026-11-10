@@ -17,6 +17,7 @@ def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
         usage = Usage()
     data: Dict[str, object] = {
         "account_plan": getattr(usage, "account_plan", ""),
+        "account_label": getattr(usage, "account_label", ""),
         "account_5h_pct": getattr(usage, "account_5h_pct", None),
         "account_week_pct": getattr(usage, "account_week_pct", None),
         "read": usage.read,

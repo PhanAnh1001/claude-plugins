@@ -18,6 +18,8 @@ from .constants import (
 )
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]
+# Display-only account keys (account_label); never passed to backend options.
+LABEL_KEYS = ("plan", "name")
 
 
 @dataclass
@@ -48,6 +50,10 @@ class ExtConfig:
     paseo: Dict[str, Any] = field(default_factory=dict)
 
     native: Dict[str, str] = field(default_factory=lambda: copy.deepcopy(DEFAULTS["native"]))
+
+    gpt_accounts: Dict[str, Dict[str, Any]] = field(
+        default_factory=lambda: copy.deepcopy(DEFAULTS["gpt_accounts"]))
+    account_label_format: str = DEFAULTS["account_label_format"]
 
     def options(self, name: str) -> Dict[str, Any]:
         account = {"claude-main": "v1", "claude": "v2"}.get(name)
@@ -186,9 +192,10 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
                     **overrides.get(canonical, {})}
         if not isinstance(resolved.get("config_dir"), str) or not resolved["config_dir"]:
             raise ValueError(f"claude_accounts.{account}.config_dir phải là đường dẫn")
-        accounts[account] = {key: resolved[key] for key in ("config_dir", "max_day_pct")
+        accounts[account] = {key: resolved[key] for key in ("config_dir", "max_day_pct") + LABEL_KEYS
                              if key in resolved}
-        backends[canonical] = {key: _expand(value) for key, value in resolved.items()}
+        backends[canonical] = {key: _expand(value) for key, value in resolved.items()
+                               if key not in LABEL_KEYS}
         if alias:
             backends[alias] = dict(backends[canonical])
     # Resolve only backend path settings, after account and alias precedence.
@@ -210,6 +217,10 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
     if set(native) - set(DEFAULTS["native"]) or any(
             value not in ("auto", "off") for value in native.values()):
         raise ValueError("ext_hand.native chỉ nhận claude/codex với auto hoặc off")
+    gpt_accounts = section.pop("gpt_accounts")
+    if not isinstance(gpt_accounts, dict) or not all(isinstance(v, dict) for v in gpt_accounts.values()):
+        raise ValueError("ext_hand.gpt_accounts cần tài khoản v<N> và options object")
+    label_fmt = section.pop("account_label_format")
     mode = section.pop("mode")
     if mode not in ("shell", "auto", "paseo-required"):
         raise ValueError("ext_hand.mode phải là shell, auto hoặc paseo-required")
@@ -247,4 +258,5 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         go_usage_live=go_live,
         machine_state_dir=_state_dir(),
         max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo, native=native,
+        gpt_accounts=gpt_accounts, account_label_format=label_fmt,
     )

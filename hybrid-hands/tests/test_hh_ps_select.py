@@ -1,6 +1,7 @@
 """`hh-ps` lists all children, running first and finished newest first."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import io
 import sys
 import unittest

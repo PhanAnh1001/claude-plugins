@@ -9,7 +9,9 @@ class ParallelCommandTest(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
         self.root = Path(temp.name).resolve(); self.config = self.root / '.claude/hybrid-hands.json'
-        env = patch.dict(os.environ, {'HYBRID_HANDS_CONFIG': str(self.root / 'global.json')})
+        # Offline label: never read a real ~/.claude*/.claude.json or ~/.codex-hand in tests.
+        env = patch.dict(os.environ, {'HYBRID_HANDS_CONFIG': str(self.root / 'global.json'),
+                                      'HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE': '1'})
         env.start(); self.addCleanup(env.stop)
     def run_cli(self, *args):
         out, err = io.StringIO(), io.StringIO()
@@ -23,11 +25,27 @@ class ParallelCommandTest(unittest.TestCase):
         linked = self.root / 'linked'; linked.mkdir()
         with patch('hand_ext.config.git_toplevel', return_value=linked), patch('hand_ext.config.main_repo_root', return_value=self.root):
             self.assertIn(str(self.config), self.run_cli('on')[1])
-            self.assertEqual(json.loads(self.run_cli('--json')[1]), {'parallel_subagents':True,'source':'repo','file':str(self.config), 'backend':'claude-v1','model':'claude-opus-5-5','effort':'low','backend_source':'plugin','brain_account':'v1','brain_account_source':'plugin','account_mismatch':False})
+            status = json.loads(self.run_cli('--json')[1])
+            self.assertEqual(status.pop('brain_account_label'), 'claude v1 ? ?')
+            self.assertEqual(status.pop('backend_account_label'), 'claude v1 ? ?')
+            self.assertEqual(status, {'parallel_subagents':True,'source':'repo','file':str(self.config), 'backend':'claude-v1','model':'claude-opus-5-5','effort':'low','backend_source':'plugin','brain_account':'v1','brain_account_source':'plugin','account_mismatch':False})
         self.config.unlink(); (self.root / 'global.json').write_text('{"parallel_subagents":{"enabled":true}}')
         code, out, err = self.run_cli('--json')
         self.assertEqual((code, json.loads(out)['parallel_subagents'], json.loads(out)['source']), (0, False, 'global'))
         self.assertIn('bỏ qua global', err)
+    def test_accounts_lists_claude_then_gpt(self):
+        rows = json.loads(self.run_cli('accounts', '--json')[1])
+        self.assertEqual([(r['index'], r['backend'], r['label'], r['selected']) for r in rows],
+                         [(1, 'claude-v1', 'claude v1 ? ?', True), (2, 'claude-v2', 'claude v2 ? ?', False),
+                          (3, 'codex', 'gpt v1 ? ?', False)])
+    def test_on_tty_pick_and_bad_choice(self):
+        with patch('hand_ext.parallel_cmd._is_tty', return_value=True):
+            with patch('builtins.input', return_value='9'):
+                self.assertEqual(self.run_cli('on')[0], 2); self.assertFalse(self.config.exists())
+            with patch('builtins.input', return_value='2'):
+                self.assertEqual(self.run_cli('on')[0], 0)
+        data = json.loads(self.config.read_text())
+        self.assertEqual((data['parallel_subagents']['backend'], data['main_session']['claude_account']), ('claude-v2', 'v2'))
     def test_off_creates_and_is_idempotent(self):
         self.assertIn('nguồn: default', self.run_cli()[1])
         with contextlib.redirect_stdout(io.StringIO()):

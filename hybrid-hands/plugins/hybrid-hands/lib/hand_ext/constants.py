@@ -104,6 +104,9 @@ DEFAULTS = {
         "v1": {"config_dir": "~/.claude", "max_day_pct": 5.0},
         "v2": {"config_dir": "~/.claude-hand"},
     },
+    # Label-only registry (optional plan/name per slot); codex still runs from backends.codex.
+    "gpt_accounts": {"v1": {"home": "~/.codex-hand"}},
+    "account_label_format": "{provider} {slot} {plan} {name}",
     "timeout_min": 60,
     "max_tokens": None,
     "sandbox": "workspace-write",

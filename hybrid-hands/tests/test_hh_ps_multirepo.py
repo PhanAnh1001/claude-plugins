@@ -1,6 +1,7 @@
 """`hh-ps` loads side-session state from every repo a listed session lives in."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import io
 import json
 import subprocess

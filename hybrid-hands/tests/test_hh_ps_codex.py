@@ -1,6 +1,7 @@
 """`hh-ps` Codex rows: ledger USD, pinned-rollout Sol USD and GPT account samples."""
 from __future__ import annotations
 
+__import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
 import json
 import sys
 import unittest
@@ -117,8 +118,8 @@ class CodexPanelTest(unittest.TestCase):
         self.assertEqual((sol["gpt_5h_pct"], sol["gpt_week_pct"]), (44, 55))
         self.assertIn("~$6.24", text)
         self.assertIn("~$6.24", text)
-        self.assertIn("GPT 5h 44.0% · tuần 55.0%", text)
-        self.assertIn("GPT 5h 44.0% · tuần 55.0%", text)
+        self.assertIn("gpt v1 ? ? 5h 44.0% · tuần 55.0%", text)
+        self.assertIn("gpt v1 ? ? 5h 44.0% · tuần 55.0%", text)
         self.assertRegex(text, r"GPT 5h\s+tổng 44\.0% · reset (?:\d\d/\d\d )?\d\d:\d\d")
         self.assertNotIn("97.0%", text)
         self.assertNotIn("999999999", text)
