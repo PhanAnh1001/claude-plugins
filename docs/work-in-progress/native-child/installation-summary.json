@@ -1,0 +1,43 @@
+{
+  "records": 10,
+  "registered_029": 4,
+  "folder_029": 10,
+  "stale_worktree_records": [
+    {
+      "scope": "project",
+      "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c",
+      "registered_version": "0.27.0",
+      "folder_version": "0.29.0"
+    },
+    {
+      "scope": "project",
+      "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-10b",
+      "registered_version": "0.27.0",
+      "folder_version": "0.29.0"
+    },
+    {
+      "scope": "project",
+      "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/WP-11",
+      "registered_version": "0.27.0",
+      "folder_version": "0.29.0"
+    },
+    {
+      "scope": "project",
+      "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-10c",
+      "registered_version": "0.27.0",
+      "folder_version": "0.29.0"
+    },
+    {
+      "scope": "project",
+      "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-13",
+      "registered_version": "0.27.0",
+      "folder_version": "0.29.0"
+    },
+    {
+      "scope": "project",
+      "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-14",
+      "registered_version": "0.27.0",
+      "folder_version": "0.29.0"
+    }
+  ]
+}

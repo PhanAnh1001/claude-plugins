@@ -1,0 +1,42 @@
+▾ ● Phiên 1 (root session) MODEL/EFFORT claude-opus-5-5/high · rảnh · ~$0.84 · Claude 5h ? · tuần 13.5% · riêng ~0.1% tuần · chạy 6p · kết thúc đang chạy
+  ● phiên phụ Phụ 11 (side session) MODEL/EFFORT gpt-6.1-sol/high · rảnh · ~$0.41 · GPT 5h ? · tuần 14.0% · chạy 4p · kết thúc đang chạy
+  ▾ ● phiên phụ Phụ 12 (side session) MODEL/EFFORT gpt-6.1-sol/high · rảnh · ~$0.39 · GPT 5h ? · tuần 14.0% · chạy 4p · kết thúc đang chạy
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 1 · xong · ~$0.06 · GPT 5h ? · tuần 14.0% · 16s · 2026-11-07 23:08
+▾ ● Phiên 2 (root session) MODEL/EFFORT claude-opus-5-5/high · rảnh · ~$2.93 · Claude 5h ? · tuần 13.5% · riêng ~0.2% tuần · chạy 2g41p · kết thúc đang chạy
+  • Subagent 1 MODEL/EFFORT claude-opus-5-5/low · xong · ~$0.41 · Claude 5h ? · tuần 13.5% · riêng ~<0.1% tuần · 1p · 2026-11-07 20:32
+  • Subagent 2 MODEL/EFFORT claude-opus-5-5/low · xong · ~$0.39 · Claude 5h ? · tuần 13.5% · riêng ~<0.1% tuần · 1p · 2026-11-07 20:32
+  ○ phiên phụ Phụ 9 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy 14p · kết thúc 2026-11-07 20:52
+  ▾ ○ phiên phụ Phụ 10 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy 33p · kết thúc 2026-11-07 21:39
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 1 · xong · ~$0.07 · GPT 5h ? · tuần 14.0% · 1p · 2026-11-07 21:31
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 2 · xong · ~$0.04 · GPT 5h ? · tuần 14.0% · 24s · 2026-11-07 21:30
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 3 · xong · ~$0.05 · GPT 5h ? · tuần 14.0% · 43s · 2026-11-07 21:26
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 4 · xong · ~$0.16 · GPT 5h ? · tuần 14.0% · 1p · 2026-11-07 21:27
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 5 · xong · ~$0.17 · GPT 5h ? · tuần 14.0% · 2p · 2026-11-07 21:25
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 6 · xong · ~$0.18 · GPT 5h ? · tuần 14.0% · 2p · 2026-11-07 21:25
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 7 · xong · ~$0.20 · GPT 5h ? · tuần 14.0% · 2p · 2026-11-07 21:23
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 8 · xong · ~$0.23 · GPT 5h ? · tuần 14.0% · 3p · 2026-11-07 21:23
+  ▾ ○ phiên phụ Phụ 13 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy 16p · kết thúc 2026-11-07 21:56
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 1 · xong · ~$0.05 · GPT 5h ? · tuần 14.0% · 35s · 2026-11-07 21:52
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 2 · xong · ~$0.10 · GPT 5h ? · tuần 14.0% · 42s · 2026-11-07 21:52
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 3 · xong · ~$0.03 · GPT 5h ? · tuần 14.0% · 20s · 2026-11-07 21:52
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 4 · xong · ~$0.07 · GPT 5h ? · tuần 14.0% · 48s · 2026-11-07 21:47
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 5 · xong · ~$0.13 · GPT 5h ? · tuần 14.0% · 1p · 2026-11-07 21:48
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 6 · xong · ~$0.09 · GPT 5h ? · tuần 14.0% · 1p · 2026-11-07 21:45
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 7 · xong · ~$0.21 · GPT 5h ? · tuần 14.0% · 2p · 2026-11-07 21:46
+    • codex MODEL/EFFORT gpt-6.1-sol/low · Hand 8 · xong · ~$0.15 · GPT 5h ? · tuần 14.0% · 1p · 2026-11-07 21:45
+  ○ phiên phụ Phụ 20 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy 6p · kết thúc 2026-11-07 21:01
+▾ ● Phiên 4 (root session) MODEL/EFFORT claude-opus-5-5/high · rảnh · ~$5.00 · Claude 5h ? · tuần 13.5% · riêng ~0.4% tuần · chạy 3g11p · kết thúc đang chạy
+  • Subagent 1 MODEL/EFFORT claude-opus-5-5/low · xong · ~$0.48 · Claude 5h ? · tuần 13.5% · riêng ~<0.1% tuần · 2p · 2026-11-07 20:19
+  ● phiên phụ Phụ 3 (side session) MODEL/EFFORT claude-opus-5-5/high · rảnh · ~$7.31 · Claude 5h ? · tuần 13.5% · riêng ~0.5% tuần · chạy 1g45p · kết thúc đang chạy
+  ○ phiên phụ Phụ 14 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy ? · kết thúc ?
+  ○ phiên phụ Phụ 15 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy ? · kết thúc ?
+  ○ phiên phụ Phụ 16 (side session) MODEL/EFFORT gpt-6.1-sol/high · đã kết thúc · ~$9.91 · GPT 5h ? · tuần 14.0% · chạy ? · kết thúc ?
+  ● phiên phụ Phụ 17 (side session) MODEL/EFFORT gpt-6.1-sol/high · rảnh · ~$5.63 · GPT 5h ? · tuần 14.0% · chạy 1g58p · kết thúc đang chạy
+  ○ phiên phụ Phụ 18 (side session) MODEL/EFFORT ?/? · đã kết thúc · ~$? · GPT 5h ? · tuần 14.0% · chạy ? · kết thúc ?
+  ○ phiên phụ Phụ 19 (side session) MODEL/EFFORT gpt-6.1-sol/high · đã kết thúc · ~$0.59 · GPT 5h ? · tuần 14.0% · chạy ? · kết thúc ?
+▾ ○ Phiên 5 (root session) MODEL/EFFORT claude-opus-5-5/high · đã kết thúc · ~$0.51 · Claude 5h ? · tuần 13.5% · riêng ~<0.1% tuần · chạy 5p · kết thúc 2026-11-07 20:20
+  • Subagent 1 MODEL/EFFORT claude-opus-5-5/low · xong · ~$0.67 · Claude 5h ? · tuần 13.5% · riêng ~0.1% tuần · 3p · 2026-11-07 20:18
+○ Phiên 6 (root session) MODEL/EFFORT claude-opus-5-5/high · đã kết thúc · ~$0.69 · Claude 5h ? · tuần 13.5% · riêng ~0.1% tuần · chạy 3g26p · kết thúc 2026-11-07 20:02
+▾ ○ Phiên 7 (root session) MODEL/EFFORT claude-opus-5-5/high · đã kết thúc · ~$0.27 · Claude 5h ? · tuần 13.5% · riêng ~<0.1% tuần · chạy 1p · kết thúc 2026-11-07 19:48
+  • Subagent 1 MODEL/EFFORT claude-opus-5-5/low · xong · ~$0.19 · Claude 5h ? · tuần 13.5% · riêng ~<0.1% tuần · 30s · 2026-11-07 19:48
+○ Phiên 8 (root session) MODEL/EFFORT claude-opus-5-5/high · đã kết thúc · ~$5.65 · Claude 5h ? · tuần 13.5% · riêng ~0.4% tuần · chạy 4g48p · kết thúc 2026-11-07 19:40

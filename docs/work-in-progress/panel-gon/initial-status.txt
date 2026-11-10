@@ -1,0 +1,91 @@
+ M hybrid-hands/README.md
+ M hybrid-hands/hh-tree-pane/README.md
+ M hybrid-hands/hh-tree-pane/hooks/register.tsx
+ M hybrid-hands/hh-tree-pane/hooks/tree.ts
+ M hybrid-hands/hh-tree-pane/tests/tree.test.ts
+ M hybrid-hands/paseo-hh-tree/OVERVIEW.md
+ M hybrid-hands/paseo-hh-tree/client/ChildRows.tsx
+ M hybrid-hands/paseo-hh-tree/client/SessionBlock.tsx
+ M hybrid-hands/paseo-hh-tree/client/TreeView.tsx
+ M hybrid-hands/paseo-hh-tree/client/format.test.ts
+ M hybrid-hands/paseo-hh-tree/client/format.ts
+ M hybrid-hands/paseo-hh-tree/package.json
+ M hybrid-hands/paseo-hh-tree/server/agent-record.ts
+ M hybrid-hands/paseo-hh-tree/server/hh-ps.ts
+ M hybrid-hands/paseo-hh-tree/shared/tree.ts
+ M hybrid-hands/paseo-hh-tree/tsconfig.json
+ M hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/backends/codex.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/backends/dsh.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/codex_usage.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/config.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/constants.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/go_usage.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/run_cmd.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hand_ext/run_registry.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/claude_source.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/cli.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/codex.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/constants.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/pricing.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/registry_source.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/repos.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/selection.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/text_render.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/transcript_source.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/tree.py
+ M hybrid-hands/plugins/hybrid-hands/lib/hh_ps/week.py
+ M hybrid-hands/plugins/hybrid-hands/lib/side_session/commands.py
+ M hybrid-hands/plugins/hybrid-hands/lib/side_session/config.py
+ M hybrid-hands/plugins/hybrid-hands/lib/side_session/constants.py
+ M hybrid-hands/plugins/hybrid-hands/lib/side_session/paseo.py
+ M hybrid-hands/plugins/hybrid-hands/lib/side_session/paseo_bridge.mjs
+ M hybrid-hands/plugins/hybrid-hands/scripts/inject-policy.sh
+ M hybrid-hands/plugins/hybrid-hands/scripts/session-start-policy.sh
+ M hybrid-hands/plugins/hybrid-hands/skills/ext-hand/SKILL.md
+ M hybrid-hands/plugins/hybrid-hands/skills/paseo/SKILL.md
+ M hybrid-hands/plugins/hybrid-hands/skills/side-session/SKILL.md
+ M hybrid-hands/plugins/hybrid-hands/templates/side-session-prompt-codex.md
+ M hybrid-hands/tests/hand_ext_case.py
+ M hybrid-hands/tests/test_hand_ext_codex.py
+ M hybrid-hands/tests/test_hand_ext_registry.py
+ M hybrid-hands/tests/test_hand_ext_rundir.py
+ M hybrid-hands/tests/test_hh_ps.py
+ M hybrid-hands/tests/test_hh_ps_codex.py
+ M hybrid-hands/tests/test_hh_ps_columns.py
+ M hybrid-hands/tests/test_hh_ps_ended.py
+ M hybrid-hands/tests/test_hh_ps_limits.py
+ M hybrid-hands/tests/test_hh_ps_select.py
+ M hybrid-hands/tests/test_hh_ps_side.py
+ M hybrid-hands/tests/test_hh_ps_usage.py
+ M hybrid-hands/tests/test_policy_brain_context.py
+ M hybrid-hands/tests/test_side_session.py
+ M hybrid-hands/tests/test_side_session_codex.py
+ M hybrid-hands/tests/test_side_session_paseo.py
+ M statusline/README.md
+ M statusline/plugins/statusline/.claude-plugin/plugin.json
+ M statusline/plugins/statusline/scripts/go_sessions.py
+ M statusline/plugins/statusline/scripts/statusline.sh
+ M statusline/plugins/statusline/scripts/usage_ledger.py
+ M statusline/plugins/statusline/scripts/week_split.py
+ M statusline/tests/_support.py
+ M statusline/tests/test_go_sessions.py
+ M statusline/tests/test_session_lines.py
+ M statusline/tests/test_week_split.py
+?? AGENTS.md
+?? docs/
+?? hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+?? hybrid-hands/plugins/hybrid-hands/config/
+?? hybrid-hands/plugins/hybrid-hands/lib/hand_ext/parallel.py
+?? hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py
+?? hybrid-hands/plugins/hybrid-hands/lib/usage_pricing.py
+?? hybrid-hands/tests/test_hand_ext_parallel.py
+?? hybrid-hands/tests/test_hand_usage_panel.py
+?? hybrid-hands/tests/test_hand_usage_running.py
+?? hybrid-hands/tests/test_side_session_native.py
+?? statusline/plugins/statusline/CHANGELOG.md
+?? statusline/plugins/statusline/scripts/hand_lines.py
+?? statusline/plugins/statusline/scripts/shared_prices.py

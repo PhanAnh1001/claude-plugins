@@ -1,0 +1,22 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "hybrid-hands/tests",
+    "-q"
+  ],
+  "runs": 1,
+  "started_at": "2026-11-07T16:19:16.171099+00:00",
+  "elapsed_seconds": 47.692,
+  "exit_code": 1,
+  "tests": 415,
+  "reported_seconds": 47.486,
+  "failures": [
+    "test_user_agent_matches_plugin_version (test_hand_ext_dsh.VersionTest)",
+    "test_codex_usd_pct_samples_and_gpt_account_limits (test_hh_ps_codex.CodexPanelTest)"
+  ],
+  "errors": []
+}

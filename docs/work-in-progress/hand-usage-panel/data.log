@@ -1,0 +1,32 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=658749, cached_input=608512, output=8062
+hạn mức: used_percent=9.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 200.3 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-211010-978859-usage-panel-data-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong phần triển khai được giao; kiểm chứng hẹp đạt.
+
+2. **Đã thay đổi gì** (đường dẫn dưới `hybrid-hands/`):
+   - `plugins/hybrid-hands/lib/hand_ext/run_cmd.py:148`, `run_registry.py:65`: ghi atomically metadata vòng đời, effort, parent, end, duration, exit code và tokens.
+   - `plugins/hybrid-hands/lib/hh_ps/models.py:16`: bổ sung field theo hợp đồng; lượt đã kết thúc nhưng thiếu end không tiếp tục tăng duration.
+   - `plugins/hybrid-hands/lib/hh_ps/registry_source.py:180`: merge/dedupe registry, meta từng repo/worktree; bổ sung kết quả từ ledger.
+   - `plugins/hybrid-hands/lib/hh_ps/transcript_source.py:229`, `claude_source.py:135`: nhận subagent thiếu meta, model/effort, timestamp và marker kết thúc; mixed usage thiếu giá trả USD chưa biết.
+   - `plugins/hybrid-hands/lib/hh_ps/tree.py:214`, `repos.py:70`: bổ sung metadata rollout ghim, phiên khác provider thiếu parent và gọi enrichment.
+   - `tests/test_hand_ext_rundir.py:85`: thêm assertion metadata vào test hiện có.
+
+3. **Kiểm chứng**:
+   - `PYTHONPATH=hybrid-hands/tests python3 -m unittest test_hand_ext_rundir`: 4 test đạt.
+   - `PYTHONPATH=hybrid-hands/tests python3 -m unittest test_hh_ps_side.HhPsSideTest`: 5 test đạt sau khi dependency enrichment xuất hiện.
+   - `git diff --check` trên file phụ trách: đạt.
+   - Không thêm test mới; thêm 14 dòng test / ít nhất 213 dòng code. Không chạy full suite.
+
+4. **Ghi chú cho brain**:
+   - Lần chạy đầu lỗi 5 test vì chưa có `hh_ps.usage_enrichment`; chạy lại các test lỗi đã đạt.
+   - Lượt cũ chỉ có report được đánh dấu finished, không suy diễn thời điểm end.
+   - Model/effort từ state và rollout là best effort theo metadata có sẵn; chưa kiểm chứng timeout/fail bằng luồng thật. Không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

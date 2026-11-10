@@ -1,0 +1,52 @@
+[
+  {
+    "command": "paseo provider ls --json",
+    "exit_code": 0,
+    "output": [
+      {
+        "provider": "codex",
+        "label": "Codex",
+        "status": "available",
+        "enabled": "Enabled",
+        "defaultMode": "auto-review",
+        "modes": "Default Permissions, Auto-review, Full Access"
+      },
+      {
+        "provider": "codex-hand",
+        "label": "Codex hand (gói ChatGPT)",
+        "status": "available",
+        "enabled": "Enabled",
+        "defaultMode": "auto-review",
+        "modes": "Default Permissions, Auto-review, Full Access"
+      }
+    ]
+  },
+  {
+    "command": "paseo provider models codex --json",
+    "exit_code": 0,
+    "output": [
+      {
+        "id": "gpt-6-luna",
+        "model": "GPT-6-Luna"
+      },
+      {
+        "id": "gpt-5.6-terra",
+        "model": "GPT-5.6-Terra"
+      },
+      {
+        "id": "gpt-5.6-luna",
+        "model": "GPT-5.6-Luna"
+      }
+    ]
+  },
+  {
+    "command": "paseo provider models codex-hand --json",
+    "exit_code": 0,
+    "output": [
+      {
+        "id": "gpt-6.1-sol",
+        "model": "GPT-6.1 Sol"
+      }
+    ]
+  }
+]

@@ -1,0 +1,8 @@
+$ PYTHONPATH=hybrid-hands/tests python3 -m unittest test_hand_ext_dsh.VersionTest.test_user_agent_matches_plugin_version test_hh_ps_codex.CodexPanelTest.test_codex_usd_pct_samples_and_gpt_account_limits -q
+started_at: 2026-11-07T16:26:14.633652+00:00
+----------------------------------------------------------------------
+Ran 2 tests in 0.042s
+
+OK
+exit_code: 0
+elapsed_seconds: 0.190077

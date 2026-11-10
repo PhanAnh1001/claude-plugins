@@ -1,0 +1,558 @@
+{
+  "command": [
+    "hybrid-hands/plugins/hybrid-hands/bin/hh-ps",
+    "--once",
+    "--json"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 4.171,
+  "source_checkout_only": true,
+  "installed_validation": false,
+  "generated_at": "2026-11-08T00:11:34+07:00",
+  "machine_usage": [
+    {
+      "plan": "Claude",
+      "window": "tu\u1ea7n",
+      "usd": 201.33282745500028,
+      "source": "claude_machine_week"
+    },
+    {
+      "plan": "GPT",
+      "window": "tu\u1ea7n",
+      "usd": 75.603681,
+      "source": "codex_rollout_observed_deltas"
+    }
+  ],
+  "limits": [
+    {
+      "plan": "Claude",
+      "window": "tu\u1ea7n",
+      "this_machine_pct": 18.726378660674158,
+      "other_pct": 0.0,
+      "total_pct": 14.436378660674158,
+      "resets_at": "2026-11-13T13:00:00+07:00",
+      "source": "statusline_cache+week_split+extrapolated",
+      "estimated": true
+    },
+    {
+      "plan": "GPT",
+      "window": "tu\u1ea7n",
+      "this_machine_pct": null,
+      "other_pct": null,
+      "total_pct": 18.0,
+      "resets_at": "2026-11-09T13:19:15+07:00",
+      "source": "codex_rollout",
+      "estimated": false
+    },
+    {
+      "plan": "Go",
+      "window": "tu\u1ea7n",
+      "this_machine_pct": 41.35666799999997,
+      "other_pct": 0.0,
+      "total_pct": 28.0,
+      "resets_at": "2026-11-09T07:00:00+07:00",
+      "source": "go_live+ledger",
+      "estimated": false
+    }
+  ],
+  "codex_rows": [
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "stopped",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 136492,
+        "cache_read": 6125184,
+        "cache_write": null,
+        "out": 19261,
+        "usd": 1.078112,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true,
+        "gpt_week_pct": 18.0
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 41419,
+        "cache_read": 1193984,
+        "cache_write": null,
+        "out": 12881,
+        "usd": 0.331046,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 79770,
+        "cache_read": 718336,
+        "cache_write": null,
+        "out": 7661,
+        "usd": 0.307984,
+        "week_pct": 0.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 27186,
+        "cache_read": 197504,
+        "cache_write": null,
+        "out": 3392,
+        "usd": 0.108042,
+        "week_pct": 0.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "stopped",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "stopped",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "stopped",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 986565,
+        "cache_read": 67896704,
+        "cache_write": null,
+        "out": 251640,
+        "usd": 11.2792,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true,
+        "gpt_week_pct": 18.0
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "done",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "dead",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 93651,
+        "cache_read": 2595968,
+        "cache_write": null,
+        "out": 13897,
+        "usd": 0.585869,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true,
+        "gpt_week_pct": 10.0
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 187170,
+        "cache_read": 19256704,
+        "cache_write": null,
+        "out": 49428,
+        "usd": 2.79429,
+        "week_pct": 3.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true,
+        "gpt_week_pct": 18.0
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 45452,
+        "cache_read": 4526720,
+        "cache_write": null,
+        "out": 16227,
+        "usd": 0.705846,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 103717,
+        "cache_read": 10234496,
+        "cache_write": null,
+        "out": 18656,
+        "usd": 1.417444,
+        "week_pct": 3.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 136055,
+        "cache_read": 4490368,
+        "cache_write": null,
+        "out": 30363,
+        "usd": 1.024777,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 145568,
+        "cache_read": 11301120,
+        "cache_write": null,
+        "out": 21117,
+        "usd": 1.632418,
+        "week_pct": 2.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true,
+        "gpt_week_pct": 18.0
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 79896,
+        "cache_read": 5106432,
+        "cache_write": null,
+        "out": 20018,
+        "usd": 0.870615,
+        "week_pct": null,
+        "week_pct_estimated": false,
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 48924,
+        "cache_read": 2618112,
+        "cache_write": null,
+        "out": 11842,
+        "usd": 0.478079,
+        "week_pct": 2.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 51984,
+        "cache_read": 2194048,
+        "cache_write": null,
+        "out": 9201,
+        "usd": 0.415383,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "session",
+      "model": "",
+      "effort": "",
+      "status": "stopped",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 0,
+        "cache_read": 0,
+        "cache_write": null,
+        "out": 0,
+        "usd": null,
+        "week_pct": null,
+        "week_pct_estimated": false
+      }
+    }
+  ]
+}

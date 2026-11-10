@@ -1,0 +1,31 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=480289, cached_input=435968, output=4608
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 131.3 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-212315-225453-usage-panel-pricing-final-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong phần P0 và sửa quota; giữ nguyên thay đổi ngoài phạm vi, không commit/push.
+
+2. **Đã thay đổi gì**:
+   - `lib/usage_pricing.py:51`: tìm explicit backend config qua helper hỗ trợ worktree.
+   - `lib/hh_ps/week.py:144`: kiểm range quota, TTL Go/live Claude; ledger máy này không thành quota account.
+   - `lib/hh_ps/week.py:365`: nhận schema 4 khi fingerprint khớp canonical; từ chối schema 3 và fingerprint lệch.
+   - `lib/hh_ps/usage_enrichment.py:23`: lọc quota không hợp lệ, đọc cache 5h một lần mỗi plan/snapshot.
+   - Hai file test được giao: cập nhật fixture/expectation và mở rộng assert.
+
+3. **Kiểm chứng**:
+   - `python3 -m unittest discover -s hybrid-hands/tests -p <file>.py`: pass lần lượt `test_hand_usage_panel` 2, `test_hh_ps_limits` 15, `test_hand_ext_defaults` 1, `test_hand_ext_codex` 11, `test_hand_ext_config_worktree` 2, `test_hand_ext_core` 9.
+   - `git diff --check`: pass.
+   - Thêm **0 testcase**; chỉ mở rộng test hiện có. Không chạy full suite. Chưa chốt tỷ lệ dòng test/code riêng lượt này vì working tree đã có sửa trước.
+
+4. **Ghi chú cho brain**:
+   - Chưa thêm cache `load_prices()` vì P1 tùy chọn; chưa đo timing.
+   - `hh_ps/codex.py` không cần sửa.
+   - Lệnh `python` ban đầu không tồn tại; đã dùng `python3`.
+   - Quota tuần Claude vẫn giữ cơ chế estimate/extrapolation hiện có; chưa kiểm riêng TTL của trường account tuần khi nguồn là cache cũ.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

@@ -1,0 +1,28 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=384739, cached_input=332800, output=3394
+hạn mức: used_percent=10.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 121.4 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-212315-224430-usage-panel-statusline-final-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong.
+
+2. **Đã thay đổi gì**:
+   - `statusline/plugins/statusline/scripts/usage_ledger.py:16`: load sibling `shared_prices.py` bằng đường dẫn tuyệt đối, không phụ thuộc `sys.path`.
+   - `statusline/plugins/statusline/scripts/week_split.py:144`: tính tổng theo ngày lịch bằng bisect/prefix sums, xử lý ranh giới DST.
+   - `statusline/plugins/statusline/scripts/go_sessions.py:106,170`: nạp giá một lần mỗi lượt tổng hợp running runs; giữ API cũ và không thêm fallback giá.
+
+3. **Kiểm chứng**:
+   - Profile trước sửa: `fromtimestamp` tốn 7,008s; test performance fail 7,086s > 2s.
+   - `python3 -m unittest test_week_split_calib test_week_split test_go_sessions`: 37 pass/0,194s.
+   - `python3 -m unittest test_session_lines test_statusline test_week_split_shell test_estimates test_estimates_shell`: 62 pass/9,971s.
+   - Performance riêng: 1 pass/0,063s; giữ ngưỡng 2s.
+   - Import tuyệt đối, dữ liệu giả DST xuân/thu và `git diff --check`: pass.
+   - Thêm 0 test, 0 dòng test.
+
+4. **Ghi chú cho brain**: Giữ nguyên adapter vì đã đáp ứng các yêu cầu nêu trong brief. Không chạy full discover, không đọc metadata/settings thật, không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

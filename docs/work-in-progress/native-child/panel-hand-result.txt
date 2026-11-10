@@ -1,0 +1,1 @@
+Native hand native_panel completed. Sol reviewed scoped baseline diff. Hand reported: node --experimental-strip-types --test client/*.test.ts -> 16/16; npm run typecheck -> exit 0. No build/install/reload performed by hand. Runtime token/quota ?.

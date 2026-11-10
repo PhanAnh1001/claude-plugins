@@ -1,0 +1,14 @@
+{
+  "command": [
+    "paseo",
+    "plugin",
+    "reload",
+    "hh-tree",
+    "--json"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 1.141,
+  "finished_at": "2026-11-07T16:29:02.389328+00:00",
+  "stdout": "{\n  \"id\": \"hh-tree\",\n  \"path\": \"/Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree\",\n  \"enabled\": true,\n  \"status\": \"running\",\n  \"name\": \"Cây phiên hybrid-hands\",\n  \"description\": \"Hiện cây phiên Claude, subagent và lượt hand ngoài ngay trong Paseo.\",\n  \"media\": [],\n  \"installation\": {\n    \"identity\": {\n      \"kind\": \"directory\",\n      \"path\": \"/Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree\"\n    }\n  }\n}\n",
+  "stderr": ""
+}

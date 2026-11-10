@@ -1,0 +1,14 @@
+{
+  "manifest_version": "0.28.0",
+  "manifest_json_valid": true,
+  "changelog_missing_local_links": [],
+  "sol_review": "accepted: canonical version read, header-safe value, unknown fallback; optional date only in existing assertion; exactly 3 intended source files differ from baseline",
+  "native_backend": "codex",
+  "native_model": "gpt-6.1-sol",
+  "native_effort": "low",
+  "fork_turns": "none",
+  "native_max_running": 1,
+  "configured_max_parallel": 4,
+  "tokens": "?",
+  "quota": "?"
+}

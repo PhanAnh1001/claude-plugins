@@ -1,0 +1,15 @@
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+----------------------------------------------------------------------
+Ran 415 tests in 45.726s
+
+OK
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp9nzh1ugg worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp9nzh1ugg/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmp9nzh1ugg branch -D side/n

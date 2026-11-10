@@ -1,0 +1,18 @@
+{
+  "rpc": "hh-tree.get",
+  "ok": true,
+  "sessions": 19,
+  "orphan_records_in_json": 51,
+  "pane_orphan_group_hidden": true,
+  "paseo_orphan_renderer_removed": true,
+  "codex_own_pct_absent": true,
+  "row_fields": [
+    "kind",
+    "model/effort",
+    "USD estimate",
+    "account 5h/week",
+    "end/running",
+    "elapsed"
+  ],
+  "no_start_column": true
+}

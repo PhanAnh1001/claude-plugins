@@ -1,0 +1,34 @@
+▾ ● Session 2 · claude-opus-5-5·high · 44p · ~$1.66 · Claude 5h ? · tuần 14.0% · GPT 5h ? · tuần 16.0%
+  ● Sol · gpt-6.1-sol·high · 16p · ~$1.58
+    ✓ native-codex · gpt-6.1-sol·low · 10s · ~$0.02
+    ✓ native-codex · gpt-6.1-sol·low · 12p · ~$0.31
+    ✓ native-codex · gpt-6.1-sol·low · 11p · ~$0.47
+    ✓ native-codex · gpt-6.1-sol·low · 10p · ~$0.18
+    1 subagent: 1✓ 0✗
+  ✓ Side 15 · ?·? · 8p · ~$?
+  ✓ Side 13 · ?·? · 15p · ~$?
+  ✓ Side 14 · ?·? · 7p · ~$?
+    1 subagent: 1✓ 0✗
+▾ ● Session 4 · claude-opus-5-5·high · 3g48p · ~$7.28 · Claude 5h ? · tuần 14.0% · GPT 5h ? · tuần 16.0%
+  1 subagent: 1✓ 0✗
+  ● Side 23 · gpt-6.1-sol·high · 20p · ~$1.78
+    3 subagent: 1✓ 0✗ ●2
+  ● Side 1 · claude-opus-5-5·high · 22p · ~$4.08
+  ● Side 3 · claude-opus-5-5·high · 2g23p · ~$7.31
+  ? Side 22 · gpt-6.1-sol·high · ? · ~$0.59
+  +5 cũ: 4✓ 0✗ ?1
+▾ ● Session 5 · claude-opus-5-5·high · 3g18p · ~$2.93 · Claude 5h ? · tuần 14.0% · GPT 5h ? · tuần 16.0%
+  ✓ subagent · claude-opus-5-5·low · 1p · ~$0.41
+  ✓ subagent · claude-opus-5-5·low · 1p · ~$0.39
+  ? Side 16 · ?·? · 16p · ~$?
+    8 subagent: 8✓ 0✗
+  ? Side 11 · ?·? · 33p · ~$?
+    8 subagent: 8✓ 0✗
+  ? Side 24 · ?·? · 6p · ~$?
+  ? Side 10 · ?·? · 14p · ~$?
+▾ ? Session 6 · claude-opus-5-5·high · 5p · ~$0.51 · Claude 5h ? · tuần 14.0%
+  ✓ subagent · claude-opus-5-5·low · 3p · ~$0.67
+▾ ? Session 7 · claude-opus-5-5·high · 3g26p · ~$0.69 · Claude 5h ? · tuần 14.0%
+▾ ? Session 8 · claude-opus-5-5·high · 1p · ~$0.27 · Claude 5h ? · tuần 14.0%
+  ✓ subagent · claude-opus-5-5·low · 30s · ~$0.19
+▾ ? Session 9 · claude-opus-5-5·high · 4g48p · ~$5.65 · Claude 5h ? · tuần 14.0%

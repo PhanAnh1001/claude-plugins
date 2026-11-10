@@ -1,0 +1,36 @@
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+bỏ qua codex: doctor chưa đạt (`hand-ext doctor --backend codex`)
+======================================================================
+FAIL: test_user_agent_matches_plugin_version (test_hand_ext_dsh.VersionTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_hand_ext_dsh.py", line 475, in test_user_agent_matches_plugin_version
+    self.assertEqual(dsh.USER_AGENT, f"hybrid-hands-hand-ext/{version}")
+AssertionError: 'hybrid-hands-hand-ext/0.27.0' != 'hybrid-hands-hand-ext/0.28.0'
+- hybrid-hands-hand-ext/0.27.0
+?                          ^
++ hybrid-hands-hand-ext/0.28.0
+?                          ^
+
+
+======================================================================
+FAIL: test_codex_usd_pct_samples_and_gpt_account_limits (test_hh_ps_codex.CodexPanelTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_hh_ps_codex.py", line 122, in test_codex_usd_pct_samples_and_gpt_account_limits
+    self.assertRegex(text, r"GPT 5h\s+tổng 44\.0% · reset \d\d:\d\d")
+AssertionError: Regex didn't match: 'GPT 5h\\s+tổng 44\\.0% · reset \\d\\d:\\d\\d' not found in 'Phiên Claude (3 sống / 5 phiên) · since 6g\n▶ phiên này ● sống ○ đã dừng · kết thúc = giờ local · USD ước tính · % tài khoản 5h/tuần · riêng = phần của lượt\nHạn mức\nGPT 5h   tổng 44.0% · reset 08/11 00:19\nGPT tuần   tổng 55.0% · reset 09/11 23:19\nLOẠI / TÊN  MODEL/EFFORT  THỜI GIAN  KẾT THÚC (local)  USD  TÀI KHOẢN 5h / tuần\n├ ▶ WP-23b (root session)          ?/?                     2g  đang chạy             ~$?       Claude 5h ? · tuần ?  busy\n│ ├ ▶ hand                         ?/?                     2p  đang chạy             ~$?       Claude 5h ? · tuần ?  việc đang chạy …\n│ ├ ▶ hand                         ?/?                    31p  đang chạy             ~$?       Claude 5h ? · tuần ?  việc im lặng      im lặng\n│ ├ ▶ dsh                          deepseek-v4.1-flash/?  10p  đang chạy         ~<$0.01           Go 5h ? · tuần ?  main-run\n│ ├ ● phụ:sol-side (side session)  gpt-6.1-sol/?           5p  đang chạy          ~$6.24  GPT 5h 44.0% · tuần 55.0%  running\n│ ├ ✓ codex                        gpt-6.1-sol/?           1p  2026-11-07 23:17   ~$6.24  GPT 5h 44.0% · tuần 55.0%  codex-hand-run\n│ ├ ✓ hand                         ?/?                     0s  2026-11-07 23:09      ~$?       Claude 5h ? · tuần ?  việc đã xong\n│ └ ✗ dsh                          deepseek-v4.1-flash/?    ?  ?                     ~$0           Go 5h ? · tuần ?  lost-run          mất\n├ ○ sess-non (root session)        ?/?                     0s  2026-11-07 23:04      ~$?       Claude 5h ? · tuần ?  đã kết thúc\n├ ○ ended-name (root session)      ?/?                    53p  2026-11-07 22:49      ~$?       Claude 5h ? · tuần ?  đã kết thúc\n├ phiên phụ chưa rõ phiên cha\n│ └ ● phụ:side (side session)      ?/?                     1g  đang chạy             ~$?       Claude 5h ? · tuần ?  idle\n│   └ ✓ dsh                        deepseek-v4.1-flash/?  10p  2026-11-07 22:29  ~<$0.01           Go 5h ? · tuần ?  side-run\n└ hand ngoài không rõ phiên gọi\n  └ ✓ dsh                          deepseek-v4.1-flash/?  10p  2026-11-07 22:49  ~<$0.01           Go 5h ? · tuần ?  orphan-run\n\nTổng: 3 phiên sống, 1 subagent đang chạy, 1 hand ngoài đang chạy'
+
+----------------------------------------------------------------------
+Ran 415 tests in 47.486s
+
+FAILED (failures=2)
+idle-test: 0/272000 context tokens
+n: 50/272000 context tokens
+n: warning: turn kết thúc nhưng thiếu .done; giữ slot và watch
+n: 50/272000 context tokens
+n: done
+late: ? context tokens
+late: 77/272000 context tokens
+stopped n (context 272000 (tự nén))
+worktree kept; remove with: git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpfxugvuwn worktree remove /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpfxugvuwn/work && git -C /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/tmpfxugvuwn branch -D side/n

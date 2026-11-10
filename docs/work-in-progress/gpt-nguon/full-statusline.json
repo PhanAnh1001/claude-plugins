@@ -1,0 +1,14 @@
+{
+  "command": [
+    "python3",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "statusline/tests",
+    "-q"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 58.831,
+  "output": "----------------------------------------------------------------------\nRan 187 tests in 58.630s\n\nOK\n"
+}

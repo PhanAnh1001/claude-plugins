@@ -1,0 +1,203 @@
+[
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "validate",
+      "hybrid-hands"
+    ],
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "exit_code": 0,
+    "elapsed_seconds": 0.651,
+    "stdout": "Validating marketplace manifest: /Users/anhtp/app/claude-plugins/hybrid-hands/.claude-plugin/marketplace.json\n\n✔ Validation passed\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "validate",
+      "hybrid-hands/plugins/hybrid-hands"
+    ],
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "exit_code": 0,
+    "elapsed_seconds": 0.641,
+    "stdout": "Validating plugin manifest: /Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json\n\nPlugin directory checks for /Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands. The plugin directory is the catalog that plugins are submitted to; this is a subset of what it runs.\n\n✘ Found 1 problem the plugin directory refuses a submission for:\n\n  ❯ LICENSE: License missing (LICENSE_MISSING). This plugin has no LICENSE file and plugin.json has no `license`. The directory requires one of them.\n    Fix: Add a LICENSE file to the plugin folder, or set `license` (an SPDX id) in plugin.json. A LICENSE at the repository root also counts for a plugin in a sub-folder.\n\n⚠ Found 1 plugin directory warning:\n\n  ❯ .claude-plugin/plugin.json icon: No icon (ICON_MISSING). No icon found in the plugin. The validator looked for `icon` in plugin.json and for a file at .claude-plugin/icon.png or .svg, assets/icon.png or .svg, or a similar path.\n    Fix: Add a square PNG to the plugin folder at .claude-plugin/icon.png, or set `icon` in plugin.json to the path of a square PNG or JPEG in the plugin: 512 to 2048 px on each side, under 2 MB. SVG and WebP are not accepted. That file may become the listing icon only once: the first time the plugin is saved or submitted in the developer portal. Adding or changing it later does not change the icon.\n\nAbout these checks:\n\n  ❯ The repository root was taken to be /Users/anhtp/app/claude-plugins, the nearest parent folder with a .git folder or file. README.md was taken from it, because this plugin folder has none of its own. No license file that counts (a regular file with one of the file names the plugin directory accepts) was found there either. For a plugin submitted from a git repository, the repository root is the top folder of that repository, with only what is committed there, so check that the folder named above is that top folder.\n\nThese plugin directory checks do not change the result below. To fail on problems the directory refuses a submission for, run this command with --profile directory.\n\nThe directory also runs a safety scan and a policy review that this command does not.\n\n✔ Validation passed\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "marketplace",
+      "update",
+      "hybrid-hands-local",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "exit_code": 0,
+    "elapsed_seconds": 0.635,
+    "stdout": "{\"command\":\"marketplace-update\",\"outcome\":\"ok\",\"marketplace\":\"hybrid-hands-local\",\"message\":\"Validating local marketplace\\nSuccessfully updated marketplace: hybrid-hands-local\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "user",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "exit_code": 0,
+    "elapsed_seconds": 0.699,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"user\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.27.0 to 0.28.0 for scope user. Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.27.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/ai-comic-video",
+    "exit_code": 0,
+    "elapsed_seconds": 0.662,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.27.0 to 0.28.0 for scope project (/Users/anhtp/app/ai-comic-video). Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.27.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games",
+    "exit_code": 0,
+    "elapsed_seconds": 0.665,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.27.0 to 0.28.0 for scope project (/Users/anhtp/app/live-tiktok-games). Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.27.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "local",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/ai-luxian",
+    "exit_code": 0,
+    "elapsed_seconds": 0.68,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"local\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.27.0 to 0.28.0 for scope local (/Users/anhtp/app/ai-luxian). Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.27.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c",
+    "exit_code": 0,
+    "elapsed_seconds": 0.669,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.28.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-10b",
+    "exit_code": 0,
+    "elapsed_seconds": 0.663,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.28.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/WP-11",
+    "exit_code": 0,
+    "elapsed_seconds": 0.678,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.28.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-10c",
+    "exit_code": 0,
+    "elapsed_seconds": 0.675,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.28.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-13",
+    "exit_code": 0,
+    "elapsed_seconds": 0.651,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.28.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-14",
+    "exit_code": 0,
+    "elapsed_seconds": 0.676,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.28.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.28.0\"}\n",
+    "stderr": ""
+  }
+]

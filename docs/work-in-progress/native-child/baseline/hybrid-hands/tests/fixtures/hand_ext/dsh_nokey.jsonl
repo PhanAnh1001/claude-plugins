@@ -1,0 +1,4 @@
+{"type":"session","sessionId":"session-3","cwd":"/repo"}
+{"type":"status","phase":"turn_start","turn":1}
+{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{"code":"MISSING_CREDENTIAL","message":"route opencode-go: OPENCODE_GO_API_KEY resolves to nothing"}}}
+{"type":"final","text":""}

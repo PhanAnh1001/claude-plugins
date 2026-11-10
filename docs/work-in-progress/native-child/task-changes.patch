@@ -1,0 +1,1234 @@
+--- before/AGENTS.md
++++ AGENTS.md
+@@ -31,20 +31,30 @@
+ 
+ Mọi USD~ là ước tính offline subscription, không phải hoá đơn. Quota tài khoản 5h/tuần lấy cache/sample sẵn có, thiếu `?`; không suy token/USD thành quota GPT. Phần riêng hand tuần chỉ hiện khi có nguồn và nhãn riêng.
+ 
+-## Contract dữ liệu và hiển thị 0.26.0
++## Contract dữ liệu và hiển thị 0.29.0
+ 
+ Bổ sung cuối dataclass với default để giữ tương thích:
+ 
+ - `Usage.account_plan: str = ""`, `account_5h_pct: Optional[float] = None`, `account_week_pct: Optional[float] = None`.
+-- `Subagent.started_at: Optional[float] = None`, `model: str = ""`, `effort: str = ""`.
+-- `HandRun.effort: str = ""`.
++- `Subagent.started_at: Optional[float] = None`, `model: str = ""`, `effort: str = ""`; native bổ sung `provider: str = ""`, `status: str = ""`, `exit_code: Optional[int] = None`, `finished_at: Optional[float] = None`.
++- `HandRun.effort: str = ""`, `exit_code: Optional[int] = None`.
+ - `Session.model: str = ""`, `effort: str = ""`, `finished_at: Optional[float] = None`; property `ended_at` ưu tiên finished_at.
++
++- `Snapshot.machine_usage: List[dict] = field(default_factory=list)` được bổ sung cuối dataclass.
+ 
+ `lib/hh_ps/tree.py` tạo Snapshot rồi gọi `lib/hh_ps/usage_enrichment.py:enrich_snapshot(snapshot, cfg, now) -> None` trước return. API pricing hiện có giữ tương thích; cập nhật implementation giá ở nguồn canonical, không sinh bảng mặc định khác.
+ 
+ `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm Sol Codex/Claude/dsh và mọi loại agent/backend. Metadata mới ghi parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. Legacy unknown giữ `?` ở UI, null/chuỗi rỗng theo JSON/dataclass; không bịa mốc hay quota.
+ 
+-Mỗi dòng session/subagent/hand/side provider mọi backend đủ model, effort, USD~, quota, ended hoặc `đang chạy`, elapsed. Riêng panel agent/sidebar Paseo dùng icon ●/✓/✗/?, tên ngắn, model·effort, elapsed, USD~; quota tài khoản 5h/tuần mỗi account plan một lần ở root, không hiện chữ trạng thái/mốc ended hay nhãn thừa. Mỗi cây chính flatten tối đa 4 phiên phụ (running trước, rồi ended/started mới nhất); phần dư gộp số done/error/running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây mở tối đa 4 subagent/hand có cha; các agent khác gộp số, kể cả phiên bị ẩn. Tie giữ thứ tự duyệt cây/agent đầu vào; không ưu tiên is_main. Duration đang chạy tăng theo thời gian, xong cố định theo ended. KHÔNG hiện giờ bắt đầu trong text hh-ps, panel, statusline; meta/JSON vẫn giữ started. `hh-ps --once` chạy một lần; mặc định đủ việc chạy/vừa xong theo since, không fold 3/hide-ended. Cả hai giao diện cây (`hh-tree-pane`, panel agent/sidebar `paseo-hh-tree`) tuyệt đối không hiện nhóm orphan hand-ext; hh-ps text/JSON vẫn giữ orphan.
++Native Codex lấy metadata rollout cục bộ trong đường dẫn cố định `~/.codex-hand/sessions` (không dùng override `CODEX_HOME`, giữ cô lập tài khoản), không gọi daemon RPC/API. Gắn cha bằng `session_meta.parent_thread_id` hoặc `session_meta.source.subagent.thread_spawn.parent_thread_id`; đối chiếu `session_meta.id` của pinned Sol rollout để đưa thread cha về sid canonical. Native nằm trong `Session.subagents`, `agent_type=native-codex`, `provider=codex`; JSON xuất status/provider/parent canonical và exit_code nullable cho subagent/hand. Không tạo run/meta/report/token ledger hand-ext. Chỉ lấy token từ nguồn native và tính USD~ theo giá canonical; thiếu token/giá hiện `?`. Không suy completed từ mtime hoặc im lặng. Completed → ✓; failed/errored/cancelled hoặc exit_code khác 0 → ✗ (lỗi ưu tiên); unknown → ?. Native cùng pool tối đa 4 với subagent/hand, cùng số đếm `X✓ Y✗`.
++
++Mỗi dòng session/subagent/hand/side provider mọi backend đủ model, effort, USD~, quota, ended hoặc `đang chạy`, elapsed. Panel agent/sidebar Paseo: running/busy dùng theme accent nếu accent là xanh dương, nếu không dùng màu xanh dương dự phòng bảo đảm tương phản ở giao diện sáng/tối; done dùng statusSuccess (xanh lá); failed/exit khác 0/timeout/killed dùng statusDanger (đỏ); idle/silent dùng statusWarning (vàng); lost/unknown dùng foregroundMuted (xám). Số đếm ✓ xanh lá, ✗ đỏ. Dòng đã kết thúc hiện giờ local HH:MM, thêm dd/mm nếu khác ngày; running không hiện giờ kết thúc. Không hiện giờ bắt đầu. Mỗi dòng hiện USD~ riêng, provider Claude/GPT và usage.week_pct riêng trong tuần; thiếu hiện ?. Không thay phần riêng bằng phần trăm tài khoản hoặc suy quota GPT.
++
++Khối riêng ở đầu panel/sidebar hiện tổng USD~ toàn máy trong tuần của Claude/GPT và phần trăm tài khoản 5h/tuần, thay quota ở dòng root. JSON tree.machine_usage:[{plan,window:"tuần",usd,source}] cung cấp tổng toàn máy, không cộng các dòng cây đang hiển thị. Claude dùng phép tổng hợp tuần cục bộ hiện có. GPT đọc rollout trong đường dẫn cố định ~/.codex-hand/sessions và ~/.codex-hand/archived_sessions, khử trùng theo thread, chỉ cộng token delta được chứa trong cửa sổ tuần hiện tại; thiếu cửa sổ/giá/nguồn giữ unknown. Không cộng trùng ledger và rollout. Riêng gắn native child vào cây vẫn chỉ đọc sessions.
++
++Giữ tối đa 4 phiên phụ, pool chung 4 agent, lựa chọn phiên gần nhất, số đếm phần ẩn và loại nhóm orphan. Addon này chỉ áp dụng panel/sidebar Paseo; hh-tree-pane giữ bố cục, chỉ nhận sửa tương thích native status/exit/unknown ban đầu.
++
++Mỗi cây chính flatten tối đa 4 phiên phụ (running trước, rồi ended/started mới nhất); phần dư gộp số done/error/running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây mở tối đa 4 subagent/hand có cha; các agent khác gộp số, kể cả phiên bị ẩn. Tie giữ thứ tự duyệt cây/agent đầu vào; không ưu tiên is_main. Duration đang chạy tăng theo thời gian, xong cố định theo ended. KHÔNG hiện giờ bắt đầu trong text hh-ps, panel, statusline; meta/JSON vẫn giữ started. `hh-ps --once` chạy một lần; mặc định đủ việc chạy/vừa xong theo since, không fold 3/hide-ended. Cả hai giao diện cây (`hh-tree-pane`, panel agent/sidebar `paseo-hh-tree`) tuyệt đối không hiện nhóm orphan hand-ext; hh-ps text/JSON vẫn giữ orphan.
+ 
+ ## Kiểm chứng
+ 
+--- before/hybrid-hands/README.md
++++ hybrid-hands/README.md
+@@ -230,6 +230,10 @@
+ 
+ `hh-ps` đọc metadata phiên, usage transcript và registry trên máy; không in nội dung hội thoại/prompt hay credential, không gọi mạng để tính USD. Snapshot JSON giữ `sessions[]` (có `subagents[]`, `hand_runs[]`), `orphan_runs[]`, `limits[]`, `totals`, `generated_at`, `since_seconds`, thông tin lọc project và phiên chính. `usage` giữ token/USD, phần tuần riêng và `account_plan`, `account_5h_pct`, `account_week_pct`; trường thiếu dùng null hoặc chuỗi rỗng theo model dữ liệu.
+ 
++Từ 0.29.0, native Codex child được đọc từ metadata rollout cục bộ trong đường dẫn cố định `~/.codex-hand/sessions` (không dùng override `CODEX_HOME`, giữ cô lập tài khoản), không gọi daemon RPC/API. `session_meta.parent_thread_id` hoặc `session_meta.source.subagent.thread_spawn.parent_thread_id` xác định thread cha; `session_meta.id` của pinned Sol rollout đối chiếu thread đó về sid canonical. Child nằm trong `sessions[].subagents[]` với `agent_type=native-codex`, `provider=codex`, status, parent canonical, `ended_at` và `exit_code` nullable; dataclass giữ `finished_at` optional. JSON của hand cũng giữ `exit_code` nullable. Các field mới được thêm cuối dataclass với default để giữ tương thích. Không suy completed từ mtime hay im lặng.
++
++Token chỉ lấy từ nguồn native, USD~ dùng giá canonical; thiếu token hoặc giá hiện `?`, không suy quota. Native không có run/meta/report/token ledger hand-ext. Nguồn đọc không lấy nội dung chat, prompt hay credential.
++
+ `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn hand vào đúng cha. `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Metadata mới lưu parent canonical, `started`, `ended`, `status`, `exit_code`, `tokens`, `effort`, `duration` cùng backend/model. Legacy thiếu dữ liệu giữ unknown. Contract dataclass và bước enrichment được ghi tại [AGENTS.md](../AGENTS.md); `tree.py` tạo Snapshot rồi gọi `enrich_snapshot(snapshot, cfg, now)` trước khi return.
+ 
+ ## 7. Chuyển phiên giữa terminal và Paseo: `cc-switch`
+@@ -250,9 +254,13 @@
+ 
+ ## 8. Xem cây trên Paseo
+ 
+-Plugin `hh-tree` trong [`paseo-hh-tree/`](paseo-hh-tree/OVERVIEW.md) hiện panel cạnh agent và sidebar Paseo (desktop/điện thoại), làm mới mỗi 5 giây. Mỗi dòng giữ icon ● chạy / ✓ xong / ✗ lỗi / ? chưa rõ, tên ngắn, model·effort, elapsed và USD~. Quota tài khoản 5h/tuần mỗi account plan trong cây chỉ hiện một lần ở root; thiếu nguồn vẫn `?`. Không hiện nhãn lặp, cwd, description, giờ bắt đầu/kết thúc, header/footer giải thích hay nhóm orphan hand-ext.
+-
+-Mỗi cây chính hiện tối đa 4 phiên phụ từ toàn bộ hậu duệ, ưu tiên đang chạy rồi ended/started mới nhất. Phần dư gộp `+N cũ: X✓ Y✗`, thêm `●N`/`?N` khi có running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây (max last_activity/ended/started và mốc agent con, tie giữ thứ tự duyệt cây/agent đầu vào) mở tối đa 4 subagent và hand có cha chung một pool; mọi agent khác gộp `N subagent: X✓ Y✗`, kể cả trong phiên bị ẩn. Nếu phiên gần nhất bị gộp, agent mở của nó có nhãn tên phiên dưới dòng gộp. Không ép phiên is_main là gần nhất. Lỗi có precedence trên trạng thái running cũ; không tính running vào done/error. Native Codex child chỉ có thể hiện khi nguồn JSON cung cấp, hiện `hh-ps` chưa xuất nguồn này. [`hh-tree-pane`](hh-tree-pane/README.md) và `hh-ps` giữ contract mục 6.
++Plugin `hh-tree` trong [`paseo-hh-tree/`](paseo-hh-tree/OVERVIEW.md) hiện panel cạnh agent và sidebar Paseo (desktop/điện thoại), làm mới mỗi 5 giây. Panel agent/sidebar Paseo: running/busy dùng theme accent nếu accent là xanh dương, nếu không dùng màu xanh dương dự phòng bảo đảm tương phản ở giao diện sáng/tối; done dùng statusSuccess (xanh lá); failed/exit khác 0/timeout/killed dùng statusDanger (đỏ); idle/silent dùng statusWarning (vàng); lost/unknown dùng foregroundMuted (xám). Số đếm ✓ xanh lá, ✗ đỏ. Dòng đã kết thúc hiện giờ local HH:MM, thêm dd/mm nếu khác ngày; running không hiện giờ kết thúc. Không hiện giờ bắt đầu. Mỗi dòng hiện USD~ riêng, provider Claude/GPT và usage.week_pct riêng trong tuần; thiếu hiện ?. Không thay phần riêng bằng phần trăm tài khoản hoặc suy quota GPT.
++
++Khối riêng ở đầu panel/sidebar hiện tổng USD~ toàn máy trong tuần của Claude/GPT và phần trăm tài khoản 5h/tuần, thay quota ở dòng root. JSON tree.machine_usage:[{plan,window:"tuần",usd,source}] cung cấp tổng toàn máy, không cộng các dòng cây đang hiển thị. Claude dùng phép tổng hợp tuần cục bộ hiện có. GPT đọc rollout trong đường dẫn cố định ~/.codex-hand/sessions và ~/.codex-hand/archived_sessions, khử trùng theo thread, chỉ cộng token delta được chứa trong cửa sổ tuần hiện tại; thiếu cửa sổ/giá/nguồn giữ unknown. Không cộng trùng ledger và rollout. Riêng gắn native child vào cây vẫn chỉ đọc sessions.
++
++Giữ tối đa 4 phiên phụ, pool chung 4 agent, lựa chọn phiên gần nhất, số đếm phần ẩn và loại nhóm orphan. Addon này chỉ áp dụng panel/sidebar Paseo; hh-tree-pane giữ bố cục, chỉ nhận sửa tương thích native status/exit/unknown ban đầu.
++
++Mỗi cây chính hiện tối đa 4 phiên phụ từ toàn bộ hậu duệ, ưu tiên đang chạy rồi ended/started mới nhất. Phần dư gộp `+N cũ: X✓ Y✗`, thêm `●N`/`?N` khi có running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây (max last_activity/ended/started và mốc agent con, tie giữ thứ tự duyệt cây/agent đầu vào) mở tối đa 4 subagent và hand có cha chung một pool; mọi agent khác gộp `N subagent: X✓ Y✗`, kể cả trong phiên bị ẩn. Nếu phiên gần nhất bị gộp, agent mở của nó có nhãn tên phiên dưới dòng gộp. Không ép phiên is_main là gần nhất. Lỗi có precedence trên trạng thái running cũ; không tính running vào done/error. Native Codex child từ JSON `hh-ps` nằm chung pool và số đếm này. `completed` → ✓; `failed`/`errored`/`cancelled` hoặc `exit_code` khác 0 → ✗ (lỗi ưu tiên), unknown → ?. [`hh-tree-pane`](hh-tree-pane/README.md) và `hh-ps` giữ contract mục 6.
+ 
+ ### 8.1 Bật % sống cho phiên Paseo
+ 
+--- before/hybrid-hands/hh-tree-pane/hooks/tree.ts
++++ hybrid-hands/hh-tree-pane/hooks/tree.ts
+@@ -2,9 +2,9 @@
+ import type { Row, Tone } from '../types'
+ 
+ type Usage = { account_plan?: string; account_5h_pct?: number | null; account_week_pct?: number | null; read?: number | null; cache_read?: number | null; cache_write?: number | null; out?: number | null; usd?: number | null; usd_estimated?: boolean; week_pct?: number | null; week_pct_estimated?: boolean; gpt_5h_pct?: number | null; gpt_week_pct?: number | null }
+-type Sub = { model?: string; effort?: string; started_at?: string | null; description?: string; agent_type?: string; status?: string; context_tokens?: number | null; duration_seconds?: number | null; ended_at?: string | null; usage?: Usage | null }
++type Sub = { provider?: string; exit_code?: number | null; model?: string; effort?: string; started_at?: string | null; description?: string; agent_type?: string; status?: string; context_tokens?: number | null; duration_seconds?: number | null; ended_at?: string | null; usage?: Usage | null }
+ type Run = {
+-  model?: string; effort?: string; label?: string; backend?: string; status?: string; state?: string
++  exit_code?: number | null; model?: string; effort?: string; label?: string; backend?: string; status?: string; state?: string
+   tokens?: { input?: number; cached_input?: number; output?: number } | null
+   usage?: Usage | null
+   started_at?: string | null; ended_at?: string | null; duration_seconds?: number | null
+@@ -99,14 +99,17 @@
+   return sameDay ? clock : `${pad2(end.getDate())}/${pad2(end.getMonth() + 1)} ${clock}`
+ }
+ 
++const failedExit = (r: { exit_code?: number | null }) =>
++  typeof r.exit_code === 'number' && Number.isFinite(r.exit_code) && r.exit_code !== 0
++
+ function runIsLive(r: Run): boolean {
+   // `state` is the registry's view checked against the process; a dead
+   // process keeps `status: running` but reads `state: lost`.
+-  return r.state ? r.state === 'running' : r.status === 'running'
++  return !failedExit(r) && (r.state ? r.state === 'running' : r.status === 'running')
+ }
+ 
+ function runIsBad(r: Run): boolean {
+-  return r.state === 'lost' || (r.status != null && !OK_STATUSES.includes(r.status))
++  return failedExit(r) || r.state === 'lost' || (r.status != null && !OK_STATUSES.includes(r.status))
+ }
+ 
+ const completedText = (iso: string | null | undefined) => {
+@@ -213,10 +216,18 @@
+     age(dur), live ? 'đang chạy' : completedText(r.ended_at), r.usage, indent, modelEffort(r))
+ }
+ 
++const nativeSub = (s: Sub) => s.agent_type === 'native-codex'
++const subIsBad = (s: Sub) => failedExit(s) ||
++  (nativeSub(s) && ['failed', 'error', 'errored', 'cancelled', 'canceled'].includes(s.status ?? ''))
++const subIsLive = (s: Sub) => !subIsBad(s) &&
++  (s.status === 'running' || (!nativeSub(s) && s.status === 'silent'))
++
+ function subRow(s: Sub, now: number, indent: number): Draft {
+-  const live = s.status === 'running' || s.status === 'silent'
++  const live = subIsLive(s)
+   const silent = s.status === 'silent'
+-  return childRow(live ? MARK.running : MARK.ok, silent ? 'bad' : live ? 'running' : 'dim', s.agent_type,
++  const bad = subIsBad(s)
++  const mark = bad ? MARK.bad : live ? MARK.running : nativeSub(s) && s.status !== 'completed' ? '?' : MARK.ok
++  return childRow(mark, bad || silent ? 'bad' : live ? 'running' : 'dim', s.agent_type,
+     s.description ?? '', silent ? 'im lặng' : '', age(s.duration_seconds),
+     live ? 'đang chạy' : completedText(s.ended_at), s.usage, indent, modelEffort(s))
+ }
+@@ -272,7 +283,7 @@
+   const head = asChild ? sideRow(s, now, isHere, indent) : headRow(s, now, isHere, indent)
+   const inner = indent + 1
+   const items: Item[] = [
+-    ...(s.subagents ?? []).map(x => ({ running: x.status === 'running' || x.status === 'silent', bad: false,
++    ...(s.subagents ?? []).map(x => ({ running: subIsLive(x), bad: subIsBad(x),
+       end: stamp(x.ended_at), rows: () => [subRow(x, now, inner)] })),
+     ...(s.hand_runs ?? []).map(x => ({ running: runIsLive(x), bad: !runIsLive(x) && runIsBad(x),
+       end: stamp(x.ended_at), rows: () => [runRow(x, now, inner)] })),
+--- before/hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
++++ hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+@@ -1,4 +1,17 @@
+ # Changelog
++
++## 0.29.0
++
++- hh-ps đọc metadata native Codex child từ rollout cục bộ trong đường dẫn cố định ~/.codex-hand/sessions (không dùng override CODEX_HOME để giữ cô lập tài khoản), không gọi daemon RPC/API; đối chiếu parent thread qua pinned Sol rollout về sid canonical và xuất trong Session.subagents với provider codex, agent_type native-codex.
++- JSON giữ status/provider/parent canonical của native cùng exit_code nullable cho subagent và hand; field mới có default cuối dataclass để giữ tương thích. Không suy completed từ mtime hoặc im lặng.
++- Native chung pool tối đa 4 và số đếm X✓ Y✗ trong panel: completed → ✓; failed/errored/cancelled hoặc exit_code khác 0 → ✗, unknown → ?. Lỗi có precedence.
++- Token chỉ từ nguồn native, USD~ theo giá canonical; thiếu nguồn hiện ?, không bịa quota hay tạo run/meta/report/token ledger hand-ext.
++
++Panel agent/sidebar Paseo: running/busy dùng theme accent nếu accent là xanh dương, nếu không dùng màu xanh dương dự phòng bảo đảm tương phản ở giao diện sáng/tối; done dùng statusSuccess (xanh lá); failed/exit khác 0/timeout/killed dùng statusDanger (đỏ); idle/silent dùng statusWarning (vàng); lost/unknown dùng foregroundMuted (xám). Số đếm ✓ xanh lá, ✗ đỏ. Dòng đã kết thúc hiện giờ local HH:MM, thêm dd/mm nếu khác ngày; running không hiện giờ kết thúc. Không hiện giờ bắt đầu. Mỗi dòng hiện USD~ riêng, provider Claude/GPT và usage.week_pct riêng trong tuần; thiếu hiện ?. Không thay phần riêng bằng phần trăm tài khoản hoặc suy quota GPT.
++
++Khối riêng ở đầu panel/sidebar hiện tổng USD~ toàn máy trong tuần của Claude/GPT và phần trăm tài khoản 5h/tuần, thay quota ở dòng root. JSON tree.machine_usage:[{plan,window:"tuần",usd,source}] cung cấp tổng toàn máy, không cộng các dòng cây đang hiển thị. Claude dùng phép tổng hợp tuần cục bộ hiện có. GPT đọc rollout trong đường dẫn cố định ~/.codex-hand/sessions và ~/.codex-hand/archived_sessions, khử trùng theo thread, chỉ cộng token delta được chứa trong cửa sổ tuần hiện tại; thiếu cửa sổ/giá/nguồn giữ unknown. Không cộng trùng ledger và rollout. Riêng gắn native child vào cây vẫn chỉ đọc sessions.
++
++Giữ tối đa 4 phiên phụ, pool chung 4 agent, lựa chọn phiên gần nhất, số đếm phần ẩn và loại nhóm orphan. Addon này chỉ áp dụng panel/sidebar Paseo; hh-tree-pane giữ bố cục, chỉ nhận sửa tương thích native status/exit/unknown ban đầu.
+ 
+ ## 0.28.0
+ 
+--- before/hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
++++ hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "hybrid-hands",
+-  "version": "0.28.0",
++  "version": "0.29.0",
+   "description": "Điều phối brain/hand lai cho Claude Code: brain chạy trên gói Claude chính; hand ngoài (lệnh hand-ext) mặc định cho việc code/tài liệu tự chứa, chạy trên gói subscription thứ hai (mặc định DeepSeek V4.1 Flash qua DeepSeek Harness dsh trên gói OpenCode Go; Codex/Claude gọi tường minh; tuỳ chọn --browser cho dsh qua Playwright MCP cô lập) trong git worktree sạch (file bị ignore như .env không có trong workspace), tự áp changes.patch về repo; không giao hand ngoài việc phải đọc/gửi secret hay dữ liệu khách hàng; không API key, theo dõi token, hạn mức và mức USD~ Go ước tính qua sổ toàn máy cùng lệnh hand-ext usage; lệnh hh-ps xem cây phiên mọi provider/backend → subagent → lượt hand ngoài kèm sổ lượt đang chạy toàn máy; hand Claude (agent hybrid-hands:hand) cho việc cần tool riêng của Claude Code hoặc khi gói thứ hai hết hạn mức; phiên phụ (lệnh side-session) cho gói việc dài. Bật/tắt theo dự án, thay thế parallel-subagents.",
+   "author": {
+     "name": "hybrid-hands"
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/tree.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/tree.py
+@@ -321,7 +321,10 @@
+     for run in orphans:
+         _apply_run_week(run, go_week)
+     codex = load_codex(cfg, moment)
+-    _apply_codex(sessions, orphans, codex, pinned_rollouts(repos.roots), moment)
++    pinned = pinned_rollouts(repos.roots)
++    _apply_codex(sessions, orphans, codex, pinned, moment)
++    from .native_source import attach_native
++    attach_native(sessions, pinned, moment)
+     snapshot = Snapshot(sessions=sessions, orphan_runs=orphans, since_seconds=since_seconds,
+                     cwd=str(cwd), all_projects=all_projects,
+                     main_session_id=main_session_id, generated_at=moment,
+@@ -329,6 +332,8 @@
+                                           claude_week=claude_week, go_week=go_week,
+                                           codex_windows=codex.account))
+ 
++    from .machine_usage import machine_usage
++    snapshot.machine_usage = machine_usage(home, claude_week, codex, cfg, moment)
+     from .usage_enrichment import enrich_snapshot
+     enrich_snapshot(snapshot, cfg, moment)
+     return snapshot
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/models.py
+@@ -61,9 +61,15 @@
+     started_at: Optional[float] = None
+     model: str = ""
+     effort: str = ""
++    provider: str = ""
++    status: str = ""
++    exit_code: Optional[int] = None
++    finished_at: Optional[float] = None
+ 
+     @property
+     def state(self) -> str:
++        if self.provider:
++            return self.status or "unknown"
+         if self.finished:
+             return SUBAGENT_FINISHED
+         return SUBAGENT_SILENT if self.silent else SUBAGENT_RUNNING
+@@ -75,6 +81,8 @@
+     @property
+     def ended_at(self) -> Optional[float]:
+         # The last transcript record is the best end mark a finished subagent has.
++        if self.provider:
++            return self.finished_at
+         return self.last_activity if self.finished else None
+ 
+ 
+@@ -99,6 +107,7 @@
+     # Snapshot usage (Codex cost/account samples); renderers fall back to hand_usage.
+     usage: Optional[Usage] = None
+     effort: str = ""
++    exit_code: Optional[int] = None
+ 
+     @property
+     def running(self) -> bool:
+@@ -175,6 +184,7 @@
+     generated_at: float
+     hidden_ended_sessions: int = 0
+     limits: List[Limit] = field(default_factory=list)
++    machine_usage: List[dict] = field(default_factory=list)
+ 
+     @property
+     def live_sessions(self) -> int:
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py
+@@ -63,7 +63,7 @@
+ 
+ def _row_usage(row: Any, cfg: Any = None, provider: str = "") -> Usage:
+     usage = row.usage or Usage(usd=None)
+-    backend = getattr(row, "provider", provider)
++    backend = getattr(row, "provider", "") or provider
+     # Claude transcripts price each message separately. None may mean an unknown
+     # model in a mixed-model transcript, so the last model cannot repair it.
+     if backend == "claude":
+@@ -116,7 +116,8 @@
+         for agent in session.subagents:
+             usage = _row_usage(agent, cfg, provider)
+             if usage is not None:
+-                agent.usage = _account(usage, plan, snapshot, now, five)
++                agent_plan = "GPT" if agent.provider == "codex" else plan
++                agent.usage = _account(usage, agent_plan, snapshot, now, five)
+     for run in snapshot.iter_runs():
+         backend = run.backend
+         options = explicit_options(cfg, backend)
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/render.py
+@@ -60,6 +60,7 @@
+         "model": run.model,
+         "effort": getattr(run, "effort", ""),
+         "status": run.status,
++        "exit_code": run.exit_code,
+         "state": run.state,
+         "tokens": dict(run.tokens),
+         "usage": _usage_json(usage),
+@@ -72,22 +73,27 @@
+     }
+ 
+ 
+-def _subagent_json(agent: Subagent, now: float) -> Dict[str, object]:
++def _subagent_json(agent: Subagent, now: float, parent_session: Optional[str] = None) -> Dict[str, object]:
+     status = ("running" if agent.running else
+               "silent" if agent.state == SUBAGENT_SILENT else "finished")
+-    return {
++    data = {
+         "model": getattr(agent, "model", ""),
+         "effort": getattr(agent, "effort", ""),
+         "started_at": iso_at(getattr(agent, "started_at", None)),
+         "agent_id": agent.agent_id,
+         "agent_type": agent.agent_type,
+         "description": agent.description,
+-        "status": status,
++        "status": agent.status if agent.provider else status,
++        "exit_code": agent.exit_code,
+         "context_tokens": agent.context_tokens,
+         "usage": _usage_json(agent.usage),
+         "duration_seconds": subagent_duration(agent, now),
+         "ended_at": iso_at(agent.ended_at),
+     }
++
++    if agent.provider:
++        data.update(provider=agent.provider, parent_session=parent_session)
++    return data
+ 
+ 
+ def _session_json(session: Session, now: float) -> Dict[str, object]:
+@@ -114,7 +120,7 @@
+         "provider": session.provider,
+         "ai_title": session.ai_title,
+         "usage": _usage_json(session.usage),
+-        "subagents": [_subagent_json(agent, now) for agent in session.subagents],
++        "subagents": [_subagent_json(agent, now, session.session_id) for agent in session.subagents],
+         "hand_runs": [_hand_run_json(run, now) for run in session.hand_runs],
+     }
+ 
+@@ -129,6 +135,7 @@
+         "main_session_id": snapshot.main_session_id,
+         "hidden_ended_sessions": snapshot.hidden_ended_sessions,
+         "limits": [_limit_json(limit) for limit in snapshot.limits],
++        "machine_usage": list(snapshot.machine_usage),
+         "sessions": [_session_json(session, snapshot.generated_at)
+                      for session in snapshot.sessions],
+         "orphan_runs": [_hand_run_json(run, snapshot.generated_at)
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/compact.py
+@@ -56,7 +56,9 @@
+     start = getattr(agent, "started_at", None)
+     if start is None:
+         return agent.duration_seconds
+-    return elapsed_seconds(start, agent.ended_at, not agent.finished, now)
++    active = agent.running if agent.provider else not agent.finished
++    duration = elapsed_seconds(start, agent.ended_at, active, now)
++    return agent.duration_seconds if duration is None and agent.provider else duration
+ 
+ 
+ def model_effort(row) -> str:
+@@ -141,7 +143,14 @@
+ 
+ 
+ def subagent_line(agent: Subagent, now: float) -> Line:
+-    if agent.state == SUBAGENT_RUNNING:
++    active = agent.running if agent.provider else not agent.finished
++    if agent.exit_code not in (None, 0):
++        mark, key, status = CHILD_BAD_MARK, "lost", f"exit {agent.exit_code}"
++    elif agent.provider and agent.status in ("error", "failed", "errored", "cancelled"):
++        mark, key, status = CHILD_BAD_MARK, "lost", agent.status
++    elif agent.provider and agent.status not in ("running", "completed"):
++        mark, key, status = "?", "lost", "unknown"
++    elif agent.state == SUBAGENT_RUNNING:
+         mark, key, status = CHILD_RUNNING_MARK, "running", ""
+     elif agent.state == SUBAGENT_SILENT:
+         mark, key, status = CHILD_RUNNING_MARK, "lost", SUBAGENT_SILENT
+@@ -149,10 +158,12 @@
+         mark, key, status = CHILD_OK_MARK, "finished", ""
+     return _child_line(mark, key, agent.agent_type, agent.description, status,
+                        duration_text(subagent_duration(agent, now)),
+-                       end_cell(agent.ended_at, not agent.finished, now), agent.usage, model_effort(agent))
++                       end_cell(agent.ended_at, active, now), agent.usage, model_effort(agent))
+ 
+ 
+ def _run_mark(run: HandRun) -> tuple:
++    if run.exit_code not in (None, 0):
++        return CHILD_BAD_MARK, "lost", f"exit {run.exit_code}"
+     if run.state == RUN_STATE_LOST:
+         return CHILD_BAD_MARK, "lost", RUN_LOST_TEXT
+     if run.state == RUN_STATE_RUNNING:
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/registry_source.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/registry_source.py
+@@ -175,6 +175,13 @@
+         except (TypeError, ValueError):
+             tokens[key] = 0
+     return tokens
++
++
++def _exit_code(value: Any) -> Optional[int]:
++    try:
++        return int(value) if value is not None and not isinstance(value, bool) else None
++    except (TypeError, ValueError, OverflowError):
++        return None
+ 
+ 
+ def _pid(value: Any) -> Optional[int]:
+@@ -243,7 +250,7 @@
+                 report = None
+             if isinstance(report, dict):
+                 entry = {key: report[key] for key in
+-                         ("ended", "ended_at", "status", "tokens") if key in report}
++                         ("ended", "ended_at", "status", "tokens", "exit", "exit_code") if key in report}
+         if entry is not None:
+             for key, value in entry.items():
+                 missing = data.get(key) is None or data.get(key) == ""
+@@ -267,6 +274,7 @@
+             model=str(data.get("model") or ""),
+             effort=str(data.get("effort") or ""),
+             status=status,
++            exit_code=_exit_code(data.get("exit_code") if data.get("exit_code") is not None else data.get("exit")),
+             parent_session=str(data["parent_session"])
+             if data.get("parent_session") else None,
+             tokens=_tokens(data.get("tokens")),
+--- before/hybrid-hands/plugins/hybrid-hands/lib/hh_ps/text_render.py
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/text_render.py
+@@ -58,7 +58,8 @@
+                  now: float) -> List[ChildItem]:
+     """Each child as (running?, failed?, end) with a builder of its rows."""
+     items: List[ChildItem] = [
+-        ChildItem([subagent_line(agent, now)], not agent.finished, False, agent.ended_at)
++        ChildItem([subagent_line(agent, now)],
++                  agent.running if agent.provider else not agent.finished, agent.status in ("error", "failed", "errored", "cancelled") or agent.exit_code not in (None, 0), agent.ended_at)
+         for agent in session.subagents]
+     items += [ChildItem([run_line(run, now)], run.running, run_is_bad(run), run.end_moment)
+               for run in session.hand_runs]
+--- before/hybrid-hands/tests/test_hh_ps.py
++++ hybrid-hands/tests/test_hh_ps.py
+@@ -118,12 +118,12 @@
+         self.assertEqual(set(session["subagents"][0]),
+                          {"agent_id", "agent_type", "description", "status",
+                           "context_tokens", "usage", "duration_seconds", "ended_at",
+-                          "model", "effort", "started_at"})
++                          "model", "effort", "started_at", "exit_code"})
+         run = session["hand_runs"][0]
+         self.assertEqual(set(run), {"run_id", "label", "backend", "model", "status",
+                                     "state", "tokens", "usage", "started_at", "ended_at",
+                                     "duration_seconds", "parent_session", "pid",
+-                                    "child_pid", "effort"})
++                                    "child_pid", "effort", "exit_code"})
+         self.assertEqual(set(session["usage"]),
+                          {"read", "cache_read", "cache_write", "out", "usd",
+                           "week_pct", "week_pct_estimated", "usd_estimated",
+--- before/hybrid-hands/paseo-hh-tree/OVERVIEW.md
++++ hybrid-hands/paseo-hh-tree/OVERVIEW.md
+@@ -2,11 +2,13 @@
+ 
+ Plugin hiện panel cạnh agent và sidebar Paseo, lấy JSON `hh-ps` và làm mới mỗi 5 giây. Không hiện nhóm orphan hand-ext.
+ 
+-Mỗi dòng giữ icon ● chạy / ✓ xong / ✗ lỗi / ? chưa rõ, tên ngắn, model·effort, elapsed và USD~. Quota tài khoản 5h/tuần mỗi account plan trong cây chỉ hiện ở root, thiếu nguồn `?`. Không hiện cwd, description, nhãn model/effort, mốc bắt đầu/kết thúc hay header/footer giải thích. Elapsed running tăng theo now−started; đã xong cố định theo ended hoặc duration có sẵn.
++Mỗi dòng giữ icon ● chạy / ✓ xong / ✗ lỗi / ? chưa rõ, tên ngắn, model·effort, elapsed, giờ kết thúc local HH:MM (dd/mm HH:MM nếu khác ngày), USD~ và phần riêng của provider theo `usage.week_pct`; thiếu nguồn giữ ?. Phần riêng không lấy quota tài khoản thay thế. Running không hiện giờ kết thúc. Icon running/busy xanh dương, done xanh lá, lỗi/exit khác 0 đỏ, idle/silent vàng, unknown/lost xám; các số ✓/✗ trong dòng gộp cũng có màu tương ứng. Dùng token theme, riêng running dùng accent nếu xanh dương hoặc màu xanh phù hợp nền sáng/tối.
++
++Đầu panel/sidebar luôn có hai dòng Claude/GPT: USD tuần máy này từ `machine_usage` độc lập bộ lọc cây, rồi quota tài khoản 5h/tuần từ một sample nguyên vẹn hoặc limits cùng nguồn. Không cộng USD từ các dòng đang hiện. Thiếu nguồn hiện ?, quota không lặp ở root. Không hiện cwd, description, nhãn model/effort hay giờ bắt đầu. Elapsed running tăng theo now−started; đã xong cố định theo ended hoặc duration có sẵn.
+ 
+ Mỗi cây flatten tối đa 4 phiên phụ: running trước, rồi ended/started mới nhất; tie giữ thứ tự duyệt cây/agent đầu vào. Phần dư `+N cũ: X✓ Y✗`, thêm ●N/?N khi có. Phiên gần nhất của từng cây được chọn bằng max last_activity/ended/started và mốc agent con, không ưu tiên is_main. Chỉ phiên đó mở tối đa 4 subagent/hand có cha chung pool; các agent khác gộp `N subagent: X✓ Y✗`. Phiên bị ẩn vẫn giữ đủ số đếm; nếu là phiên gần nhất thì các agent mở có nhãn tên phiên dưới phần gộp. Lỗi/exit khác 0/timeout/killed ưu tiên trên running cũ; unknown không tính là thành công.
+ 
+-USD~ là ước tính offline subscription, không phải hoá đơn. Giá lấy từ [nguồn canonical](../plugins/hybrid-hands/config/model-prices.json); quota tài khoản chỉ dùng cache/sample đúng nguồn, không suy từ token/USD. Native Codex child chưa được hh-ps xuất; panel không tự dựng nguồn này. Xem [contract panel, mục 8](../README.md#8-xem-cây-trên-paseo). Test hẹp: `node --experimental-strip-types --test client/*.test.ts`.
++USD~ là ước tính offline subscription, không phải hoá đơn. Giá lấy từ [nguồn canonical](../plugins/hybrid-hands/config/model-prices.json); quota tài khoản chỉ dùng cache/sample đúng nguồn, không suy từ token/USD. Native Codex child từ `hh-ps` nằm trong subagents với tên `native-codex`, chung pool tối đa 4 và số đếm; completed tính ✓, failed/errored/cancelled tính ✗, exit khác 0 ưu tiên lỗi, thiếu nguồn giữ ?. Panel không tự dựng nguồn native. Xem [contract panel, mục 8](../README.md#8-xem-cây-trên-paseo). Test hẹp: `node --experimental-strip-types --test client/*.test.ts`.
+ 
+ ## Cài đặt
+ 
+--- before/hybrid-hands/paseo-hh-tree/shared/tree.ts
++++ hybrid-hands/paseo-hh-tree/shared/tree.ts
+@@ -67,6 +67,8 @@
+ 
+ const subagentSchema = z
+   .object({
++    provider: z.string().optional(),
++    parent_session: z.string().nullable().optional(),
+     model: z.string().optional(),
+     effort: z.string().optional(),
+     exit_code: z.number().nullable().optional(),
+@@ -122,6 +124,10 @@
+     all_projects: z.boolean(),
+     main_session_id: z.string().nullable(),
+     limits: z.array(limitSchema).optional(),
++    machine_usage: z.array(z.object({
++      plan: z.enum(["Claude", "GPT"]), window: z.literal("tuần"),
++      usd: z.number().nullable(), source: z.string(),
++    })).optional(),
+     sessions: z.array(sessionSchema),
+     orphan_runs: z.array(handRunSchema),
+     totals: z
+--- before/hybrid-hands/paseo-hh-tree/client/SessionBlock.tsx
++++ hybrid-hands/paseo-hh-tree/client/SessionBlock.tsx
+@@ -1,11 +1,11 @@
++import { ColoredRowText, ColoredSummary } from "./ColoredText";
+ import { Fragment } from "react";
+-import { Pressable, Text } from "react-native";
++import { Pressable } from "react-native";
+ 
+ import type { TreeSession } from "../shared/tree";
+ import {
+   agentName,
+   compactTree,
+-  rowText,
+   summaryText,
+   type AgentItem,
+ } from "./compact";
+@@ -24,15 +24,9 @@
+ }: Props) {
+   const view = compactTree(session);
+   const open = expanded[session.session_id] ?? true;
+-  const textStyle = {
+-    color: theme.colors.foreground,
+-    fontSize: compact ? 13 : 14,
+-  };
+   const summary = (text: string, at: number, key: string) => (
+     <Row key={key} depth={at}>
+-      <Text style={{ ...textStyle, color: theme.colors.foregroundMuted }}>
+-        {text}
+-      </Text>
++      <ColoredSummary text={text} theme={theme} compact={compact} />
+     </Row>
+   );
+   const agentRows = (
+@@ -41,7 +35,7 @@
+     <>
+       {shown.map((agent, index) => (
+         <Row key={`${key}-${index}`} depth={at}>
+-          <Text style={textStyle}>{rowText(agent, agentName(agent), now)}</Text>
++          <ColoredRowText item={agent} name={agentName(agent)} now={now} theme={theme} compact={compact} />
+         </Row>
+       ))}
+       {hidden.length
+@@ -63,11 +57,7 @@
+         onPress={() => onToggle(session)}
+       >
+         <Row depth={depth}>
+-          <Text style={textStyle}>
+-            {open ? "▾ " : "▸ "}
+-            {rowText(session, session.side_name || session.name, now)}
+-            {" · "}{view.quotaText}
+-          </Text>
++          <ColoredRowText item={session} name={session.side_name || session.name} now={now} theme={theme} compact={compact} prefix={open ? "▾ " : "▸ "} />
+         </Row>
+       </Pressable>
+       {open ? (
+@@ -78,9 +68,7 @@
+             return (
+               <Fragment key={side.session_id}>
+                 <Row depth={depth + 1}>
+-                  <Text style={textStyle}>
+-                    {rowText(side, side.side_name || side.name, now)}
+-                  </Text>
++                  <ColoredRowText item={side} name={side.side_name || side.name} now={now} theme={theme} compact={compact} />
+                 </Row>
+                 {agentRows(pool.shown, pool.hidden, depth + 2, side.session_id)}
+               </Fragment>
+--- before/hybrid-hands/paseo-hh-tree/client/ChildRows.tsx
++++ hybrid-hands/paseo-hh-tree/client/ChildRows.tsx
+@@ -1,20 +1,15 @@
+-import { Text } from "react-native";
++import { ColoredRowText } from "./ColoredText";
+ import type { TreeHandRun, TreeSubagent } from "../shared/tree";
+-import { rowText } from "./compact";
+ import { Row, type TreeThemeProps } from "./TreeRow";
+ export function SubagentRow({ agent, depth, theme, compact, now }: TreeThemeProps & {
+   agent: TreeSubagent;
+   depth: number;
+ }) {
+-  return <Row depth={depth}><Text style={{ color: theme.colors.foreground, fontSize: compact ? 12 : 13 }}>
+-  {rowText(agent, agent.agent_type || agent.agent_id, now)}
+- </Text></Row>;
++  return <Row depth={depth}><ColoredRowText item={agent} name={agent.agent_type || agent.agent_id} now={now} theme={theme} compact={compact} /></Row>;
+ }
+ export function HandRunRow({ run, depth, theme, compact, now }: TreeThemeProps & {
+   run: TreeHandRun;
+   depth: number;
+ }) {
+-  return <Row depth={depth}><Text style={{ color: theme.colors.foreground, fontSize: compact ? 12 : 13 }}>
+-  {rowText(run, run.label || run.run_id, now)}
+- </Text></Row>;
++  return <Row depth={depth}><ColoredRowText item={run} name={run.label || run.run_id} now={now} theme={theme} compact={compact} /></Row>;
+ }
+--- before/hybrid-hands/paseo-hh-tree/client/compact.test.ts
++++ hybrid-hands/paseo-hh-tree/client/compact.test.ts
+@@ -1,7 +1,7 @@
+ import assert from "node:assert/strict";
+ import { test } from "node:test";
+ // @ts-ignore -- Node strip-types requires .ts.
+-import { accountQuotaText, compactTree, outcome, summaryText, rowText } from "./compact.ts";
++import { accountQuotaText, compactTree, outcome, summaryText, rowText, finishedTime, panelRows } from "./compact.ts";
+ // @ts-ignore
+ import { nestSessions } from "./nest.ts";
+ import type { TreeSession, TreeSubagent } from "../shared/tree";
+@@ -72,13 +72,13 @@
+   const child = agent("worker", { status: "running", ended_at: null, duration_seconds: 1,
+     usage: { account_5h_pct: 23, account_week_pct: 42 } });
+   const line = rowText(child, "worker", 60000);
+-  assert.equal(line, "● worker · ?·? · 1p · ~$?");
+-  assert.doesNotMatch(line, /5h|tuần|đang chạy|MODEL|EFFORT|fixture/);
++  assert.equal(line, "● worker · ?·? · 1p · ~$? · ? riêng ? tuần");
++  assert.doesNotMatch(line, /5h|đang chạy|MODEL|EFFORT|fixture/);
+   assert.match(rowText(child, "worker", 120000), /2p/);
+   const done = { ...child, status: "finished", ended_at: at(60) };
+   assert.equal(rowText(done, "worker", 60000), rowText(done, "worker", 120000));
+-  assert.equal(rowText({ status: "mystery" }, "?", 120000), "? ? · ?·? · ? · ~$?");
+-  assert.match(rowText(child, "root", 60000, true), /5h 23.0% · tuần 42.0%/);
++  assert.equal(rowText({ status: "mystery" }, "?", 120000), "? ? · ?·? · ? · ~$? · ? riêng ? tuần");
++  assert.doesNotMatch(rowText(child, "root", 60000, true), /5h|23.0%|42.0%/);
+   assert.equal(accountQuotaText([
+     { usage: null },
+     { usage: { account_plan: "Claude", account_5h_pct: 10, account_week_pct: 20 } },
+@@ -91,3 +91,57 @@
+     { usage: { account_plan: "GPT", account_week_pct: 40 } },
+   ]), "GPT 5h 30.0% · tuần ?");
+ });
++test("native Codex outcomes and hand exits share the four-agent pool with unknown cost", () => {
++  const native = ["completed", "failed", "errored", "cancelled", "unknown"].map((status, i) =>
++    agent(`native-${i}`, { agent_type: "native-codex", provider: "codex",
++      parent_session: "root", status, exit_code: null, model: "gpt-6.1-sol", effort: "low",
++      ended_at: at(100 + i), usage: null }));
++  const root = session("root", { subagents: native, hand_runs: [{
++    run_id: "bad-exit", label: "hand", backend: "codex", model: "gpt-6.1-sol",
++    status: "completed", state: "running", exit_code: 2, parent_session: "root",
++    started_at: at(0), ended_at: at(110), duration_seconds: 110,
++    pid: null, child_pid: null, tokens: { input: 0, cached_input: 0, output: 0 },
++  }] });
++  const view = tree([root]);
++  const { shown, hidden } = view.agentsFor(root);
++  assert.equal(shown.length, 4);
++  assert.equal(hidden.length, 2);
++  assert.equal(shown[0].kind, "hand");
++  assert.equal(shown.filter(item => item.kind === "subagent").length, 3);
++  assert.equal(summaryText([...shown, ...hidden], "6 subagent"), "6 subagent: 1✓ 4✗ ?1");
++  assert.equal(summaryText(hidden, "2 subagent"), "2 subagent: 1✓ 1✗");
++  assert.match(rowText(shown[0], "hand", 120000), /^✗/);
++  for (const child of native) {
++    const icon = child.status === "completed" ? "✓" : child.status === "unknown" ? "?" : "✗";
++    assert.equal(rowText(child, child.agent_type, 120000),
++      `${icon} native-codex · gpt-6.1-sol·low · 1p · ${finishedTime(child, 120000)} · ~$? · GPT riêng ? tuần`);
++  }
++  assert.equal(outcome({ status: "finished" }), "done");
++  assert.equal(outcome({ status: "errored", state: "running", exit_code: 0 }), "error");
++  assert.equal(view.quotaText, "TK 5h ? · tuần ?");
++});
++
++test("panel row list starts with machine summaries; own share and local finish exclude running end", () => {
++  const now = new Date(2026, 10, 7, 15, 0).getTime();
++  const end = new Date(2026, 10, 7, 14, 30).toISOString();
++  const done = session("root", { provider: "codex", status: "completed", ended_at: end,
++    usage: { usd: 999, week_pct: 2.5, account_plan: "GPT", account_5h_pct: 11, account_week_pct: 22 } });
++  const rows = panelRows({ sessions: [done], machine_usage: [
++    { plan: "GPT", window: "tuần", usd: 7, source: "fixture" },
++  ], limits: [{ plan: "Claude", window: "tuần", total_pct: 33, source: "fixture",
++    this_machine_pct: null, other_pct: null, resets_at: null }] });
++  assert.deepEqual(rows.map(row => row.kind), ["summary", "summary", "session"]);
++  assert.equal(rows[0].kind === "summary" && rows[0].text, "Claude máy này tuần ~$? · Claude 5h ? · tuần 33.0%");
++  assert.equal(rows[1].kind === "summary" && rows[1].text, "GPT máy này tuần ~$7.00 · GPT 5h 11.0% · tuần 22.0%");
++  assert.match(rowText(done, "root", now), /14:30.*GPT riêng 2.5% tuần/);
++  assert.doesNotMatch(rowText(done, "root", now), /11.0%|22.0%|5h/);
++  assert.match(rowText({ ...done, ended_at: new Date(2026, 10, 6, 14, 30).toISOString() }, "root", now), /06\/11 14:30/);
++  assert.doesNotMatch(rowText({ ...done, status: "running", live: true }, "root", now), /14:30/);
++  assert.match(rowText({ ...done, status: "idle", live: false }, "root", now), /14:30/);
++  assert.match(rowText({ ...done, status: "idle", live: true, exit_code: 2 }, "root", now), /^✗.*14:30/);
++  assert.equal(outcome({ state: "lost", status: "running" }), "unknown");
++  assert.match(rowText({ status: "completed", provider: "codex", usage: { account_week_pct: 80 } }, "native", now), /GPT riêng \? tuần$/);
++  assert.deepEqual(panelRows({ sessions: [] }).map(row => row.kind === "summary" && row.text), [
++    "Claude máy này tuần ~$? · Claude 5h ? · tuần ?", "GPT máy này tuần ~$? · GPT 5h ? · tuần ?",
++  ]);
++});
+--- before/hybrid-hands/paseo-hh-tree/client/TreeView.tsx
++++ hybrid-hands/paseo-hh-tree/client/TreeView.tsx
+@@ -6,6 +6,8 @@
+ import { Text, View } from "react-native";
+ 
+ import { treeRpc, type TreeResult, type TreeSession } from "../shared/tree";
++import { panelRows } from "./compact";
++import type { NestedSession } from "./nest";
+ import { durationText } from "./format";
+ import { nestSessions } from "./nest";
+ import { OrphanSideBlock, SessionBlock } from "./SessionBlock";
+@@ -70,15 +72,12 @@
+       style={{ flex: 1, backgroundColor: theme.colors.surface0 }}
+       contentContainerStyle={{ padding: layout.compact ? 12 : 20 }}
+     >
+-      {empty ? (
+-        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>
+-          Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
+-        </Text>
+-      ) : null}
+-      {nested.roots.map((session) => (
+-        <View key={session.session_id} style={{ marginBottom: 6 }}>
++      {panelRows(tree).filter(row => row.kind === "summary" || nested.roots.some(s => s.session_id === row.session.session_id)).map((row, i) => row.kind === "summary" ? (
++        <Text key={`summary-${i}`} style={{ color: theme.colors.foregroundMuted, fontSize: layout.compact ? 12 : 13 }}>{row.text}</Text>
++      ) : (
++        <View key={row.session.session_id} style={{ marginBottom: 6 }}>
+           <SessionBlock
+-            session={session}
++            session={nested.roots.find(s => s.session_id === row.session.session_id) as NestedSession}
+             depth={0}
+             theme={theme}
+             compact={layout.compact}
+@@ -88,6 +87,11 @@
+           />
+         </View>
+       ))}
++      {empty ? (
++        <Text style={{ color: theme.colors.foregroundMuted, fontSize: 13 }}>
++          Không có phiên hay lượt hand nào trong {durationText(tree.since_seconds)} qua.
++        </Text>
++      ) : null}
+       <OrphanSideBlock
+         sessions={nested.orphanSides}
+         theme={theme}
+--- before/hybrid-hands/paseo-hh-tree/client/compact.ts
++++ hybrid-hands/paseo-hh-tree/client/compact.ts
+@@ -1,6 +1,7 @@
+ import type {
+-  TreeSession, TreeSubagent, TreeHandRun, TreeUsage,
++  TreeSession, TreeSubagent, TreeHandRun, TreeUsage, TreeData,
+ } from "../shared/tree";
++import type { PluginTheme } from "@getpaseo/plugin";
+ import type { NestedSession } from "./nest";
+ // @ts-ignore -- Also run directly with Node strip-types.
+ import { durationText, limitPercentText, truncate, usdText } from "./format.ts";
+@@ -10,6 +11,9 @@
+ export type Outcome = "running" | "done" | "error" | "unknown";
+ 
+ export interface CompactItem {
++  provider?: string;
++  backend?: string;
++  agent_type?: string;
+   status?: string;
+   state?: string;
+   live?: boolean;
+@@ -34,7 +38,7 @@
+     (state) => state?.toLowerCase().replaceAll("-", "_"),
+   );
+   const errors = [
+-    "failed", "failure", "error", "timeout", "timed_out", "killed",
++    "failed", "failure", "error", "errored", "timeout", "timed_out", "killed",
+     "cancelled", "canceled",
+   ];
+   const successes = ["ok", "success", "succeeded", "completed", "finished", "done"];
+@@ -44,6 +48,7 @@
+   if (states.some((state) => errors.includes(state ?? "")) || failedExit) {
+     return "error";
+   }
++  if (states.includes("lost")) return "unknown";
+   if (
+     item.live === true ||
+     states.some((state) => ["running", "busy"].includes(state ?? ""))
+@@ -172,18 +177,71 @@
+   return durationText(item.duration_seconds ?? null);
+ }
+ 
++export function statusColorToken(item: CompactItem): keyof PluginTheme["colors"] {
++  if (outcome(item) === "error") return "statusDanger";
++  if ([item.status, item.state].includes("lost")) return "foregroundMuted";
++  if (["idle", "silent"].includes(item.status ?? "")) return "statusWarning";
++  return { running: "accent", done: "statusSuccess", error: "statusDanger", unknown: "foregroundMuted" }[outcome(item)] as keyof PluginTheme["colors"];
++}
++
++/** Keep running blue even when the host chooses a non-blue accent. */
++export function statusColor(item: CompactItem, theme: PluginTheme): string {
++  const token = statusColorToken(item);
++  if (token !== "accent") return theme.colors[token];
++  const rgb = (color: string) => /^#[0-9a-f]{6}$/i.test(color)
++    ? [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16)) : null;
++  const accent = rgb(theme.colors.accent);
++  if (accent && accent[2] > accent[0] * 1.1 && accent[2] >= accent[1] && accent[1] >= accent[0]) return theme.colors.accent;
++  const surface = rgb(theme.colors.surface0);
++  return surface && (surface[0] * .2126 + surface[1] * .7152 + surface[2] * .0722) > 128
++    ? "#1565C0" : "#64B5F6";
++}
++
++export function providerLabel(item: CompactItem): string {
++  if (item.usage?.account_plan) return item.usage.account_plan;
++  const provider = item.provider || item.backend || (item.agent_type === "native-codex" ? "codex" : "");
++  return provider === "codex" ? "GPT" : provider.startsWith("claude") ? "Claude" : provider || "?";
++}
++
++export function finishedTime(item: CompactItem, now: number): string {
++  if (outcome(item) === "running") return "";
++  const end = moment(item.ended_at);
++  if (!item.ended_at || !end) return "";
++  const date = new Date(end);
++  const pad = (n: number) => String(n).padStart(2, "0");
++  const clock = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
++  return date.toDateString() === new Date(now).toDateString()
++    ? clock : `${pad(date.getDate())}/${pad(date.getMonth() + 1)} ${clock}`;
++}
++
+ export function rowText(
+-  item: CompactItem, name: string, now: number, root = false,
++  item: CompactItem, name: string, now: number, _root = false,
+ ): string {
+-  const usage = item.usage;
+-  const cost = usage?.usd == null ? "~$?" : usdText(usage.usd, true);
+-  const base = `${statusIcon(item)} ${truncate(name || "?", 32)} · ` +
++  const cost = item.usage?.usd == null ? "~$?" : usdText(item.usage.usd, true);
++  const ended = finishedTime(item, now);
++  return `${statusIcon(item)} ${truncate(name || "?", 32)} · ` +
+     `${item.model || "?"}·${item.effort || "?"} · ` +
+-    `${elapsedText(item, now)} · ${cost}`;
+-  if (!root) return base;
+-  const five = limitPercentText(usage?.account_5h_pct ?? usage?.gpt_5h_pct);
+-  const week = limitPercentText(usage?.account_week_pct ?? usage?.gpt_week_pct);
+-  return `${base} · ${usage?.account_plan || "TK"} 5h ${five} · tuần ${week}`;
++    `${elapsedText(item, now)}${ended ? ` · ${ended}` : ""} · ${cost} · ` +
++    `${providerLabel(item)} riêng ${limitPercentText(item.usage?.week_pct, item.usage?.week_pct_estimated === true)} tuần`;
++}
++
++/** Render order shared by the panel and sidebar: machine summaries precede trees. */
++export function panelRows(tree: Pick<TreeData, "sessions" | "limits" | "machine_usage">) {
++  const items = tree.sessions.flatMap(s => [s, ...s.subagents, ...s.hand_runs]);
++  const summaries = ["Claude", "GPT"].map(plan => {
++    const usage = items.filter(item => providerLabel(item) === plan);
++    let quota = accountQuotaText(usage).replace(/^TK /, `${plan} `);
++    // A limit sample is one intact source; never fill one window from a row and another from limits.
++    if (!usage.some(item => item.usage && (item.usage.account_5h_pct != null || item.usage.gpt_5h_pct != null || item.usage.account_week_pct != null || item.usage.gpt_week_pct != null))) {
++      const limits = (tree.limits ?? []).filter(l => l.plan === plan && l.total_pct != null);
++      const source = limits[0]?.source;
++      const sample = limits.filter(l => l.source === source);
++      quota = `${plan} 5h ${limitPercentText(sample.find(l => l.window === "5h")?.total_pct)} · tuần ${limitPercentText(sample.find(l => l.window === "tuần")?.total_pct)}`;
++    }
++    const machine = tree.machine_usage?.find(u => u.plan === plan && u.window === "tuần");
++    return { kind: "summary" as const, text: `${plan} máy này tuần ${machine?.usd == null ? "~$?" : usdText(machine.usd, true)} · ${quota}` };
++  });
++  return [...summaries, ...tree.sessions.map(session => ({ kind: "session" as const, session }))];
+ }
+ 
+ export function agentName(agent: AgentItem): string {
+--- /dev/null
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/native_source.py
+@@ -0,0 +1,139 @@
++"""Local Codex child metadata only; never decode response/chat records."""
++from __future__ import annotations
++
++import json
++import math
++import re
++from pathlib import Path
++
++from .codex import _HEADER_META, _contained, _sessions_root, _priced_tokens, codex_home
++from .models import Subagent, Usage
++from .registry_source import _exit_code
++from .timeutil import to_epoch
++
++_HEADER = re.compile(r'^\s*\{\s*' + _HEADER_META +
++    r'"type"\s*:\s*"(session_meta|turn_context|event_msg)"\s*,\s*' +
++    _HEADER_META + r'"payload"\s*:\s*\{')
++_EVENT = re.compile(r'"payload"\s*:\s*\{\s*"type"\s*:\s*"(task_started|task_complete|task_failed|task_errored|task_cancelled|turn_aborted|failed|errored|cancelled|token_count)"\s*[,}]')
++
++
++def _records(path, token_only=False, strict=False):
++    try:
++        with path.open(encoding="utf-8", errors="replace") as handle:
++            for line in handle:
++                match = _HEADER.match(line)
++                if not match or (match[1] == "event_msg" and not _EVENT.search(line)):
++                    continue
++                if token_only and match[1] == "event_msg" and not re.search(
++                        r'"payload"\s*:\s*\{\s*"type"\s*:\s*"token_count"\s*[,}]', line):
++                    continue
++                try:
++                    row = json.loads(line)
++                except ValueError:
++                    if strict:
++                        raise
++                    continue
++                payload = row.get("payload")
++                if isinstance(payload, dict):
++                    keys = {"id", "parent_thread_id", "source", "timestamp", "model", "effort", "reasoning_effort"} if row["type"] != "event_msg" else {"type", "started_at", "completed_at", "ended_at", "duration_ms", "exit_code", "exit", "status", "info"}
++                    yield row["type"], {k: v for k, v in payload.items() if k in keys}, to_epoch(row.get("timestamp"))
++    except OSError:
++        if strict:
++            raise
++        return
++
++
++def _read(path, now):
++    sid = parent = model = effort = name = ""
++    status = "unknown"
++    start = end = activity = duration = exit_code = tokens = None
++    for kind, p, stamp in _records(path):
++        if kind == "session_meta":
++            sid = str(p.get("id") or "")
++            source = p.get("source")
++            sub = source.get("subagent") if isinstance(source, dict) else None
++            spawn = sub.get("thread_spawn") if isinstance(sub, dict) else None
++            spawn = spawn if isinstance(spawn, dict) else {}
++            parent = str(p.get("parent_thread_id") or spawn.get("parent_thread_id") or "")
++            name = str(spawn.get("agent_nickname") or spawn.get("agent_path") or "")
++            start = to_epoch(p.get("timestamp")) or stamp
++            model = str(p.get("model") or model)
++            effort = str(p.get("effort") or effort)
++        elif kind == "turn_context":
++            model = str(p.get("model") or model)
++            effort = str(p.get("effort") or p.get("reasoning_effort") or effort)
++        else:
++            event = p.get("type")
++            if event == "token_count":
++                info = p.get("info")
++                raw = info.get("total_token_usage") if isinstance(info, dict) else None
++                tokens = (_priced_tokens(raw) if isinstance(raw, dict) and all(
++                    isinstance(raw.get(k), int) and not isinstance(raw.get(k), bool) and raw[k] >= 0
++                    for k in ("input_tokens", "output_tokens")) else None)
++            else:
++                activity = stamp
++                exit_code = _exit_code(p.get("exit_code", p.get("exit")))
++                if event == "task_started":
++                    status, end, duration = "running", None, None
++                    start = start if start is not None else (to_epoch(p.get("started_at")) or stamp)
++                else:
++                    status = ("completed" if event == "task_complete" else
++                              "cancelled" if event == "turn_aborted" else str(event).removeprefix("task_"))
++                    if str(p.get("status") or "") in ("failed", "errored", "cancelled", "error"):
++                        status = str(p["status"])
++                    end = to_epoch(p.get("completed_at") or p.get("ended_at")) or stamp
++                    ms = p.get("duration_ms")
++                    if isinstance(ms, (int, float)) and not isinstance(ms, bool) and math.isfinite(ms) and ms >= 0:
++                        duration = ms / 1000
++    if exit_code not in (None, 0):
++        status = "error"
++    if start is not None and (end is not None or status == "running"):
++        duration = max(0, (end if end is not None else now) - start)
++    usage = None
++    if tokens is not None:
++        usage = Usage(read=max(0, tokens["input"] - tokens["cached_input"]),
++                      cache_read=tokens["cached_input"], out=tokens["output"])
++    agent = Subagent(sid, "native-codex", name, status not in ("running", "unknown"),
++                     False, None, duration, activity, usage, start, model, effort,
++                     "codex", status, exit_code, end)
++    return sid, parent, agent
++
++
++def attach_native(sessions, pinned, now):
++    home = codex_home(None)
++    root = _sessions_root(home)
++    if root is None:
++        return
++    aliases = {s.session_id: s for s in sessions}
++    for session in sessions:
++        raw = pinned.get(session.session_id)
++        path = _contained(root, Path(raw)) if raw and Path(raw).is_absolute() else None
++        if path is not None:
++            for kind, payload, _ in _records(path):
++                if kind == "session_meta" and payload.get("id"):
++                    aliases[str(payload["id"])] = session
++                    break
++    seen = set()
++    try:
++        paths = sorted(root.rglob("rollout-*.jsonl"))
++    except OSError:
++        return
++    for candidate in paths:
++        path = _contained(root, candidate)
++        if path is None:
++            continue
++        native_parent = ""
++        for kind, payload, _ in _records(path):
++            if kind == "session_meta":
++                source = payload.get("source") or {}
++                sub = source.get("subagent") if isinstance(source, dict) else None
++                spawn = sub.get("thread_spawn") if isinstance(sub, dict) else None
++                native_parent = payload.get("parent_thread_id") or (spawn.get("parent_thread_id") if isinstance(spawn, dict) else "")
++                break
++        if native_parent not in aliases:
++            continue
++        sid, parent, agent = _read(path, now)
++        target = aliases.get(parent)
++        if sid and target is not None and sid not in aliases and sid not in seen:
++            target.subagents.append(agent)
++            seen.add(sid)
+--- /dev/null
++++ hybrid-hands/plugins/hybrid-hands/lib/hh_ps/machine_usage.py
+@@ -0,0 +1,147 @@
++"""Whole-machine weekly estimates, independent of the visible project tree."""
++from __future__ import annotations
++
++import json
++import os
++import stat
++from pathlib import Path
++
++from hand_ext.codex_usage import price_for
++from hand_ext.go_usage import estimate_cost
++from usage_pricing import explicit_options
++
++from .codex import _contained
++from .native_source import _records
++from .timeutil import to_epoch
++from .week import _usd_since
++
++WEEK = 7 * 86400
++TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens")
++
++
++def _total(payload):
++    info = payload.get("info")
++    raw = info.get("total_token_usage") if isinstance(info, dict) else None
++    if not isinstance(raw, dict) or not all(isinstance(raw.get(k), int)
++            and not isinstance(raw[k], bool) and raw[k] >= 0 for k in TOKEN_KEYS):
++        return None
++    values = tuple(raw[k] for k in TOKEN_KEYS)
++    return values if values[1] <= values[0] else None
++
++
++def _machine_rollouts(home):
++    """Fail closed on an unreadable or escaping source, including archived files."""
++    if home.is_symlink():
++        raise OSError("unsafe rollout home")
++    resolved_home = home.resolve(strict=True)
++    paths = set()
++    for name in ("sessions", "archived_sessions"):
++        candidate = home / name
++        try:
++            candidate.lstat()
++        except FileNotFoundError:
++            continue
++        root = candidate.resolve(strict=True)
++        if resolved_home not in root.parents or not root.is_dir():
++            raise OSError("unsafe rollout root")
++        def onerror(error):
++            raise error
++        for directory, dirs, files in os.walk(root, onerror=onerror):
++            directory = Path(directory)
++            # os.walk skips directory symlinks. Do not report a partial total.
++            if any((directory / child).is_symlink() for child in dirs):
++                raise OSError("unscanned rollout directory")
++            for filename in files:
++                if not filename.startswith("rollout-") or not filename.endswith(".jsonl"):
++                    continue
++                path = _contained(root, directory / filename)
++                if path is None or not path.stat().st_mode & (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH):
++                    raise OSError("unreadable rollout")
++                paths.add(path)
++    return sorted(paths)
++
++
++def _gpt_usd(codex, cfg, start, now):
++    # Files can repeat one resumed thread. Merge its metadata records before taking
++    # deltas, never add ledger costs to these same rollout totals.
++    threads = {}
++    try:
++        sources = [(path, list(_records(path, token_only=True, strict=True)))
++                   for path in _machine_rollouts(codex.home)]
++    except (OSError, RuntimeError, ValueError):
++        return None
++    for path, records in sources:
++        sid = next((str(p.get("id") or "") for kind, p, _ in records
++                    if kind == "session_meta"), "")
++        if not sid:
++            return None
++        merged = threads.setdefault(sid, {})
++        for record in records:
++            merged[json.dumps(record, sort_keys=True)] = record
++    if not threads:
++        return None
++    total_usd = 0.0
++    for merged in threads.values():
++        records = list(merged.values())
++        born = next((to_epoch(p.get("timestamp")) or at for kind, p, at in records
++                     if kind == "session_meta"), None)
++        undated_models = {str(p.get("model")) for kind, p, stamp in records
++                          if kind in ("session_meta", "turn_context")
++                          and stamp is None and p.get("model")}
++        if len(undated_models) > 1:
++            return None
++        model = ""
++        previous = None
++        seen_tokens = False
++        # Metadata without a timestamp precedes events, preserving file order for ties.
++        for kind, p, stamp in sorted(records, key=lambda row: row[2] if row[2] is not None else float("-inf")):
++            if kind in ("session_meta", "turn_context"):
++                model = str(p.get("model") or model)
++                continue
++            if stamp is None:
++                return None
++            if stamp > now:
++                continue
++            current = _total(p)
++            if stamp < start:
++                previous = current
++                continue
++            seen_tokens = True
++            if current is None or (previous is None and (born is None or born < start)):
++                return None
++            decreases = previous is not None and any(a < b for a, b in zip(current, previous))
++            if decreases and any(a > b for a, b in zip(current, previous)):
++                return None
++            delta = (current if previous is None or decreases
++                     else tuple(a - b for a, b in zip(current, previous)))
++            if delta[1] > delta[0]:
++                return None
++            previous = current
++            if not any(delta):
++                continue
++            cost = estimate_cost(dict(zip(("input", "cached_input", "output"), delta)),
++                                 price_for(explicit_options(cfg, "codex"), model))
++            if cost is None:
++                return None
++            total_usd += cost
++        recent_metadata = any(kind == "turn_context" and stamp is not None
++                              and start <= stamp <= now for kind, _, stamp in records)
++        if not seen_tokens and (born is None or start <= born <= now or recent_metadata):
++            return None
++    return round(total_usd, 8)
++
++
++def machine_usage(home, claude_week, codex, cfg, now):
++    claude_usd = None
++    if (claude_week is not None and claude_week.source
++            and claude_week.resets_at is not None and claude_week.resets_at > now
++            and claude_week.window_start <= now < claude_week.window_start + WEEK):
++        claude_usd = _usd_since(home, claude_week.window_start, now)
++    gpt_usd = None
++    window = codex.account.get("tuần")
++    if window is not None and window.usable(now) and window.resets_at - WEEK <= now:
++        gpt_usd = _gpt_usd(codex, cfg, window.resets_at - WEEK, now)
++    return [{"plan": "Claude", "window": "tuần", "usd": claude_usd,
++             "source": "claude_machine_week"},
++            {"plan": "GPT", "window": "tuần", "usd": gpt_usd,
++             "source": "codex_rollout_deltas"}]
+--- /dev/null
++++ hybrid-hands/tests/test_hh_ps_native.py
+@@ -0,0 +1,124 @@
++"""Native child metadata, using isolated fake homes only."""
++import json
++import sys
++import unittest
++from pathlib import Path
++from unittest import mock
++
++TESTS = Path(__file__).resolve().parent
++sys.path.insert(0, str(TESTS.parent / "plugins/hybrid-hands/lib"))
++sys.path.insert(0, str(TESTS / "fixtures/hh_ps"))
++from fixture import HhFixture, MAIN_SESSION, NOW, iso
++from hh_ps.tree import build_snapshot
++from hh_ps.render import render_json, render_text
++
++
++class NativeTest(unittest.TestCase):
++    def fixture(self, tokens=True):
++        fx = HhFixture()
++        self.addCleanup(fx.close)
++        root = fx.home / ".codex-hand/sessions"
++        root.mkdir(parents=True)
++        pinned = root / "rollout-parent.jsonl"
++        pinned.write_text(json.dumps({"type": "session_meta", "payload": {"id": "sol-thread"}}) + "\n")
++        for child, event in (("done", "task_complete"), ("failed", "task_failed"),
++                             ("cancelled", "task_cancelled"), ("unknown", None)):
++            records = [{"type": "session_meta", "payload": {"id": child,
++                "source": {"subagent": {"thread_spawn": {"parent_thread_id": "sol-thread"}}},
++                "timestamp": iso(NOW - 100)}},
++                {"type": "turn_context", "payload": {"model": "gpt-6.1-sol", "effort": "low"}},
++                {"type": "response_item", "payload": {"text": "CHAT_SENTINEL"}}]
++            if event:
++                records += [{"timestamp": iso(NOW - 90), "type": "event_msg", "payload": {"type": "task_started"}},
++                            {"timestamp": iso(NOW - 10), "type": "event_msg", "payload": {"type": event, "last_agent_message": "DO_NOT_RETAIN"}}]
++            if tokens:
++                records.append({"type": "event_msg", "payload": {"type": "token_count", "info": {"total_token_usage": {"input_tokens": 100, "output_tokens": 10}}}})
++            (root / ("rollout-" + child + ".jsonl")).write_text("\n".join(map(json.dumps, records)) + "\n")
++        return fx, pinned
++
++    def test_alias_json_status_and_hand_exit(self):
++        fx, pinned = self.fixture()
++        fx._run("nonzero", backend="codex", parent_session=MAIN_SESSION,
++                status="ok", exit=3, started=iso(NOW - 20), ended=iso(NOW - 10))
++        with fx.env(), mock.patch("hh_ps.tree.pinned_rollouts", return_value={MAIN_SESSION: str(pinned)}):
++            snapshot = build_snapshot(fx.project, 3600, False, now=NOW)
++        session = next(s for s in render_json(snapshot)["sessions"] if s["session_id"] == MAIN_SESSION)
++        self.assertTrue(all(a["exit_code"] is None for a in session["subagents"]
++                            if a["agent_type"] != "native-codex"))
++        children = {a["agent_id"]: a for a in session["subagents"] if a["agent_type"] == "native-codex"}
++        self.assertEqual(children["done"]["status"], "completed")
++        self.assertEqual(children["done"]["parent_session"], MAIN_SESSION)
++        self.assertEqual((children["done"]["model"], children["done"]["effort"], children["done"]["provider"]), ("gpt-6.1-sol", "low", "codex"))
++        self.assertEqual(children["failed"]["status"], "failed")
++        self.assertEqual(children["cancelled"]["status"], "cancelled")
++        self.assertEqual(children["unknown"]["status"], "unknown")
++        self.assertIsNone(children["unknown"]["duration_seconds"])
++        self.assertEqual(next(r for r in session["hand_runs"] if r["run_id"] == "nonzero")["exit_code"], 3)
++        self.assertIn("✗", render_text(snapshot))
++        self.assertNotIn("DO_NOT_RETAIN", json.dumps(session))
++        # One machine thread, duplicated rollout, pre-window baseline and a reset.
++        from types import SimpleNamespace
++        from hh_ps.machine_usage import machine_usage
++        from hh_ps.codex import GptWindow
++        from hand_ext.codex_usage import price_for
++        from hand_ext.go_usage import estimate_cost
++        machine_home = fx.home / "machine"
++        machine_root = machine_home / "sessions"
++        machine_root.mkdir(parents=True)
++        start = NOW - 1000
++        records = [{"type": "session_meta", "payload": {"id": "unique-machine-thread",
++                    "timestamp": iso(start - 100), "model": "gpt-6.1-sol"}}]
++        for stamp, count in ((start - 10, 100), (start + 10, 150),
++                             (start + 20, 150), (start + 30, 20)):
++            records.append({"type": "event_msg", "timestamp": iso(stamp),
++                "payload": {"type": "token_count", "info": {"total_token_usage": {
++                    "input_tokens": count, "cached_input_tokens": 0, "output_tokens": count}}}})
++        text = "\n".join(map(json.dumps, records)) + "\n"
++        for name in ("one", "duplicate"):
++            (machine_root / f"rollout-{name}.jsonl").write_text(text)
++        source = SimpleNamespace(home=machine_home, account={"tuần": GptWindow(
++            10, start + 7 * 86400, NOW, "fixture")})
++        totals = machine_usage(fx.claude, None, source, None, NOW)
++        expected = estimate_cost({"input": 70, "cached_input": 0, "output": 70},
++                                 price_for({}, "gpt-6.1-sol"))
++        self.assertAlmostEqual(totals[1]["usd"], expected)
++        self.assertIsNone(totals[0]["usd"])
++        archive = machine_home / "archived_sessions"
++        archive.mkdir()
++        (archive / "rollout-duplicate.jsonl").write_text(text)
++        self.assertAlmostEqual(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"], expected)
++        unique = archive / "rollout-unique.jsonl"
++        unique_text = text.replace("unique-machine-thread", "archived-unique")
++        unique.write_text(unique_text)
++        self.assertAlmostEqual(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"], 2 * expected)
++        unique.chmod(0)
++        self.assertIsNone(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"])
++        unique.chmod(0o600)
++        # A cached delta above its input delta is incomplete/incoherent coverage.
++        bad = json.loads(json.dumps(records))
++        bad[2]["payload"]["info"]["total_token_usage"]["cached_input_tokens"] = 100
++        unique.write_text("\n".join(map(json.dumps, bad)).replace("unique-machine-thread", "archived-unique"))
++        self.assertIsNone(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"])
++        bad[2]["payload"]["info"]["total_token_usage"]["cached_input_tokens"] = 0
++        bad[-1]["payload"]["info"]["total_token_usage"]["output_tokens"] = 200
++        unique.write_text("\n".join(map(json.dumps, bad)).replace("unique-machine-thread", "archived-unique"))
++        self.assertIsNone(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"])
++        unique.write_text(unique_text)
++        for path in machine_root.glob("*.jsonl"):
++            path.write_text(text.replace("gpt-6.1-sol", "unknown-model"))
++        self.assertIsNone(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"])
++        source.account = {}
++        self.assertIsNone(machine_usage(fx.claude, None, source, None, NOW)[1]["usd"])
++
++
++    def test_absent_native_tokens_remain_unknown(self):
++        fx, pinned = self.fixture(tokens=False)
++        with fx.env(), mock.patch("hh_ps.tree.pinned_rollouts", return_value={MAIN_SESSION: str(pinned)}):
++            snapshot = build_snapshot(fx.project, 3600, False, now=NOW)
++        children = [a for s in snapshot.sessions for a in s.subagents if a.provider == "codex"]
++        self.assertEqual(len(children), 4)
++        self.assertTrue(all(a.usage.usd is None for a in children))
++        self.assertTrue(all(a.usage.account_plan == "GPT" for a in children))
++        self.assertIn("~$?", render_text(snapshot))
++        totals = render_json(snapshot)["machine_usage"]
++        self.assertIsNone(next(row for row in totals if row["plan"] == "GPT")["usd"])
+--- /dev/null
++++ hybrid-hands/paseo-hh-tree/client/ColoredText.tsx
+@@ -0,0 +1,19 @@
++import type { PluginTheme } from "@getpaseo/plugin";
++import { Text } from "react-native";
++import { rowText, statusColor, type CompactItem } from "./compact";
++
++export function ColoredRowText({ item, name, now, theme, compact, prefix = "" }: {
++  item: CompactItem; name: string; now: number; theme: PluginTheme; compact: boolean; prefix?: string;
++}) {
++  const text = rowText(item, name, now);
++  return <Text style={{ color: theme.colors.foreground, fontSize: compact ? 13 : 14 }}>
++    {prefix}<Text style={{ color: statusColor(item, theme) }}>{text.slice(0, 1)}</Text>{text.slice(1)}
++  </Text>;
++}
++
++export function ColoredSummary({ text, theme, compact }: { text: string; theme: PluginTheme; compact: boolean }) {
++  return <Text style={{ color: theme.colors.foregroundMuted, fontSize: compact ? 13 : 14 }}>
++    {text.split(/(\d+✓|\d+✗|●\d+|\?\d+)/).map((part, i) =>
++      <Text key={i} style={{ color: part.includes("✓") ? theme.colors.statusSuccess : part.includes("✗") ? theme.colors.statusDanger : part.includes("●") ? statusColor({ status: "running" }, theme) : theme.colors.foregroundMuted }}>{part}</Text>)}
++  </Text>;
++}

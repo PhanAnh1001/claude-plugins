@@ -1,0 +1,13 @@
+[
+  "AGENTS.md",
+  "hybrid-hands/README.md",
+  "hybrid-hands/paseo-hh-tree/OVERVIEW.md",
+  "hybrid-hands/paseo-hh-tree/client/ChildRows.tsx",
+  "hybrid-hands/paseo-hh-tree/client/SessionBlock.tsx",
+  "hybrid-hands/paseo-hh-tree/client/TreeView.tsx",
+  "hybrid-hands/paseo-hh-tree/client/compact.test.ts",
+  "hybrid-hands/paseo-hh-tree/client/compact.ts",
+  "hybrid-hands/paseo-hh-tree/shared/tree.ts",
+  "hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json",
+  "hybrid-hands/plugins/hybrid-hands/CHANGELOG.md"
+]

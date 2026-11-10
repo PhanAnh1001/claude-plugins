@@ -1,0 +1,445 @@
+BEFORE: python3 -m unittest test_cc_switch_self.CcSwitchSelfTest.test_worker_sigterms_tui_then_reloads_paseo (cwd hybrid-hands/tests), 30 iterations
+iteration 1: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.886s
+
+OK
+iteration 2: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.492s
+
+OK
+iteration 3: exit 1
+F
+======================================================================
+FAIL: test_worker_sigterms_tui_then_reloads_paseo (test_cc_switch_self.CcSwitchSelfTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_cc_switch_self.py", line 231, in test_worker_sigterms_tui_then_reloads_paseo
+    self.assertEqual(worker.returncode, EXIT_OK, output)
+AssertionError: 4 != 0 : [2026-11-07 23:09:03] bắt đầu: phiên d1000000, TUI pid 74339, cwd /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-abdnjto1/project
+[2026-11-07 23:09:03] chờ transcript /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-abdnjto1/claude/projects/-private-var-folders-3x-s3j3s3q95dl2_n2x_4c5387h0000gn-T-cc-switch-abdnjto1-project/d1000000-0000-0000-0000-000000000004.jsonl đứng yên 1s (tối đa 30 phút)
+[2026-11-07 23:09:04] transcript đã đứng yên
+[2026-11-07 23:09:04] gửi SIGTERM tới TUI pid 74339
+[2026-11-07 23:09:04] TUI pid 74339 đã thoát
+[2026-11-07 23:09:04] chạy luồng `cc-switch paseo --session`
+[2026-11-07 23:09:04] lỗi paseo: Phiên d1000000 vẫn đang mở trong terminal (pid 74339).
+Thoát Claude Code (/exit) rồi chạy lại lệnh này.
+
+
+----------------------------------------------------------------------
+Ran 1 test in 1.326s
+
+FAILED (failures=1)
+iteration 4: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.504s
+
+OK
+iteration 5: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.504s
+
+OK
+iteration 6: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.541s
+
+OK
+iteration 7: exit 1
+F
+======================================================================
+FAIL: test_worker_sigterms_tui_then_reloads_paseo (test_cc_switch_self.CcSwitchSelfTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_cc_switch_self.py", line 231, in test_worker_sigterms_tui_then_reloads_paseo
+    self.assertEqual(worker.returncode, EXIT_OK, output)
+AssertionError: 4 != 0 : [2026-11-07 23:09:09] bắt đầu: phiên d1000000, TUI pid 74505, cwd /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-85rnjfbc/project
+[2026-11-07 23:09:09] chờ transcript /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-85rnjfbc/claude/projects/-private-var-folders-3x-s3j3s3q95dl2_n2x_4c5387h0000gn-T-cc-switch-85rnjfbc-project/d1000000-0000-0000-0000-000000000004.jsonl đứng yên 1s (tối đa 30 phút)
+[2026-11-07 23:09:10] transcript đã đứng yên
+[2026-11-07 23:09:10] gửi SIGTERM tới TUI pid 74505
+[2026-11-07 23:09:10] TUI pid 74505 đã thoát
+[2026-11-07 23:09:10] chạy luồng `cc-switch paseo --session`
+[2026-11-07 23:09:10] lỗi paseo: Phiên d1000000 vẫn đang mở trong terminal (pid 74505).
+Thoát Claude Code (/exit) rồi chạy lại lệnh này.
+
+
+----------------------------------------------------------------------
+Ran 1 test in 1.398s
+
+FAILED (failures=1)
+iteration 8: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.507s
+
+OK
+iteration 9: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.504s
+
+OK
+iteration 10: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.518s
+
+OK
+iteration 11: exit 1
+F
+======================================================================
+FAIL: test_worker_sigterms_tui_then_reloads_paseo (test_cc_switch_self.CcSwitchSelfTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_cc_switch_self.py", line 231, in test_worker_sigterms_tui_then_reloads_paseo
+    self.assertEqual(worker.returncode, EXIT_OK, output)
+AssertionError: 4 != 0 : [2026-11-07 23:09:15] bắt đầu: phiên d1000000, TUI pid 74607, cwd /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-e9hh8rn5/project
+[2026-11-07 23:09:15] chờ transcript /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-e9hh8rn5/claude/projects/-private-var-folders-3x-s3j3s3q95dl2_n2x_4c5387h0000gn-T-cc-switch-e9hh8rn5-project/d1000000-0000-0000-0000-000000000004.jsonl đứng yên 1s (tối đa 30 phút)
+[2026-11-07 23:09:16] transcript đã đứng yên
+[2026-11-07 23:09:16] gửi SIGTERM tới TUI pid 74607
+[2026-11-07 23:09:16] TUI pid 74607 đã thoát
+[2026-11-07 23:09:16] chạy luồng `cc-switch paseo --session`
+[2026-11-07 23:09:16] lỗi paseo: Phiên d1000000 vẫn đang mở trong terminal (pid 74607).
+Thoát Claude Code (/exit) rồi chạy lại lệnh này.
+
+
+----------------------------------------------------------------------
+Ran 1 test in 1.322s
+
+FAILED (failures=1)
+iteration 12: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.501s
+
+OK
+iteration 13: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.509s
+
+OK
+iteration 14: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.502s
+
+OK
+iteration 15: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.489s
+
+OK
+iteration 16: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.492s
+
+OK
+iteration 17: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.498s
+
+OK
+iteration 18: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.501s
+
+OK
+iteration 19: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.510s
+
+OK
+iteration 20: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.529s
+
+OK
+iteration 21: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.519s
+
+OK
+iteration 22: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.529s
+
+OK
+iteration 23: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.493s
+
+OK
+iteration 24: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.514s
+
+OK
+iteration 25: exit 1
+F
+======================================================================
+FAIL: test_worker_sigterms_tui_then_reloads_paseo (test_cc_switch_self.CcSwitchSelfTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/anhtp/app/claude-plugins/hybrid-hands/tests/test_cc_switch_self.py", line 242, in test_worker_sigterms_tui_then_reloads_paseo
+    self.assertEqual(worker.returncode, EXIT_OK, output)
+AssertionError: 4 != 0 : [2026-11-07 23:09:38] bắt đầu: phiên d1000000, TUI pid 74943, cwd /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-cl0fru1r/project
+[2026-11-07 23:09:38] chờ transcript /var/folders/3x/s3j3s3q95dl2_n2x_4c5387h0000gn/T/cc-switch-cl0fru1r/claude/projects/-private-var-folders-3x-s3j3s3q95dl2_n2x_4c5387h0000gn-T-cc-switch-cl0fru1r-project/d1000000-0000-0000-0000-000000000004.jsonl đứng yên 1s (tối đa 30 phút)
+[2026-11-07 23:09:39] transcript đã đứng yên
+[2026-11-07 23:09:39] gửi SIGTERM tới TUI pid 74943
+[2026-11-07 23:09:39] TUI pid 74943 đã thoát
+[2026-11-07 23:09:39] chạy luồng `cc-switch paseo --session`
+[2026-11-07 23:09:39] lỗi paseo: Phiên d1000000 vẫn đang mở trong terminal (pid 74943).
+Thoát Claude Code (/exit) rồi chạy lại lệnh này.
+
+
+----------------------------------------------------------------------
+Ran 1 test in 1.298s
+
+FAILED (failures=1)
+iteration 26: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.578s
+
+OK
+iteration 27: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.500s
+
+OK
+iteration 28: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.497s
+
+OK
+iteration 29: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.537s
+
+OK
+iteration 30: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.485s
+
+OK
+BEFORE TOTAL: 26 pass, 4 fail
+
+DETERMINISTIC BEFORE FIX: python3 -m unittest test_cc_switch_self.CcSwitchSelfTest.test_process_alive_rechecks_pid_when_ps_has_no_state
+exit 1: still_alive=False returned True; still_alive=True only called pid_alive once.
+
+AFTER deterministic: test_cc_switch_self.CcSwitchSelfTest.test_process_alive_rechecks_pid_when_ps_has_no_state
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.015s
+
+OK
+AFTER iteration 1: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.557s
+
+OK
+AFTER iteration 2: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.535s
+
+OK
+AFTER iteration 3: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.496s
+
+OK
+AFTER iteration 4: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.513s
+
+OK
+AFTER iteration 5: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.518s
+
+OK
+AFTER iteration 6: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.491s
+
+OK
+AFTER iteration 7: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.489s
+
+OK
+AFTER iteration 8: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.526s
+
+OK
+AFTER iteration 9: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.512s
+
+OK
+AFTER iteration 10: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.527s
+
+OK
+AFTER iteration 11: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.500s
+
+OK
+AFTER iteration 12: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.507s
+
+OK
+AFTER iteration 13: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.512s
+
+OK
+AFTER iteration 14: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.501s
+
+OK
+AFTER iteration 15: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.507s
+
+OK
+AFTER iteration 16: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.539s
+
+OK
+AFTER iteration 17: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.494s
+
+OK
+AFTER iteration 18: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.493s
+
+OK
+AFTER iteration 19: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.512s
+
+OK
+AFTER iteration 20: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.505s
+
+OK
+AFTER iteration 21: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.493s
+
+OK
+AFTER iteration 22: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.524s
+
+OK
+AFTER iteration 23: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.545s
+
+OK
+AFTER iteration 24: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.507s
+
+OK
+AFTER iteration 25: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.487s
+
+OK
+AFTER iteration 26: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.508s
+
+OK
+AFTER iteration 27: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.499s
+
+OK
+AFTER iteration 28: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.489s
+
+OK
+AFTER iteration 29: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.528s
+
+OK
+AFTER iteration 30: exit 0
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.502s
+
+OK
+AFTER TOTAL: 30 pass, 0 fail
+
+FILES: /Library/Developer/CommandLineTools/usr/bin/python3 -m unittest test_cc_switch_self test_cc_switch test_cc_switch_term_self
+..........................................................
+----------------------------------------------------------------------
+Ran 58 tests in 24.872s
+
+OK
+FILES EXIT: 0

@@ -1,0 +1,48 @@
+{
+  "rpc_ok": true,
+  "native_under_canonical_sol": true,
+  "native_parent_matches": true,
+  "provider_lists_final_child": true,
+  "native_children_for_sol": 5,
+  "child": {
+    "agent_id": "native-final-probe",
+    "parent_session": "sol-canonical",
+    "provider": "codex",
+    "agent_type": "native-codex",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "status": "completed",
+    "exit_code": null,
+    "started_at": "2026-11-07T23:48:27+07:00",
+    "ended_at": "2026-11-07T23:48:37+07:00",
+    "duration_seconds": 9.7739999294281,
+    "usage": {
+      "account_plan": "GPT",
+      "account_5h_pct": null,
+      "account_week_pct": 16,
+      "usd": 0.024218,
+      "usd_estimated": true,
+      "week_pct": null,
+      "week_pct_estimated": false,
+      "read": 9392,
+      "cache_read": 30336,
+      "cache_write": null,
+      "out": 240
+    }
+  },
+  "machine_usage": [
+    {
+      "plan": "Claude",
+      "window": "tuần",
+      "usd": 196.92635405500033,
+      "source": "claude_machine_week"
+    },
+    {
+      "plan": "GPT",
+      "window": "tuần",
+      "usd": null,
+      "source": "codex_rollout_deltas"
+    }
+  ],
+  "source": "live hh-tree.get RPC after plugin reload; no timeline/chat read"
+}

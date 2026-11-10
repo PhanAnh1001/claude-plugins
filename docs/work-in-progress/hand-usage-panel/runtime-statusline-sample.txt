@@ -1,0 +1,8 @@
+session/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:high | ~$2.8644 | account:GPT | 5h:? | tuần:11% | ended:đang chạy | elapsed:1832s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.0729 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:31:56 | elapsed:64s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.0360 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:30:11 | elapsed:24s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.0508 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:26:14 | elapsed:43s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.1600 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:27:11 | elapsed:100s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.1711 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:25:16 | elapsed:121s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.1783 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:25:26 | elapsed:131s
+hand-ext/codex [ẩn tên/id] | model:gpt-6.1-sol | effort:low | ~$0.2024 | account:GPT | 5h:? | tuần:11% | ended:07/11 21:23:38 | elapsed:144s

@@ -1,0 +1,13 @@
+JSON manifest valid, version 0.28.0; touched-document link targets exist.
+Changed vs supplied baseline:
+AGENTS.md
+hybrid-hands/README.md
+hybrid-hands/plugins/hybrid-hands/CHANGELOG.md
+hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json
+hybrid-hands/paseo-hh-tree/OVERVIEW.md
+hybrid-hands/paseo-hh-tree/shared/tree.ts
+hybrid-hands/paseo-hh-tree/client/SessionBlock.tsx
+hybrid-hands/paseo-hh-tree/client/ChildRows.tsx
+hybrid-hands/paseo-hh-tree/client/TreeView.tsx
+hybrid-hands/paseo-hh-tree/client/compact.ts
+hybrid-hands/paseo-hh-tree/client/compact.test.ts

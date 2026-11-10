@@ -1,0 +1,8 @@
+{
+  "handoff_links": "all existing",
+  "diff_check_exit": 0,
+  "all_three_hands": "completed and reviewed",
+  "full_hybrid_hands": "420 tests, 1 failure; fixed with narrow regression, no second full",
+  "installation_reload": "not performed, gate not met",
+  "result": "partial"
+}

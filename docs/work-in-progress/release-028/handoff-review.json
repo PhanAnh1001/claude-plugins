@@ -1,0 +1,8 @@
+{
+  "handoff_review": "accepted",
+  "summary_lines": 10,
+  "links_checked": 20,
+  "missing_links": [],
+  "result": "partial: six worktree registry records remain 0.27.0; all other authorized work completed",
+  "done_marker_semantics": "finished session including partial outcome"
+}

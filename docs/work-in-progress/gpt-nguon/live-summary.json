@@ -1,0 +1,85 @@
+{
+  "exit_json": 0,
+  "exit_text": 0,
+  "elapsed_seconds": 4.171,
+  "machine_usage": [
+    {
+      "plan": "Claude",
+      "window": "tu\u1ea7n",
+      "usd": 201.33282745500028,
+      "source": "claude_machine_week"
+    },
+    {
+      "plan": "GPT",
+      "window": "tu\u1ea7n",
+      "usd": 75.603681,
+      "source": "codex_rollout_observed_deltas"
+    }
+  ],
+  "codex_rows": 26,
+  "measured_rows": 11,
+  "nonzero_measured_rows": 9,
+  "measured_examples": [
+    {
+      "kind": "session",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "running",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 136492,
+        "cache_read": 6125184,
+        "cache_write": null,
+        "out": 19261,
+        "usd": 1.078112,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true,
+        "gpt_week_pct": 18.0
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 41419,
+        "cache_read": 1193984,
+        "cache_write": null,
+        "out": 12881,
+        "usd": 0.331046,
+        "week_pct": 1.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    },
+    {
+      "kind": "native",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "completed",
+      "usage": {
+        "account_plan": "GPT",
+        "account_5h_pct": null,
+        "account_week_pct": 18.0,
+        "read": 79770,
+        "cache_read": 718336,
+        "cache_write": null,
+        "out": 7661,
+        "usd": 0.307984,
+        "week_pct": 0.0,
+        "week_pct_estimated": false,
+        "week_pct_source": "codex_rate_limits_delta",
+        "usd_estimated": true
+      }
+    }
+  ]
+}

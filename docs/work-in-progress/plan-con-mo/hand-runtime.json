@@ -1,0 +1,18 @@
+{
+  "run_id": "20261107-230817-631024-plan-con-mo-readonly-codex",
+  "backend": "codex",
+  "model": "gpt-6.1-sol",
+  "effort": "low",
+  "parent_session": "ca068dab-0484-4a0e-bfbb-ac32b74cb627",
+  "status": "ok",
+  "exit_code": 0,
+  "tokens": {
+    "input": 89543,
+    "cached_input": 62464,
+    "output": 264
+  },
+  "duration_seconds": 16.011154890060425,
+  "started_at": 1794067698.108601,
+  "ended_at": 1794067714.119756,
+  "patch_bytes": 0
+}

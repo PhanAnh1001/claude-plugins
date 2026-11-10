@@ -1,0 +1,44 @@
+{
+  "at": 1794070892.8943129,
+  "account": {
+    "tu\u1ea7n": {
+      "pct": 17.0,
+      "resets_at": 1794205155.0,
+      "at": 1794070891.93,
+      "source": "codex_rollout"
+    }
+  },
+  "rate_shapes": {
+    "(('primary', 10080),)": 4052
+  },
+  "threads": 106,
+  "token_events": 4052,
+  "no_token_threads": 1,
+  "info_null": 0,
+  "model_counts": {
+    "gpt-6.1-sol": 142,
+    "gpt-sol-6.1": 1
+  },
+  "claude_samples": {
+    ".statusline-cache.json": {
+      "mtime": 1794009907.3557441,
+      "five": "12",
+      "five_reset": "1762340000",
+      "week": "10",
+      "week_reset": "1794549600"
+    },
+    ".hh-claude-rate-limit.json": {
+      "version": null,
+      "windows": {}
+    }
+  },
+  "latest_raw_windows": {
+    "primary": {
+      "at": 1794070891.93,
+      "used_percent": 17.0,
+      "window_minutes": 10080,
+      "resets_at": 1794205155
+    }
+  },
+  "current_gpt_usd": null
+}

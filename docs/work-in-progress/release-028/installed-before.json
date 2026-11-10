@@ -1,0 +1,82 @@
+[
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/ai-comic-video"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "local",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/ai-luxian"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "user",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-10b"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/WP-11"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-10c"
+  },
+  {
+    "id": "hybrid-hands@hybrid-hands-local",
+    "version": "0.27.0",
+    "scope": "project",
+    "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.27.0",
+    "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+    "folderVersion": "0.28.0",
+    "projectPath": "/Users/anhtp/app/live-tiktok-games-wt/RV-13"
+  }
+]

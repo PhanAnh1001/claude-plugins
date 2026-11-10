@@ -1,0 +1,6 @@
+{
+  "command": "python3 -m unittest discover -s hybrid-hands/tests -q",
+  "exit_code": 0,
+  "elapsed_seconds": 47.303,
+  "runs": 1
+}

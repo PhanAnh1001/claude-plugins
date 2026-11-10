@@ -1,0 +1,5 @@
+Command: bash statusline/plugins/statusline/scripts/statusline.sh < payload with canonical parent
+Source runtime (no installation/update); CLAUDE_HOME is evidence scratch; STATUSLINE_GO_LIVE=0; STATUSLINE_WEEK_SPLIT=0
+exit_code: 0
+GPT     5h:--        | 7d:14% | hôm nay ~$?
+· ↳ hand-ext/codex plan-con-mo-readonly | model:gpt-6.1-sol | effort:low | ~$0.0630 | account:GPT | 5h:? | tuần:14% | ended:07/11 23:08:34 | elapsed:16s

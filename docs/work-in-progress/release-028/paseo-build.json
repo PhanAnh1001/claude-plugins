@@ -1,0 +1,17 @@
+{
+  "command": "node --input-type=module (compileDirectoryPlugin, code saved in paseo-build.mjs)",
+  "exit_code": 0,
+  "elapsed_seconds": 0.351,
+  "ok": true,
+  "compiler": "Paseo 0.15.0 compileDirectoryPlugin",
+  "id": "hh-tree",
+  "elapsed_ms": 202,
+  "clientBundle": {
+    "bytes": 20963,
+    "sha256": "bf4f6518377ad644913aea6a0603bd498422c2e218f814d70a259337ac1f83ed"
+  },
+  "serverBundle": {
+    "bytes": 15657,
+    "sha256": "7bb0c6a968fba4edca4b1c2c6d96e1ce4c50b67fc25d54702d752a444fb3efc6"
+  }
+}

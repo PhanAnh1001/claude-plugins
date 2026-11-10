@@ -1,0 +1,13 @@
+{
+  "AGENTS.md": "55039c067c903fae85ea64f882ea17d7ce2241faf13e4c442ce76b305f239471",
+  "hybrid-hands/README.md": "4116b8365f3f3e9da0e013349f78fa377210f85026c4ce3d0c511168f91c2fe0",
+  "hybrid-hands/paseo-hh-tree/OVERVIEW.md": "ea3872e2e1ec0ebc457450eaaddd7ba5ebed83a98c4fced6669df89ffa461f1f",
+  "hybrid-hands/paseo-hh-tree/client/ChildRows.tsx": "755ed023f61496c6ecd4fbd0feb49d3f06c1a6154b63b08148ec37898ee97618",
+  "hybrid-hands/paseo-hh-tree/client/SessionBlock.tsx": "8d902f7afc11b3c61b3af71df2716aa8341a4e93bd7e01ef759f9de7a8048057",
+  "hybrid-hands/paseo-hh-tree/client/TreeView.tsx": "0a1c5a5fe5caa42fcea5a8e63b0e84481b2315a2fc75b84ae09acf419e238980",
+  "hybrid-hands/paseo-hh-tree/client/compact.test.ts": "c03f1210d7eead0481c55130802ed4b07d417b78c327782f481bd93551c51c82",
+  "hybrid-hands/paseo-hh-tree/client/compact.ts": "daef95c12a08f2b624880b0334ce51a277878b7aef5043c072fb041793fea924",
+  "hybrid-hands/paseo-hh-tree/shared/tree.ts": "e5ab0f2b95fdb013f9971b06a546f32c8c1306df5689ad09a5c32bed4c7ebcdc",
+  "hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json": "333b7c157b5f8f338861653a04c19c1525d0f3e60f4f037bbaa8c9a5505a2e86",
+  "hybrid-hands/plugins/hybrid-hands/CHANGELOG.md": "8ca5705afb242f5afbc1dde41bf3fdf3195b8c11952f29d8a7735c4aaff8dead"
+}

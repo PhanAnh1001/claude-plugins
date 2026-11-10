@@ -1,0 +1,15 @@
+{
+  "id": "hh-tree",
+  "path": "/Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree",
+  "enabled": true,
+  "status": "running",
+  "name": "Cây phiên hybrid-hands",
+  "description": "Hiện cây phiên Claude, subagent và lượt hand ngoài ngay trong Paseo.",
+  "media": [],
+  "installation": {
+    "identity": {
+      "kind": "directory",
+      "path": "/Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree"
+    }
+  }
+}

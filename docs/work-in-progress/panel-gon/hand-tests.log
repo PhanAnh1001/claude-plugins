@@ -1,0 +1,35 @@
+(node:83260) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/client/compact.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ six sides flatten to four, running first, overflow retains all outcomes (7.344292ms)
+✔ latest per tree pools four agents; old and hidden sessions retain summaries (0.6825ms)
+✔ compact child text omits quota and labels; elapsed ticks then freezes, missing stays unknown (0.371042ms)
+(node:83261) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/client/format.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ limit percent keeps one decimal (0.822125ms)
+✔ usd keeps the hh-tree-pane format (0.102792ms)
+✔ cost shows only what the row has (0.383ms)
+✔ limit split keeps one decimal and marks unknowns (0.075208ms)
+✔ limit line shows machine, other, total and reset (6.08575ms)
+✔ missing total prints ? for other and total (0.101041ms)
+✔ estimated week split carries the statusline tilde (0.740875ms)
+(node:83262) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/client/nest.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/anhtp/app/claude-plugins/hybrid-hands/paseo-hh-tree/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ con và cháu được lồng đúng, giữ thứ tự anh em (2.037ms)
+✔ thiếu trường phiên phụ thì giữ nguyên thứ tự cũ (0.25575ms)
+✔ parent_session rỗng được coi như không có cha (0.197042ms)
+✔ phiên có cha không khớp phiên nào thì vào orphanSides (0.32625ms)
+✔ vòng lặp cha con không treo và vẫn trả về đủ phiên (0.391291ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 169.54625

@@ -1,0 +1,19 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=87840, cached_input=76288, output=525
+hạn mức: used_percent=11.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 24.7 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-212946-615648-usage-panel-release-fix-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong.
+
+2. **Đã thay đổi gì**: `hybrid-hands/plugins/hybrid-hands/lib/hand_ext/backends/dsh.py:73` — đổi User-Agent từ `0.25.3` thành `0.26.0`. Chỉ sửa một dòng trong phạm vi giao.
+
+3. **Kiểm chứng**: `python3 -m unittest discover -s hybrid-hands/tests -p test_hand_ext_dsh.py -q` — **41 test PASS**. Thêm 0 test, 0 dòng test; sửa 1 dòng code.
+
+4. **Ghi chú cho brain**: Không thêm helper nên không chạy `test_hand_ext_defaults.py`. Không chạy lại full suite; không commit/push.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

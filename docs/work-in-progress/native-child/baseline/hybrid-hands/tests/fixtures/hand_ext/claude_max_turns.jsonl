@@ -1,0 +1,1 @@
+{"type":"result","subtype":"error_max_turns","is_error":true,"result":"","modelUsage":{"claude-opus-5-5":{"inputTokens":1,"outputTokens":2,"cacheReadInputTokens":0,"cacheCreationInputTokens":0}}}

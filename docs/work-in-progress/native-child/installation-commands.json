@@ -1,0 +1,162 @@
+[
+  {
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "scope": "user",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "user",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"user\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.28.0 to 0.29.0 for scope user. Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/ai-comic-video",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.28.0 to 0.29.0 for scope project (/Users/anhtp/app/ai-comic-video). Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.28.0 to 0.29.0 for scope project (/Users/anhtp/app/live-tiktok-games). Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/ai-luxian",
+    "scope": "local",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "local",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"local\",\"message\":\"Plugin \\\"hybrid-hands\\\" updated from 0.28.0 to 0.29.0 for scope local (/Users/anhtp/app/ai-luxian). Restart to apply changes.\",\"updateOutcome\":\"updated\",\"oldVersion\":\"0.28.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-12c",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-10b",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/WP-11",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-10c",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-13",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  },
+  {
+    "cwd": "/Users/anhtp/app/live-tiktok-games-wt/RV-14",
+    "scope": "project",
+    "command": [
+      "claude",
+      "plugin",
+      "update",
+      "hybrid-hands@hybrid-hands-local",
+      "--scope",
+      "project",
+      "--json"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"command\":\"update\",\"outcome\":\"ok\",\"plugin\":\"hybrid-hands@hybrid-hands-local\",\"pluginId\":\"hybrid-hands@hybrid-hands-local\",\"scope\":\"project\",\"message\":\"hybrid-hands is already at the latest version (0.29.0).\",\"updateOutcome\":\"up_to_date\",\"oldVersion\":\"0.29.0\",\"newVersion\":\"0.29.0\"}\n",
+    "stderr": ""
+  }
+]

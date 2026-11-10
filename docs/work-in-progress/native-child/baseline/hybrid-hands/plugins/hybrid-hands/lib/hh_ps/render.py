@@ -1,0 +1,141 @@
+"""JSON output for `hh-ps`; text rendering lives in `text_render` for size."""
+from __future__ import annotations
+
+from typing import Dict, Optional
+
+from .constants import SCHEMA_VERSION, SUBAGENT_SILENT
+from .models import HandRun, Limit, Session, Snapshot, Subagent, Usage
+from .compact import elapsed_seconds, subagent_duration
+from .text_render import color_enabled, render_text
+from .timeutil import iso_at
+
+__all__ = ["color_enabled", "render_json", "render_text"]
+
+
+def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
+    if usage is None:
+        usage = Usage()
+    data: Dict[str, object] = {
+        "account_plan": getattr(usage, "account_plan", ""),
+        "account_5h_pct": getattr(usage, "account_5h_pct", None),
+        "account_week_pct": getattr(usage, "account_week_pct", None),
+        "read": usage.read,
+        "cache_read": usage.cache_read,
+        "cache_write": usage.cache_write,
+        "out": usage.out,
+        "usd": usage.usd,
+        "week_pct": usage.week_pct,
+        "week_pct_estimated": usage.week_pct_estimated,
+    }
+    # Codex-only keys stay absent on Claude/Go rows, whose JSON shape is unchanged.
+    if usage.usd_estimated:
+        data["usd_estimated"] = True
+    if usage.gpt_5h_pct is not None:
+        data["gpt_5h_pct"] = usage.gpt_5h_pct
+    if usage.gpt_week_pct is not None:
+        data["gpt_week_pct"] = usage.gpt_week_pct
+    return data
+
+
+def _limit_json(limit: Limit) -> Dict[str, object]:
+    return {
+        "plan": limit.plan,
+        "window": limit.window,
+        "this_machine_pct": limit.this_machine_pct,
+        "other_pct": limit.other_pct,
+        "total_pct": limit.total_pct,
+        "resets_at": iso_at(limit.resets_at),
+        "source": limit.source,
+        "estimated": limit.estimated,
+    }
+
+
+def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
+    duration = elapsed_seconds(run.started_at, run.ended_at, run.running, now)
+    usage = run.usage
+    return {
+        "run_id": run.run_id,
+        "label": run.label,
+        "backend": run.backend,
+        "model": run.model,
+        "effort": getattr(run, "effort", ""),
+        "status": run.status,
+        "state": run.state,
+        "tokens": dict(run.tokens),
+        "usage": _usage_json(usage),
+        "started_at": iso_at(run.started_at),
+        "ended_at": iso_at(run.end_moment),
+        "duration_seconds": duration,
+        "parent_session": run.parent_session,
+        "pid": run.pid,
+        "child_pid": run.child_pid,
+    }
+
+
+def _subagent_json(agent: Subagent, now: float) -> Dict[str, object]:
+    status = ("running" if agent.running else
+              "silent" if agent.state == SUBAGENT_SILENT else "finished")
+    return {
+        "model": getattr(agent, "model", ""),
+        "effort": getattr(agent, "effort", ""),
+        "started_at": iso_at(getattr(agent, "started_at", None)),
+        "agent_id": agent.agent_id,
+        "agent_type": agent.agent_type,
+        "description": agent.description,
+        "status": status,
+        "context_tokens": agent.context_tokens,
+        "usage": _usage_json(agent.usage),
+        "duration_seconds": subagent_duration(agent, now),
+        "ended_at": iso_at(agent.ended_at),
+    }
+
+
+def _session_json(session: Session, now: float) -> Dict[str, object]:
+    return {
+        "model": getattr(session, "model", ""),
+        "effort": getattr(session, "effort", ""),
+        "duration_seconds": elapsed_seconds(session.started_at, session.ended_at, session.live, now),
+        "session_id": session.session_id,
+        "name": session.name,
+        "status": session.status,
+        "cwd": session.cwd,
+        "context_tokens": session.context_tokens,
+        "started_at": iso_at(session.started_at),
+        "last_activity": iso_at(session.last_activity),
+        "is_main": session.is_main,
+        "live": session.live,
+        "ended_at": iso_at(session.ended_at),
+        "project_slug": session.project_slug,
+        "transcript_path": str(session.transcript_path) if session.transcript_path else None,
+        "token_cap": session.token_cap,
+        "token_ratio": session.token_ratio,
+        "parent_session": session.parent_session,
+        "side_name": session.side_name,
+        "provider": session.provider,
+        "ai_title": session.ai_title,
+        "usage": _usage_json(session.usage),
+        "subagents": [_subagent_json(agent, now) for agent in session.subagents],
+        "hand_runs": [_hand_run_json(run, now) for run in session.hand_runs],
+    }
+
+
+def render_json(snapshot: Snapshot) -> Dict[str, object]:
+    return {
+        "schema": SCHEMA_VERSION,
+        "generated_at": iso_at(snapshot.generated_at),
+        "since_seconds": snapshot.since_seconds,
+        "cwd": snapshot.cwd,
+        "all_projects": snapshot.all_projects,
+        "main_session_id": snapshot.main_session_id,
+        "hidden_ended_sessions": snapshot.hidden_ended_sessions,
+        "limits": [_limit_json(limit) for limit in snapshot.limits],
+        "sessions": [_session_json(session, snapshot.generated_at)
+                     for session in snapshot.sessions],
+        "orphan_runs": [_hand_run_json(run, snapshot.generated_at)
+                        for run in snapshot.orphan_runs],
+        "totals": {
+            "live_sessions": snapshot.live_sessions,
+            "running_subagents": snapshot.running_subagents,
+            "running_hand_runs": snapshot.running_hand_runs,
+        },
+    }

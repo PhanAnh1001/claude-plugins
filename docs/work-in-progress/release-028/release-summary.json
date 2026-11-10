@@ -1,0 +1,19 @@
+{
+  "result": "partial",
+  "checks": {
+    "targeted_tests": true,
+    "full_once_415_ok": true,
+    "only_allowed_sources_changed": true,
+    "paseo_build_ok": true,
+    "paseo_reload_ok": true,
+    "paseo_running": true,
+    "all_install_records_028": false
+  },
+  "remaining": "6 project worktree records remain registered 0.27.0 despite CLI update returning up_to_date 0.28.0",
+  "manual_registry_edits": false,
+  "daemon_restart": false,
+  "committed": false,
+  "pushed": false,
+  "native_tokens": "?",
+  "native_quota": "?"
+}

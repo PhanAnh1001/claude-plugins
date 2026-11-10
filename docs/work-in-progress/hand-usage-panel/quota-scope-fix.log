@@ -1,0 +1,26 @@
+backend: codex  model: gpt-6.1-sol  status: ok
+token: input=220515, cached_input=203776, output=1904
+hạn mức: used_percent=11.0 resets_at=2026-11-09T06:19:15+00:00
+cách ly: none
+thời gian: 64.2 s
+report: /Users/anhtp/app/claude-plugins/output/llm/hand-ext/20261107-213051-901741-usage-panel-quota-scope-fix-codex/report.md
+
+--- report.md ---
+1. **Kết quả**: Xong. Codex không còn suy phần trăm tuần riêng từ Go limit; quota tài khoản giữ nguyên.
+
+2. **Đã thay đổi gì**:
+   - `hybrid-hands/plugins/hybrid-hands/lib/hh_ps/usage_enrichment.py:96`: chỉ tính riêng Go khi limit hữu hạn, dương; backend khác trả `None`.
+   - `hybrid-hands/plugins/hybrid-hands/lib/hh_ps/tree.py:196`: guard `_apply_run_week` bằng `GO_USAGE_BACKENDS`.
+   - `hybrid-hands/tests/test_hand_usage_panel.py:31`: mở rộng test hiện có, inject Go limit 50 vào Codex và kiểm JSON không có phần trăm riêng giả.
+
+3. **Kiểm chứng**:
+   - Test tái hiện ban đầu đỏ đúng lỗi: `12.48 is not None`.
+   - Chạy `python3 -m unittest discover -s hybrid-hands/tests -p <file>`: `test_hand_usage_panel.py` **2/2**, `test_hh_ps_usage.py` **21/21**, `test_hh_ps_codex.py` **1/1**, `test_hh_ps_limits.py` **15/15** đều đạt.
+   - `git diff --check` các file phạm vi: đạt.
+   - Không thêm test function; thêm 6 dòng test / 17 dòng code.
+
+4. **Ghi chú cho brain**: Không chạy full suite, không đọc dữ liệu thật/auth, không commit/push. Chưa kiểm chứng lại bằng runtime thật; đã kiểm bằng fixture tổng hợp.
+
+## Cách ly worktree
+- Chế độ: `none`
+- Chạy trực tiếp trong thư mục gốc; không tạo worktree.

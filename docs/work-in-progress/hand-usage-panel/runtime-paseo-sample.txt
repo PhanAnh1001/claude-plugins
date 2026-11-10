@@ -1,0 +1,5 @@
+LOẠI | MODEL/EFFORT | USD · TÀI KHOẢN 5h/tuần | KẾT THÚC | ĐÃ CHẠY
+side/codex [Sol] | gpt-6.1-sol/high | ~$2.74 · GPT 5h ? · tuần 11.0% | đang chạy | 28p
+hand-ext/codex [hand] | gpt-6.1-sol/low | ~$0.07 · GPT 5h ? · tuần 11.0% | 2026-11-07 21:31 | 1p
+subagent/parallel-subagents:hand | claude-opus-5-5/low | ~$0.41 · Claude 5h ? · tuần 13.1% · riêng ~<0.1% tuần | 2026-11-07 20:32 | 1p
+session/claude [ẩn tên] | claude-opus-5-5/high | ~$3.55 · Claude 5h ? · tuần 13.1% · riêng ~0.3% tuần | đang chạy | 8p

@@ -1,0 +1,32 @@
+{
+  "command": [
+    "claude",
+    "plugin",
+    "list",
+    "--json"
+  ],
+  "exit_code": 0,
+  "updated": false,
+  "reload_performed": false,
+  "reason": "Final full hybrid-hands failed; brief allows one full and gates installation/reload on green full.",
+  "user_records": [
+    {
+      "id": "hybrid-hands@hybrid-hands-local",
+      "version": "0.29.0",
+      "scope": "user",
+      "folderVersion": "0.30.0",
+      "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands"
+    },
+    {
+      "id": "statusline@statusline-local",
+      "version": "0.20.0",
+      "scope": "user",
+      "folderVersion": "0.21.0",
+      "readFromFolder": "/Users/anhtp/app/claude-plugins/statusline/plugins/statusline"
+    }
+  ],
+  "other_registry_versions": [
+    "0.27.0",
+    "0.29.0"
+  ]
+}
