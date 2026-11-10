@@ -13,7 +13,7 @@ from pathlib import Path
 from shared_config import (GlobalConfigError, _merge, _validate, canonical_backend,
                            file_stamp, load_config)
 from usage_pricing import load_prices
-from .constants import MODEL_CAPABILITIES, PROVIDER_EFFORTS
+from .constants import EFFORT_ALIASES, MODEL_CAPABILITIES, PROVIDER_EFFORTS
 
 TIERS = {"brain": "main_session", "side": "side_session"}
 PROFILE_KEYS = ("provider", "codex_model", "codex_effort", "claude_model",
@@ -28,6 +28,9 @@ def register(sub) -> None:
     setters = actions.add_parser("set")
     for name in ("brain", "side", "hand", "hand-order"):
         setters.add_argument("--" + name, action="append")
+    setters.add_argument("--tier", choices=("brain", "side", "hand"))
+    for name in ("model", "effort", "account"):
+        setters.add_argument("--" + name)
     unset = actions.add_parser("unset")
     unset.add_argument("tier", choices=("brain", "side", "hand"))
     options = actions.add_parser("options", help="liệt kê lựa chọn model ba tầng")
@@ -190,6 +193,40 @@ def _candidate(result, raw: dict):
     return candidate
 
 
+def _expand_flat(args, accounts: dict) -> list[str]:
+    if not any(getattr(args, name) is not None for name in ("tier", "model", "effort", "account")):
+        return []
+    if any(getattr(args, name) is not None for name in ("brain", "side", "hand", "hand_order")):
+        raise ValueError("cờ phẳng không được dùng chung với --brain/--side/--hand/--hand-order")
+    if not all(getattr(args, name) for name in ("tier", "model", "effort")):
+        raise ValueError("cờ phẳng cần --tier, --model và --effort")
+    providers = [p for p, models in MODEL_CAPABILITIES.items() if args.model in models]
+    if len(providers) != 1:
+        raise ValueError("model không thuộc capability provider")
+    provider = providers[0]
+    effort = EFFORT_ALIASES.get(provider, {}).get(args.effort, args.effort)
+    _validate_model(provider, args.model, effort)
+    warnings = []
+    account = args.account
+    if provider != "claude" and account is not None:
+        warnings.append("account chỉ áp cho Claude, đã bỏ qua")
+        account = None
+    if provider == "claude" and account is not None:
+        if not re.fullmatch(r"v[1-9][0-9]*", account) or account not in accounts:
+            raise ValueError("account không hợp lệ")
+    if args.tier == "hand":
+        if provider == "claude" and account is None:
+            raise ValueError("hand Claude cần --account vN")
+        backend = "claude-" + account if provider == "claude" else provider
+        args.hand = [f"{backend}={args.model}:{effort}"]
+    else:
+        if provider not in ("claude", "codex"):
+            raise ValueError("provider phải là claude hoặc codex")
+        profile = f"{provider}:{args.model}:{effort}"
+        setattr(args, args.tier, [profile + ("@" + account if account is not None else "")])
+    return warnings
+
+
 def _patch(args, result, raw: dict) -> list[str]:
     touched = []
     accounts = result.effective["ext_hand"]["claude_accounts"]
@@ -306,10 +343,15 @@ def command(args) -> int:
             result = load_config(known_root=result.root, config_file=path)
             raw = json.loads(path.read_text()) if path.exists() else {}
             before = copy.deepcopy(raw)
+            warnings = (_expand_flat(args, result.effective["ext_hand"]["claude_accounts"])
+                        if args.models_action == "set" else [])
             touched = _patch(args, result, raw)
             candidate = _candidate(result, raw)
             _validate_candidate(candidate)
             payload = _status(candidate)
+            payload["warnings"].extend(warnings)
+            for warning in warnings:
+                print(warning, file=sys.stderr)
             changed = raw != before
             dry_run = getattr(args, "dry_run", False)
             if changed and not dry_run:

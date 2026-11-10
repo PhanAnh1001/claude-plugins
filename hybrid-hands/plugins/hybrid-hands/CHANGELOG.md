@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.45.0 — 2026-11-10
+
+- `/hybrid-hands:models set` dùng một màn hình AskUserQuestion với bốn câu Tầng, Model, Effort, Account rồi chạy đúng một lệnh ghi; lựa chọn là xác nhận, không thêm dry-run hay hỏi lại.
+- Thêm cờ phẳng `models set --tier brain|side|hand --model MODEL --effort EFFORT [--account vN]`, loại trừ với nhóm cờ set cũ; suy provider từ capability model, Codex chuẩn hoá `max` thành `xhigh`. Account chỉ áp cho Claude, provider khác bỏ qua kèm cảnh báo; Hand Claude chọn backend `claude-vN` theo account bắt buộc.
+
 ## 0.44.0 — 2026-11-10
 
 - `/hybrid-hands:models` không đối số chỉ xem; `set` không cờ dùng AskUserQuestion chọn tầng, model, effort và tài khoản Claude khi cần rồi ghi theo lựa chọn. Các đối số khác tiếp tục chuyển nguyên cho CLI; lỗi thì dừng, không tự sửa config hay chạy lại.
