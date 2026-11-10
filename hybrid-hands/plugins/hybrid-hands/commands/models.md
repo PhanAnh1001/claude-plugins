@@ -16,37 +16,26 @@ Khi `$ARGUMENTS` rỗng, chạy:
 
 In kết quả, không hỏi và không ghi cấu hình.
 
-## 2. Chỉ có `set`: chọn từ danh sách
+## 2. Chỉ có `set`: chọn trên một màn hình
 
 Khi `$ARGUMENTS` là đúng `set`, không có cờ hay đối số khác:
 
-1. Chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models options --json` để lấy danh sách chỉ đọc. Dùng đúng dữ liệu JSON trả về, không tự đặt model/effort/account hay đọc file tài khoản.
-2. Dùng AskUserQuestion hỏi “Cấu hình tầng nào?”, chọn một trong ba mục `tiers`: label = `label`, description = `current`; giữ `value` để xác định tầng.
-3. Thực hiện nhánh tương ứng bên dưới. Mọi câu hỏi chọn một mục (`multiSelect: false`). Mỗi câu tối đa 4 lựa chọn theo thứ tự JSON; nếu dư, người dùng nhập mục còn lại qua “Other”. Giữ ánh xạ từ nhãn sang giá trị gốc; “Other” phải xác định được giá trị trong danh sách trả về. Không tự chọn thay người dùng; nếu hủy hoặc chưa xác định được lựa chọn thì dừng, không ghi.
-
-### Brain hoặc side
-
-- Hỏi chọn model bằng AskUserQuestion: mỗi lựa chọn là một cặp provider:model từ `providers.claude.models` rồi `providers.codex.models`. Label = model, description = provider; thêm “(đang dùng)” cho mục khớp cả provider và model trong `profiles.<tier>`.
-- Hỏi tiếp bằng một lần AskUserQuestion gồm câu effort và, chỉ khi provider đã chọn là `claude`, câu account. Effort lấy từ `providers.<provider>.efforts` (tối đa 4). Account lấy từ `accounts`, label = `label`, đánh dấu “(đang dùng)” ở mục có `selected: true`; dùng `slot` của mục chọn, không suy slot từ label.
-- Chạy đúng lệnh với các giá trị người dùng vừa chọn, quote từng đối số bằng shell quoting an toàn:
-
-```sh
-"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models set --<tier> '<provider>:<model>:<effort>[@<slot>]'
-```
-
-`<tier>` chỉ là `brain` hoặc `side`; chỉ nối `@<slot>` khi provider là `claude`. Codex không hỏi account và không có hậu tố account.
-
-### Hand
-
-- Dùng AskUserQuestion chọn backend từ `hand_backends`: label = `value`, description = model và effort hiện tại. Giữ `provider` của backend đã chọn.
-- Dùng một lần AskUserQuestion hỏi model và effort từ `providers.<provider>.models` / `providers.<provider>.efforts`. Nếu provider chỉ có một model thì dùng model đó và bỏ câu hỏi model; vẫn hỏi effort. Mỗi câu tối đa 4 lựa chọn, dư dùng “Other” như trên.
-- Chạy đúng lệnh với các giá trị đã chọn, quote từng đối số bằng shell quoting an toàn:
+1. Chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models options --json` để lấy danh sách chỉ đọc. Dùng đúng dữ liệu JSON trả về, không tự đặt model/account hay đọc file tài khoản.
+2. Gọi AskUserQuestion **đúng một lần**, gồm đủ 4 câu dưới đây trên cùng màn hình. Mọi câu đều `multiSelect: false`, tối đa 4 lựa chọn theo thứ tự nêu dưới đây; mục dư nhập qua “Other” do công cụ cung cấp, không thêm “Other” thành một lựa chọn riêng.
+   - **Tầng** — header `Tầng`, hỏi “Cấu hình tầng nào?”: ba mục `tiers`, label = `label`, description = `current`; giữ `value` để xác định tầng.
+   - **Model** — header `Model`, hỏi “Chọn model nào? DeepSeek chỉ dùng cho tầng Hand, nhập qua Other.”: lấy `providers.claude.models` rồi `providers.codex.models`; label = model, description = provider. Thêm hậu tố `(brain: đang dùng)` và/hoặc `(side: đang dùng)` nếu khớp cả provider và model trong `profiles.brain` / `profiles.side`. Model `providers.dsh.models` chỉ cho tầng Hand và nhập qua “Other”.
+   - **Effort** — header `Effort`, hỏi “Chọn effort nào? DeepSeek off nhập qua Other.”: bốn lựa chọn `low`, `medium`, `high`, `max`; description tương ứng “Mức low”, “Mức medium”, “Mức high”, “GPT: xhigh”. CLI chuẩn hoá Codex `max` thành `xhigh`; không tự alias effort khác.
+   - **Account** — header `Account`, hỏi “Chọn tài khoản nào?”: lấy `accounts`, label = `label`, thêm hậu tố `(đang dùng)` cho mục `selected: true`; description ghi “chỉ áp cho Claude; GPT/DeepSeek bỏ qua; với Hand chọn backend claude-vN”. Giữ `slot` của mục chọn, không suy slot từ label.
+3. Map nhãn về giá trị gốc qua ánh xạ đã giữ, bỏ hậu tố đánh dấu. Với “Other”, tầng/model/account phải xác định được trong danh sách JSON; model DeepSeek chỉ hợp lệ ở tầng Hand. Effort phải thuộc `providers.<provider>.efforts` của model đã chọn, hoặc là `max` cho Codex (CLI chuẩn hoá thành `xhigh`); DeepSeek `off` nhập qua “Other”. Không tự chọn thay người dùng. Hủy, thiếu câu trả lời hoặc không xác định được lựa chọn thì dừng, không ghi và không mở câu hỏi bổ sung.
+4. Chạy đúng **một lệnh** ghi với các giá trị đã chọn, quote từng đối số bằng shell quoting an toàn (kể cả giá trị nhập qua “Other”):
 
 ```sh
-"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models set --hand '<backend>=<model>:<effort>'
+"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models set --tier '<tier>' --model '<model>' --effort '<effort>' --account '<slot>'
 ```
 
-Lựa chọn trong danh sách là xác nhận của người dùng. Không hỏi xác nhận thêm, không chạy thêm dry-run, không tự thêm cờ hoặc đổi hand-order.
+Luôn truyền `--account`: CLI tự bỏ qua với GPT/DeepSeek và in cảnh báo “account chỉ áp cho Claude, đã bỏ qua”. Với Hand Claude, slot chọn backend `claude-vN`; GPT chọn backend `codex`, DeepSeek chọn `dsh`. Không tự thêm cờ hoặc đổi hand-order.
+
+Lựa chọn trên màn hình là xác nhận để ghi: không chạy thêm dry-run, không hỏi xác nhận thêm. In kết quả; ghi thành công nhắc “mở phiên mới để áp dụng”. Lỗi thì báo rồi dừng, không tự sửa config hay chạy lại.
 
 ## 3. Các đối số khác: chuyển nguyên cho CLI
 

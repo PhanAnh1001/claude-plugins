@@ -191,3 +191,4 @@ PROVIDER_EFFORTS = {
     "codex": ("low", "medium", "high", "xhigh"),
     "dsh": ("off", "low", "high", "max"),
 }
+EFFORT_ALIASES = {"codex": {"max": "xhigh"}}

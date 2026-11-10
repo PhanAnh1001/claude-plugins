@@ -54,6 +54,17 @@ def test_set_and_validation(tmp_path, monkeypatch, capsys):
     for invalid in ("codex:missing:low", "codex:gpt-6.1-sol:max", "claude:claude-opus-5-5:high@v99"):
         assert main(prefix + ["--brain", invalid]) == 2
         assert path.read_bytes() == original
+    capsys.readouterr()
+    for flags, key, value in (
+        (["--tier", "side", "--model", "gpt-6.1-sol", "--effort", "max"],
+         "side_session.codex_effort", "xhigh"),
+        (["--tier", "hand", "--model", "claude-haiku-5-5", "--effort", "low", "--account", "v2"],
+         "ext_hand.backends.claude-v2.model", "claude-haiku-5-5"),
+    ):
+        assert main(prefix + flags + ["--dry-run"]) == 0
+        assert json.loads(capsys.readouterr().out)["diff"][key][1] == value
+    assert main(prefix + ["--tier", "brain"] + valid + ["--dry-run"]) == 2
+    assert path.read_bytes() == original
     assert main(prefix + valid) == 0
     data = json.loads(path.read_text())
     assert data["ext_hand"]["backends"]["codex"]["home"] == "fake-home"
