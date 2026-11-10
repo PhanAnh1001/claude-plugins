@@ -346,25 +346,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 ```
 
 
-### Khối hand — 0.20.0
+### Khối hand — bỏ từ 0.24.0
 
-Sau bảng và nhóm phiên hiện có, statusline gọi adapter chỉ đọc `hh-ps --json --once` (thêm `--main-session` nếu session ID là UUID hợp lệ)
-để hiện phiên hiện tại, mọi subagent/hand-ext gắn với phiên và cây phiên phụ descendants.
-Mỗi dòng có loại/provider/backend, model, effort, USD ước tính `~$`, account plan,
-quota account 5h/tuần, `ended` (hoặc `đang chạy`) và elapsed. Không hiện giờ bắt đầu.
-Không hiện phiên không liên quan hoặc orphan trong khối này. Quota là mức toàn tài khoản,
-không phải phần quota riêng của hand. Thiếu quota/model/effort/thời lượng dùng `?`,
-hand có state `lost` không ghi đang chạy, thiếu end thì elapsed là `?`.
-Thiếu giá dùng `~$?`; adapter không tự suy giá hay sao chép bảng giá.
-
-Tìm executable theo thứ tự: `HYBRID_HANDS_HH_PS` (đường dẫn tuyệt đối), source sibling
-`hybrid-hands/plugins/hybrid-hands/bin/hh-ps`, rồi bản installed mới nhất trong
-`$CLAUDE_HOME/plugins/cache/*/hybrid-hands/*/bin/hh-ps`. CLI cũ không có `--once`
-được gọi lại bằng `--json` (mặc định chỉ chạy một lần). Timeout 2 giây mỗi lần gọi;
-không có executable, snapshot không có session hiện tại hoặc lỗi thì bỏ khối, giữ bảng cũ.
-`STATUSLINE_HANDS=0` tắt riêng khối này. Adapter không gọi `hand-ext run`, không khởi động
-hand/UI, không thêm network và không đọc raw transcript/auth; dữ liệu chung do hh-ps cung cấp.
-Các nguồn dữ liệu của bảng cũ giữ hành vi hiện tại.
-
-Kiểm tra dry-run adapter với executable fixture sanitized (không cài đặt hay sửa settings):
-`HYBRID_HANDS_HH_PS=/absolute/path/fake-hh-ps python3 plugins/statusline/scripts/hand_lines.py SESSION_ID /project`.
+Statusline không còn vẽ cây phiên/subagent/hand-ext và không gọi `hh-ps` khi vẽ.
+Xem cây đó bằng `hh-ps` hoặc pane hybrid-hands.

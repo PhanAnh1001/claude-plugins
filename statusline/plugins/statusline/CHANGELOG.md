@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.0 — 2026-11-10
+
+- Bỏ cây phiên/subagent/hand-ext khỏi status line để đỡ chiếm chỗ. Status line không còn gọi `hh-ps` mỗi lần vẽ (bỏ timeout 2 s). Xem cây đó bằng `hh-ps` hoặc pane. Xoá `hand_lines.py`; `STATUSLINE_HANDS`, `HYBRID_HANDS_HH_PS` không còn tác dụng. Các dòng khác giữ nguyên.
+
 ## 0.23.1 — 2026-11-10
 
 - Nhóm hand: mỗi phiên chỉ hiện tối đa 3 subagent (đang chạy trước, rồi mới nhất). Phần còn lại gộp thành một dòng `+N subagent (M đang chạy)`; bỏ ngoặc khi M=0. Output `hh-ps` không đổi.
