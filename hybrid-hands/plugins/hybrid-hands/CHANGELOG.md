@@ -1,5 +1,13 @@
 # Changelog
 
+Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
+
+## 0.43.0 — 2026-11-10
+
+- Thêm `hand-ext models` và `/hybrid-hands:models`: xem model/effort/account cùng nguồn của brain, phiên phụ và hand; `set` và `unset brain|side|hand` theo repo, hỗ trợ `--json`, `--cwd`, `--dry-run`.
+- Validate model bằng nguồn giá canonical và capability provider, kiểm effort/account; ghi atomic cùng file repo đã resolve như `parallel-subagents`, giữ khóa khác và không tạo config riêng worktree. Chỉ ghi khi người dùng chốt thay đổi cụ thể; mở phiên mới để áp dụng.
+- Giữ mặc định brain Codex Sol high; brain/side chỉ Claude hoặc Codex, account chỉ Claude. Không đổi model/account phiên đang chạy.
+
 ## 0.42.0 — 2026-11-10
 
 - hh-store giai đoạn 2: làm mới trực tiếp. Dữ liệu đổi thì `state_dir()/revision` đổi sau p50 0,39 s, max 2,33 s (đo thật 10/11/2026, n=9, có hh-ps chạy mỗi 5 s). Pane và Paseo chỉ chạy hh-ps khi revision đổi.

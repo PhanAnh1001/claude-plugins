@@ -179,3 +179,15 @@ STATUS_EXIT = {
 }
 # Statuses after which `--backend auto` tries the next backend in order.
 FALLBACK_STATUSES = (Status.QUOTA, Status.NOT_LOGGED_IN)
+
+# Provider capabilities are deliberately independent of the pricing registry.
+MODEL_CAPABILITIES = {
+    "claude": frozenset({"claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"}),
+    "codex": frozenset({"gpt-6.1-sol"}),
+    "dsh": frozenset({"deepseek-v4.1-flash"}),
+}
+PROVIDER_EFFORTS = {
+    "claude": ("low", "medium", "high", "max"),
+    "codex": ("low", "medium", "high", "xhigh"),
+    "dsh": ("off", "low", "high", "max"),
+}
