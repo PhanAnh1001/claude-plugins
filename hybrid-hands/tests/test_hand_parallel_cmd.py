@@ -14,7 +14,7 @@ class ParallelCommandTest(unittest.TestCase):
     def run_cli(self, *args):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = main(['parallel', '--cwd', str(self.root), *args])
+            code = main(['parallel-subagents', '--cwd', str(self.root), *args])
         return code, out.getvalue(), err.getvalue()
     def test_on_preserves_order_and_fallback_status(self):
         self.config.parent.mkdir(); self.config.write_text('{"before":{},"parallel_subagents":{"sibling":"Việt","enabled":false},"after":{}}')
@@ -30,6 +30,8 @@ class ParallelCommandTest(unittest.TestCase):
         self.assertIn('bỏ qua global', err)
     def test_off_creates_and_is_idempotent(self):
         self.assertIn('nguồn: default', self.run_cli()[1])
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(main(['parallel', '--cwd', str(self.root), '--json']), 0)
         self.assertIn('mở phiên mới để hook nạp luật', self.run_cli('off')[1])
         before = self.config.read_bytes(); self.assertEqual(self.run_cli('off')[0], 0)
         self.assertEqual(self.config.read_bytes(), before)

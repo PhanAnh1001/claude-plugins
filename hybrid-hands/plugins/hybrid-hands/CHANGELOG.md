@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.2 — 2026-11-10
+
+- Đổi tên lệnh chính thành `hand-ext parallel-subagents [on|off]`, giữ `parallel` làm alias cũ cùng flags và hành vi.
+- Thêm slash command `/hybrid-hands:parallel-subagents [on|off]` cho Claude Code; không đối số chỉ xem, chỉ đổi mode khi người dùng chốt và mở phiên mới để hook nạp luật.
+
 ## 0.37.1 — 2026-11-10
 
 - Thêm `hand-ext parallel [on|off]`, `--cwd`, `--json`: trạng thái kèm nguồn/file, ghi bool atomic đúng config repo/fallback worktree, giữ key và thứ tự, từ chối file lỗi.

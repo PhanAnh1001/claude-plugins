@@ -187,13 +187,13 @@ Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.j
 
 `parallel_subagents.enabled` mặc định `false`, chỉ chấp nhận bool JSON thật (`true`/`false`); sai kiểu về `false` và warning stderr. `true` chỉ hiệu lực khi provenance là repo `.claude/hybrid-hands.json` (kể cả fallback config main worktree); global `true` bị bỏ qua kèm warning, consumer chỉ thấy `false`. `hand-ext config --json` giữ nguồn và đường dẫn config. Hook gặp config lỗi sẽ warning không hiện giá trị, dùng policy thường và exit 0; CLI giữ cách báo lỗi cấu hình hiện có.
 
-Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Dùng lệnh thay vì sửa JSON thủ công:
+Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`; trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. `parallel` là alias cũ tương thích. Dùng lệnh thay vì sửa JSON thủ công:
 
 ```bash
-hand-ext parallel                         # trạng thái, nguồn và file
-hand-ext parallel --json                  # chỉ trạng thái dạng JSON
-hand-ext parallel on --cwd /duong/dan/repo
-hand-ext parallel off --cwd /duong/dan/repo
+hand-ext parallel-subagents                         # trạng thái, nguồn và file
+hand-ext parallel-subagents --json                  # chỉ trạng thái dạng JSON
+hand-ext parallel-subagents on --cwd /duong/dan/repo
+hand-ext parallel-subagents off --cwd /duong/dan/repo
 ```
 
 Lệnh on/off giữ các key khác, ghi bool vào config repo và in đường dẫn đã ghi. Trong linked worktree chưa có config riêng, nếu loader dùng config main checkout thì lệnh ghi đúng file fallback đó (ảnh hưởng các worktree dùng chung file). Chưa có file thì tạo `.claude/hybrid-hands.json` tại repo hiện tại. JSON lỗi hoặc section không phải object bị từ chối, giữ nguyên file. Luôn **mở phiên mới để hook nạp luật**; luật đã nạp trong phiên cũ vẫn còn hiệu lực.

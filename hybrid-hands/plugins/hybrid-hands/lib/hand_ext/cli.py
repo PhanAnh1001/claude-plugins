@@ -46,7 +46,8 @@ def _parser() -> argparse.ArgumentParser:
     inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
     inspect.add_argument("--json", action="store_true")
     inspect.add_argument("--cwd")
-    parallel = sub.add_parser("parallel", help="xem hoặc bật/tắt policy parallel của repo")
+    parallel = sub.add_parser("parallel-subagents", aliases=["parallel"],
+                              help="xem hoặc bật/tắt policy parallel của repo (parallel: alias cũ)")
     parallel.add_argument("action", nargs="?", choices=("on", "off"))
     parallel.add_argument("--cwd")
     parallel.add_argument("--json", action="store_true")
@@ -349,7 +350,7 @@ COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick, 
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        if args.cmd == "parallel":
+        if args.cmd in ("parallel-subagents", "parallel"):
             from .parallel_cmd import command
             return command(args)
         if args.cmd == "config":
