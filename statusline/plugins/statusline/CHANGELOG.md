@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.0 — 2026-11-10
+
+- Dòng Claude đổi nhãn `Claude v1 ultra` (`~/.claude`); thêm dòng `Claude v2 pro` (`~/.claude-hand`) ngay dưới, cùng cột 5h/7d. Hai dòng lấy số cùng một cách: tài khoản của phiên đang vẽ (theo `CLAUDE_HOME`) dùng `rate_limits` live và lưu vào cache riêng `<home tài khoản>/.statusline-cache.json`; tài khoản còn lại đọc cache riêng của nó, có `~`, ô thiếu hoặc đã qua reset hiện `?`. Không còn đọc cache hiệu chỉnh 5 phút của hybrid-hands cho v2. Ô 5h của tài khoản đang vẽ dùng cache của chính nó (có `~`) khi payload chưa có `rate_limits` và reset còn ở tương lai.
+- GPT chuyển sang tài khoản `~/.codex` (thay `~/.codex-hand` và sổ hand-ext): % 5h/7d là mẫu `rate_limits` mới nhất theo timestamp trong rollout `sessions/` và `archived_sessions/` (chỉ đọc file sửa trong 7 ngày), nhãn theo `window_minutes` (300 = 5h, 10080 = 7d; thiếu thì primary = 5h, secondary = 7d), ô kèm giờ reset, thiếu/hết hạn hiện `?`. "hôm nay ~$" tính từ token delta hôm nay theo từng thread × giá trong `model-prices.json`, model chưa có giá hiện `?`. `STATUSLINE_CODEX_DIR` đổi thư mục (để test).
+- Dòng `Go` giữ căn cột với bảng nhưng in ở dòng cuối cùng của statusline (sau nhóm phiên, hand và skill).
+
 ## 0.22.0 — 2026-11-09
 
 - Đọc cache hiệu chỉnh Claude ngoài dùng chung với hybrid-hands để ước tính phần Claude riêng giữa các tài khoản; không gọi mạng để lấy calibration khi vẽ. Rate pin vẫn ưu tiên, thiếu rate hiệu chỉnh hợp lệ thì giữ nguyên fallback hiện có, kể cả prior; chỉ thay ước tính riêng khi rate mới sẵn sàng.

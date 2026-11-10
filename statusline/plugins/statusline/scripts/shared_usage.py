@@ -40,34 +40,12 @@ def percent(value):
     return None
 
 
-def account_windows(now):
-    try:
-        with bounded():
-            account = shared_module("codex").load_codex(None, now).account
-            result = {}
-            for label in ("5h", "tuần"):
-                sample = account.get(label)
-                if sample is not None and sample.source == "codex_rollout" and 0 <= now - sample.at < 86400 and sample.usable(now):
-                    value = percent(sample.pct)
-                    if value is not None:
-                        result[label] = (value, sample.at)
-            return result
-    except Exception:
-        return {}
-
-
 def claude_five(now):
     try:
         with bounded():
             return percent(shared_module("usage_enrichment")._five_hour("Claude", now))
     except Exception:
         return None
-
-
-if __name__ == "__main__":
-    value = claude_five(time.time()) if sys.argv[1:] == ["claude"] else None
-    if value is not None:
-        print(value)
 
 
 def claude_calibration(now):
@@ -77,3 +55,11 @@ def claude_calibration(now):
             return shared_module("claude_calibration").cached(now)
     except Exception:
         return {}
+
+
+if __name__ == "__main__":
+    mode = sys.argv[1:]
+    if mode == ["claude"]:
+        value = claude_five(time.time())
+        if value is not None:
+            print(value)

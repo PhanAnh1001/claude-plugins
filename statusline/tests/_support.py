@@ -16,9 +16,11 @@ SUBPROCESS_TIMEOUT_SECONDS = 30
 # Env vars that would leak the developer's real Claude config into a test run.
 LEAKY_ENV_VARS = ("CLAUDE_HOME", "STATUSLINE_JSON_BACKEND", "STATUSLINE_LAST_SKILL_MAX_BYTES",
                   "HYBRID_HANDS_STATE_DIR", "STATUSLINE_GO_LIVE", "XDG_DATA_HOME",
-                  "HYBRID_HANDS_PRICING_FILE", "HYBRID_HANDS_HH_PS", "STATUSLINE_HANDS", "STATUSLINE_WEEK_SPLIT", "STATUSLINE_WEEK_SPLIT_SPAWN")
+                  "HYBRID_HANDS_PRICING_FILE", "HYBRID_HANDS_HH_PS", "STATUSLINE_HANDS", "STATUSLINE_WEEK_SPLIT", "STATUSLINE_WEEK_SPLIT_SPAWN",
+                  "STATUSLINE_CLAUDE_V2")
 # Tests never start the detached week_split.py scan unless they override this.
-DEFAULT_TEST_ENV = {"STATUSLINE_WEEK_SPLIT_SPAWN": "0", "STATUSLINE_HANDS": "0"}
+DEFAULT_TEST_ENV = {"STATUSLINE_WEEK_SPLIT_SPAWN": "0", "STATUSLINE_HANDS": "0",
+                    "STATUSLINE_CLAUDE_V2": "0"}
 
 
 def clean_env(**overrides: str) -> dict[str, str]:

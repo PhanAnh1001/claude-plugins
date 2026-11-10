@@ -147,11 +147,11 @@ class WeekSplitShellTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = ANSI_ESCAPE.sub("", result.stdout).split("\n")
         self.assertRegex(lines[2],
-                         r"^Claude\s+5h:5% \(reset .+\) \| 7d:15% \(reset .+ · \$13\.74/1%\)$")
+                         r"^Claude v1 ultra\s+5h:5% \(reset .+\) \| 7d:15% \(reset .+ · \$13\.74/1%\)$")
         self.assertRegex(lines[3], r"^· máy này\s+\| 7d:12\.2% \(T6 2\.1% · T7 5\.4% · CN 0\.0%\)$")
         self.assertRegex(lines[4], r"^· máy khác\s+\| 7d:2\.8%$")
-        self.assertRegex(lines[5], r"^Go\s+DS 5h 1\.0%\s+\| tuần 2\.0%$")
-        self.assertEqual({line.index("|") for line in lines[2:6]},
+        self.assertRegex(lines[-1], r"^Go\s+DS 5h 1\.0%\s+\| tuần 2\.0%$")
+        self.assertEqual({line.index("|") for line in lines[2:5] + lines[-1:]},
                          {len(lines[2].split("|")[0])})
 
 
