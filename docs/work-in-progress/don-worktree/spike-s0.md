@@ -1,6 +1,14 @@
 # S0 sparse worktree — 10/11/2026
 
-**Kết luận: FAIL, chặn P4.** Git 2.55.0 đạt 2 ca Git thuần; ca helper tạo child thành công nhưng baseline sai. Chưa Sol review, không tick plan. Không sửa code plugin hay config/runtime.
+**Chạy lại 10/11/2026: PASS.**
+
+- Nguyên nhân FAIL lần đầu: `hybrid-hands/plugins/hybrid-hands/lib/hand_ext/isolation.py` `_snapshot_tree` dùng index tạm rỗng rồi `git add -A`, nên tracked path skip-worktree vắng khỏi baseline và bị ghi nhầm là deletion.
+- Cách sửa: `_seed_private_index` seed index tạm từ index thật của worktree; test `test_hand_ext_isolation_sparse.py`.
+- Kết quả: `spike_s0.py` exit 0, BASELINE EXCLUDED [True, True], DIRTY_FILES chỉ `src/app.txt`, `src/untracked.txt`; output ở [spike-s0-rerun.txt](spike-s0-rerun.txt).
+
+Phần dưới là lịch sử lần chạy đầu.
+
+**Kết luận lần chạy đầu: FAIL, chặn P4.** Git 2.55.0 đạt 2 ca Git thuần; ca helper tạo child thành công nhưng baseline sai. Chưa Sol review, không tick plan. Không sửa code plugin hay config/runtime.
 
 ## Chạy lại và fixture
 

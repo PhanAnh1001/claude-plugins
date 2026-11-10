@@ -387,6 +387,10 @@ Disk guard kiểm ổ chứa worktree root: `disk_guard.warn_gb=20`, `block_gb=5
 
 Sparse P4 **chưa có trong release này**: S0 đã được Sol review FAIL vì `isolation.prepare` làm mất excluded tracked paths trong baseline. `worktree_sparse_exclude` (thiết kế mặc định `[]`) và `--no-sparse` chỉ là thiết kế bị chặn, chưa dùng được. Hai pattern live-tiktok-games đã được duyệt ngày 10/11/2026; Opus chỉ cấu hình sau khi S0 đạt, không thử sparse trên repo thật trong gói hiện tại.
 
+### Worktree sparse (tuỳ chọn)
+
+`side_session.worktree_sparse_exclude` là list pattern cú pháp gitignore, mặc định `[]` (checkout đủ như cũ). Khác rỗng thì `start --worktree` chạy `git worktree add --no-checkout …` → `git -C <wt> sparse-checkout set --no-cone --stdin` (dòng `/*` rồi `!<pattern>` mỗi pattern, truyền qua stdin) → `git -C <wt> checkout`; sparse chỉ ghi vào config riêng của worktree mới. Ví dụ: `"worktree_sparse_exclude": ["docs/assets/*-data/"]`. Pattern phải là chuỗi khác rỗng, không xuống dòng/NUL, không bắt đầu bằng `!`; sai thì báo lỗi trước khi tạo worktree. Cờ `--no-sparse` bỏ qua cấu hình. Bước sparse/checkout lỗi thì không launch agent và giữ nguyên worktree để xử lý.
+
 ### 5.3 Cách ly worktree (mặc định)
 
 Vì hook của Claude Code không chạy trong dsh/codex/gemini, hàng rào chắc nhất là secret không tồn tại trong thư mục hand làm việc. Khi `isolation=worktree` (mặc định nếu cwd là git repo), `hand-ext run`:

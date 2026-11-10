@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import json
 import shlex
+import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import codex_trust
@@ -34,6 +36,34 @@ def max_tokens_for(cfg: SideConfig, explicit: int | None, hours: float | None) -
 def worktree_cmd(cfg: SideConfig, name: str, base: str) -> list[str]:
     return ["git", "-C", str(cfg.repo), "worktree", "add",
             str(cfg.worktree_root / name), "-b", f"{C.BRANCH_PREFIX}{name}", base]
+
+
+@dataclass(frozen=True)
+class WorktreeStep:
+    argv: list[str]
+    stdin: str | None = None
+
+
+def worktree_steps(cfg: SideConfig, name: str, base: str, sparse: bool = True) -> list[WorktreeStep]:
+    """One plain `worktree add`, or add --no-checkout -> sparse-checkout set -> checkout."""
+    add = worktree_cmd(cfg, name, base)
+    if not sparse or not cfg.worktree_sparse_exclude:
+        return [WorktreeStep(add)]
+    wt = str(cfg.worktree_root / name)
+    rules = [C.SPARSE_INCLUDE_ALL, *(C.SPARSE_NEGATE + p for p in cfg.worktree_sparse_exclude)]
+    return [WorktreeStep([*add[:5], "--no-checkout", *add[5:]]),
+            WorktreeStep(["git", "-C", wt, "sparse-checkout", "set", "--no-cone", "--stdin"],
+                         "\n".join(rules) + "\n"),
+            WorktreeStep(["git", "-C", wt, "checkout"])]
+
+
+def run_worktree_steps(steps: list[WorktreeStep]) -> int:
+    """Run steps in order without a shell; on failure keep the worktree for inspection."""
+    for step in steps:
+        if subprocess.run(step.argv, input=step.stdin, text=True).returncode != 0:
+            print(f"side-session: failed: {shlex.join(step.argv)} (worktree giữ nguyên để xử lý)")
+            return 1
+    return 0
 
 
 def done_path(handoff: str | Path) -> Path:

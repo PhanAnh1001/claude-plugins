@@ -82,6 +82,10 @@ Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt
 
 Opus gom nhiều việc L0 vào một phiên Sol; mỗi task một phiên, xong thì Sol ghi bàn giao và đóng phiên, không giữ phiên qua nhiều task. L2/L3: Opus viết spec/plan, người dùng duyệt, Opus cắt thành gói cỡ L1 giao các phiên Sol (tối đa `max_parallel`).
 
+### Worktree sparse (tuỳ chọn)
+
+`side_session.worktree_sparse_exclude` là list pattern cú pháp gitignore, mặc định `[]` (checkout đủ như cũ). Khác rỗng thì `start --worktree` chạy `git worktree add --no-checkout …` → `git -C <wt> sparse-checkout set --no-cone --stdin` (dòng `/*` rồi `!<pattern>` mỗi pattern, truyền qua stdin) → `git -C <wt> checkout`; sparse chỉ ghi vào config riêng của worktree mới. Ví dụ: `"worktree_sparse_exclude": ["docs/assets/*-data/"]`. Pattern phải là chuỗi khác rỗng, không xuống dòng/NUL, không bắt đầu bằng `!`; sai thì báo lỗi trước khi tạo worktree. Cờ `--no-sparse` bỏ qua cấu hình. Bước sparse/checkout lỗi thì không launch agent và giữ nguyên worktree để xử lý.
+
 ## 1. Prompt giao việc
 
 Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:

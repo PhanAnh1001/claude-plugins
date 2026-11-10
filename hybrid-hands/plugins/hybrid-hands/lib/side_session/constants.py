@@ -41,9 +41,14 @@ MAX_PARALLEL = 6
 WORKTREE_GC_MERGED = "merged"
 WORKTREE_GC_OFF = "off"
 WORKTREE_GC_MODES = (WORKTREE_GC_MERGED, WORKTREE_GC_OFF)
+# Sparse worktree: keep everything (`/*`), then negate each configured pattern.
+SPARSE_INCLUDE_ALL = "/*"
+SPARSE_NEGATE = "!"
+SPARSE_FORBIDDEN_CHARS = ("\n", "\r", "\0")
 
 DEFAULTS: dict = {
     "worktree_gc": {"auto": WORKTREE_GC_MERGED},
+    "worktree_sparse_exclude": [],
     "default_base": "HEAD",
     "provider": "codex",
     "claude_model": "claude-opus-5-5",

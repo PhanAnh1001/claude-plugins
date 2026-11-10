@@ -283,6 +283,7 @@ def _snapshot_tree(worktree: Path, run_dir: Path, tag: str) -> str:
     env = {key: value for key, value in os.environ.items() if key not in GIT_ENV_DROP}
     env["GIT_INDEX_FILE"] = str(index)
     try:
+        _seed_private_index(worktree, index)
         _git(["add", "-A"], worktree, env=env)
         tree = _git(["write-tree"], worktree, env=env).stdout.decode().strip()
         if not tree:
@@ -293,6 +294,19 @@ def _snapshot_tree(worktree: Path, run_dir: Path, tag: str) -> str:
             index.unlink()
         except OSError:
             pass
+
+
+def _seed_private_index(worktree: Path, index: Path) -> None:
+    """Start the private index from the worktree's real index.
+
+    In a sparse worktree, tracked paths outside the sparse cone are absent on
+    disk but kept in the index with skip-worktree; `git add -A` leaves those
+    entries alone, so they stay in the snapshot instead of reading as deletions.
+    """
+    real = _git(["rev-parse", "--git-path", "index"], worktree).stdout.decode().strip()
+    real_index = Path(real) if os.path.isabs(real) else worktree / real
+    if real_index.is_file():
+        shutil.copyfile(real_index, index)
 
 
 def _run_cwd(root: Path, worktree: Path, cwd: Path) -> Path:

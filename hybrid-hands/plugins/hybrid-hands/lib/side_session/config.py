@@ -36,6 +36,7 @@ class SideConfig:
     default_base: str = C.DEFAULT_BASE
     worktree_gc_auto: str = C.WORKTREE_GC_MERGED
     disk_guard: dict | None = field(default_factory=dict)
+    worktree_sparse_exclude: tuple[str, ...] = ()
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -86,6 +87,21 @@ def _worktree_gc_auto(raw: object) -> str:
     return mode
 
 
+def _sparse_exclude(raw: object) -> tuple[str, ...]:
+    """gitignore patterns to drop from new worktrees; `!` is added by side-session."""
+    key = "side_session.worktree_sparse_exclude"
+    if not isinstance(raw, list):
+        raise ValueError(f"{key} phải là list chuỗi")
+    for pattern in raw:
+        if not isinstance(pattern, str) or not pattern.strip():
+            raise ValueError(f"{key}: mỗi pattern phải là chuỗi khác rỗng")
+        if any(ch in pattern for ch in C.SPARSE_FORBIDDEN_CHARS):
+            raise ValueError(f"{key}: pattern không được chứa xuống dòng/NUL")
+        if pattern.startswith(C.SPARSE_NEGATE):
+            raise ValueError(f"{key}: pattern không bắt đầu bằng '!' (tự thêm)")
+    return tuple(raw)
+
+
 def load_config(cwd: Path) -> SideConfig:
     repo = git_toplevel(cwd)
     from shared_config import load_config as load_shared
@@ -101,6 +117,7 @@ def load_config(cwd: Path) -> SideConfig:
         repo=repo,
         worktree_gc_auto=_worktree_gc_auto(merged.get("worktree_gc", {})),
         disk_guard=disk_guard,
+        worktree_sparse_exclude=_sparse_exclude(merged.get("worktree_sparse_exclude", [])),
         default_base=str(merged.get("default_base", C.DEFAULT_BASE)),
         provider=str(merged["provider"]),
         claude_model=str(merged["claude_model"]),

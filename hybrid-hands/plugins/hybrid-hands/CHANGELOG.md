@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.51.0 — 2026-11-10
+
+- Thêm `side_session.worktree_sparse_exclude` (mặc định `[]`, list pattern kiểu gitignore, validate lúc nạp config) và `side-session start --no-sparse`. Khi khác rỗng, worktree tạo bằng `git worktree add --no-checkout` → `sparse-checkout set --no-cone --stdin` (`/*`, `!<pattern>`) → `checkout`, dùng chung cho screen và Paseo; lỗi giữa chừng giữ worktree và không launch agent.
+- Sửa baseline isolation của hand-ext từ worktree sparse: `_snapshot_tree` seed index tạm từ index thật của worktree nên tracked path skip-worktree không còn bị ghi nhầm là deletion trong `dirty_files`/patch. S0 chạy lại PASS.
+- Chưa kiểm chứng `side-session start --worktree` end-to-end thật, lỗi giữa chừng bước sparse trên git thật (chỉ mock) và mức ≤15 MB trên repo thật; chưa ghi config sparse cho repo thật.
+
 ## 0.50.0 — 2026-11-10
 
 - Thêm `side-session gc`: dry-run phân lớp A–E, apply có khoá và kiểm tra lại, giữ nhánh mặc định, nhật ký khôi phục; auto GC lớp A khi start mặc định `merged`, có thể tắt bằng `off`.
