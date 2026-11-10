@@ -13,7 +13,8 @@ from pathlib import Path
 from . import budget
 from . import commands as K
 from . import constants as C
-from . import external, paseo, screen, state, tokens
+from . import external, gc, paseo, screen, state, tokens
+from hand_ext.disk_guard import check_disk, DiskGuardBlocked, EXIT_DISK_GUARD
 from .config import SideConfig, claude_account
 from .handoff import build_prompt, summary_block
 
@@ -118,6 +119,35 @@ def _launch(cfg: SideConfig, a, st: state.SessionState, cmds: list[list[str]], *
     return 0
 
 
+def _worktree_preflight(cfg: SideConfig, a) -> int | None:
+    """Reclaim merged worktrees, then measure space before any start writes.
+
+    Dry-run, resume and shared checkouts never trigger collection.
+    GC failures do not waive the independent disk check.
+    """
+    if not a.worktree or a.dry_run or a.resume:
+        return None
+    if cfg.worktree_gc_auto == C.WORKTREE_GC_MERGED:
+        try:
+            report = gc.apply(cfg, include_unmerged=False, prune_branches=False,
+                              fetch=False)
+            failed = bool(report.get("errors"))
+        except Exception:
+            failed = True
+        if failed:
+            print("side-session: warning: auto GC failed; inspect side-session gc (dry-run)")
+    try:
+        check_disk(cfg.worktree_root, cfg.disk_guard,
+                   ignore=getattr(a, "ignore_disk_guard", False))
+    except DiskGuardBlocked as exc:
+        print(f"side-session: {exc}")
+        return EXIT_DISK_GUARD
+    except (OSError, ValueError):
+        print("side-session: disk guard unavailable; no worktree created")
+        return C.EXIT_USAGE
+    return None
+
+
 def start(cfg: SideConfig, a) -> int:
     is_main = getattr(a, "main", False)
     settings = cfg.main_session if is_main else vars(cfg)
@@ -182,6 +212,10 @@ def start(cfg: SideConfig, a) -> int:
             and state.load(cfg.state_dir, name).status in C.ACTIVE_STATUSES:
         print(f"side-session: {name} already running")
         return C.EXIT_USAGE
+    disk_result = _worktree_preflight(cfg, a)
+    if disk_result is not None:
+        return disk_result
+    a.base = a.base or cfg.default_base
     paseo_plan = paseo.plan(cfg, a) if a.provider in (C.PROVIDER_CODEX, C.PROVIDER_CLAUDE) else None
     if paseo_plan is not None and paseo_plan.get("error"):
         return paseo_plan.get("exit_code", C.EXIT_USAGE)
@@ -199,7 +233,7 @@ def start(cfg: SideConfig, a) -> int:
     st = state.SessionState(
         name=name, uuid=sid, provider=a.provider, dir=workdir, screen=K.session_screen(name),
         watch_screen=K.watch_screen(name), max_tokens=max_tokens, started=started,
-        status=C.STATUS_RUNNING, handoff=str(handoff), worktree=bool(a.worktree),
+        status=C.STATUS_RUNNING, handoff=str(handoff), worktree=bool(a.worktree), base=a.base,
         parent_session=os.environ.get(C.PARENT_SESSION_ENV, ""), chrome=chrome,
         budget_exempt=bool(a.budget_exempt), role="main" if is_main else "",
         account=account, claude_config_dir=config_dir,
@@ -306,7 +340,7 @@ def resume(cfg: SideConfig, a) -> int:
         name=a.name, uuid=old.uuid, provider=C.PROVIDER_CLAUDE, dir=old.dir,
         screen=screen_name, watch_screen=K.watch_screen(a.name), max_tokens=max_tokens,
         started=time.time(), status=C.STATUS_RUNNING, handoff=old.handoff,
-        worktree=old.worktree,
+        worktree=old.worktree, base=old.base,
         parent_session=os.environ.get(C.PARENT_SESSION_ENV) or old.parent_session,
         chrome=chrome, budget_exempt=bool(a.budget_exempt), tokens_used=0,
         account=old.account, claude_config_dir=config_dir,

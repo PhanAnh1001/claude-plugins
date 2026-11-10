@@ -160,3 +160,28 @@ hand-ext managed names --cwd /ABS/REPO --apply
 ```
 
 `side-session tidy --names [--name NAME] [--apply]` chỉ sửa tên side-session do plugin sở hữu; bỏ `--name` để xét các phiên trong phạm vi state. `hand-ext managed names --cwd /ABS [--apply]` là thao tác tương đương cho managed hand. Dry-run không ghi; apply chỉ đổi tên agent/workspace plugin-owned được xác minh, chặn main, shared, foreign và workspace có member chưa rõ ownership. Không suy ownership từ title/cwd. Cả hai lặp an toàn và không archive. `side-session tidy` không có `--names` vẫn giữ contract archive hiện có; naming không đổi review gate, restore/send, IDs, history, worktree hay artifacts.
+
+
+### Dọn worktree và disk guard
+
+`side-session gc [--name NAME] [--json] [--fetch] [--apply] [--include-unmerged] [--prune-branches]` mặc định dry-run. `--name` giới hạn đúng gói; `--fetch` mới fetch origin, mặc định chỉ dùng refs sẵn có. Lệnh chỉ đọc metadata git/state/runtime và kích thước, không đọc nội dung file.
+
+| Lớp | Điều kiện | Khi apply |
+|---|---|---|
+| A | Plugin-owned, kết thúc, runtime đã dừng/archive, sạch, đã merge hoặc patch tương đương base | Xoá worktree, giữ nhánh |
+| B | Như A nhưng chưa merge | Chỉ xoá với `--include-unmerged`, giữ nhánh |
+| C | File tracked bị sửa hoặc untracked không ignored | Giữ |
+| D | Đang chạy hoặc metadata/runtime/base chưa rõ | Giữ |
+| E | Không có ownership state chính xác của plugin | Chỉ báo cáo |
+
+Base lấy từ state, legacy dùng `side_session.default_base`; xét base local và `origin/<base>` nếu có. Dry-run hiện ahead, tracked/ignored bytes và lý do giữ. Apply khoá repo, kiểm tra lại từng worktree rồi dùng `git worktree remove` không force. **Ignored bytes cũng bị xoá khi apply**, không thể khôi phục chúng từ nhánh. Mặc định giữ nhánh; `--prune-branches` chỉ thử `git branch -d` cho A. Nhật ký `<state_dir>/worktree-gc.jsonl` giữ branch/HEAD và bytes; khôi phục tracked commits bằng `git worktree add <dir> <branch>`, hoặc dùng SHA trong journal nếu nhánh đã bị prune và commit còn tồn tại.
+
+`side_session.worktree_gc.auto` nhận `merged` (mặc định đã duyệt) hoặc `off`. Start worktree mới tự dọn chỉ lớp A; lỗi GC cảnh báo nhưng vẫn kiểm disk. Dry-run/resume/không tạo worktree không auto-GC. Nếu brief/session chỉ cho dry-run hoặc cần duyệt apply, tôn trọng giới hạn đó: dùng `auto=off` đã được người có thẩm quyền cấu hình, không khởi tạo worktree để lách giới hạn.
+
+Disk guard kiểm ổ chứa worktree root: `disk_guard.warn_gb=20`, `block_gb=5` (đo GiB). `side-session start --worktree` và `hand-ext run` tạo isolated worktree bị chặn dưới ngưỡng với **exit 9**; `--ignore-disk-guard` chỉ dùng khi chủ động được phép vượt chặn.
+
+`hand-ext gc [--cwd /ABS/REPO] [--json] [--apply]` cũng mặc định dry-run, chỉ dùng metadata ownership/registry/completion. Apply chỉ xoá worktree sạch đã kết thúc, recheck dưới khoá, không force; dirty/unknown/running hoặc managed execution chưa settled đều giữ. Detached HEAD đã dịch khỏi base ghi nhận cũng giữ. Journal ở `<machine_state_dir>/worktree-gc.jsonl`; không xoá report, patch hay `output/llm/`.
+
+Sparse P4 **chưa có trong release này**: S0 đã được Sol review FAIL vì `isolation.prepare` làm mất excluded tracked paths trong baseline. `worktree_sparse_exclude` (thiết kế mặc định `[]`) và `--no-sparse` chỉ là thiết kế bị chặn, chưa dùng được. Hai pattern live-tiktok-games đã được duyệt ngày 10/11/2026; Opus chỉ cấu hình sau khi S0 đạt, không thử sparse trên repo thật trong gói hiện tại.
+
+Sau merge gói, Sol xem `side-session gc --name <gói>` rồi chạy `side-session gc --name <gói> --apply` khi phạm vi brief/session cho phép. Nếu đang bị cấm apply hoặc cần người dùng duyệt, chỉ dry-run và bàn giao kết quả để duyệt; không tự apply. Archive Paseo và GC thư mục là hai thao tác riêng, không suy archive cho phép xoá.

@@ -52,6 +52,7 @@ class SessionState:
     claude_auto_compact_window: int | None = None
     paseo_name_attempts: int = 0
     paseo_name_done: bool = False
+    base: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

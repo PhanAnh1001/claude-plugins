@@ -1,0 +1,212 @@
+{
+  "timestamp": "2026-11-10T19:19:02+0700",
+  "sample_count": 10,
+  "limitation": "Only one A exists; cannot supply two A samples without fabricating data.",
+  "samples": [
+    {
+      "name": "WP-11",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/WP-11",
+      "class": "A",
+      "reason": "merged/equivalent in base",
+      "owner_count": 1,
+      "worktree": true,
+      "status": "stopped",
+      "transport": "screen",
+      "screen_listing_valid": true,
+      "exact_runtime_listed": false,
+      "git_status_exit": 0,
+      "git_status_empty": true,
+      "bases": [
+        {
+          "ref": "HEAD",
+          "head_is_ancestor": false,
+          "cherry_exit": 0,
+          "cherry_plus": 0,
+          "cherry_minus": 3
+        },
+        {
+          "ref": "origin/HEAD",
+          "head_is_ancestor": false,
+          "cherry_exit": 0,
+          "cherry_plus": 0,
+          "cherry_minus": 3
+        }
+      ],
+      "runtime_check": "exact socket name after PID prefix, including watchdog"
+    },
+    {
+      "name": "RV-13",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/RV-13",
+      "class": "B",
+      "reason": "unmerged commits",
+      "owner_count": 1,
+      "worktree": true,
+      "status": "stopped",
+      "transport": "screen",
+      "screen_listing_valid": true,
+      "exact_runtime_listed": false,
+      "git_status_exit": 0,
+      "git_status_empty": true,
+      "bases": [
+        {
+          "ref": "HEAD",
+          "head_is_ancestor": false,
+          "cherry_exit": 0,
+          "cherry_plus": 15,
+          "cherry_minus": 0
+        },
+        {
+          "ref": "origin/HEAD",
+          "head_is_ancestor": false,
+          "cherry_exit": 0,
+          "cherry_plus": 2,
+          "cherry_minus": 0
+        }
+      ],
+      "runtime_check": "exact socket name after PID prefix, including watchdog"
+    },
+    {
+      "name": "RV-14",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/RV-14",
+      "class": "B",
+      "reason": "unmerged commits",
+      "owner_count": 1,
+      "worktree": true,
+      "status": "done",
+      "transport": "screen",
+      "screen_listing_valid": true,
+      "exact_runtime_listed": false,
+      "git_status_exit": 0,
+      "git_status_empty": true,
+      "bases": [
+        {
+          "ref": "HEAD",
+          "head_is_ancestor": false,
+          "cherry_exit": 0,
+          "cherry_plus": 20,
+          "cherry_minus": 0
+        },
+        {
+          "ref": "origin/HEAD",
+          "head_is_ancestor": false,
+          "cherry_exit": 0,
+          "cherry_plus": 1,
+          "cherry_minus": 0
+        }
+      ],
+      "runtime_check": "exact socket name after PID prefix, including watchdog"
+    },
+    {
+      "name": "RV-09b",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/RV-09b",
+      "class": "C",
+      "reason": "tracked changes or untracked files",
+      "owner_count": 1,
+      "worktree": true,
+      "status": "stopped",
+      "transport": "screen",
+      "screen_listing_valid": true,
+      "exact_runtime_listed": false,
+      "git_status_exit": 0,
+      "git_status_empty": false,
+      "bases": [
+        {
+          "ref": "HEAD",
+          "head_is_ancestor": true,
+          "cherry_exit": 0,
+          "cherry_plus": 0,
+          "cherry_minus": 0
+        },
+        {
+          "ref": "origin/HEAD",
+          "head_is_ancestor": true,
+          "cherry_exit": 0,
+          "cherry_plus": 0,
+          "cherry_minus": 0
+        }
+      ],
+      "runtime_check": "exact socket name after PID prefix, including watchdog"
+    },
+    {
+      "name": "RV-09c",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/RV-09c",
+      "class": "C",
+      "reason": "tracked changes or untracked files",
+      "owner_count": 1,
+      "worktree": true,
+      "status": "stopped",
+      "transport": "screen",
+      "screen_listing_valid": true,
+      "exact_runtime_listed": false,
+      "git_status_exit": 0,
+      "git_status_empty": false,
+      "bases": [
+        {
+          "ref": "HEAD",
+          "head_is_ancestor": true,
+          "cherry_exit": 0,
+          "cherry_plus": 0,
+          "cherry_minus": 0
+        },
+        {
+          "ref": "origin/HEAD",
+          "head_is_ancestor": true,
+          "cherry_exit": 0,
+          "cherry_plus": 0,
+          "cherry_minus": 0
+        }
+      ],
+      "runtime_check": "exact socket name after PID prefix, including watchdog"
+    },
+    {
+      "name": "live-tiktok-games",
+      "path": "/Users/anhtp/app/live-tiktok-games",
+      "class": "D",
+      "reason": "protected main checkout/session",
+      "owner_count": 9,
+      "main_protected": true
+    },
+    {
+      "name": "RV-18c",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/RV-18c",
+      "class": "D",
+      "reason": "runtime/status unknown or active",
+      "owner_count": 1,
+      "worktree": true,
+      "status": "stopped",
+      "transport": "paseo",
+      "runtime": {
+        "agentId": "1a3adf64-388d-493c-bc19-04eada472354",
+        "workspaceId": "wks_ea489c99f620cc5d",
+        "targetKey": "home:/Users/anhtp/.paseo",
+        "status": "closed"
+      },
+      "agent_archived": null,
+      "runtime_query_error_type": "PaseoError"
+    },
+    {
+      "name": "SOL-WP72-20261109-090004-594224-wp88-l2-plan-codex",
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/SOL-WP72-20261109-090004-594224-wp88-l2-plan-codex",
+      "class": "E",
+      "reason": "no exact plugin ownership",
+      "owner_count": 0,
+      "main_protected": false
+    },
+    {
+      "name": "FIX-3D-HEAP",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/FIX-3D-HEAP",
+      "class": "E",
+      "reason": "no exact plugin ownership",
+      "owner_count": 0,
+      "main_protected": false
+    },
+    {
+      "name": "FIX-CAFE-COMPOSE",
+      "path": "/Users/anhtp/app/live-tiktok-games-wt/FIX-CAFE-COMPOSE",
+      "class": "E",
+      "reason": "no exact plugin ownership",
+      "owner_count": 0,
+      "main_protected": false
+    }
+  ]
+}

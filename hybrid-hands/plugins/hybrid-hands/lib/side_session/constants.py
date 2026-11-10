@@ -38,7 +38,13 @@ CODEX_SANDBOX = "danger-full-access"
 # Configurable side-session ceiling; projects without an override keep default 4.
 MAX_PARALLEL = 6
 
+WORKTREE_GC_MERGED = "merged"
+WORKTREE_GC_OFF = "off"
+WORKTREE_GC_MODES = (WORKTREE_GC_MERGED, WORKTREE_GC_OFF)
+
 DEFAULTS: dict = {
+    "worktree_gc": {"auto": WORKTREE_GC_MERGED},
+    "default_base": "HEAD",
     "provider": "codex",
     "claude_model": "claude-opus-5-5",
     "claude_effort": "high",

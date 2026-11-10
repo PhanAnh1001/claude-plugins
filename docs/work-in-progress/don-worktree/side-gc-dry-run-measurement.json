@@ -1,0 +1,20 @@
+{
+  "command": "side-session gc --json",
+  "cwd": "/Users/anhtp/app/live-tiktok-games",
+  "exit": 0,
+  "elapsed_s": 40.87,
+  "branch_count_before": 252,
+  "branch_count_after": 252,
+  "classes": {
+    "D": 69,
+    "E": 41,
+    "C": 20,
+    "B": 6,
+    "A": 1
+  },
+  "totals": {
+    "eligible": 1,
+    "eligible_bytes": 65181552
+  },
+  "timestamp": "2026-11-10T19:17:56+0700"
+}

@@ -1,0 +1,810 @@
+{
+  "applied": false,
+  "worktrees": [
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/SOL-WP72-20261109-090004-594224-wp88-l2-plan-codex",
+      "name": "SOL-WP72-20261109-090004-594224-wp88-l2-plan-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "8df05f464caddadaee69a7bfe34f6c11a31872c67f9fe0175437b67adccf18de",
+      "run_id": "20261109-090004-594224-wp88-l2-plan-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-171624-863781-hpa-pilot-dispatch-codex",
+      "name": "claude-plugins-20261109-171624-863781-hpa-pilot-dispatch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-173845-089909-hpa-pilot2-dispatch-codex",
+      "name": "claude-plugins-20261109-173845-089909-hpa-pilot2-dispatch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-181039-490103-hpa-pilot3-dispatch-codex",
+      "name": "claude-plugins-20261109-181039-490103-hpa-pilot3-dispatch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-183249-721165-hpa-pilot3-dispatch-0353-codex",
+      "name": "claude-plugins-20261109-183249-721165-hpa-pilot3-dispatch-0353-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-183421-720664-hpa-pilot3-stop-0353-codex",
+      "name": "claude-plugins-20261109-183421-720664-hpa-pilot3-stop-0353-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-185651-243156-hpa-pilot3-stop-0354-codex",
+      "name": "claude-plugins-20261109-185651-243156-hpa-pilot3-stop-0354-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-191119-589257-hpa-pilot4-smoke-dsh-dsh",
+      "name": "claude-plugins-20261109-191119-589257-hpa-pilot4-smoke-dsh-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-191128-236183-hpa-pilot4-smoke-claude-v2-claude-v2",
+      "name": "claude-plugins-20261109-191128-236183-hpa-pilot4-smoke-claude-v2-claude-v2",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-202216-154407-hpa-pilot5-smoke-dsh-dsh",
+      "name": "claude-plugins-20261109-202216-154407-hpa-pilot5-smoke-dsh-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-202427-914360-hpa-pilot5-smoke-claude-v2-claude-v2",
+      "name": "claude-plugins-20261109-202427-914360-hpa-pilot5-smoke-claude-v2-claude-v2",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-202541-560097-hpa-pilot5-stop-0356-codex",
+      "name": "claude-plugins-20261109-202541-560097-hpa-pilot5-stop-0356-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-211144-960854-ws-archive-managed-smoke-codex",
+      "name": "claude-plugins-20261109-211144-960854-ws-archive-managed-smoke-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-212536-439179-demo-subagent-codex",
+      "name": "claude-plugins-20261109-212536-439179-demo-subagent-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-214238-364765-ws-names-smoke-codex",
+      "name": "claude-plugins-20261109-214238-364765-ws-names-smoke-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261110-090145-772710-ps-toggle-l0-codex",
+      "name": "claude-plugins-20261110-090145-772710-ps-toggle-l0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261110-090852-884842-ps-cmd-l0-codex",
+      "name": "claude-plugins-20261110-090852-884842-ps-cmd-l0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-170634-105886-don-worktree-s0-codex",
+      "name": "don-worktree-20261110-170634-105886-don-worktree-s0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-170640-682142-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-170640-682142-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-173645-303023-don-worktree-s0-codex",
+      "name": "don-worktree-20261110-173645-303023-don-worktree-s0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-175847-364466-don-worktree-s0-codex",
+      "name": "don-worktree-20261110-175847-364466-don-worktree-s0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-180208-465938-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-180208-465938-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-180554-245951-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-180554-245951-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-180946-540165-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-180946-540165-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-181344-722428-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-181344-722428-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-181828-040634-don-worktree-p2-codex",
+      "name": "don-worktree-20261110-181828-040634-don-worktree-p2-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-182150-297040-don-worktree-p5-codex",
+      "name": "don-worktree-20261110-182150-297040-don-worktree-p5-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-182506-581044-don-worktree-screen-fix-codex",
+      "name": "don-worktree-20261110-182506-581044-don-worktree-screen-fix-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-182640-255880-don-worktree-p5-codex",
+      "name": "don-worktree-20261110-182640-255880-don-worktree-p5-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-183903-489340-don-worktree-p5-fix-codex",
+      "name": "don-worktree-20261110-183903-489340-don-worktree-p5-fix-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-184401-202527-don-worktree-p5-readonly-dsh",
+      "name": "don-worktree-20261110-184401-202527-don-worktree-p5-readonly-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-184718-847832-don-worktree-p5-readonly-dsh",
+      "name": "don-worktree-20261110-184718-847832-don-worktree-p5-readonly-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191304-037393-brief-p5-latest-epoch-claude-v2",
+      "name": "don-worktree-20261110-191304-037393-brief-p5-latest-epoch-claude-v2",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
+      "name": "don-worktree-20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191923-531265-brief-p3-codex",
+      "name": "don-worktree-20261110-191923-531265-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170604-058469-brief-research-codex",
+      "name": "dong-bo-tai-khoan-20261110-170604-058469-brief-research-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170800-305018-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-170800-305018-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170926-253502-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-170926-253502-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-173643-346425-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-173643-346425-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-175849-391656-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-175849-391656-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-180205-949863-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-180205-949863-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-180709-779339-brief-research-codex",
+      "name": "dong-bo-tai-khoan-20261110-180709-779339-brief-research-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-181037-162498-brief-p1-codex",
+      "name": "dong-bo-tai-khoan-20261110-181037-162498-brief-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-182533-033268-brief-p2-codex",
+      "name": "dong-bo-tai-khoan-20261110-182533-033268-brief-p2-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-182814-190302-brief-p2-codex",
+      "name": "dong-bo-tai-khoan-20261110-182814-190302-brief-p2-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-183155-700956-brief-p2-codex",
+      "name": "dong-bo-tai-khoan-20261110-183155-700956-brief-p2-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-183908-745673-brief-p3-codex",
+      "name": "dong-bo-tai-khoan-20261110-183908-745673-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-184243-289337-brief-p3-codex",
+      "name": "dong-bo-tai-khoan-20261110-184243-289337-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
+      "name": "dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/fix-stale-claim-20261110-174714-557292-fsc-probe-brief-codex",
+      "name": "fix-stale-claim-20261110-174714-557292-fsc-probe-brief-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/fix-stale-claim-20261110-175627-040964-fsc-probe-brief-codex",
+      "name": "fix-stale-claim-20261110-175627-040964-fsc-probe-brief-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-171906-477202-hpa-pilot-fix-codex",
+      "name": "hpa-pilot-fix-20261109-171906-477202-hpa-pilot-fix-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-171942-038300-hpa-pilot-fix-retry-codex",
+      "name": "hpa-pilot-fix-20261109-171942-038300-hpa-pilot-fix-retry-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-172820-381646-hpa-pilot2-schema-recover-codex",
+      "name": "hpa-pilot-fix-20261109-172820-381646-hpa-pilot2-schema-recover-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-173500-612698-hpa-pilot2-schema-review-codex",
+      "name": "hpa-pilot-fix-20261109-173500-612698-hpa-pilot2-schema-review-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-175107-743371-hpa-pilot3-ef-codex",
+      "name": "hpa-pilot-fix-20261109-175107-743371-hpa-pilot3-ef-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-175708-593711-hpa-pilot3-ef-review-codex",
+      "name": "hpa-pilot-fix-20261109-175708-593711-hpa-pilot3-ef-review-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-180153-115245-hpa-pilot3-livefix-codex",
+      "name": "hpa-pilot-fix-20261109-180153-115245-hpa-pilot3-livefix-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-180502-515792-hpa-pilot3-livefix-review-codex",
+      "name": "hpa-pilot-fix-20261109-180502-515792-hpa-pilot3-livefix-review-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-181859-552738-hpa-pilot3-envelope-codex",
+      "name": "hpa-pilot-fix-20261109-181859-552738-hpa-pilot3-envelope-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-182757-510855-hpa-pilot3-envelope-review-codex",
+      "name": "hpa-pilot-fix-20261109-182757-510855-hpa-pilot3-envelope-review-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-184213-228996-hpa-pilot3-containment-codex",
+      "name": "hpa-pilot-fix-20261109-184213-228996-hpa-pilot3-containment-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-185117-322815-hpa-pilot3-containment-review-codex",
+      "name": "hpa-pilot-fix-20261109-185117-322815-hpa-pilot3-containment-review-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-191018-440414-hpa-pilot4-implementation-codex",
+      "name": "hpa-pilot-fix-20261109-191018-440414-hpa-pilot4-implementation-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-192158-477541-hpa-pilot4-review-codex",
+      "name": "hpa-pilot-fix-20261109-192158-477541-hpa-pilot4-review-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-192813-621820-hpa-pilot4-fence-dsh",
+      "name": "hpa-pilot-fix-20261109-192813-621820-hpa-pilot4-fence-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-193241-416080-hpa-pilot4-fence-review-dsh",
+      "name": "hpa-pilot-fix-20261109-193241-416080-hpa-pilot4-fence-review-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-200057-035183-hpa-pilot5-implementation-codex",
+      "name": "hpa-pilot-fix-20261109-200057-035183-hpa-pilot5-implementation-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-201139-283260-hpa-pilot5-correction-codex",
+      "name": "hpa-pilot-fix-20261109-201139-283260-hpa-pilot5-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202040-358877-ws-archive-side-codex",
+      "name": "ws-archive-20261109-202040-358877-ws-archive-side-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202224-082130-ws-archive-docs-codex",
+      "name": "ws-archive-20261109-202224-082130-ws-archive-docs-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202549-985540-ws-archive-side-correction-codex",
+      "name": "ws-archive-20261109-202549-985540-ws-archive-side-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202753-206116-ws-archive-docs-correction-codex",
+      "name": "ws-archive-20261109-202753-206116-ws-archive-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202910-501359-ws-archive-docs-correction-codex",
+      "name": "ws-archive-20261109-202910-501359-ws-archive-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-203105-676353-ws-archive-side-next-claude-v1",
+      "name": "ws-archive-20261109-203105-676353-ws-archive-side-next-claude-v1",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-203612-539449-ws-archive-managed-codex",
+      "name": "ws-archive-20261109-203612-539449-ws-archive-managed-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-204256-259463-ws-archive-side-local-codex",
+      "name": "ws-archive-20261109-204256-259463-ws-archive-side-local-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-204321-911379-ws-archive-docs-local-codex",
+      "name": "ws-archive-20261109-204321-911379-ws-archive-docs-local-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-204437-816436-ws-archive-release-codex",
+      "name": "ws-archive-20261109-204437-816436-ws-archive-release-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205022-878985-ws-archive-compact-config-codex",
+      "name": "ws-archive-20261109-205022-878985-ws-archive-compact-config-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205305-931705-ws-archive-compact-launch-codex",
+      "name": "ws-archive-20261109-205305-931705-ws-archive-compact-launch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205332-512993-ws-archive-compact-docs-correction-codex",
+      "name": "ws-archive-20261109-205332-512993-ws-archive-compact-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205534-444701-ws-archive-probe-codex",
+      "name": "ws-archive-20261109-205534-444701-ws-archive-probe-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213136-950855-ws-names-side-codex",
+      "name": "ws-names-20261109-213136-950855-ws-names-side-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213138-189773-ws-names-managed-codex",
+      "name": "ws-names-20261109-213138-189773-ws-names-managed-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213139-756511-ws-names-docs-codex",
+      "name": "ws-names-20261109-213139-756511-ws-names-docs-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213338-380693-ws-names-docs-correction-codex",
+      "name": "ws-names-20261109-213338-380693-ws-names-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213620-946391-ws-names-managed-correction-codex",
+      "name": "ws-names-20261109-213620-946391-ws-names-managed-correction-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    }
+  ],
+  "eligible": 0,
+  "bytes": 0
+}

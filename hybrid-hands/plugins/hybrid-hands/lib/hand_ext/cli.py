@@ -18,6 +18,8 @@ from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
 from .native import native_selection
+from .disk_guard import DiskGuardBlocked, EXIT_DISK_GUARD
+from .isolation import IsolationError
 from .constants import (
     ALL_BACKENDS, AUTO_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_OK, EXIT_USAGE, GO_LIVE_MISSING, ISOLATIONS,
     SANDBOXES,
@@ -90,11 +92,16 @@ def _parser() -> argparse.ArgumentParser:
             command.add_argument("--root-os-start")
         if action == "followup":
             command.add_argument("--brief", required=True, help="fresh self-contained brief file")
+    gc = sub.add_parser("gc", help="dọn worktree hand đã kết thúc (mặc định dry-run)")
+    gc.add_argument("--cwd")
+    gc.add_argument("--json", action="store_true")
+    gc.add_argument("--apply", action="store_true")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
     pick.add_argument("--backend")
     pick.add_argument("--cwd")
     r = sub.add_parser("run", help="chạy một brief")
+    r.add_argument("--ignore-disk-guard", action="store_true")
     r.add_argument("--brief", required=True, help="file brief hoặc - cho stdin")
     r.add_argument("--backend", default=AUTO_BACKEND)
     r.add_argument("--mode", choices=("shell", "auto", "paseo-required"))
@@ -410,10 +417,24 @@ def main(argv: Optional[List[str]] = None) -> int:
             payload = {"effective": result.effective, "sources": result.sources, "paths": result.paths}
             print(json.dumps(payload, ensure_ascii=False, indent=2))
             return EXIT_OK
-        return COMMANDS[args.cmd](_cfg(args), args)
+        cfg = _cfg(args)
+        if args.cmd == "gc":
+            from .gc import command
+            return command(cfg, args)
+        if args.cmd == "run":
+            from .disk_guard import check_disk
+            from .isolation import resolve_choice
+            cfg = replace(cfg, ignore_disk_guard=args.ignore_disk_guard)
+            choice = resolve_choice(cfg, Path(args.cwd or cfg.root), args.isolation)
+            if choice.mode == "worktree":
+                check_disk(cfg.worktree_root, cfg.disk_guard, ignore=cfg.ignore_disk_guard)
+        return COMMANDS[args.cmd](cfg, args)
+    except DiskGuardBlocked as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_DISK_GUARD
     except BackendUnavailable as exc:
         print(f"hand-ext: {exc}", file=sys.stderr)
         return EXIT_USAGE
-    except (OSError, ValueError, GlobalConfigError) as exc:
+    except (OSError, ValueError, GlobalConfigError, IsolationError) as exc:
         print(f"hand-ext: {exc}", file=sys.stderr)
         return EXIT_USAGE

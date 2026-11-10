@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.50.0 — 2026-11-10
+
+- Thêm `side-session gc`: dry-run phân lớp A–E, apply có khoá và kiểm tra lại, giữ nhánh mặc định, nhật ký khôi phục; auto GC lớp A khi start mặc định `merged`, có thể tắt bằng `off`.
+- Thêm `hand-ext gc` cho worktree đã kết thúc có ownership/completion metadata hợp lệ; giữ dirty/unknown. Disk guard chung cảnh báo dưới 20 GiB, chặn dưới 5 GiB (exit 9), override tường minh `--ignore-disk-guard`.
+- Sparse P4 bị chặn bởi S0 FAIL ở baseline `isolation.prepare`; `worktree_sparse_exclude`/`--no-sparse` chưa được phát hành. Release chỉ gồm P1–P3/P5; không khẳng định GC apply thật, cài đặt hay merge đã hoàn tất.
+
 ## 0.49.0 — 2026-11-10
 
 - Thêm `hand-ext accounts status/sync`: mặc định chỉ đọc/dry-run, nguồn Claude v1; apply cần manifest và approval cụ thể. Tạo import CLAUDE.md và symlink từng asset được duyệt khi thiếu; conflict không overwrite.

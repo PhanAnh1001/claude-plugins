@@ -2,15 +2,15 @@
 
 ## Tóm tắt
 
-- **Thực hiện [spec](spec.md)** qua 1 spike (S0) và 6 gói cỡ L1, phát hành **một bản minor**: lấy số minor kế tiếp lúc gộp (main hiện ở 0.48.0).
+- **Thực hiện [spec](spec.md)** qua 1 spike (S0) và 6 gói cỡ L1, phát hành **một bản minor**: dự kiến 0.50.0 sau account sync 0.49.0 (merge c210946); Sol re-fetch và điều chỉnh nếu main đổi.
 - **Thứ tự:**
   - P1 → P2 → P3 phải tuần tự vì cùng sửa `lib/side_session/`.
   - S0 → P4 tuần tự.
   - P5 (`hand-ext gc`) chạy song song với P1–P4 vì khác thư mục.
   - P6 làm cuối: tài liệu, phát hành và kiểm chứng thật.
 - **Ước lượng tổng:** khoảng 9–11 giờ việc của AI cộng 30 phút người dùng duyệt (spec, plan và lần `--apply` thật).
-- **Trạng thái:** chờ người dùng duyệt spec và plan, chưa code.
-- **Điều kiện bắt đầu:** người dùng chốt mặc định `worktree_gc.auto` và pattern sparse cho `live-tiktok-games` (spec mục 3.1, 3.2).
+- **Trạng thái:** spec/plan đã được người dùng duyệt ngày 10/11/2026. S0 đã thực hiện, FAIL ở baseline của helper hand-ext; Sol đã chạy lại/review FAIL, chặn P4, chưa tick S0/P4. Xem [bằng chứng](spike-s0.md).
+- **Quyết định đã duyệt:** `worktree_gc.auto = "merged"`; sparse mặc định `[]`; hai pattern `docs/work-in-progress/handoffs/*-data/` và `docs/work-in-progress/handoffs/*-shots/`. Config repo thật do Opus làm sau khi S0 đạt (hiện chưa đạt), ngoài phạm vi hand; không thử sparse trên repo thật. P6 GC thật chỉ dry-run, không apply thật.
 
 ## Gói việc
 
@@ -20,19 +20,19 @@
 | P1 | Phân lớp A–E, ghi `base` vào state, lệnh `side-session gc` dry-run (bảng và `--json`) | `lib/side_session/gc.py` (mới), `state.py`, `cli.py`, `actions.py`, test mới | — |
 | P2 | `--apply`: khoá repo, kiểm tra lại trước khi xoá, `git worktree remove` không force, `--include-unmerged`, `--prune-branches`, nhật ký `worktree-gc.jsonl`, `worktree prune` | `lib/side_session/gc.py`, test | P1 |
 | P3 | Tự dọn lớp A khi `start` (`worktree_gc.auto`), helper disk guard, chặn và cảnh báo ở `side-session start` | `lib/side_session/actions.py`, `paseo.py`, `config.py`, `constants.py`, helper disk | P2 |
-| P4 | `worktree_sparse_exclude` và `--no-sparse` khi tạo worktree | `lib/side_session/commands.py`, `paseo.py`, `config.py`, `cli.py` | S0, P3 (cùng file `paseo.py`, `config.py`) |
+| P4 | **BLOCKED: S0 FAIL**, chưa phát hành `worktree_sparse_exclude` và `--no-sparse` khi tạo worktree | `lib/side_session/commands.py`, `paseo.py`, `config.py`, `cli.py` | S0, P3 (cùng file `paseo.py`, `config.py`) |
 | P5 | `hand-ext gc` (dry-run và `--apply`), disk guard ở `hand-ext run` | `lib/hand_ext/` (file gc mới, `cli.py`, `isolation.py`), test | — (dùng helper disk của P3: P5 viết trước nếu xong sớm, P3 dùng lại) |
-| P6 | README, skill `side-session` và `ext-hand`, CHANGELOG, version; cài v1 và v2; dry-run thật trên `live-tiktok-games`; `--apply` sau khi người dùng duyệt; phiên thử có sparse | tài liệu, `plugin.json` | P1–P5 |
+| P6 | README, skill `side-session` và `ext-hand`, CHANGELOG, version; cài v1 và v2; dry-run thật trên `live-tiktok-games`; không apply GC thật, không thử sparse trên repo thật | tài liệu, `plugin.json` | P1–P3/P5; P4 blocked |
 
 ## Việc cần làm
 
 - [ ] S0 spike sparse trong worktree — covers: spec 3.2 — estimate: 1 h
-- [ ] P1 phân lớp A–E, `base` trong state, `side-session gc` dry-run, test fixture repo tạm năm lớp (gồm ca squash/cherry-pick) — covers: spec 2.1, 5.1 ca 1 — estimate: 2 h
-- [ ] P2 `--apply` an toàn (khoá, kiểm tra lại, không force, giữ nhánh, nhật ký, cờ `--include-unmerged` và `--prune-branches`) — covers: spec 2.2, 2.3, 5.1 ca 2 — estimate: 2 h
-- [ ] P3 tự dọn khi start và disk guard của side-session — covers: spec 3.1, 3.3, 5.1 ca 3 (disk) — estimate: 1,5 h
+- [x] P1 phân lớp A–E, `base` trong state, `side-session gc` dry-run, test fixture repo tạm năm lớp (gồm ca squash/cherry-pick) — covers: spec 2.1, 5.1 ca 1 — estimate: 2 h
+- [x] P2 `--apply` an toàn (khoá, kiểm tra lại, không force, giữ nhánh, nhật ký, cờ `--include-unmerged` và `--prune-branches`) — covers: spec 2.2, 2.3, 5.1 ca 2 — estimate: 2 h
+- [x] P3 tự dọn khi start và disk guard của side-session — covers: spec 3.1, 3.3, 5.1 ca 3 (disk) — estimate: 1,5 h
 - [ ] P4 sparse exclude và `--no-sparse` — covers: spec 3.2, 5.1 ca 3 (sparse) — estimate: 1,5 h
-- [ ] P5 `hand-ext gc` và disk guard ở `hand-ext run` — covers: spec 3.3, 4, 5.1 ca 3 (hand-ext) — estimate: 1,5 h
-- [ ] P6 tài liệu, phát hành, cài, kiểm chứng thật (dry-run, `--apply` có duyệt, phiên thử sparse), ghi số đo vào plan — covers: spec 5.2, 5.3 — estimate: 1 h AI + 30 phút người dùng
+- [x] P5 `hand-ext gc` và disk guard ở `hand-ext run` — covers: spec 3.3, 4, 5.1 ca 3 (hand-ext) — estimate: 1,5 h
+- [ ] P6 tài liệu, phát hành, cài, kiểm chứng GC thật chỉ dry-run (không apply thật, không thử sparse trên repo thật), ghi số đo vào plan — covers: spec 5.2, 5.3 — estimate: 1 h AI + 30 phút người dùng
 
 ## Kiểm chứng mỗi gói
 
@@ -40,3 +40,28 @@
 - **Cuối P6:** test đầy đủ `env -u CODEX_SANDBOX python3 -m unittest discover -s hybrid-hands/tests -q`, chạy đúng một lần.
 - **Review:** brain review diff từng gói. Riêng P2 và P5 (hai chỗ xoá dữ liệu) phải đọc kỹ đường dẫn, cờ git và chỗ kiểm tra lại trước khi xoá.
 - **Tick:** chỉ tick sau khi test hẹp xanh và brain đã review. Ghi số đo thật của P6 ngay dưới dòng tick.
+
+### Review thực hiện
+
+- P1: Sol review diff đạt; `env -u CODEX_SANDBOX python3 -m unittest discover -s hybrid-hands/tests -p 'test_side_session_gc.py' -q`: 3 tests OK (Sol chạy lại 10/11/2026).
+- S0: Sol chạy lại `python3 docs/work-in-progress/don-worktree/spike_s0.py`: exit 1, CASE1/2 PASS, CASE3 baseline FAIL; P4 dừng theo brief, không tick xanh.
+
+- P2: Sol review đường dẫn/common-dir/inode/HEAD, flock repo, recheck, remove không force và journal đạt; test hẹp `test_side_session_gc.py`: 3 tests OK (Sol chạy lại). Apply chỉ fixture giả, không repo thật.
+
+- P1 mở lại review: dry-run metadata thật phát hiện macOS screen -ls trả 1 cùng danh sách socket hợp lệ; current parser giữ nhầm terminal screen ở D. Đã giao Codex sửa cùng backend lượt 1, chưa tick lại. Đo ban đầu chỉ chẩn đoán, chưa dùng làm bảng duyệt xoá cuối.
+
+- P1 rework screen (cùng backend Codex lượt 1): Sol review parser snapshot đầy đủ với return0/1, alive exact và unknown fail-closed đạt; test hẹp `test_side_session_gc.py`: 3 tests OK. Đã tick lại P1 sau rework.
+
+- P5: Sol review ownership/common-dir/registry, lock + fresh recheck, remove không force, journal, read-only Git/index và latest epoch đạt. `test_hand_ext_gc.py`: 1 test OK; `test_disk_guard.py`: 2 tests OK (Sol chạy lại). Chỉ apply fixture giả. Test budget tính cả gói P5, không theo delta từng rework.
+
+- P3: Sol review central start gate trước tạo handoff/state/worktree, auto chỉ A và gc lỗi không bỏ disk check đạt. `test_side_session_gc_start.py`: 3 tests OK (Sol chạy lại); không auto-GC trong dry-run/resume/non-worktree.
+
+### P6 — xong một phần
+
+Đã cập nhật tài liệu và manifest/changelog dự kiến 0.50.0 cho P1–P3/P5; P4 chưa phát hành do S0 FAIL đã review. Không tick P6: Sol còn chạy full suite đúng một lần, review tài liệu, re-fetch trước merge, cài/kiểm đường dẫn phiên bản và GC thật dry-run cuối. Không apply GC thật hoặc thử sparse trên repo thật; số đo apply chờ duyệt, Sol tự ghi bằng chứng thực tế. JSON sparse tương lai chỉ bàn giao để Sol/Opus cân nhắc sau khi S0 đạt, không ghi config hiện tại.
+
+- P5 mở lại review cuối: cần giữ candidate chứa registry run_dir (artifacts) hoặc machine_state_dir (registry/journal), đã giao lại Claude-v2 lượt 1; chưa tick lại.
+
+- P5 rework artifacts: Sol review containment paths của run_dir và machine_state_dir đạt; `test_hand_ext_gc.py`: 1 test OK (Sol chạy lại). Wrapper followup có report/patch áp thành công nhưng lifecycle unresolved, recover chính thức exit 1 StateConflict; giữ state/reservation để Opus xử lý, không sửa module ngoài phạm vi.
+
+- Full suite cuối đã chạy đúng một lần: `env -u CODEX_SANDBOX python3 -m unittest discover -s hybrid-hands/tests -q` — 575 tests/94.874s, exit 1, failures=2/errors=3. Hai errors mới do auto-GC không nuốt TypeError/AttributeError đã được Sol sửa hẹp thành cảnh báo (ngoại lệ tool lỗi: managed recover exit 1 StateConflict), giữ disk guard độc lập; test mới `test_side_session_gc_start.py` chạy lại 3 OK. Không chạy lại full suite. Ba lỗi ngoài phạm vi: test_account_sync import pytest thiếu; hai assert policy cũ. Hai implementation policy và test của chúng trùng byte với origin/main c210946, không sửa. Không claim full suite xanh.
