@@ -45,7 +45,7 @@ class ParallelCommandTest(unittest.TestCase):
             with patch('builtins.input', return_value='2'):
                 self.assertEqual(self.run_cli('on')[0], 0)
         data = json.loads(self.config.read_text())
-        self.assertEqual((data['parallel_subagents']['backend'], data['main_session']['claude_account']), ('claude-v2', 'v2'))
+        self.assertEqual((data['parallel_subagents']['backend'], data['parallel_subagents']['account']), ('claude-v2', 'v2'))
     def test_off_creates_and_is_idempotent(self):
         self.assertIn('nguồn: default', self.run_cli()[1])
         with contextlib.redirect_stdout(io.StringIO()):
@@ -73,7 +73,8 @@ class ParallelCommandTest(unittest.TestCase):
         code, out, _ = self.run_cli('on', '--account', 'v2', '--json')
         status = json.loads(out)
         self.assertEqual((code, status['backend'], status['brain_account'], status['account_mismatch']), (0, 'claude-v2', 'v2', False))
-        self.assertEqual(json.loads(self.config.read_text())['main_session'], {'claude_account': 'v2'})
+        self.assertEqual(json.loads(self.config.read_text()), {'parallel_subagents': {'enabled': True, 'backend': 'claude-v2', 'account': 'v2'}})
+        self.assertEqual([r['backend'] for r in json.loads(self.run_cli('accounts', '--json')[1]) if r['selected']], ['claude-v2'])
         before = self.config.read_bytes()
         for args in (('--account', 'v9'), ('--account', 'v2', '--backend', 'claude-v1')):
             self.assertEqual(self.run_cli('on', *args)[0], 2)

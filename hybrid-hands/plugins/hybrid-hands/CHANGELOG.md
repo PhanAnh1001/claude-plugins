@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.48.0 — 2026-11-10
+
+- Tách config mode parallel-subagents vào `parallel_subagents.{enabled,backend,account}`: `--account vN` ghi account riêng của mode và backend `claude-vN`; `--backend codex` giữ account. Danh sách tài khoản và policy dùng account của mode, thiếu thì suy từ backend, không đọc `main_session.claude_account`.
+- `hand-ext models` xem/set/options không đọc hay cảnh báo về parallel-subagents; giữ nguyên khóa brain cũ, không tự migrate hoặc xoá. Cập nhật README, luật repo và slash command theo hợp đồng tách config.
+
 ## 0.47.0 — 2026-11-10
 
 - `/hybrid-hands:models set` chuyển thành wizard tích tầng → provider → account → model → effort + chế độ Hand, tối đa năm lần AskUserQuestion nối tiếp; chỉ ba ô Brain chính/Phiên phụ/Hand, giữ lựa chọn để sửa nhiều tầng trong cùng lần, ghi atomic bằng đúng một lệnh.

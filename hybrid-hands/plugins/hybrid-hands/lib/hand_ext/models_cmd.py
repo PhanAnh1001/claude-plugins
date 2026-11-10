@@ -147,9 +147,6 @@ def _status(result) -> dict:
         rows[name] = row
     output["hand"] = {"order": _leaf(result, "ext_hand.order"), "backends": rows}
     output["warnings"] = ["Model hand cũng áp dụng cho native subagent dùng cùng backend."]
-    backend = result.effective["parallel_subagents"]["backend"]
-    if backend.startswith("claude-") and backend[7:] != result.effective["main_session"]["claude_account"]:
-        output["warnings"].append("Backend subagent khác tài khoản brain; native cần cùng tài khoản.")
     return output
 
 

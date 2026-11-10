@@ -17,7 +17,7 @@ def fixture(tmp_path, monkeypatch):
     repo.mkdir()
     path = repo / ".claude/hybrid-hands.json"
     path.parent.mkdir()
-    path.write_text(json.dumps({"side_session": {"codex_effort": "xhigh"},
+    path.write_text(json.dumps({"parallel_subagents": {"backend": "claude-v2"}, "side_session": {"codex_effort": "xhigh"},
         "ext_hand": {"backends": {"codex": {"home": "fake-home"}},
                      "claude_accounts": {"v1": {"config_dir": "fake-dir", "max_day_pct": 5}}}}))
     return repo, path
@@ -31,6 +31,7 @@ def test_view(tmp_path, monkeypatch, capsys):
     assert data["brain"]["codex_effort"]["source"] == "global"
     assert data["side"]["codex_effort"]["source"] == "repo"
     assert data["brain"]["provider"]["source"] == "plugin"
+    assert data["warnings"] == ["Model hand cũng áp dụng cho native subagent dùng cùng backend."]
     assert data["hand"]["backends"]["claude-v1"]["effort"]["source"] == "global"
     assert "fake-home" not in json.dumps(data) and path.read_bytes() == original
     assert main(["models", "options", "--cwd", str(repo), "--json"]) == 0

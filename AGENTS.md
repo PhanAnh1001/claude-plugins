@@ -1,5 +1,7 @@
 # Hướng dẫn sống cho repo claude-plugins
 
+Tóm tắt: làm đúng phạm vi brief, giữ luật dữ liệu và kiểm chứng thay đổi trước khi bàn giao.
+
 ## Phạm vi và vai trò
 
 **Phiên chính:** mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… bằng `side-session start --main --provider claude --account v2` hoặc Sol high qua `side-session start --main`. Sol chính kiêm vai Opus + lead tech, L2/L3 người dùng duyệt. Phiên phụ mặc định Sol high, chọn Claude bằng `--provider claude --account v1|v2|v…`. Đổi model/account mở phiên mới từ bàn giao, không `/model` giữa phiên. Luật delegate và dữ liệu giữ nguyên.
@@ -34,8 +36,8 @@ Sau mỗi lần sửa plugin, Opus/Sol phải validate, chạy test hẹp phù h
 
 Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi bằng `HYBRID_HANDS_CONFIG`) → repo → cờ CLI. Dict merge sâu; list/scalar thay nguyên.
 `hand-ext config --json` in cấu hình hiệu lực và nguồn từng key; global hỏng báo lỗi kèm đường dẫn.
-`hand-ext models` xem/set/unset model ba tầng brain/side/hand theo repo; tầng hand gồm chế độ native/terminal (`ext_hand.native.*`), ghi cùng file với `parallel-subagents`; chỉ set/unset khi người dùng chốt thay đổi cụ thể, mở phiên mới để áp dụng.
-`parallel_subagents.enabled=false` mặc định; chỉ bool thật hợp lệ, sai kiểu về false kèm warning. True chỉ hiệu lực từ repo (giữ provenance và fallback worktree); global true bị bỏ qua kèm warning. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`, trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. Dùng `hand-ext parallel-subagents` để xem trạng thái; chỉ dùng `hand-ext parallel-subagents on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật; mở phiên mới để hook nạp luật.
+`hand-ext models` xem/set/unset model ba tầng brain/side/hand theo repo; tầng hand gồm chế độ native/terminal (`ext_hand.native.*`), ghi cùng file nhưng không lẫn config parallel-subagents; chỉ set/unset khi người dùng chốt thay đổi cụ thể, mở phiên mới để áp dụng.
+`parallel_subagents.enabled=false` mặc định; mode dùng riêng `parallel_subagents.{backend,account}`, không đọc `main_session.claude_account`; chỉ bool thật hợp lệ, sai kiểu về false kèm warning. True chỉ hiệu lực từ repo (giữ provenance và fallback worktree); global true bị bỏ qua kèm warning. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`, trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. Dùng `hand-ext parallel-subagents` để xem trạng thái; chỉ dùng `hand-ext parallel-subagents on|off` sau khi người dùng chốt cho repo đó, brain/hand không tự bật; mở phiên mới để hook nạp luật.
 `ext_hand.native.{claude,codex}=auto|off`; `pick --json` trả `native`/`native_reason`, caller vẫn kiểm capability. Claude chính/phụ mặc định transport Paseo; có thể chọn `screen` qua cấu hình.
 
 ## Luật dữ liệu chung (chép nguyên văn vào brief hand ngoài)

@@ -187,9 +187,9 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 
 Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi đường dẫn bằng `HYBRID_HANDS_CONFIG`) → repo `.claude/hybrid-hands.json` → cờ CLI. Dict merge sâu; list/scalar thay nguyên. Global thiếu thì bỏ qua; global hỏng báo lỗi kèm đường dẫn và dừng. `hand-ext config --json` in cấu hình hiệu lực, nguồn từng key và đường dẫn file đã đọc. `ext_hand.claude_accounts` và `ext_hand.backends.*` đặt được ở global. Dưới Paseo, biến `HYBRID_HANDS_CONFIG` phải có trong môi trường daemon mới có tác dụng.
 
-### Model ba tầng theo repo — 0.47.0
+### Model ba tầng theo repo — 0.48.0
 
-`hand-ext models` xem model/effort/account và nguồn cấu hình của brain, phiên phụ và hand. Chỉ dùng `set`/`unset` khi người dùng chốt thay đổi cụ thể; ghi atomic vào cùng file repo đã resolve như `parallel-subagents`, kể cả fallback main worktree, không tạo config riêng cho worktree.
+`hand-ext models` xem model/effort/account và nguồn cấu hình của brain, phiên phụ và hand qua `main_session.*`, `side_session.*`, `ext_hand.order/backends/native`. Config này tách biệt với mode parallel-subagents: các lệnh xem/set/options không đọc `parallel_subagents.*` và không in cảnh báo về mode đó. Chỉ dùng `set`/`unset` khi người dùng chốt thay đổi cụ thể; ghi atomic vào cùng file repo đã resolve như `parallel-subagents`, kể cả fallback main worktree, không tạo config riêng cho worktree.
 
 ```sh
 hand-ext models --json
@@ -206,6 +206,8 @@ Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN
 
 ### Mode parallel-subagents
 
+Mode dùng riêng `parallel_subagents.{enabled,backend,account}`, tách biệt với config model ba tầng dù ghi cùng file repo.
+
 `parallel_subagents.enabled` mặc định `false`, chỉ chấp nhận bool JSON thật (`true`/`false`); sai kiểu về `false` và warning stderr. `true` chỉ hiệu lực khi provenance là repo `.claude/hybrid-hands.json` (kể cả fallback config main worktree); global `true` bị bỏ qua kèm warning, consumer chỉ thấy `false`. `hand-ext config --json` giữ nguồn và đường dẫn config. Hook gặp config lỗi sẽ warning không hiện giá trị, dùng policy thường và exit 0; CLI giữ cách báo lỗi cấu hình hiện có.
 
 Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`; trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. `parallel` là alias cũ tương thích. Dùng lệnh thay vì sửa JSON thủ công:
@@ -219,7 +221,7 @@ hand-ext parallel-subagents off --cwd /duong/dan/repo
 
 Lệnh on/off giữ các key khác, ghi bool vào config repo và in đường dẫn đã ghi. Trong linked worktree chưa có config riêng, nếu loader dùng config main checkout thì lệnh ghi đúng file fallback đó (ảnh hưởng các worktree dùng chung file). Chưa có file thì tạo `.claude/hybrid-hands.json` tại repo hiện tại. JSON lỗi hoặc section không phải object bị từ chối, giữ nguyên file. Luôn **mở phiên mới để hook nạp luật**; luật đã nạp trong phiên cũ vẫn còn hiệu lực.
 
-`parallel_subagents.backend` mặc định `"claude-v1"`, nhận string từ global hoặc repo; alias `claude-main`/`claude` thành `claude-v1`/`claude-v2`. Sai kiểu hoặc backend không tồn tại trong cấu hình hiệu lực thì warning không hiện giá trị và dùng `claude-v1`; `hand-ext config --json` giữ nguồn key. Dùng `hand-ext parallel-subagents on --backend claude-v2` (slash command cũng nhận `--backend`); backend sai exit 2, không ghi. Status text/JSON hiện backend, model, effort và nguồn backend; model/effort lấy từ `ext_hand` hiện có. `hand-ext parallel-subagents on --account v2` ghi cùng lúc backend `claude-v2` và `main_session.claude_account = "v2"` để brain (`side-session start --main --provider claude`) và subagent native cùng tài khoản; status hiện `brain_account` và cảnh báo `account_mismatch` khi lệch.
+`parallel_subagents.backend` mặc định `"claude-v1"`, nhận string từ global hoặc repo; alias `claude-main`/`claude` thành `claude-v1`/`claude-v2`. Sai kiểu hoặc backend không tồn tại trong cấu hình hiệu lực thì warning không hiện giá trị và dùng `claude-v1`; `hand-ext config --json` giữ nguồn key. Dùng `hand-ext parallel-subagents on --backend claude-v2` (slash command cũng nhận `--backend`); backend sai exit 2, không ghi. Status text/JSON hiện backend, model, effort và nguồn backend; model/effort lấy từ `ext_hand` hiện có. `hand-ext parallel-subagents on --account v2` ghi cùng lúc `parallel_subagents.account = "v2"` và backend `claude-v2`; `--backend codex` chỉ ghi backend, giữ nguyên account. `accounts --json` chọn `selected` theo account của mode (hoặc backend khi provider là GPT). Status và hook gọi tài khoản này là “tài khoản brain” của mode; policy lấy `parallel_subagents.account`, thiếu thì suy từ backend `claude-vN`, không đọc `main_session.claude_account` và không cảnh báo lệch khi account khớp backend. Repo cũ thiếu account tiếp tục suy từ backend; giữ nguyên `main_session.claude_account` cũ cho tầng brain của models, không tự migrate hay xoá khóa.
 
 Mode bật giao subagent theo backend đã chọn, tối đa `ext_hand.max_parallel` thực (1..4); cùng file/phụ thuộc tuần tự, brain review code hand mình giao. Trước mỗi lượt giao chạy `hand-ext pick --json --backend NAME`: chỉ preflight backend đó, giữ guard v1 ≥5%/ngày và không fallback theo order. `native: true` dùng Agent `hybrid-hands:hand` cho Claude hoặc native Codex theo ngoại lệ A, đúng account/capability; còn lại dùng `hand-ext run --backend NAME` cho gói việc. Guard chặn hoặc exit 7 thì không spawn, ghi yêu cầu để brain quyết, không tự đổi backend/config.
 

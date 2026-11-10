@@ -6,6 +6,7 @@ import json
 import io
 from functools import lru_cache
 import os
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,6 +100,10 @@ def _object_section(prefix: str) -> bool:
 
 def _validate(value: Any, path: Path, prefix: str = "") -> None:
     """Check object shape and the main Claude compact window in each source."""
+    if prefix == "parallel_subagents.account":
+        if not isinstance(value, str) or not re.fullmatch(r"v[1-9][0-9]*", value):
+            raise ValueError(f"{path}: parallel_subagents.account phải là vN")
+        return
     if prefix == MAIN_CLAUDE_AUTO_COMPACT_KEY:
         normalize_claude_auto_compact_window(value)
         return
