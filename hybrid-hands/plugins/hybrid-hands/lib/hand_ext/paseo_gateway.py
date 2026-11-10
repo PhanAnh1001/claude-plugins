@@ -65,7 +65,8 @@ class Gateway:
         cwd = params.get('cwd')
         if not isinstance(cwd, str) or Path(cwd).resolve() != Path(record.invocation.isolated_cwd).resolve():
             raise ProtocolError(-32602, 'cwd binding mismatch')
-        if params.get('mcpServers') != []:
+        # Paseo injectIntoAgents always sends its MCP list; hands have no MCP, so any list is ignored unused.
+        if not isinstance(params.get('mcpServers', []), list):
             raise ProtocolError(-32602, 'MCP servers unsupported')
 
     def handle(self, method, params):
