@@ -20,22 +20,26 @@ In kết quả, không hỏi và không ghi cấu hình.
 
 Khi `$ARGUMENTS` là đúng `set`, không có cờ hay đối số khác:
 
-1. Chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models options --json` để lấy danh sách chỉ đọc. Dùng đúng dữ liệu JSON trả về, không tự đặt model/account hay đọc file tài khoản.
-2. Gọi AskUserQuestion **đúng một lần**, gồm đủ 4 câu dưới đây trên cùng màn hình. Mọi câu đều `multiSelect: false`, tối đa 4 lựa chọn theo thứ tự nêu dưới đây; mục dư nhập qua “Other” do công cụ cung cấp, không thêm “Other” thành một lựa chọn riêng.
-   - **Tầng** — header `Tầng`, hỏi “Cấu hình tầng nào?”: ba mục `tiers`, label = `label`, description = `current`; giữ `value` để xác định tầng.
-   - **Model** — header `Model`, hỏi “Chọn model nào? DeepSeek chỉ dùng cho tầng Hand, nhập qua Other.”: lấy `providers.claude.models` rồi `providers.codex.models`; label = model, description = provider. Thêm hậu tố `(brain: đang dùng)` và/hoặc `(side: đang dùng)` nếu khớp cả provider và model trong `profiles.brain` / `profiles.side`. Model `providers.dsh.models` chỉ cho tầng Hand và nhập qua “Other”.
-   - **Effort** — header `Effort`, hỏi “Chọn effort nào? DeepSeek off nhập qua Other.”: bốn lựa chọn `low`, `medium`, `high`, `max`; description tương ứng “Mức low”, “Mức medium”, “Mức high”, “GPT: xhigh”. CLI chuẩn hoá Codex `max` thành `xhigh`; không tự alias effort khác.
-   - **Account** — header `Account`, hỏi “Chọn tài khoản nào?”: lấy `accounts`, label = `label`, thêm hậu tố `(đang dùng)` cho mục `selected: true`; description ghi “chỉ áp cho Claude; GPT/DeepSeek bỏ qua; với Hand chọn backend claude-vN”. Giữ `slot` của mục chọn, không suy slot từ label.
-3. Map nhãn về giá trị gốc qua ánh xạ đã giữ, bỏ hậu tố đánh dấu. Với “Other”, tầng/model/account phải xác định được trong danh sách JSON; model DeepSeek chỉ hợp lệ ở tầng Hand. Effort phải thuộc `providers.<provider>.efforts` của model đã chọn, hoặc là `max` cho Codex (CLI chuẩn hoá thành `xhigh`); DeepSeek `off` nhập qua “Other”. Không tự chọn thay người dùng. Hủy, thiếu câu trả lời hoặc không xác định được lựa chọn thì dừng, không ghi và không mở câu hỏi bổ sung.
-4. Chạy đúng **một lệnh** ghi với các giá trị đã chọn, quote từng đối số bằng shell quoting an toàn (kể cả giá trị nhập qua “Other”):
+1. Chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models options --json` để lấy dữ liệu chỉ đọc. Dùng đúng JSON trả về, không tự đặt model/account hay đọc file tài khoản. Lệnh lỗi thì báo rồi dừng.
+2. Gọi AskUserQuestion **đúng một lần**, gồm đủ 4 câu dưới đây trên cùng màn hình. Mọi câu đều `multiSelect: false`; options lấy nguyên các mục trong nhóm `presets` tương ứng theo đúng thứ tự, label = `label`, description = `description`, không tự thêm/bớt mục. Mỗi nhóm tối đa 4 mục, mục đầu là “Giữ nguyên”; “Other” do công cụ cung cấp, không thêm thành lựa chọn riêng. Giữ ánh xạ lựa chọn về `args` của preset.
+   - **Brain chính** — header `Brain`, options = `presets.brain`. Hỏi: “Chọn cho từng tab; tab để Giữ nguyên thì không đổi. Brain chính dùng cấu hình nào? Other: nhập model:effort[@vN], ví dụ claude-haiku-5-5:low@v1; GPT max = xhigh.”
+   - **Phiên phụ** — header `Phiên phụ`, options = `presets.side`. Hỏi: “Phiên phụ dùng cấu hình nào? Other: nhập model:effort[@vN], ví dụ claude-haiku-5-5:low@v1; GPT max = xhigh.”
+   - **Hand Claude** — header `Hand Claude`, options = `presets.hand_claude`. Hỏi: “Hand Claude dùng cấu hình nào? Other: nhập claude-vN=model:effort; nhiều mục cách nhau bằng dấu phẩy.”
+   - **Hand GPT/DeepSeek** — header `Hand GPT`, options = `presets.hand_other`. Hỏi: “Hand GPT/DeepSeek dùng cấu hình nào? Other: nhập codex=model:effort hoặc dsh=model:effort; nhiều mục cách nhau bằng dấu phẩy.”
+3. Gom đối số của cả 4 câu theo thứ tự trên thành một danh sách:
+   - Chọn preset: nối nguyên `args` của preset đó; “Giữ nguyên” có `args` rỗng.
+   - Other ở Brain: thêm `--brain` và nguyên text nhập; ở Phiên phụ: thêm `--side` và nguyên text nhập.
+   - Other ở hai nhóm Hand: tách text theo dấu phẩy, trim khoảng trắng ở mỗi mục; với từng mục thêm `--hand` và mục đó. Ngoài thao tác tách/trim này, không tự sửa text người dùng nhập; để CLI validate.
+   - Hủy, thiếu câu trả lời hoặc không xác định được lựa chọn thì dừng, không ghi và không hỏi bổ sung.
+4. Nếu danh sách args rỗng (tất cả “Giữ nguyên”), báo “Không đổi cấu hình” và không chạy lệnh ghi. Ngược lại chạy **đúng một lệnh**, quote từng đối số bằng shell quoting an toàn, kể cả text nhập qua Other:
 
 ```sh
-"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models set --tier '<tier>' --model '<model>' --effort '<effort>' --account '<slot>'
+"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" models set <args...>
 ```
 
-Luôn truyền `--account`: CLI tự bỏ qua với GPT/DeepSeek và in cảnh báo “account chỉ áp cho Claude, đã bỏ qua”. Với Hand Claude, slot chọn backend `claude-vN`; GPT chọn backend `codex`, DeepSeek chọn `dsh`. Không tự thêm cờ hoặc đổi hand-order.
+`<args...>` là danh sách đã gom, không phải chuỗi shell để thực thi trực tiếp. Không tự thêm cờ hoặc đổi hand-order. Các lựa chọn trên màn hình là xác nhận để ghi: không dry-run, không hỏi lại; mọi thay đổi được ghi atomic một lần.
 
-Lựa chọn trên màn hình là xác nhận để ghi: không chạy thêm dry-run, không hỏi xác nhận thêm. In kết quả; ghi thành công nhắc “mở phiên mới để áp dụng”. Lỗi thì báo rồi dừng, không tự sửa config hay chạy lại.
+5. In kết quả; ghi thành công nhắc “mở phiên mới để áp dụng”. Lỗi thì báo rồi dừng, không tự sửa config hay chạy lại.
 
 ## 3. Các đối số khác: chuyển nguyên cho CLI
 

@@ -41,7 +41,55 @@ def build_options(result, status: dict) -> dict:
                      account=row.get("account"), in_order=name in order)
                 for name, row in status["hand"]["backends"].items() if row["supported"]]
     return dict(tiers=tiers, providers=providers, profiles=profiles,
-                accounts=accounts, hand_backends=backends)
+                accounts=accounts, hand_backends=backends,
+                presets=_presets(profiles, backends, providers))
+
+
+PROFILE_PRESETS = (
+    ("claude", "claude-opus-5-5", "high"),
+    ("claude", "claude-sonnet-5-5", "high"),
+    ("codex", "gpt-6.1-sol", "high"),
+    ("claude", "claude-opus-5-5", "max"),
+    ("codex", "gpt-6.1-sol", "xhigh"),
+)
+MAX_PRESETS = 4
+
+
+def _presets(profiles: dict, backends: list[dict], providers: dict) -> dict:
+    def entry(label: str, description: str, args: list[str]) -> dict:
+        return dict(label=label, description=description, args=args)
+
+    def available(provider: str, model: str, effort: str) -> bool:
+        return model in providers[provider]["models"] and effort in providers[provider]["efforts"]
+
+    groups = {}
+    for tier, current in profiles.items():
+        suffix = " @" + current["account"] if current["provider"] == "claude" else ""
+        rows = [entry("Giữ nguyên", f"{current['model']} {current['effort']}" + suffix, [])]
+        for provider, model, effort in PROFILE_PRESETS:
+            if not available(provider, model, effort):
+                continue
+            if (provider, model, effort) == (current["provider"], current["model"], current["effort"]):
+                continue
+            account = "@" + current["account"] if provider == "claude" else ""
+            rows.append(entry(f"{model} {effort}" + (" " + account if account else ""),
+                              provider, ["--" + tier, f"{model}:{effort}{account}"]))
+        groups[tier] = rows[:MAX_PRESETS]
+    for group, claude in (("hand_claude", True), ("hand_other", False)):
+        selected = [row for row in backends if (row["provider"] == "claude") == claude]
+        description = " · ".join(f"{row['value']} {row['model']} {row['effort']}" for row in selected)
+        rows = [entry("Giữ nguyên", description, [])]
+        for row in selected:
+            candidates = (("claude-sonnet-5-5", "low"), ("claude-haiku-5-5", "low")) if claude else (
+                (("gpt-6.1-sol", "medium"), ("gpt-6.1-sol", "high")) if row["provider"] == "codex"
+                else (("deepseek-v4.1-flash", "high"),))
+            for model, effort in candidates:
+                if (model, effort) == (row["model"], row["effort"]) or not available(row["provider"], model, effort):
+                    continue
+                rows.append(entry(f"{row['value']} → {model} {effort}", row["provider"],
+                                  ["--hand", f"{row['value']}={model}:{effort}"]))
+        groups[group] = rows[:MAX_PRESETS]
+    return groups
 
 
 def print_options(payload: dict) -> None:
@@ -53,3 +101,5 @@ def print_options(payload: dict) -> None:
         print(f"{'*' if row['selected'] else ' '} {row['slot']}: {row['label']}")
     for row in payload["hand_backends"]:
         print(f"{'*' if row['in_order'] else ' '} {row['value']}: {row['model']}:{row['effort']}")
+    for group, rows in payload["presets"].items():
+        print(f"{group} presets: " + " | ".join(row["label"] for row in rows))

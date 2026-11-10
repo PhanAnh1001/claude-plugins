@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.46.0 — 2026-11-10
+
+- `/hybrid-hands:models set` sửa nhiều tầng trên cùng màn hình bốn tab Brain chính, Phiên phụ, Hand Claude, Hand GPT/DeepSeek; dùng đúng một AskUserQuestion và gộp lựa chọn thành một lệnh ghi atomic. Tất cả “Giữ nguyên” thì không ghi; Other cho Hand nhận nhiều mục cách dấu phẩy.
+- `models options --json` thêm bốn nhóm `presets` với label, description và args; mục đầu giữ nguyên cấu hình hiện tại. `--brain`/`--side` nhận thêm `MODEL:EFFORT[@vN]` suy provider từ capability; alias Codex `max` → `xhigh` dùng cho cả cờ phẳng và `--brain`/`--side`/`--hand`.
+
 ## 0.45.0 — 2026-11-10
 
 - `/hybrid-hands:models set` dùng một màn hình AskUserQuestion với bốn câu Tầng, Model, Effort, Account rồi chạy đúng một lệnh ghi; lựa chọn là xác nhận, không thêm dry-run hay hỏi lại.
