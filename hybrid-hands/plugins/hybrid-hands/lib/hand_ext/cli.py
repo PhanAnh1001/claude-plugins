@@ -46,6 +46,10 @@ def _parser() -> argparse.ArgumentParser:
     inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
     inspect.add_argument("--json", action="store_true")
     inspect.add_argument("--cwd")
+    parallel = sub.add_parser("parallel", help="xem hoặc bật/tắt policy parallel của repo")
+    parallel.add_argument("action", nargs="?", choices=("on", "off"))
+    parallel.add_argument("--cwd")
+    parallel.add_argument("--json", action="store_true")
     provider = sub.add_parser("provider", help="cấu hình ACP provider bằng schema Paseo chính thức")
     provider_sub = provider.add_subparsers(dest="provider_cmd", required=True)
     provider_setup = provider_sub.add_parser("setup")
@@ -345,6 +349,9 @@ COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick, 
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.cmd == "parallel":
+            from .parallel_cmd import command
+            return command(args)
         if args.cmd == "config":
             result = load_shared(Path(args.cwd) if args.cwd else None)
             _cfg(args)
