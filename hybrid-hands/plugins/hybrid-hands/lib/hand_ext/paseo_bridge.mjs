@@ -103,6 +103,39 @@ async function activeWorkspace(client, r) {
   check(w?.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
   return w;
 }
+async function archivedAgent(client, agentId) {
+  let cursor;
+  const seen = new Set();
+  for (let page = 0; page < 20; page++) {
+    const result = await client.fetchAgents({filter:{includeArchived:true},
+      page:{limit:200, ...(cursor ? {cursor} : {})}});
+    check(!result?.error && Array.isArray(result?.entries), 'AGENT_UNCONFIRMED');
+    const hit = result.entries.find(entry => entry?.agent?.id === agentId);
+    if (hit) return hit.agent;
+    cursor = result.pageInfo?.nextCursor;
+    if (cursor === null) return null;
+    check(typeof cursor === 'string' && cursor && !seen.has(cursor), 'AGENT_UNCONFIRMED');
+    seen.add(cursor);
+  }
+  check(false, 'AGENT_UNCONFIRMED');
+}
+async function agentTerminal(client, r, fingerprint) {
+  check(typeof r.agentId === 'string' && r.agentId.length > 0
+    && typeof r.workspaceId === 'string' && r.workspaceId.length > 0, 'CHILD_ID_INVALID');
+  let fetched = null;
+  // A fetch error is not proof either way; fall back to the archived listing.
+  try { fetched = (await client.fetchAgent({agentId:r.agentId, timeout:3000}))?.agent ?? null; }
+  catch { fetched = null; }
+  const a = fetched ?? await archivedAgent(client, r.agentId);
+  check(a?.id === r.agentId && a.workspaceId === r.workspaceId, 'CHILD_MISMATCH');
+  // Archived agents can come back with empty labels; identity is already pinned by
+  // agentId+workspaceId, so an absent parent label passes but a wrong one never does.
+  const labels = a.labels ?? {};
+  const hasParent = Object.prototype.hasOwnProperty.call(labels, 'paseo.parent-agent-id');
+  check(!hasParent || labels['paseo.parent-agent-id'] === r.parentAgentId, 'PLACEMENT_MISMATCH');
+  return {ok:true, targetKey:fingerprint, agentId:a.id, workspaceId:a.workspaceId,
+    status:a.status, archived:archived(a), parentLabel:hasParent ? 'match' : 'absent'};
+}
 async function recoveryPlan(client, r) {
   const plan = await client.inspectWorkspaceRecovery(r.workspaceId);
   check(plan?.workspaceId === r.workspaceId, 'RECOVERY_BLOCKED');
@@ -304,6 +337,8 @@ export async function handleRequest(client, r, target, schemas) {
       if (w) check(w.projectId === r.projectId && w.workspaceDirectory === r.cwd, 'WORKSPACE_MISMATCH');
       return await creationFailure(client, r, target);
     }
+    // Read-only operator_reconcile probe; the child may be archived and its cwd gone.
+    if (r.command === 'agent-terminal') return await agentTerminal(client, r, fingerprint);
     if (r.command === 'names') return await names(client, r);
     await directory(r.cwd);
     await parent(client, r);

@@ -82,7 +82,8 @@ def _parser() -> argparse.ArgumentParser:
             command.add_argument("--apply", action="store_true")
             command.add_argument("--legacy-attest", action="store_true",
                                  help="operator attests pre-0.35.5 origin (not recorded by old schema)")
-            command.add_argument("--reason", help="operator reason attesting pre-0.35.5 origin")
+            command.add_argument("--reason", help="operator reason (required with --apply for "
+                                 "--legacy-attest and operator_reconcile of sticky incomplete containment)")
             command.add_argument("--owner-os-start")
             command.add_argument("--root-os-start")
         if action == "followup":
@@ -321,6 +322,11 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
                                      apply=args.apply, target=cfg.paseo.get('target'),
                                      legacy_attest=args.legacy_attest, reason=args.reason,
                                      owner_os_start=args.owner_os_start, root_os_start=args.root_os_start)
+                    from .operator_reconcile import ReconcilePlan
+                    if isinstance(record, ReconcilePlan):
+                        print(json.dumps(dict(ok=True, applied=False, **record.summary(),
+                                              execution=_managed_summary(record.record))))
+                        return EXIT_OK
                     print(json.dumps({"ok": True, "applied": args.apply,
                                       "execution": _managed_summary(record)}))
                     return EXIT_OK

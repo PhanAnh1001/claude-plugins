@@ -190,6 +190,11 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
                 and r.process and (r.receipt or {}).get('worker_owner')):
             from .post_hoc_reverify import recover_cancelled
             return recover_cancelled(store, r, apply=apply, table=process_table)
+        from . import operator_reconcile
+        if operator_reconcile.applicable(r):
+            return operator_reconcile.recover_unresolved(
+                store, r, apply=apply, reason=reason, table=process_table, target=target,
+                probe=lambda request: creation_proof(request, package_root, validator))
         admission = PreDispatchAdmission(store, None, None)
         prior = (r.receipt or {}).get('pre_dispatch_failure')
         if prior and prior.get('reason') in ('invalid_bound_workspace_id', 'failed_child_creation', PROMPT_REASON):

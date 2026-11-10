@@ -166,6 +166,9 @@ def settlement_authorized(supervisor: ExecutionSupervisor, key) -> bool:
         proof = r.receipt['legacy_attestation']
         reservation = r.reservation or proof['reservation']
         return reservation['store_root'] == str(supervisor.store.root)
+    from .operator_reconcile import operator_reconciled
+    if operator_reconciled(r):
+        return bool(r.reservation) and r.reservation.get('store_root') == str(supervisor.store.root)
     return supervisor.reconcile(key).confirmed
 
 

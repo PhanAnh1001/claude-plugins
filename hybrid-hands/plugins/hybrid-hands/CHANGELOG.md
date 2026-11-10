@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.48.1 — 2026-11-10
+
+- `hand-ext managed recover` thêm nhánh `operator_reconcile` cho execution `unresolved` kẹt vì containment incomplete dính vĩnh viễn: dry-run in `eligible`/`blocked`/`evidence`; `--apply --reason` chỉ settle khi root đã reap, owner/root/mọi pid đã theo dõi đã mất hoặc bị tái dùng, nhóm tiến trình vắng, quét toàn bộ tiến trình cùng uid không thấy marker và không có env đọc lỗi, agent Paseo `closed`. Outcome ghi `provenance=operator_reconcile`, release reservation qua CompletionService/AdmissionController chính thức; idempotent; supervisor tự động vẫn fail-closed.
+- Bridge `agent-terminal` nhận agent archived bị mất label theo `agentId`+`workspaceId` (trả `parentLabel=absent`); label `paseo.parent-agent-id` có mà sai vẫn chặn `PLACEMENT_MISMATCH`.
+
 ## 0.48.0 — 2026-11-10
 
 - Tách config mode parallel-subagents vào `parallel_subagents.{enabled,backend,account}`: `--account vN` ghi account riêng của mode và backend `claude-vN`; `--backend codex` giữ account. Danh sách tài khoản và policy dùng account của mode, thiếu thì suy từ backend, không đọc `main_session.claude_account`.
