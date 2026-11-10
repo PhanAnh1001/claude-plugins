@@ -77,6 +77,15 @@ def _emit(snapshot, as_json: bool, color: bool, full: bool) -> None:
         print(render_text(snapshot, color=color, full=full))
 
 
+def _kick_indexer() -> None:
+    """Heartbeat + background indexer start; never fails or blocks hh-ps."""
+    try:
+        from hh_store.cli import kick_from_reader
+        kick_from_reader()
+    except Exception:  # noqa: BLE001 - the indexer is an optimisation only
+        return
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -97,6 +106,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print("\033[2J\033[H", end="")
             _emit(snapshot, args.json, color, args.full)
             drawn += 1
+            if drawn == 1:
+                _kick_indexer()
             if args.once or args.watch is None or (args.count is not None and drawn >= args.count):
                 return 0
             time.sleep(args.watch)

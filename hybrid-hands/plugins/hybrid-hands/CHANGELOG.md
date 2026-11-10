@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.42.0 — 2026-11-10
+
+- hh-store giai đoạn 2: làm mới trực tiếp. Dữ liệu đổi thì `state_dir()/revision` đổi sau p50 0,39 s, max 2,33 s (đo thật 10/11/2026, n=9, có hh-ps chạy mỗi 5 s). Pane và Paseo chỉ chạy hh-ps khi revision đổi.
+- Thêm `bin/hh-indexer`: daemon singleton (flock `indexer.lock`), theo dõi bằng kqueue VNODE, debounce 300 ms, quét file active mỗi 30 s, quét full rollout Codex mỗi 300 s; không có kqueue thì poll stat 2 s. Tự thoát sau 600 s không có reader chạm `last_read`. `revision` chỉ tăng khi có thay đổi thật, kể cả khi hh-ps tự ingest giữa hai chu kỳ.
+- Thêm `bin/hh-store touch [--path P] [--hook-stdin]` và `hh-store status [--json]`. Hook SessionStart/Stop/SubagentStop/SessionEnd gọi `scripts/hh-store-touch-hook.sh`, chạy `hh-store touch --hook-stdin` nền và trả về ngay (~7 ms; touch ~90 ms chạy nền). hh-ps chạy từ terminal (tty) tự khởi indexer. Tắt bằng `HYBRID_HANDS_INDEXER=off` (hoặc `HYBRID_HANDS_STORE=off`).
+- Pane `hh-tree-pane`: `watchPaths` trên file revision và poll stat 1 s, debounce 300 ms, single-flight, touch mỗi 60 s khi pane hiện; chu kỳ cũ giữ làm lưới an toàn. Cần mở phiên Claude mới để pane nạp `watchPaths`.
+- Paseo `paseo-hh-tree`: RPC `hh-tree.revision` hỏi mỗi 2 s, lỗi thì thử lại sau 60 s, lưới an toàn 120 s.
+- Sửa indexer: cờ CLI map vào `Config` theo tên (trước đây quét full Codex mỗi chu kỳ 30 s); indexer ingest không decode `payload_json`; quét full bỏ qua rollout biến mất giữa chừng thay vì dừng cả lượt. CPU nền indexer 0,37% lúc nhàn, 0,50% khi có hh-ps mỗi 5 s (trước khi sửa 2,2–2,7%). hh-ps p50 ~0,9 s khi indexer chạy, dao động giống khi tắt indexer.
+
 ## 0.41.0 — 2026-11-10
 
 - Thêm kho chỉ mục `lib/hh_store/` (SQLite WAL `~/.hybrid-hands/state/hh-store.sqlite3`, quyền 0600; tự dựng lại khi hỏng hoặc đổi version). Kho ingest tăng dần rollout Codex và transcript/subagent Claude theo cursor và generation; rotate/truncate thì sinh generation mới, ghi đè tại chỗ thì phát hiện bằng fingerprint. Kho lỗi, khoá bận hoặc `HYBRID_HANDS_STORE=off` thì quay về đường đọc file cũ.

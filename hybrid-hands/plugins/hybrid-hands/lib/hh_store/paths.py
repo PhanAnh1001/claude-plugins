@@ -14,6 +14,9 @@ FILE_MODE = 0o600
 INGEST_LOCK_NAME = "ingest.lock"
 REVISION_NAME = "revision"
 REVISION_LOCK_NAME = "revision.lock"
+LAST_READ_NAME = "last_read"  # only its mtime matters: readers' heartbeat for the indexer
+DIRTY_DIR_NAME = "dirty"  # queue of paths readers want re-ingested; indexer deletes entries
+INDEXER_LOCK_NAME = "indexer.lock"
 LOCK_RETRY_SECONDS = 0.05  # short poll keeps a 5 s wait responsive without busy-spinning
 
 
@@ -84,3 +87,16 @@ def bump_revision(directory: Optional[Path] = None) -> None:
             os.close(fd)
     except Exception:  # noqa: BLE001 - contract: bump is best-effort, never breaks writers
         return
+
+
+def touch_last_read(directory: Optional[Path] = None) -> None:
+    """Refresh the reader heartbeat (mtime of last_read)."""
+    target = (directory or state_dir()) / LAST_READ_NAME
+    os.close(os.open(target, os.O_WRONLY | os.O_CREAT, FILE_MODE))
+    os.utime(target)
+
+
+def dirty_dir(directory: Optional[Path] = None) -> Path:
+    path = (directory or state_dir()) / DIRTY_DIR_NAME
+    path.mkdir(mode=DIR_MODE, exist_ok=True)
+    return path

@@ -97,20 +97,26 @@ def _unchanged(conn: sqlite3.Connection, path: str, st: os.stat_result,
     return (row[0], row[1]) if row else None
 
 
-def _ingest(conn: sqlite3.Connection, path: str, classify: Classify,
-            st: os.stat_result) -> List[CodexRecord]:
+def _sync(conn: sqlite3.Connection, path: str, classify: Classify,
+          st: os.stat_result) -> Tuple[int, int]:
+    """Bring the stored rows of `path` up to date; (file_id, generation)."""
     scope = scope_for(Path(path))
     known = _unchanged(conn, path, st, scope)
-    if known is None:
-        _drop_if_rewritten(conn, path)
-        ingest.read_appended(conn, path, scope, _parser(classify), (TABLE,))
-        file_id, generation, offset = conn.execute(
-            "SELECT file_id, generation, offset FROM files WHERE path=?", (path,)).fetchone()
-        with conn:
-            conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)",
-                         (FINGERPRINT_KEY + path, _fingerprint(path, offset)))
-    else:
-        file_id, generation = known
+    if known is not None:
+        return known
+    _drop_if_rewritten(conn, path)
+    ingest.read_appended(conn, path, scope, _parser(classify), (TABLE,))
+    file_id, generation, offset = conn.execute(
+        "SELECT file_id, generation, offset FROM files WHERE path=?", (path,)).fetchone()
+    with conn:
+        conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)",
+                     (FINGERPRINT_KEY + path, _fingerprint(path, offset)))
+    return file_id, generation
+
+
+def _ingest(conn: sqlite3.Connection, path: str, classify: Classify,
+            st: os.stat_result) -> List[CodexRecord]:
+    file_id, generation = _sync(conn, path, classify, st)
     found = [CodexRecord(kind or "", at, json.loads(payload)) for kind, at, payload in conn.execute(
         f"SELECT kind, observed_at, payload_json FROM {TABLE} WHERE file_id=? AND generation=?"
         " ORDER BY byte_offset", (file_id, generation))]
@@ -148,6 +154,22 @@ def records(path: Path, classify: Classify) -> Optional[List[CodexRecord]]:
         return None
     _memo[key] = (stamp, found)
     return found
+
+
+def sync(path: Path, classify: Classify) -> None:
+    """Ingest `path` without decoding its stored records (the indexer needs no rows).
+
+    Raises OSError when the file cannot be read, like `records`.
+    """
+    conn = runtime.connection()
+    if conn is None:
+        return
+    key = str(path)
+    st = os.stat(key)
+    try:
+        _sync(conn, key, classify, st)
+    except sqlite3.Error as exc:
+        runtime.disable_after_error(exc)
 
 
 def forget(scope: str, seen_paths: Iterable[Path]) -> None:

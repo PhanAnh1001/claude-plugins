@@ -5,7 +5,7 @@ import { MIN_REFRESH_MS, refreshDelay } from "../shared/refresh.ts";
 export function createCachedLoader<K, V>(load: (key: K) => Promise<V>, failed: (value: V) => boolean) {
   const entries = new Map<K, { value: V; expiresAt: number; delayMs: number }>();
   const pending = new Map<K, Promise<V>>();
-  return (key: K): Promise<V> => {
+  const get = (key: K): Promise<V> => {
     const cached = entries.get(key);
     if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value);
     const active = pending.get(key);
@@ -19,4 +19,7 @@ export function createCachedLoader<K, V>(load: (key: K) => Promise<V>, failed: (
     pending.set(key, promise);
     return promise;
   };
+  /** Drop cached values (revision changed); in-flight runs are still shared. */
+  const invalidate = (): void => entries.clear();
+  return Object.assign(get, { invalidate });
 }

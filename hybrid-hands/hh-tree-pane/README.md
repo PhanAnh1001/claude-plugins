@@ -9,6 +9,7 @@ Mod Claude Code: pane cạnh khung chat trong terminal, hiển thị cây phiên
 - Phiên mở pane (`▶`) đứng đầu, phiên phụ lồng dưới cha. Mặc định đủ việc chạy/vừa xong theo since, không gấp 3 việc hay ẩn cây đã xong. Không hiển thị nhóm orphan hand-ext; `hh-ps` text/JSON vẫn giữ orphan.
 - Giờ kết thúc theo giờ máy; không biết thì `?`. Dòng con giữ trạng thái lỗi nếu có, không bịa mốc ended cho lượt mất dấu.
 - Poll tự động bỏ qua pane không `isShown` hoặc không `isPlaced` qua `$.ui.panes()`; mở phiên và lệnh `/hh-tree` làm mới ngay nếu không bận. Chu kỳ được tính từ lúc lần chạy trước kết thúc.
+- Làm mới theo revision hh-store (≤ 3 s): `FileChanged` trên `<state_dir>/revision` (đăng ký qua `watchPaths` lúc SessionStart) và dự phòng stat file đó mỗi 1 s (mtime/kích thước đổi), debounce 300 ms, không chạy hh-ps chồng nhau (dồn thành đúng một lần chạy thêm). Pane hiện thì gọi `hh-store touch` tối đa 60 s/lần để indexer sống; thiếu lệnh thì bỏ qua. Chu kỳ thích nghi ở trên giữ làm lưới an toàn. Cần mở phiên Claude mới để pane nạp `watchPaths`.
 - Lệnh `/hh-tree` mở lại pane. Terminal cần rộng từ khoảng 110 cột.
 
 Contract đầy đủ: [README hybrid-hands, mục 6](../README.md#6-theo-dõi-phiên-và-hand-hh-ps).
