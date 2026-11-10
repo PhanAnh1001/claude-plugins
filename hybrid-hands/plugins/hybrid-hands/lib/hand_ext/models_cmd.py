@@ -28,6 +28,7 @@ def register(sub) -> None:
     setters = actions.add_parser("set")
     for name in ("brain", "side", "hand", "hand-order"):
         setters.add_argument("--" + name, action="append")
+    setters.add_argument("--hand-mode", choices=("native", "terminal"))
     setters.add_argument("--tier", choices=("brain", "side", "hand"))
     for name in ("model", "effort", "account"):
         setters.add_argument("--" + name)
@@ -96,6 +97,7 @@ def _print_text(payload: dict) -> None:
                    if row["supported"] else "(ngoài phạm vi chỉnh)")
         if row.get("account"):
             summary += " @" + row["account"]
+        summary += " [" + row["mode"]["value"] + "]"
         print(f"  {name:<10} {summary}")
     for warning in payload["warnings"]:
         print(warning)
@@ -138,6 +140,10 @@ def _status(result) -> dict:
                 row["account"] = account
             else:
                 row[key] = _leaf(result, path)
+        provider = "claude" if name.startswith("claude-") else name
+        mode = _leaf(result, f"ext_hand.native.{provider}")
+        mode["value"] = "native" if mode["value"] == "auto" else "terminal"
+        row["mode"] = mode
         rows[name] = row
     output["hand"] = {"order": _leaf(result, "ext_hand.order"), "backends": rows}
     output["warnings"] = ["Model hand cũng áp dụng cho native subagent dùng cùng backend."]
@@ -234,7 +240,7 @@ def _patch(args, result, raw: dict) -> list[str]:
         if args.tier in TIERS:
             touched = [TIERS[args.tier] + "." + k for k in PROFILE_KEYS]
         else:
-            touched = ["ext_hand.order"]
+            touched = ["ext_hand.order", "ext_hand.native.claude", "ext_hand.native.codex"]
             ext = raw.get("ext_hand", {})
             for registry in ("backends", "claude_accounts"):
                 for name in ext.get(registry, {}):
@@ -271,6 +277,8 @@ def _patch(args, result, raw: dict) -> list[str]:
             put(section + f".{provider}_effort", effort)
         if account:
             put(section + ".claude_account", account)
+    if args.hand_mode and not args.hand:
+        raise ValueError("--hand-mode cần --hand")
     seen = set()
     for value in args.hand or []:
         match = re.fullmatch(r"([^=]+)=([^:@]+)(?::([^:@]+))?", value)
@@ -281,6 +289,14 @@ def _patch(args, result, raw: dict) -> list[str]:
         if name in seen or not _supported(name, accounts):
             raise ValueError("backend trùng hoặc không được hỗ trợ")
         seen.add(name)
+        provider = "claude" if name.startswith("claude-") else name
+        if args.hand_mode:
+            if provider == "dsh" and args.hand_mode == "native":
+                raise ValueError("dsh không có native subagent")
+            if provider in ("claude", "codex"):
+                key = f"ext_hand.native.{provider}"
+                if key not in touched:
+                    put(key, "auto" if args.hand_mode == "native" else "off")
         put(f"ext_hand.backends.{name}.model", model)
         if effort:
             put(f"ext_hand.backends.{name}.effort", EFFORT_ALIASES.get(

@@ -2,6 +2,14 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.47.0 — 2026-11-10
+
+- `/hybrid-hands:models set` chuyển thành wizard tích tầng → provider → account → model → effort + chế độ Hand, tối đa năm lần AskUserQuestion nối tiếp; chỉ ba ô Brain chính/Phiên phụ/Hand, giữ lựa chọn để sửa nhiều tầng trong cùng lần, ghi atomic bằng đúng một lệnh.
+- Dùng danh sách providers/accounts/models/efforts thay presets; tự dùng account/model duy nhất. Hủy, thiếu câu trả lời hoặc Other ngoài danh sách thì không ghi; lựa chọn là xác nhận, không hỏi lại.
+
+- Tầng Hand có một tab; hỏi Native subagent hoặc Terminal hand chung màn hình Effort, đánh dấu chế độ đang dùng từ `hand_modes`/`hand_backends[].mode`. DeepSeek luôn terminal và không hỏi chế độ.
+- Thêm `--hand-mode native|terminal` cho provider của các `--hand` cùng lệnh, ghi `ext_hand.native.<claude|codex>` thành `auto|off`; `dsh` + `native` lỗi exit 2. `unset hand` gỡ cả `ext_hand.native.*`.
+
 ## 0.46.0 — 2026-11-10
 
 - `/hybrid-hands:models set` sửa nhiều tầng trên cùng màn hình bốn tab Brain chính, Phiên phụ, Hand Claude, Hand GPT/DeepSeek; dùng đúng một AskUserQuestion và gộp lựa chọn thành một lệnh ghi atomic. Tất cả “Giữ nguyên” thì không ghi; Other cho Hand nhận nhiều mục cách dấu phẩy.
