@@ -33,6 +33,12 @@ def test_view(tmp_path, monkeypatch, capsys):
     assert data["brain"]["provider"]["source"] == "plugin"
     assert data["hand"]["backends"]["claude-v1"]["effort"]["source"] == "global"
     assert "fake-home" not in json.dumps(data) and path.read_bytes() == original
+    assert main(["models", "options", "--cwd", str(repo), "--json"]) == 0
+    options = json.loads(capsys.readouterr().out)
+    assert [row["value"] for row in options["tiers"]] == ["brain", "side", "hand"]
+    assert "claude-sonnet-5-5" in options["providers"]["claude"]["models"]
+    assert [row["value"] for row in options["hand_backends"] if row["in_order"]] == data["hand"]["order"]["value"]
+    assert path.read_bytes() == original
 
 
 def test_set_and_validation(tmp_path, monkeypatch, capsys):

@@ -30,11 +30,12 @@ def register(sub) -> None:
         setters.add_argument("--" + name, action="append")
     unset = actions.add_parser("unset")
     unset.add_argument("tier", choices=("brain", "side", "hand"))
-    for item in (parser, setters, unset):
+    options = actions.add_parser("options", help="liệt kê lựa chọn model ba tầng")
+    for item in (parser, setters, unset, options):
         # Suppress child defaults so options before the subcommand also survive.
         item.add_argument("--cwd", default=argparse.SUPPRESS)
         item.add_argument("--json", action="store_true", default=argparse.SUPPRESS)
-        if item is not parser:
+        if item in (setters, unset):
             item.add_argument("--dry-run", action="store_true")
 
 
@@ -290,6 +291,14 @@ def command(args) -> int:
     try:
         result = load_config(Path(getattr(args, "cwd", None) or Path.cwd()))
         payload = _status(result)
+        if args.models_action == "options":
+            from .models_options import build_options, print_options
+            payload = build_options(result, payload)
+            if getattr(args, "json", False):
+                print(json.dumps(payload, ensure_ascii=False, indent=2))
+            else:
+                print_options(payload)
+            return 0
         if args.models_action:
             path = Path(result.paths["repo"]["path"])
             stamps = {Path(info["path"]): file_stamp(Path(info["path"]))
