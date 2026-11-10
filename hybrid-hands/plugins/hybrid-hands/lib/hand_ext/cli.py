@@ -45,6 +45,8 @@ def _parser() -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=text)
         s.add_argument("--backend", default=ALL_BACKENDS)
         s.add_argument("--cwd")
+    from .models_cmd import register
+    register(sub)
     inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
     inspect.add_argument("--json", action="store_true")
     inspect.add_argument("--cwd")
@@ -360,6 +362,9 @@ COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick, 
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.cmd == "models":
+            from .models_cmd import command
+            return command(args)
         if args.cmd in ("parallel-subagents", "parallel"):
             from .parallel_cmd import command
             return command(args)
