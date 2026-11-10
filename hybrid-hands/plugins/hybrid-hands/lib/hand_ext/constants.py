@@ -95,6 +95,8 @@ MAX_PARALLEL = 4
 HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
 
 DEFAULTS = {
+    "account_sync": {"sources": {"claude": "v1"}, "items": [],
+                     "exclude": [], "settings": {"shared_keys": ["statusLine", "hooks"]}},
     "mode": "shell",
     "paseo": {},
     "native": {"claude": "auto", "codex": "auto"},
