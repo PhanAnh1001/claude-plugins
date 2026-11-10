@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -116,6 +117,29 @@ def backends_from(result: ConfigResult, backend: str) -> dict:
     return copy.deepcopy(merged.get(backend) or {})
 
 
+def _normalize_parallel_policy(data: dict, source: str, path: Path) -> None:
+    """Fail closed before validation/merge, including raw sections consumers reuse.
+
+    Keep the selected file's provenance even when its value is rejected. Never
+    include the supplied value in a warning: configuration may contain secrets.
+    """
+    if not isinstance(data, dict) or "parallel_subagents" not in data:
+        return
+    section = data["parallel_subagents"]
+    if not isinstance(section, dict):
+        print(f"warning: {path}: parallel_subagents phải là object; dùng disabled", file=sys.stderr)
+        data["parallel_subagents"] = {"enabled": False}
+        return
+    if "enabled" not in section:
+        return
+    if type(section["enabled"]) is not bool:
+        print(f"warning: {path}: parallel_subagents.enabled phải là bool; dùng disabled", file=sys.stderr)
+        section["enabled"] = False
+    elif source == "global" and section["enabled"]:
+        print(f"warning: {path}: parallel_subagents.enabled chỉ bật từ repo; bỏ qua global", file=sys.stderr)
+        section["enabled"] = False
+
+
 def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
                 config_file: Path | None = None) -> ConfigResult:
     """Resolve files from the current repo, retaining main-worktree fallback.
@@ -134,7 +158,7 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
     repo_path = Path(config_file) if config_file is not None else (_config_path(root) or root / PROJECT_CONFIG_RELPATH)
     if not repo_path.is_absolute():
         repo_path = root / repo_path
-    defaults = {"ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
+    defaults = {"parallel_subagents": {"enabled": False}, "ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
                 "main_session": {"provider": "codex", "codex_model": "gpt-6.1-sol",
                                  "codex_effort": "high", "claude_model": "claude-opus-5-5",
                                  "claude_effort": "high", "claude_account": "v1",
@@ -149,6 +173,7 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
+            _normalize_parallel_policy(data, source, path)
             _validate(data, path)
             _merge(effective, data, sources, source)
             info["read"] = True

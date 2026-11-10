@@ -1,5 +1,5 @@
 #!/bin/bash
-# UserPromptSubmit: con trỏ ổn định; policy đầy đủ được SessionStart nạp.
-cat <<'EOF'
-POLICY: xem SessionStart và AGENTS.md. Hand theo ext_hand.order (pick trước native); brain không tự tra cứu; cấm hiện .env/token/credential.
-EOF
+# UserPromptSubmit: the same repository mode as SessionStart.
+set -euo pipefail
+ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
+python3 "$ROOT/lib/policy_mode.py" prompt "$ROOT"
