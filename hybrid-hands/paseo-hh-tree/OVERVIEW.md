@@ -1,6 +1,6 @@
 # Cây phiên hybrid-hands
 
-Plugin hiện panel cạnh agent và màn hình “Cây phiên”, mở bằng nút trên header sidebar Paseo, lấy JSON `hh-ps` và làm mới mỗi 5 giây. Không hiện nhóm orphan hand-ext.
+Plugin hiện panel cạnh agent và màn hình “Cây phiên”, mở bằng nút trên header sidebar Paseo, lấy JSON `hh-ps` và làm mới theo chu kỳ max(30 giây, 3 × thời gian chạy trước), tối đa 120 giây; lỗi/timeout giãn gấp đôi tới trần. Client poll mỗi 30 giây; server chia sẻ lần chạy đang dở và cache cả kết quả lỗi theo chu kỳ thích nghi cho cùng bộ lọc agent/all, tính từ lúc chạy xong. Không hiện nhóm orphan hand-ext.
 
 ## Managed hand Paseo opt-in
 

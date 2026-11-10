@@ -1,8 +1,10 @@
-"""Uncached plugin/global/repository configuration with leaf provenance."""
+"""Memoized plugin/global/repository configuration with leaf provenance."""
 from __future__ import annotations
 
 import copy
 import json
+import io
+from functools import lru_cache
 import os
 import sys
 from dataclasses import dataclass
@@ -117,7 +119,7 @@ def backends_from(result: ConfigResult, backend: str) -> dict:
     return copy.deepcopy(merged.get(backend) or {})
 
 
-def _normalize_parallel_policy(data: dict, source: str, path: Path) -> None:
+def _normalize_parallel_policy(data: dict, source: str, path: Path, *, stream=None) -> None:
     """Fail closed before validation/merge, including raw sections consumers reuse.
 
     Keep the selected file's provenance even when its value is rejected. Never
@@ -127,16 +129,16 @@ def _normalize_parallel_policy(data: dict, source: str, path: Path) -> None:
         return
     section = data["parallel_subagents"]
     if not isinstance(section, dict):
-        print(f"warning: {path}: parallel_subagents phải là object; dùng disabled", file=sys.stderr)
+        print(f"warning: {path}: parallel_subagents phải là object; dùng disabled", file=stream if stream is not None else sys.stderr)
         data["parallel_subagents"] = {"enabled": False}
         return
     if "enabled" not in section:
         return
     if type(section["enabled"]) is not bool:
-        print(f"warning: {path}: parallel_subagents.enabled phải là bool; dùng disabled", file=sys.stderr)
+        print(f"warning: {path}: parallel_subagents.enabled phải là bool; dùng disabled", file=stream if stream is not None else sys.stderr)
         section["enabled"] = False
     elif source == "global" and section["enabled"]:
-        print(f"warning: {path}: parallel_subagents.enabled chỉ bật từ repo; bỏ qua global", file=sys.stderr)
+        print(f"warning: {path}: parallel_subagents.enabled chỉ bật từ repo; bỏ qua global", file=stream if stream is not None else sys.stderr)
         section["enabled"] = False
 
 
@@ -148,8 +150,7 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
     Relative values remain raw so each consumer can apply its existing path rules.
     """
     from hand_ext.config import _config_path, git_toplevel
-    from hand_ext.constants import DEFAULTS as HAND_DEFAULTS, PROJECT_CONFIG_RELPATH
-    from side_session.constants import DEFAULTS as SIDE_DEFAULTS
+    from hand_ext.constants import PROJECT_CONFIG_RELPATH
 
     root = Path(known_root).resolve() if known_root is not None else git_toplevel(Path(cwd or Path.cwd()))
     global_path = Path(os.environ.get(CONFIG_ENV) or GLOBAL_CONFIG).expanduser()
@@ -158,6 +159,41 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
     repo_path = Path(config_file) if config_file is not None else (_config_path(root) or root / PROJECT_CONFIG_RELPATH)
     if not repo_path.is_absolute():
         repo_path = root / repo_path
+    result, warnings = _load_config_cached(root, global_path.resolve(), repo_path.resolve(),
+                                           file_stamp(global_path), file_stamp(repo_path))
+    if warnings:
+        sys.stderr.write(warnings)
+    # Callers historically mutate these dictionaries; never expose cached state.
+    return copy.deepcopy(result)
+
+
+def file_stamp(path: Path) -> tuple:
+    """A missing/unreadable file is a distinct key and will be retried if changed."""
+    try:
+        st = path.stat()
+        return (st.st_mtime_ns, st.st_ctime_ns, st.st_size, st.st_ino, st.st_mode)
+    except OSError:
+        return ()
+
+
+@lru_cache(maxsize=32)
+def _load_config_cached(root: Path, global_path: Path, repo_path: Path,
+                        global_stamp: tuple, repo_stamp: tuple) -> tuple[ConfigResult, str]:
+    warnings = io.StringIO()
+    try:
+        result = _build_config(root, global_path, repo_path, warnings)
+    except (GlobalConfigError, ValueError, OSError):
+        # Preserve diagnostics even when a later source/limit fails validation.
+        sys.stderr.write(warnings.getvalue())
+        raise
+    return result, warnings.getvalue()
+
+
+def _build_config(root: Path, global_path: Path, repo_path: Path,
+                  warnings: io.StringIO) -> ConfigResult:
+    from hand_ext.constants import DEFAULTS as HAND_DEFAULTS
+    from side_session.constants import DEFAULTS as SIDE_DEFAULTS
+
     defaults = {"parallel_subagents": {"enabled": False}, "ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
                 "main_session": {"provider": "codex", "codex_model": "gpt-6.1-sol",
                                  "codex_effort": "high", "claude_model": "claude-opus-5-5",
@@ -173,7 +209,7 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            _normalize_parallel_policy(data, source, path)
+            _normalize_parallel_policy(data, source, path, stream=warnings)
             _validate(data, path)
             _merge(effective, data, sources, source)
             info["read"] = True

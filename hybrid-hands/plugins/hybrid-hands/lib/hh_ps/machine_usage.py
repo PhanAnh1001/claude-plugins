@@ -80,6 +80,7 @@ def _gpt_usd(codex, cfg, start, now):
             merged[json.dumps(record, sort_keys=True)] = record
     if not threads:
         return None
+    options = None
     total_usd = 0.0
     observed = False
     for merged in threads.values():
@@ -121,8 +122,10 @@ def _gpt_usd(codex, cfg, start, now):
             previous = current
             if not any(delta):
                 continue
+            if options is None:
+                options = explicit_options(cfg, "codex")
             cost = estimate_cost(dict(zip(("input", "cached_input", "output"), delta)),
-                                 price_for(explicit_options(cfg, "codex"), model))
+                                 price_for(options, model))
             if cost is None:
                 return None
             total_usd += cost

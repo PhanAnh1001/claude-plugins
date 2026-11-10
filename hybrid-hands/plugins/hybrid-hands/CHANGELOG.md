@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.37.3 — 2026-11-10
+
+- `hh-ps` nhanh hơn: nạp config và bảng giá một lần mỗi tiến trình (memo theo file stamp, trả bản sao), lọc literal trước regex khi đọc rollout. Đo thật `hh-ps --since 3h --json --ended --full`: ~13,5 s → ~8,5 s (n=3), output không đổi.
+- Pane `hh-tree-pane` và panel `paseo-hh-tree` làm mới thích nghi: max(30 s, 3 × thời gian chạy trước), trần 120 s, lỗi giãn gấp đôi; pane ẩn thì bỏ lượt tự động; server Paseo single-flight + cache theo cùng chu kỳ; client poll 30 s.
+
 ## 0.37.2 — 2026-11-10
 
 - Đổi tên lệnh chính thành `hand-ext parallel-subagents [on|off]`, giữ `parallel` làm alias cũ cùng flags và hành vi.

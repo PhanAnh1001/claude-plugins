@@ -1,10 +1,11 @@
 // Pane beside the chat showing the hybrid-hands session tree (`hh-ps --json`),
-// refreshed every few seconds; the session the pane lives in is listed first.
+// refreshed on an adaptive interval; the session the pane lives in is listed first.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Tone, TreeSnapshot } from '../types'
 import { buildRows, LEGEND } from './tree'
+import { MIN_REFRESH_MS, refreshDelay } from './refresh'
 import type { HhPs } from './tree'
 
 const PANE = 'hh-tree'
@@ -22,7 +23,7 @@ if not command:
 os.execv(command, [command, *sys.argv[1:]])
 `
 const SINCE = '3h'
-const REFRESH_MS = 5000
+const SCHEDULER_TICK_MS = 1000
 
 const tree = atom(
   { plugin: 'hh-tree-pane', key: 'tree' } as const,
@@ -31,11 +32,20 @@ const tree = atom(
 )
 
 let busy = false
+let delayMs = MIN_REFRESH_MS
+let nextRefreshAt = 0
 
-async function refresh($: EngineInterface): Promise<void> {
+async function refresh($: EngineInterface, automatic = false): Promise<void> {
   if (busy) return
   busy = true
+  const started = Date.now()
+  let failed = true
+  let attempted = true
   try {
+    if (automatic && !(await $.ui.panes()).some(pane => pane.id === PANE && pane.isShown && pane.isPlaced)) {
+      attempted = false
+      return
+    }
     const here = await $.session.id()
     const r = await $.process.run(['python3', '-c', HH_PS_SHIM, '--since', SINCE, '--json', '--ended', '--full', '--main-session', here], { timeoutMs: 20000 })
     if (r.exitCode !== 0) {
@@ -44,11 +54,16 @@ async function refresh($: EngineInterface): Promise<void> {
       return
     }
     const { rows, header } = buildRows(JSON.parse(r.stdout) as HhPs, here)
+    failed = false
     const at = new Date().toTimeString().slice(0, 8)
     await update($, tree, () => ({ rows, header: `${header} · ${at}`, error: null }))
   } catch (err) {
     await update($, tree, old => ({ ...old, error: String(err).slice(0, 200) }))
   } finally {
+    if (attempted) {
+      delayMs = refreshDelay(Date.now() - started, delayMs, failed)
+      nextRefreshAt = Date.now() + delayMs
+    }
     busy = false
   }
 }
@@ -60,7 +75,9 @@ export const register: Register = on => {
     await $.command.register({ name: 'hh-tree', description: 'Mở pane cây hh-ps (phiên brain → subagent → hand ngoài)' })
     void $.ui.open({ id: PANE, title: 'hh-ps' })
     void refresh($)
-    $.clock.every(REFRESH_MS, () => void refresh($))
+    $.clock.every(SCHEDULER_TICK_MS, () => {
+      if (Date.now() >= nextRefreshAt) void refresh($, true)
+    })
     return next(e)
   })
 
