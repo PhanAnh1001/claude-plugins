@@ -8,7 +8,6 @@ from _support import SCRIPTS_DIR
 sys.path.insert(0, str(SCRIPTS_DIR))
 import week_split as ws
 import shared_usage
-import hand_lines
 
 
 class CalibrationIntegrationTests(unittest.TestCase):
@@ -25,12 +24,3 @@ class CalibrationIntegrationTests(unittest.TestCase):
         fake = SimpleNamespace(cached=lambda now: {'usd_per_pct':7})
         with patch.object(shared_usage, 'shared_module', return_value=fake):
             self.assertEqual(shared_usage.claude_calibration(1100)['usd_per_pct'], 7)
-
-    def test_hand_adapter_passes_cache_only_env(self):
-        fake = SimpleNamespace(returncode=1, stdout='', stderr='')
-        with patch.object(sys, 'argv', ['hand_lines.py', 'fake']), patch.object(hand_lines, 'executable', return_value=SCRIPTS_DIR/'fake-hh-ps'), patch.object(hand_lines.subprocess, 'run', return_value=fake) as run:
-            hand_lines.main()
-        self.assertEqual(run.call_args.kwargs['env']['HYBRID_HANDS_CALIBRATION_CACHE_ONLY'], '1')
-        for key in ('PATH',):
-            if key in os.environ:
-                self.assertEqual(run.call_args.kwargs['env'][key], os.environ[key])

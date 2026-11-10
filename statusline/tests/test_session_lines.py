@@ -127,7 +127,7 @@ class SessionLinesTest(SessionLinesBase):
     def test_no_summary_prints_nothing(self) -> None:
         self.assertEqual(self.lines("A"), [])
 
-    def test_statusline_places_block_after_go_before_skills(self) -> None:
+    def test_statusline_omits_hh_ps_tree(self) -> None:
         state = self.home / "go-state"
         state.mkdir()
         (state / "go_usage_summary.json").write_text(json.dumps({
@@ -162,18 +162,8 @@ class SessionLinesTest(SessionLinesBase):
         self.assertTrue(lines[-1].startswith("Go"), lines)
         self.assertIn("DS 5h", lines[-1])
         self.assertEqual(lines[3], "\u25b6\ufe0e main  Claude 1.0% | Go 0.0%")
-        block = "\n".join(lines[4:-1])
-        self.assertIn("session/claude main | model:opus | effort:high", block)
-        self.assertIn("subagent/tester fake-agent", block)
-        self.assertIn("hand-ext/codex fake-run | model:sol | effort:high | ~$0.2500", block)
-        self.assertIn("account:pro | 5h:4% | tuần:?", block)
-        self.assertIn("ended:đang chạy | elapsed:12s", block)
-        self.assertIn("session/codex side", block)
-        self.assertNotIn("unrelated", block)
-        self.assertNotIn("hidden-orphan", block)
-        self.assertNotIn("started", block)
-        lost = next(line for line in lines if "lost-run" in line)
-        self.assertIn("ended:? | elapsed:?", lost)
+        for marker in ("session/", "subagent/", "hand-ext/", "fake-agent", "lost-run"):
+            self.assertFalse(any(marker in line for line in lines), (marker, lines))
 
 
 class SessionRegistryTest(SessionLinesBase):
