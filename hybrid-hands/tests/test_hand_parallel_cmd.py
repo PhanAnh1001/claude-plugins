@@ -23,7 +23,7 @@ class ParallelCommandTest(unittest.TestCase):
         linked = self.root / 'linked'; linked.mkdir()
         with patch('hand_ext.config.git_toplevel', return_value=linked), patch('hand_ext.config.main_repo_root', return_value=self.root):
             self.assertIn(str(self.config), self.run_cli('on')[1])
-            self.assertEqual(json.loads(self.run_cli('--json')[1]), {'parallel_subagents':True,'source':'repo','file':str(self.config), 'backend':'claude-v1','model':'claude-opus-5-5','effort':'low','backend_source':'plugin'})
+            self.assertEqual(json.loads(self.run_cli('--json')[1]), {'parallel_subagents':True,'source':'repo','file':str(self.config), 'backend':'claude-v1','model':'claude-opus-5-5','effort':'low','backend_source':'plugin','brain_account':'v1','brain_account_source':'plugin','account_mismatch':False})
         self.config.unlink(); (self.root / 'global.json').write_text('{"parallel_subagents":{"enabled":true}}')
         code, out, err = self.run_cli('--json')
         self.assertEqual((code, json.loads(out)['parallel_subagents'], json.loads(out)['source']), (0, False, 'global'))
@@ -50,3 +50,13 @@ class ParallelCommandTest(unittest.TestCase):
         before = self.config.read_bytes()
         self.assertEqual(self.run_cli('--backend', 'unknown')[0], 2)
         self.assertEqual(self.config.read_bytes(), before)
+
+    def test_account_sets_brain_and_backend_atomically(self):
+        code, out, _ = self.run_cli('on', '--account', 'v2', '--json')
+        status = json.loads(out)
+        self.assertEqual((code, status['backend'], status['brain_account'], status['account_mismatch']), (0, 'claude-v2', 'v2', False))
+        self.assertEqual(json.loads(self.config.read_text())['main_session'], {'claude_account': 'v2'})
+        before = self.config.read_bytes()
+        for args in (('--account', 'v9'), ('--account', 'v2', '--backend', 'claude-v1')):
+            self.assertEqual(self.run_cli('on', *args)[0], 2)
+            self.assertEqual(self.config.read_bytes(), before)

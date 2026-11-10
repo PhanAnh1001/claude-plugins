@@ -163,6 +163,13 @@ def parallel_backend(value: Any, ext_hand: dict) -> str:
     return name
 
 
+def brain_account(value: Any, ext_hand: dict) -> str:
+    """Validate a Claude account name without echoing user input."""
+    if not isinstance(value, str) or value not in ext_hand["claude_accounts"]:
+        raise ValueError("--account không tồn tại trong ext_hand.claude_accounts hiệu lực")
+    return value
+
+
 def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
                 config_file: Path | None = None) -> ConfigResult:
     """Resolve files from the current repo, retaining main-worktree fallback.
