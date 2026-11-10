@@ -222,6 +222,10 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
             from .post_hoc_reverify import recover_cancelled
             return recover_cancelled(store, r, apply=apply, table=process_table)
         from . import operator_reconcile
+        if settled_sticky(r):
+            return recover_settled_sticky(
+                store, r, apply=apply, reason=reason, table=process_table, target=target,
+                probe=lambda request: creation_proof(request, package_root, validator))
         if operator_reconcile.applicable(r):
             return operator_reconcile.recover_unresolved(
                 store, r, apply=apply, reason=reason, table=process_table, target=target,
@@ -286,6 +290,88 @@ def recover(store, key, source, package_root, *, apply=False, validator=None, ta
             raise StateConflict('invalid bound workspace not proved')
         return admission.fail(key, proof, 'invalid_bound_workspace_id', recovery=True,
                               expected_revision=r.revision) if apply else r
+
+
+def _reconcile_receipt(r):
+    from .operator_reconcile import METHOD
+    return (r.receipt or {}).get(METHOD)
+
+
+def settled_sticky(r) -> bool:
+    """A runner outcome already exists but sticky containment holds the reservation."""
+    from .operator_reconcile import STICKY_EVIDENCE, operator_reconciled
+    if operator_reconciled(r) or not isinstance(r.outcome, dict) or r.pending_outcome is not None:
+        return False
+    if _reconcile_receipt(r):
+        return True  # durable operator provenance: retry release or replay as no-op
+    return (r.state == 'unresolved' and r.outcome.get('quiescent') is True
+            and (r.quiescence or {}).get('evidence') == STICKY_EVIDENCE)
+
+
+def _settled_completion(store, table):
+    from .execution_supervisor import ExecutionSupervisor
+    from .execution_worker import ExecutionWorker
+    from .paseo_completion import CompletionService
+    supervisor = ExecutionSupervisor(store, table=table)
+    worker = ExecutionWorker(store, supervisor)
+    return CompletionService(store, supervisor, AdmissionController(store, supervisor, None)).attach(worker)
+
+
+def _prove_settled(store, r, *, table, probe, target, completion) -> dict:
+    """operator_reconcile proof for an existing outcome; also every sink must be provable."""
+    from . import operator_reconcile as op
+    pending = dict(r.to_dict(), outcome=None, pending_outcome=r.outcome)
+    evidence = op.prove(store, type(r).from_dict(pending), table=table, probe=probe, target=target)
+    unproved = [kind for kind, marker in sorted(r.settle_keys.items())
+                if marker.get('state') != 'completed'
+                and completion._recover_refs(r, kind, marker['key']) is None]
+    if unproved:
+        raise StateConflict('settlement sink unproved: ' + ','.join(unproved))
+    return dict(evidence, outcome_preserved=True)
+
+
+def _record_settled(store, r, evidence, reason, at) -> None:
+    from .legacy_attestation import latest_locked
+    from .operator_reconcile import METHOD
+    with store.locked():
+        current = store._read(store._path(r.key))
+        latest_locked(store, current)
+        if current.to_dict() != r.to_dict():
+            raise StateConflict('proof revision changed')
+        current.receipt = dict(current.receipt, **{METHOD: dict(
+            reason=reason, evidence=evidence, at=at, prior_revision=r.revision)})
+        current.revision += 1
+        atomic_json(store._path(r.key), current.to_dict())
+
+
+def recover_settled_sticky(store, r, *, apply=False, reason=None, table=None, probe=None,
+                           target=None, clock=time.time, completion_factory=None):
+    """Dry-run plan, or record provenance and release officially; outcome is never rewritten."""
+    from .operator_reconcile import ReconcilePlan
+    from .process_containment import ProcessTable
+    if apply and (not isinstance(reason, str) or not reason.strip()):
+        raise StateConflict('explicit operator reason required')
+    table = table or ProcessTable()
+    completion = (completion_factory or _settled_completion)(store, table)
+    if _reconcile_receipt(r):
+        if not apply:
+            return ReconcilePlan(True, None, _reconcile_receipt(r)['evidence'], r)
+        if r.reservation:
+            completion.reconcile(r.key)
+        return store.get(r.key)
+    try:
+        evidence = _prove_settled(store, r, table=table, probe=probe, target=target, completion=completion)
+    except StateConflict as exc:
+        if apply:
+            raise
+        return ReconcilePlan(False, str(exc), {}, r)
+    if not apply:
+        return ReconcilePlan(True, None, evidence, r)
+    evidence = _prove_settled(store, r, table=table, probe=probe, target=target, completion=completion)
+    _record_settled(store, r, evidence, reason.strip(), clock())
+    # Official path: supervisor re-proves stale uncertainty, sinks recover, admission releases.
+    completion.reconcile(r.key)
+    return store.get(r.key)
 
 
 CREATE_DIAGNOSTICS = ('failedStage', 'errorCode')

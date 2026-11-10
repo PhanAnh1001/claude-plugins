@@ -4,12 +4,83 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
+import contextlib
+import importlib
+import inspect
+import io
+import itertools
+from collections import namedtuple
+import os
+import tempfile
+import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'))
 from hand_ext.cli import main
 from hand_ext.account_sync_manifest import ManifestError, manifest_from
 from shared_config import load_config
+
+
+# Stdlib stand-ins for the pytest fixtures this module used (system python3 lacks pytest).
+_MISSING = object()
+Captured = namedtuple('Captured', 'out err')
+
+
+def raises(error):
+    return unittest.TestCase().assertRaises(error)
+
+
+def parametrize(name, values):
+    def mark(function):
+        function.params = [(name, values)] + getattr(function, 'params', [])
+        return function
+    return mark
+
+
+class MonkeyPatch:
+    def __init__(self):
+        self._undo = []
+
+    def setenv(self, name, value):
+        old = os.environ.get(name, _MISSING)
+        self._undo.append(lambda: os.environ.pop(name, None) if old is _MISSING
+                          else os.environ.__setitem__(name, old))
+        os.environ[name] = value
+
+    def setattr(self, target, name, value=_MISSING):
+        if value is _MISSING:
+            module, name, value = *target.rsplit('.', 1), name
+            target = importlib.import_module(module)
+        old = getattr(target, name)
+        self._undo.append(lambda: setattr(target, name, old))
+        setattr(target, name, value)
+
+    def undo(self):
+        while self._undo:
+            self._undo.pop()()
+
+
+class CapSys:
+    def __init__(self, stack):
+        self._out, self._err = io.StringIO(), io.StringIO()
+        stack.enter_context(contextlib.redirect_stdout(self._out))
+        stack.enter_context(contextlib.redirect_stderr(self._err))
+
+    def readouterr(self):
+        result = Captured(self._out.getvalue(), self._err.getvalue())
+        for stream in (self._out, self._err):
+            stream.seek(0); stream.truncate()
+        return result
+
+
+def _run(function, params):
+    with tempfile.TemporaryDirectory() as directory, contextlib.ExitStack() as stack:
+        patch = MonkeyPatch()
+        stack.callback(patch.undo)
+        fixtures = {'tmp_path': Path(directory).resolve(), 'monkeypatch': patch}
+        if 'capsys' in inspect.signature(function).parameters:
+            fixtures['capsys'] = CapSys(stack)
+        names = inspect.signature(function).parameters
+        function(**{n: params[n] if n in params else fixtures[n] for n in names})
 
 
 def fixture(tmp_path, monkeypatch):
@@ -43,9 +114,9 @@ def test_manifest(tmp_path, monkeypatch, capsys):
                      [{'items': [{'provider': 'claude', 'path': p}]} for p in
                       ('auth.json', 'skills/.system/a', 'skills/../auth.json',
                        'plugins/a', 'skills/.env', '/CLAUDE.md')]):
-        with pytest.raises(ManifestError):
+        with raises(ManifestError):
             manifest_from(result, override)
-    with pytest.raises(ManifestError):
+    with raises(ManifestError):
         manifest_from(result, {'sources': {'claude': 'v2'}})
     sentinel = 'SENTINEL_INVALID_GLOBAL'
     global_file = tmp_path / 'global.json'
@@ -126,7 +197,7 @@ def test_assets_apply(tmp_path, monkeypatch):
     assert {r['action'] for r in build_plan(result, data, account='v2', apply=True)} == {'in_sync'}
 
 
-@pytest.mark.parametrize('kind', ['real', 'wrong', 'dangling'])
+@parametrize('kind', ['real', 'wrong', 'dangling'])
 def test_assets_conflict(tmp_path, kind):
     from hand_ext.account_sync_assets import asset
     source, target = tmp_path / 'source', tmp_path / 'target'
@@ -178,7 +249,7 @@ def test_assets_boundaries(tmp_path, monkeypatch):
     assert not any('.system' in r['path'] for r in rows)
     (target / 'skills').symlink_to(source / 'skills', target_is_directory=True)
     assert asset(source, target, {'path': 'skills/public', 'approved': True}, status=False, apply=True)[0] == 'blocked'
-    with pytest.raises(ManifestError):
+    with raises(ManifestError):
         manifest_from(result, {'items': [{'provider': 'claude', 'path': 'skills/../escape'}]})
 
     (target / 'skills').unlink()
@@ -245,7 +316,7 @@ def test_settings_floor_backup_modes_idempotence(tmp_path, monkeypatch):
     assert stat.S_IMODE((other / 'settings.json').stat().st_mode) == 0o600
 
 
-@pytest.mark.parametrize('kind', ['json', 'source_link', 'target_link', 'parent_link', 'concurrent'])
+@parametrize('kind', ['json', 'source_link', 'target_link', 'parent_link', 'concurrent'])
 def test_settings_invalid_or_concurrent(tmp_path, monkeypatch, kind):
     settings, source, target, policy, _ = settings_fixture(tmp_path, monkeypatch)
     path = target / 'settings.json'
@@ -270,7 +341,7 @@ def test_settings_invalid_or_concurrent(tmp_path, monkeypatch, kind):
     assert not (tmp_path / '.hybrid-hands').exists()
 
 
-@pytest.mark.parametrize('operation', ['_backup', 'replace', 'read', 'backup_fsync',
+@parametrize('operation', ['_backup', 'replace', 'read', 'backup_fsync',
                                       'incomplete', 'directory_fsync'])
 def test_settings_failure_redacted(tmp_path, monkeypatch, capsys, operation):
     import os
@@ -326,8 +397,8 @@ def test_settings_failure_redacted(tmp_path, monkeypatch, capsys, operation):
     assert not list(target.glob('.settings-*'))
 
 
-@pytest.mark.parametrize('scope', ['user', 'project', 'local'])
-@pytest.mark.parametrize('sourcekind', ['https', 'directory', 'unapproved'])
+@parametrize('scope', ['user', 'project', 'local'])
+@parametrize('sourcekind', ['https', 'directory', 'unapproved'])
 def test_official_install_idempotent(tmp_path, monkeypatch, scope, sourcekind):
     from hand_ext import account_sync_official as official
     source, target = tmp_path / 'source', tmp_path / 'target'
@@ -388,7 +459,7 @@ def test_official_install_idempotent(tmp_path, monkeypatch, scope, sourcekind):
     assert os.environ['CLAUDE_CONFIG_DIR'] == 'unchanged'
 
 
-@pytest.mark.parametrize('failure', ['error', 'timeout', 'ack', 'wrong_command', 'wrong_outcome', 'wrong_message'])
+@parametrize('failure', ['error', 'timeout', 'ack', 'wrong_command', 'wrong_outcome', 'wrong_message'])
 def test_official_partial_redaction(tmp_path, monkeypatch, capsys, failure):
     from hand_ext import account_sync_official as official
     source, target = tmp_path / 'source', tmp_path / 'target'
@@ -422,13 +493,37 @@ def test_official_partial_redaction(tmp_path, monkeypatch, capsys, failure):
     assert 'SENTINEL' not in json.dumps(rows) + ''.join(capsys.readouterr())
 
 
-@pytest.mark.parametrize('approved', [False, True])
+@parametrize('approved', [False, True])
 def test_official_mcp_blocked(tmp_path, monkeypatch, approved):
     from hand_ext import account_sync_official as official
     def forbidden(*a, **kw):
-        pytest.fail('MCP must not invoke CLI')
+        raise AssertionError('MCP must not invoke CLI')
     monkeypatch.setattr(subprocess, 'run', forbidden)
     rows = official.reconcile('v1', tmp_path / 'a', 'v2', tmp_path / 'b', tmp_path,
                               {}, [{'name': 'public', 'approved': approved}], apply=True)
     assert rows[0]['action'] == 'blocked'
     assert rows[0]['reason'] == ('mcp_safe_transport_unverified' if approved else 'mcp_approval_required')
+
+
+class AccountSyncTest(unittest.TestCase):
+    pass
+
+
+def _method(function):
+    def test(self):
+        params = getattr(function, 'params', [])
+        for combo in itertools.product(*(values for _, values in params)):
+            case = dict(zip((name for name, _ in params), combo))
+            with self.subTest(**case):
+                _run(function, case)
+    return test
+
+
+for _name, _function in list(globals().items()):
+    if _name.startswith('test_') and callable(_function):
+        setattr(AccountSyncTest, _name, _method(_function))
+        del globals()[_name]
+
+
+if __name__ == '__main__':
+    unittest.main()

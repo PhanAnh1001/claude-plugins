@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.51.1 — 2026-11-10
+
+- Supervisor tự chứng minh lại containment incomplete đã cũ (`stale_uncertainty_reproved`): chỉ khi root đã reap, root/owner/mọi pid từng theo dõi đã mất hoặc bị tái dùng, quét toàn bộ tiến trình cùng uid không còn marker và không env sống nào đọc lỗi; còn nghi ngờ thì vẫn chặn.
+- `hand-ext managed recover` (nhánh operator_reconcile) nhận ca outcome đã có/epoch ≥ 2 (`settled_sticky`): dry-run mặc định, `--apply` cần `--reason`, giữ nguyên outcome, ghi provenance, release qua đường chính thức, idempotent. Agent Paseo `error` không còn turn và 0 permission chờ được coi là terminal; bridge `agent-terminal` trả thêm `activeTurn`/`pendingPermissionCount` đã sanitize; sink go_ledger ngoài dsh nhận not_applicable khi recover.
+- Full suite chạy được trên Python hệ thống: `test_account_sync` bỏ pytest (shim stdlib), test policy hermetic và trỏ đúng nguồn render.
+
 ## 0.51.0 — 2026-11-10
 
 - Thêm `side_session.worktree_sparse_exclude` (mặc định `[]`, list pattern kiểu gitignore, validate lúc nạp config) và `side-session start --no-sparse`. Khi khác rỗng, worktree tạo bằng `git worktree add --no-checkout` → `sparse-checkout set --no-cone --stdin` (`/*`, `!<pattern>`) → `checkout`, dùng chung cho screen và Paseo; lỗi giữa chừng giữ worktree và không launch agent.

@@ -26,6 +26,17 @@ METHOD = 'operator_reconcile'
 STICKY_EVIDENCE = 'retained containment incomplete'
 # Paseo agent status that proves the gateway child is terminal.
 TERMINAL_AGENT_STATUS = 'closed'
+# Operator path only: a crashed child ('error') is terminal when it has no active
+# turn and no pending permission; both fields must be explicitly reported.
+ERRORED_AGENT_STATUS = 'error'
+
+
+def _agent_terminal(proof: dict) -> bool:
+    if proof.get('status') == TERMINAL_AGENT_STATUS:
+        return True
+    return (proof.get('status') == ERRORED_AGENT_STATUS
+            and 'activeTurn' in proof and proof['activeTurn'] is None
+            and proof.get('pendingPermissionCount') == 0)
 AGENT_PROBE_COMMAND = 'agent-terminal'
 NO_TRANSPORT = 'none'
 
@@ -108,7 +119,7 @@ def _check_entry(store: ExecutionStore, r: ExecutionRecord) -> dict:
     return saved
 
 
-def _check_processes(r: ExecutionRecord, saved: dict, table: ProcessTable) -> dict:
+def check_processes(r: ExecutionRecord, saved: dict, table: ProcessTable) -> dict:
     root, owner = _identity(saved.get('root')), _identity(saved.get('owner'))
     if root.pid != r.process['pid'] or str(owner.pid) != str(r.process.get('supervisor_id')):
         raise StateConflict('root/owner identity not pinned to process')
@@ -126,7 +137,7 @@ def _check_processes(r: ExecutionRecord, saved: dict, table: ProcessTable) -> di
     return evidence
 
 
-def _scan_markers(r: ExecutionRecord, table: ProcessTable) -> dict:
+def scan_markers(r: ExecutionRecord, table: ProcessTable) -> dict:
     """Whole same-uid scan; an unreadable live environment blocks (never 'clean')."""
     rows = table.snapshot()  # errors propagate: a failed snapshot is never empty
     tree = object.__new__(Descendants)
@@ -169,7 +180,7 @@ def _check_agent(r: ExecutionRecord, probe: Callable[[dict], dict] | None, targe
             or proof.get('workspaceId') != r.attempt.workspace_id
             or proof.get('parentLabel') not in PARENT_LABEL_STATES):
         raise StateConflict('exact agent status unavailable')
-    if proof.get('status') != TERMINAL_AGENT_STATUS:
+    if not _agent_terminal(proof):
         raise StateConflict('agent not closed')
     return dict(transport='paseo', agent_status=proof['status'], agent_archived=proof.get('archived') is True,
                 parent_label=proof['parentLabel'])
@@ -179,8 +190,8 @@ def prove(store, r, *, table, probe, target) -> dict:
     saved = _check_entry(store, r)
     evidence = dict(method=METHOD, root_reaped=True)
     try:
-        evidence.update(_check_processes(r, saved, table))
-        evidence.update(_scan_markers(r, table))
+        evidence.update(check_processes(r, saved, table))
+        evidence.update(scan_markers(r, table))
     except StateConflict:
         raise
     except Exception:
