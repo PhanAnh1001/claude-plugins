@@ -15,8 +15,7 @@ from .config import load_config as load_ext_config
 POLICY_SECTION = "parallel_subagents"
 POLICY_KEY = f"{POLICY_SECTION}.enabled"
 NEW_SESSION = "mở phiên mới để hook nạp luật"
-MAIN_SECTION = "main_session"
-ACCOUNT_KEY = f"{MAIN_SECTION}.claude_account"
+ACCOUNT_KEY = f"{POLICY_SECTION}.account"
 CLAUDE_PREFIX = "claude-"
 MISMATCH_WARNING = ("cảnh báo: backend subagent khác tài khoản brain; subagent native chỉ chạy khi "
                     "cùng tài khoản, dùng --account vN")
@@ -33,9 +32,8 @@ def _read_repository(path: Path) -> dict:
         raise ValueError(f"{path}: JSON không hợp lệ") from exc
     if not isinstance(data, dict):
         raise ValueError(f"{path}: root phải là object")
-    for section in (POLICY_SECTION, MAIN_SECTION):
-        if section in data and not isinstance(data[section], dict):
-            raise ValueError(f"{path}: {section} phải là object")
+    if POLICY_SECTION in data and not isinstance(data[POLICY_SECTION], dict):
+        raise ValueError(f"{path}: {POLICY_SECTION} phải là object")
     return data
 
 
@@ -48,7 +46,7 @@ def _write_repository(path: Path, enabled: bool | None, backend: str | None = No
     if backend is not None:
         section["backend"] = backend
     if account is not None:
-        data.setdefault(MAIN_SECTION, {})["claude_account"] = account
+        section["account"] = account
     content = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary: Path | None = None
@@ -68,7 +66,8 @@ def _write_repository(path: Path, enabled: bool | None, backend: str | None = No
 def _status(result: ConfigResult) -> dict:
     source = result.sources[POLICY_KEY]
     backend = result.effective[POLICY_SECTION]["backend"]
-    brain = result.effective[MAIN_SECTION]["claude_account"]
+    brain = result.effective[POLICY_SECTION].get(
+        "account", backend[len(CLAUDE_PREFIX):] if backend.startswith(CLAUDE_PREFIX) else "")
     ext_cfg = load_ext_config(known_root=result.root, config_file=Path(result.paths["repo"]["path"]))
     options = ext_cfg.options(backend)
     return {
@@ -78,7 +77,8 @@ def _status(result: ConfigResult) -> dict:
         POLICY_SECTION: result.effective[POLICY_SECTION]["enabled"],
         "source": "default" if source == "plugin" else source,
         "file": str(DEFAULT_FILE) if source == "plugin" else result.paths[source]["path"],
-        "brain_account": brain, "brain_account_source": result.sources.get(ACCOUNT_KEY, "plugin"),
+        "brain_account": brain, "brain_account_source": result.sources.get(
+            ACCOUNT_KEY, result.sources[f"{POLICY_SECTION}.backend"]),
         "account_mismatch": backend.startswith(CLAUDE_PREFIX) and backend != CLAUDE_PREFIX + brain,
         "brain_account_label": account_label(PROVIDER_CLAUDE, brain, ext_cfg),
         "backend_account_label": backend_account_label(backend, ext_cfg),
@@ -92,7 +92,10 @@ EXIT_BAD_CHOICE = 2
 
 def _choices(result: ConfigResult) -> list[dict]:
     ext_cfg = load_ext_config(known_root=result.root, config_file=Path(result.paths["repo"]["path"]))
-    return account_choices(ext_cfg, result.effective[POLICY_SECTION]["backend"])
+    backend = result.effective[POLICY_SECTION]["backend"]
+    if backend.startswith(CLAUDE_PREFIX):
+        backend = CLAUDE_PREFIX + result.effective[POLICY_SECTION].get("account", backend[len(CLAUDE_PREFIX):])
+    return account_choices(ext_cfg, backend)
 
 
 def _print_choices(rows: list[dict]) -> None:
@@ -165,7 +168,7 @@ def command(args: argparse.Namespace) -> int:
             result.effective[POLICY_SECTION]["backend"] = backend
             result.sources[f"{POLICY_SECTION}.backend"] = "repo"
         if account is not None:
-            result.effective[MAIN_SECTION]["claude_account"] = account
+            result.effective[POLICY_SECTION]["account"] = account
             result.sources[ACCOUNT_KEY] = "repo"
     payload = _status(result)
     if args.json:

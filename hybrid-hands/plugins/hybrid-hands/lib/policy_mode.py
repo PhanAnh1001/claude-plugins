@@ -43,7 +43,8 @@ def mode_config(cwd: Path) -> tuple[str, int, str, dict, str]:
                 and result.sources.get(MODE_KEY) == "repo"):
             backend = result.effective["parallel_subagents"]["backend"]
             options = load_ext_config(known_root=result.root, config_file=Path(result.paths["repo"]["path"])).options(backend)
-            account = result.effective["main_session"]["claude_account"]
+            account = result.effective["parallel_subagents"].get(
+                "account", backend[len(CLAUDE_PREFIX):] if backend.startswith(CLAUDE_PREFIX) else "")
             return result.paths["repo"]["path"], result.effective["ext_hand"]["max_parallel"], backend, options, account
     except (GlobalConfigError, OSError, ValueError, TypeError, KeyError):
         print("warning: hybrid-hands: không đọc được cấu hình policy; dùng policy thường", file=sys.stderr)
