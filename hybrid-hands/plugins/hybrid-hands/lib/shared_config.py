@@ -132,6 +132,12 @@ def _normalize_parallel_policy(data: dict, source: str, path: Path, *, stream=No
         print(f"warning: {path}: parallel_subagents phải là object; dùng disabled", file=stream if stream is not None else sys.stderr)
         data["parallel_subagents"] = {"enabled": False}
         return
+    if "backend" in section:
+        if not isinstance(section["backend"], str):
+            print(f"warning: {path}: parallel_subagents.backend phải là string; dùng claude-v1", file=stream if stream is not None else sys.stderr)
+            section["backend"] = "claude-v1"
+        else:
+            section["backend"] = canonical_backend(section["backend"])
     if "enabled" not in section:
         return
     if type(section["enabled"]) is not bool:
@@ -140,6 +146,21 @@ def _normalize_parallel_policy(data: dict, source: str, path: Path, *, stream=No
     elif source == "global" and section["enabled"]:
         print(f"warning: {path}: parallel_subagents.enabled chỉ bật từ repo; bỏ qua global", file=stream if stream is not None else sys.stderr)
         section["enabled"] = False
+
+
+def canonical_backend(value: str) -> str:
+    return {"claude-main": "claude-v1", "claude": "claude-v2"}.get(value, value)
+
+
+def parallel_backend(value: Any, ext_hand: dict) -> str:
+    """Validate against the effective registry without echoing user input."""
+    if not isinstance(value, str):
+        raise ValueError("parallel_subagents.backend phải là tên backend hợp lệ")
+    name = canonical_backend(value)
+    names = set(ext_hand["backends"]) | {f"claude-{account}" for account in ext_hand["claude_accounts"]}
+    if name not in names:
+        raise ValueError("parallel_subagents.backend không tồn tại trong cấu hình hiệu lực")
+    return name
 
 
 def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
@@ -194,7 +215,7 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
     from hand_ext.constants import DEFAULTS as HAND_DEFAULTS
     from side_session.constants import DEFAULTS as SIDE_DEFAULTS
 
-    defaults = {"parallel_subagents": {"enabled": False}, "ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
+    defaults = {"parallel_subagents": {"enabled": False, "backend": "claude-v1"}, "ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
                 "main_session": {"provider": "codex", "codex_model": "gpt-6.1-sol",
                                  "codex_effort": "high", "claude_model": "claude-opus-5-5",
                                  "claude_effort": "high", "claude_account": "v1",
@@ -219,6 +240,12 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
             if source == "global":
                 raise GlobalConfigError(error) from exc
             raise ValueError(error) from exc
+    try:
+        effective["parallel_subagents"]["backend"] = parallel_backend(
+            effective["parallel_subagents"]["backend"], effective["ext_hand"])
+    except ValueError:
+        print("warning: parallel_subagents.backend không hợp lệ; dùng claude-v1", file=warnings)
+        effective["parallel_subagents"]["backend"] = "claude-v1"
     # Validate limits after merging, even for consumers which only need side state.
     from hand_ext.parallel import validate_limit
     from side_session.constants import MAX_PARALLEL as SIDE_MAX

@@ -41,3 +41,15 @@ class NativePickTest(HandExtTestCase):
                 "backends": {"claude-v1": {"effort": "high"}}})
         self.assertIs(result["native"], False)
         self.assertIn("effort", result["native_reason"])
+
+    def test_explicit_backend_ignores_order_without_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict("os.environ", {"HYBRID_HANDS_CONFIG": str(Path(tmp) / "absent.json")}):
+            cfg = load_config(known_root=Path(tmp), config_file=Path(tmp) / "repo.json")
+            cfg.order = ["codex", "claude-v1"]
+            def preflight(selected):
+                self.assertEqual(selected.order, ["claude-v1"])
+                return [(None, "claude-v1", "guard blocked")]
+            with mock.patch("hand_ext.cli.auto_preflight", side_effect=preflight), redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(cmd_pick(cfg, Namespace(json=True, backend="claude-v1")), 7)
+            self.assertEqual(json.loads(out.getvalue())["skipped"], [{"backend":"claude-v1", "reason":"guard blocked"}])
+            self.assertEqual(cfg.order, ["codex", "claude-v1"])

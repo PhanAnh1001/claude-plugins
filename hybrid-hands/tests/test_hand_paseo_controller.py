@@ -180,6 +180,9 @@ class ControllerTests(unittest.TestCase):
         unavailable=Mock();unavailable.probe_capabilities.return_value={'ok':False,'code':'BRIDGE_UNAVAILABLE'}
         with self.assertRaises(PaseoUnavailable):
             PaseoController(self.cfg,self.store,unavailable).preflight('codex','parent')
+        unavailable.probe_capabilities.return_value={'ok':True,'providers':['hh-hand-codex']}
+        with self.assertRaisesRegex(PaseoUnavailable, '^PARENT_REQUIRED$'):
+            PaseoController(self.cfg,self.store,unavailable).preflight('codex',None)
         from shared_config import load_config as load_shared
         invalid = load_shared(self.repo)
         invalid.effective['ext_hand']['mode'] = 'wrong'

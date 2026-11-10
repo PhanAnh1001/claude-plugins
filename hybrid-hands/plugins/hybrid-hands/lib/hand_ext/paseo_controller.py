@@ -266,7 +266,7 @@ class PaseoController:
         if 'hh-hand-' + canonical_backend(backend) not in probe.get('providers', []):
             raise PaseoUnavailable('PASEO_PROVIDER_UNAVAILABLE')
         if not parent_agent:
-            raise TransportError('PARENT_REQUIRED')
+            raise PaseoUnavailable('PARENT_REQUIRED')
         return self.transport.verify_parent(parent_agent)
 
     def dispatch(self, invocation, attempt, brief, verified_parent):
