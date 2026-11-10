@@ -230,6 +230,13 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(self.worker.calls, 2)
         self.worker.settle(retained.key)
 
+    def test_session_new_ignores_injected_mcp_list(self):
+        injected = [{'name':'paseo','command':'synthetic','args':[],'env':[]}]
+        new = self.gateway.handle('session/new',dict(self.session(),mcpServers=injected))
+        self.assertEqual(new['sessionId'],self.invocation.invocation_id)
+        with self.assertRaisesRegex(ProtocolError,'MCP servers unsupported'):
+            self.gateway.handle('session/new',dict(self.session(),mcpServers={'name':'paseo'}))
+
     def test_stdio_cancel_and_eof_keep_live_writer_reserved(self):
         self.worker.complete = False
         self.gateway.wait_seconds = 2

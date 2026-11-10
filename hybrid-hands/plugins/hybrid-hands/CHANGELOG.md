@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.48.3 — 2026-11-10
+
+- Gateway `hand-paseo-acp` chấp nhận `session/new`/`session/load` có `mcpServers` là list (kể cả có phần tử) và bỏ qua hoàn toàn (không lưu, không log, không kết nối, không truyền xuống backend); không phải list vẫn bị từ chối `MCP servers unsupported`. Nguyên nhân managed create lỗi `AGENT_NOT_FOUND`/`errorCode=unknown`: Paseo daemon `mcp.injectIntoAgents=true` chèn MCP server của nó, gateway cũ chỉ nhận `[]` nên từ chối.
+
 ## 0.48.2 — 2026-11-10
 
 - `hand-ext managed recover` nhận execution create-failed (`pending=create`) có `receipt.naming` (retry đặt tên chưa xong, `done=false`, `attempts ≤ 3`, warning `NAME_UNRESOLVED` hoặc rỗng) và metadata ghi trước create `title`/`settled`/`lifecycle` (kiểm kiểu, đúng khóa) khi proof `creation-failure` khớp chính xác; rồi ghi `failed_child_creation` và release reservation. Bằng chứng gửi (`sendConfirmed`, `messageId`, `briefDigest`, `createConfirmed`, gateway, writer, process) vẫn chặn.
