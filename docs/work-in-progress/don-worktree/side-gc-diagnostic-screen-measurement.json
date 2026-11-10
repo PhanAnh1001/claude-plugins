@@ -1,0 +1,9 @@
+{
+  "exit": 0,
+  "timeout": false,
+  "elapsed_s": 37.22,
+  "branches_before": 252,
+  "branches_after": 252,
+  "command": "/Users/anhtp/app/claude-plugins-wt/don-worktree/hybrid-hands/plugins/hybrid-hands/bin/side-session gc --json",
+  "cwd": "/Users/anhtp/app/live-tiktok-games"
+}

@@ -1,0 +1,546 @@
+[
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/ai-comic-video",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/ai-luxian",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/ai-practice-english",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/codex-plugins",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/common-modules",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/hrm-open-sources",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/live-tiktok-games",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/live-tiktok-games-preview-publish",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/skill-key",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/slt-ocr-pro",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/tcp-assistant",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/tcp-assistant-main",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/team-ai-gitops",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/claude-plugins-wt/don-worktree",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v1",
+    "cwd": "/Users/anhtp/app/claude-plugins-wt/dong-bo-tai-khoan",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/ai-comic-video",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/ai-luxian",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/ai-practice-english",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/claude-plugins",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/codex-plugins",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/common-modules",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/hrm-open-sources",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/live-tiktok-games",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/live-tiktok-games-preview-publish",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/skill-key",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/slt-ocr-pro",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/tcp-assistant",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/tcp-assistant-main",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/team-ai-gitops",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/claude-plugins-wt/don-worktree",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  },
+  {
+    "account": "v2",
+    "cwd": "/Users/anhtp/app/claude-plugins-wt/dong-bo-tai-khoan",
+    "exit": 0,
+    "plugins": [
+      {
+        "id": "hybrid-hands@hybrid-hands-local",
+        "version": "0.48.3",
+        "scope": "user",
+        "installPath": "/Users/anhtp/.claude-hand/plugins/cache/hybrid-hands-local/hybrid-hands/0.48.3",
+        "readFromFolder": "/Users/anhtp/app/claude-plugins/hybrid-hands/plugins/hybrid-hands",
+        "folderVersion": "0.48.3",
+        "enabled": true,
+        "projectEnabled": false
+      }
+    ]
+  }
+]

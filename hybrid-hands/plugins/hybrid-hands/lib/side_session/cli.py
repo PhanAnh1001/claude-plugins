@@ -7,6 +7,7 @@ import sys
 from shared_config import GlobalConfigError
 from pathlib import Path
 
+from . import gc
 from . import actions
 from . import attach
 from . import constants as C
@@ -29,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="mở phiên chính: mặc định Codex Sol high trên Paseo; "
                         "--provider claude mở Claude Opus high trên Paseo")
     s.add_argument("--worktree", action="store_true")
+    s.add_argument("--ignore-disk-guard", action="store_true",
+                   help="chủ động vượt chặn dung lượng ổ khi tạo worktree")
     s.add_argument("--base", default=None)
     s.add_argument("--provider", choices=C.PROVIDERS, default=None,
                    help="codex (mặc định cho start), claude (mặc định cho --resume) hoặc dsh")
@@ -59,6 +62,13 @@ def build_parser() -> argparse.ArgumentParser:
     tidy.add_argument("--name")
     tidy.add_argument("--names", action="store_true", help="inspect/rename titles only")
     tidy.add_argument("--apply", action="store_true")
+    collector = sub.add_parser("gc", help="inspect worktrees; --apply removes eligible worktrees")
+    collector.add_argument("--name")
+    collector.add_argument("--apply", action="store_true")
+    collector.add_argument("--include-unmerged", action="store_true")
+    collector.add_argument("--prune-branches", action="store_true")
+    collector.add_argument("--json", action="store_true")
+    collector.add_argument("--fetch", action="store_true", help="explicitly fetch origin before inspection")
     sub.add_parser("ls", help="list sessions")
     st = sub.add_parser("stop", help="stop a session and its watchdog")
     st.add_argument("name")
@@ -74,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-HANDLERS = {"tidy": actions.tidy,"send": actions.send,"start": actions.start, "ls": actions.ls, "stop": actions.stop,
+HANDLERS = {"gc": gc.run, "tidy": actions.tidy,"send": actions.send,"start": actions.start, "ls": actions.ls, "stop": actions.stop,
             "watch": actions.watch, "handoff": actions.handoff}
 
 

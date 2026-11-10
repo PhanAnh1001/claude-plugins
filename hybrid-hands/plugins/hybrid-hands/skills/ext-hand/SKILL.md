@@ -168,3 +168,9 @@ hand-ext managed names --cwd /ABS/REPO --apply
 ```
 
 `side-session tidy --names [--name NAME] [--apply]` chỉ sửa tên side-session do plugin sở hữu; bỏ `--name` để xét các phiên trong phạm vi state. `hand-ext managed names --cwd /ABS [--apply]` là thao tác tương đương cho managed hand. Dry-run không ghi; apply chỉ đổi tên agent/workspace plugin-owned được xác minh, chặn main, shared, foreign và workspace có member chưa rõ ownership. Không suy ownership từ title/cwd. Cả hai lặp an toàn và không archive. `side-session tidy` không có `--names` vẫn giữ contract archive hiện có; naming không đổi review gate, restore/send, IDs, history, worktree hay artifacts.
+
+## GC worktree hand và disk guard
+
+`hand-ext gc [--cwd /ABS/REPO] [--json] [--apply]` mặc định dry-run, chỉ đọc metadata ownership/registry/git và kích thước. Apply có khoá + recheck, chỉ xoá worktree sạch đã kết thúc có completion evidence hợp lệ; running/dirty/unknown, managed chưa settled hoặc detached HEAD đã đổi khỏi base đều giữ. Không force, không xoá patch/report hay `output/llm/`; ignored files trong worktree bị xoá cùng worktree. Nhánh giữ nguyên; journal `<machine_state_dir>/worktree-gc.jsonl` giữ HEAD/branch cho khôi phục tracked commits, không phục hồi ignored files. Tôn trọng brief/session cấm apply hoặc yêu cầu duyệt.
+
+Trước tạo isolated worktree, disk guard cảnh báo dưới `disk_guard.warn_gb=20` GiB và chặn dưới `disk_guard.block_gb=5` GiB, exit 9. `--ignore-disk-guard` chỉ vượt chặn khi được phép chủ động. Sparse P4 bị chặn bởi S0 FAIL baseline `isolation.prepare`; không quảng bá `worktree_sparse_exclude` hay `--no-sparse` là đã có.

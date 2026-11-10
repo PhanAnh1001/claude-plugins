@@ -1,0 +1,1038 @@
+{
+  "applied": false,
+  "worktrees": [
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/SOL-WP72-20261109-090004-594224-wp88-l2-plan-codex",
+      "name": "SOL-WP72-20261109-090004-594224-wp88-l2-plan-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-171624-863781-hpa-pilot-dispatch-codex",
+      "name": "claude-plugins-20261109-171624-863781-hpa-pilot-dispatch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-173845-089909-hpa-pilot2-dispatch-codex",
+      "name": "claude-plugins-20261109-173845-089909-hpa-pilot2-dispatch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-181039-490103-hpa-pilot3-dispatch-codex",
+      "name": "claude-plugins-20261109-181039-490103-hpa-pilot3-dispatch-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-183249-721165-hpa-pilot3-dispatch-0353-codex",
+      "name": "claude-plugins-20261109-183249-721165-hpa-pilot3-dispatch-0353-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 5519931,
+      "head": "b07ab9a30609b03cabe7adccfbc60d91838d896f",
+      "branch": "HEAD",
+      "registry_revision": "bb0766e453385f9c5759e7e374b697e860126f5f91f8505ea78f65ad3d487862",
+      "run_id": "20261109-183249-721165-hpa-pilot3-dispatch-0353-codex",
+      "identity": [
+        16777233,
+        67229669
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-183421-720664-hpa-pilot3-stop-0353-codex",
+      "name": "claude-plugins-20261109-183421-720664-hpa-pilot3-stop-0353-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5519884,
+      "head": "b07ab9a30609b03cabe7adccfbc60d91838d896f",
+      "branch": "HEAD",
+      "registry_revision": "d29de9f0bd339af80e0b79a805eb9c77a570a36aa658d30e5398f3e4f40ee1e0",
+      "run_id": "20261109-183421-720664-hpa-pilot3-stop-0353-codex",
+      "identity": [
+        16777233,
+        67231020
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-185651-243156-hpa-pilot3-stop-0354-codex",
+      "name": "claude-plugins-20261109-185651-243156-hpa-pilot3-stop-0354-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 5539534,
+      "head": "d8164cbd390e2f0c5ff934727710bb51da1204f7",
+      "branch": "HEAD",
+      "registry_revision": "4e2908810207c750c7f03149bb17edbc66875d979fc5fbed9b71773e8a857663",
+      "run_id": "20261109-185651-243156-hpa-pilot3-stop-0354-codex",
+      "identity": [
+        16777233,
+        67266308
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-191119-589257-hpa-pilot4-smoke-dsh-dsh",
+      "name": "claude-plugins-20261109-191119-589257-hpa-pilot4-smoke-dsh-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-191128-236183-hpa-pilot4-smoke-claude-v2-claude-v2",
+      "name": "claude-plugins-20261109-191128-236183-hpa-pilot4-smoke-claude-v2-claude-v2",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-202216-154407-hpa-pilot5-smoke-dsh-dsh",
+      "name": "claude-plugins-20261109-202216-154407-hpa-pilot5-smoke-dsh-dsh",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5678922,
+      "head": "055336a57809c3a3dce26993a7e9ad37b7a1d06e",
+      "branch": "HEAD",
+      "registry_revision": "7046fa062dd2c619a6ca16646799f0e5d4cb2f69fad4bb2a20710e3fc27722c4",
+      "run_id": "20261109-202216-154407-hpa-pilot5-smoke-dsh-dsh",
+      "identity": [
+        16777233,
+        67392370
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-202427-914360-hpa-pilot5-smoke-claude-v2-claude-v2",
+      "name": "claude-plugins-20261109-202427-914360-hpa-pilot5-smoke-claude-v2-claude-v2",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5678940,
+      "head": "055336a57809c3a3dce26993a7e9ad37b7a1d06e",
+      "branch": "HEAD",
+      "registry_revision": "664ed9a79aa7cfd39fb9ebe53c27587404bfb54c505ed765b4cd76718bf39489",
+      "run_id": "20261109-202427-914360-hpa-pilot5-smoke-claude-v2-claude-v2",
+      "identity": [
+        16777233,
+        67395945
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-202541-560097-hpa-pilot5-stop-0356-codex",
+      "name": "claude-plugins-20261109-202541-560097-hpa-pilot5-stop-0356-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5678868,
+      "head": "055336a57809c3a3dce26993a7e9ad37b7a1d06e",
+      "branch": "HEAD",
+      "registry_revision": "d372e2cb86da7e9d3039911fed5dfc647a36a699c1538cac6a1232df765413e9",
+      "run_id": "20261109-202541-560097-hpa-pilot5-stop-0356-codex",
+      "identity": [
+        16777233,
+        67400925
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-211144-960854-ws-archive-managed-smoke-codex",
+      "name": "claude-plugins-20261109-211144-960854-ws-archive-managed-smoke-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 5806072,
+      "head": "4e38c39dcc1138d2292de19523d33accde19e547",
+      "branch": "HEAD",
+      "registry_revision": "c6c4cb2b5b7626ad6bf5f3286be1230a5b33437b82cf68f49a79380de8856c25",
+      "run_id": "20261109-211144-960854-ws-archive-managed-smoke-codex",
+      "identity": [
+        16777233,
+        67520023
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-212536-439179-demo-subagent-codex",
+      "name": "claude-plugins-20261109-212536-439179-demo-subagent-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5822953,
+      "head": "4e38c39dcc1138d2292de19523d33accde19e547",
+      "branch": "HEAD",
+      "registry_revision": "ed8319a36fb8fea0a2feb5f757e0452d15345eb8809e25d8a757d4e7dbad8611",
+      "run_id": "20261109-212536-439179-demo-subagent-codex",
+      "identity": [
+        16777233,
+        67540905
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261109-214238-364765-ws-names-smoke-codex",
+      "name": "claude-plugins-20261109-214238-364765-ws-names-smoke-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5873072,
+      "head": "b7e2f92544ef993949cec405e111f4288ce2895d",
+      "branch": "HEAD",
+      "registry_revision": "7e627b1d8a50f6cb2a5532d55a93b5c1491503e5f6071f12387ec9d6155eb5d3",
+      "run_id": "20261109-214238-364765-ws-names-smoke-codex",
+      "identity": [
+        16777233,
+        67619310
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261110-090145-772710-ps-toggle-l0-codex",
+      "name": "claude-plugins-20261110-090145-772710-ps-toggle-l0-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5953858,
+      "head": "39a9e4a8f6fef148d0f53c9ca6ce0d6c45fd1e6c",
+      "branch": "HEAD",
+      "registry_revision": "b0dcd7104844048abc9e668714a07b7616c062d158d1280661685640c44fd148",
+      "run_id": "20261110-090145-772710-ps-toggle-l0-codex",
+      "identity": [
+        16777233,
+        68231210
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/claude-plugins-20261110-090852-884842-ps-cmd-l0-codex",
+      "name": "claude-plugins-20261110-090852-884842-ps-cmd-l0-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 5985314,
+      "head": "c68f0e9ed376ec3a2ea021589baf948f80f210d7",
+      "branch": "HEAD",
+      "registry_revision": "5ae67445f160603e465dca694f44352119e04a3b1ffa649d8e1269509bff8a5c",
+      "run_id": "20261110-090852-884842-ps-cmd-l0-codex",
+      "identity": [
+        16777233,
+        68237149
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-170634-105886-don-worktree-s0-codex",
+      "name": "don-worktree-20261110-170634-105886-don-worktree-s0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-170640-682142-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-170640-682142-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-173645-303023-don-worktree-s0-codex",
+      "name": "don-worktree-20261110-173645-303023-don-worktree-s0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-175847-364466-don-worktree-s0-codex",
+      "name": "don-worktree-20261110-175847-364466-don-worktree-s0-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6481383,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "0a9faf57f7b3b7844bbc307d08c2047d1260e287dfc14d6d346e2071d17b414c",
+      "run_id": "20261110-175847-364466-don-worktree-s0-codex",
+      "identity": [
+        16777233,
+        69104429
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-180208-465938-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-180208-465938-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-180554-245951-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-180554-245951-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-180946-540165-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-180946-540165-don-worktree-p1-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-181344-722428-don-worktree-p1-codex",
+      "name": "don-worktree-20261110-181344-722428-don-worktree-p1-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6497346,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "01cb9ce293cb025fbf8f24400edb9f066fcf403d146dbda615833db9e93a628b",
+      "run_id": "20261110-181344-722428-don-worktree-p1-codex",
+      "identity": [
+        16777233,
+        69154389
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-181828-040634-don-worktree-p2-codex",
+      "name": "don-worktree-20261110-181828-040634-don-worktree-p2-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6506886,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "fa4e67a703d380463dbee379140d5d076e49aa130fca639b4aca56e9e9150576",
+      "run_id": "20261110-181828-040634-don-worktree-p2-codex",
+      "identity": [
+        16777233,
+        69164482
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-182150-297040-don-worktree-p5-codex",
+      "name": "don-worktree-20261110-182150-297040-don-worktree-p5-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-182506-581044-don-worktree-screen-fix-codex",
+      "name": "don-worktree-20261110-182506-581044-don-worktree-screen-fix-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6562720,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "8917d8788385d81af589af5e97df2178b2a4678d07cc017d0b7d363f0f6cc391",
+      "run_id": "20261110-182506-581044-don-worktree-screen-fix-codex",
+      "identity": [
+        16777233,
+        69179346
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-182640-255880-don-worktree-p5-codex",
+      "name": "don-worktree-20261110-182640-255880-don-worktree-p5-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6579613,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "45da054c2727cc974c49cfce43451d4212e79bc39b44701a3d99587cc4b8a2b4",
+      "run_id": "20261110-182640-255880-don-worktree-p5-codex",
+      "identity": [
+        16777233,
+        69186334
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-183903-489340-don-worktree-p5-fix-codex",
+      "name": "don-worktree-20261110-183903-489340-don-worktree-p5-fix-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6590039,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "c9b39d17bd04a553c213bf00d19f5a558532d334a860cf9c5c4e328fb30dc900",
+      "run_id": "20261110-183903-489340-don-worktree-p5-fix-codex",
+      "identity": [
+        16777233,
+        69211109
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-184401-202527-don-worktree-p5-readonly-dsh",
+      "name": "don-worktree-20261110-184401-202527-don-worktree-p5-readonly-dsh",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-184718-847832-don-worktree-p5-readonly-dsh",
+      "name": "don-worktree-20261110-184718-847832-don-worktree-p5-readonly-dsh",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6615793,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "dcafbe289e7b0fb2e5a2aa234f093bb96bf759246dd26793a9e784d32e2c85dc",
+      "run_id": "20261110-184718-847832-don-worktree-p5-readonly-dsh",
+      "identity": [
+        16777233,
+        69227952
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191304-037393-brief-p5-latest-epoch-claude-v2",
+      "name": "don-worktree-20261110-191304-037393-brief-p5-latest-epoch-claude-v2",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
+      "name": "don-worktree-20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6624374,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "f5f92eb34c2ab4462c44a63e9fa8362f69bd367546f9539142b9105319d6f6e2",
+      "run_id": "20261110-191654-084300-brief-p5-latest-epoch-claude-v2",
+      "identity": [
+        16777233,
+        69291755
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/don-worktree-20261110-191923-531265-brief-p3-codex",
+      "name": "don-worktree-20261110-191923-531265-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-170603-426805-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170604-058469-brief-research-codex",
+      "name": "dong-bo-tai-khoan-20261110-170604-058469-brief-research-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170800-305018-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-170800-305018-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-170926-253502-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-170926-253502-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-173643-346425-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-173643-346425-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-175849-391656-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-175849-391656-brief-p0-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-180205-949863-brief-p0-codex",
+      "name": "dong-bo-tai-khoan-20261110-180205-949863-brief-p0-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6478684,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "25ab94bab4027d4949dc485c3335bcd3e5a1f1101a830da5dc752c974700dc02",
+      "run_id": "20261110-180205-949863-brief-p0-codex",
+      "identity": [
+        16777233,
+        69114189
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-180709-779339-brief-research-codex",
+      "name": "dong-bo-tai-khoan-20261110-180709-779339-brief-research-codex",
+      "classification": "dirty",
+      "reason": "unpreserved working changes",
+      "bytes": 6493736,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "950956b90666f8b0da418697ea519a3524bb7e854a146b53ced51fa83f3228ff",
+      "run_id": "20261110-180709-779339-brief-research-codex",
+      "identity": [
+        16777233,
+        69138866
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-181037-162498-brief-p1-codex",
+      "name": "dong-bo-tai-khoan-20261110-181037-162498-brief-p1-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6509388,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "f637019fc0fb5a96c3edc536f2397ea099f4b9dacb856d0997deabdfa4b82358",
+      "run_id": "20261110-181037-162498-brief-p1-codex",
+      "identity": [
+        16777233,
+        69147099
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-182533-033268-brief-p2-codex",
+      "name": "dong-bo-tai-khoan-20261110-182533-033268-brief-p2-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-182814-190302-brief-p2-codex",
+      "name": "dong-bo-tai-khoan-20261110-182814-190302-brief-p2-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-183155-700956-brief-p2-codex",
+      "name": "dong-bo-tai-khoan-20261110-183155-700956-brief-p2-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6544423,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "d5a978537c751430dd6008b8b90612981b5476609707e533b279df5750977073",
+      "run_id": "20261110-183155-700956-brief-p2-codex",
+      "identity": [
+        16777233,
+        69197957
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-183908-745673-brief-p3-codex",
+      "name": "dong-bo-tai-khoan-20261110-183908-745673-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-184243-289337-brief-p3-codex",
+      "name": "dong-bo-tai-khoan-20261110-184243-289337-brief-p3-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6569751,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "3c08031e382a2d7aea99fcee3958f4a84a2d0cd6d5fecbccc1a25a845294e286",
+      "run_id": "20261110-184243-289337-brief-p3-codex",
+      "identity": [
+        16777233,
+        69219260
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
+      "name": "dong-bo-tai-khoan-20261110-191302-027429-brief-p4-docs-codex",
+      "classification": "unknown",
+      "reason": "managed execution not settled",
+      "bytes": 6591727,
+      "head": "a79b0b1233877e4c472fc5e6fb13d0c10b5dd1b2",
+      "branch": "HEAD",
+      "registry_revision": "cd69b038e1057ab3b8d764a936ee318cca877beab3af71468fb035b0c655ef89",
+      "run_id": "20261110-191302-027429-brief-p4-docs-codex",
+      "identity": [
+        16777233,
+        69281429
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/fix-stale-claim-20261110-174714-557292-fsc-probe-brief-codex",
+      "name": "fix-stale-claim-20261110-174714-557292-fsc-probe-brief-codex",
+      "classification": "unknown",
+      "reason": "no exact registry ownership",
+      "bytes": 0,
+      "head": "",
+      "branch": ""
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/fix-stale-claim-20261110-175627-040964-fsc-probe-brief-codex",
+      "name": "fix-stale-claim-20261110-175627-040964-fsc-probe-brief-codex",
+      "classification": "finished",
+      "reason": "registered finished clean worktree",
+      "bytes": 6437025,
+      "head": "a30265772cae55796cbe87e7d9bc7bd821edf756",
+      "branch": "HEAD",
+      "registry_revision": "f9576b20cd3171e702c50f7cdeee57db0a3dff3122d2e86379f918a233cf0c89",
+      "run_id": "20261110-175627-040964-fsc-probe-brief-codex",
+      "identity": [
+        16777233,
+        69102094
+      ]
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-171906-477202-hpa-pilot-fix-codex",
+      "name": "hpa-pilot-fix-20261109-171906-477202-hpa-pilot-fix-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "c99728cb944ea55acb9a18708786f07ccf3a1bced37f3f48c8608c97bd42e71e",
+      "run_id": "20261109-171906-477202-hpa-pilot-fix-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-171942-038300-hpa-pilot-fix-retry-codex",
+      "name": "hpa-pilot-fix-20261109-171942-038300-hpa-pilot-fix-retry-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "4a59e505faa13a9f35782ce2b1bb534835ad359fe14f9987c84f935d28bbdd9c",
+      "run_id": "20261109-171942-038300-hpa-pilot-fix-retry-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-172820-381646-hpa-pilot2-schema-recover-codex",
+      "name": "hpa-pilot-fix-20261109-172820-381646-hpa-pilot2-schema-recover-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "a512f6d46604b04eb6a8945b97b5c443686ecd051372ddcc1464b1272e104205",
+      "run_id": "20261109-172820-381646-hpa-pilot2-schema-recover-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-173500-612698-hpa-pilot2-schema-review-codex",
+      "name": "hpa-pilot-fix-20261109-173500-612698-hpa-pilot2-schema-review-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "03f507ea31d033f273daab9d730b275c053168b57088e87ea4c40536fd4ae9b4",
+      "run_id": "20261109-173500-612698-hpa-pilot2-schema-review-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-175107-743371-hpa-pilot3-ef-codex",
+      "name": "hpa-pilot-fix-20261109-175107-743371-hpa-pilot3-ef-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "2b2d66d9d94e1f72ecb3a9a731310b4de3d876a7f430105b0af768f6f3371085",
+      "run_id": "20261109-175107-743371-hpa-pilot3-ef-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-175708-593711-hpa-pilot3-ef-review-codex",
+      "name": "hpa-pilot-fix-20261109-175708-593711-hpa-pilot3-ef-review-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "4304e8db7dbdba2996d4118b15bb03cfe52834bf16faaa18462e8b18558900a3",
+      "run_id": "20261109-175708-593711-hpa-pilot3-ef-review-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-180153-115245-hpa-pilot3-livefix-codex",
+      "name": "hpa-pilot-fix-20261109-180153-115245-hpa-pilot3-livefix-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "cc9f2035036a2fad80478afb35fcec02f3b833234c9a69cbc15578000a96cf1c",
+      "run_id": "20261109-180153-115245-hpa-pilot3-livefix-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-180502-515792-hpa-pilot3-livefix-review-codex",
+      "name": "hpa-pilot-fix-20261109-180502-515792-hpa-pilot3-livefix-review-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "ebed195f70ac1280a013e334dc9719a42dae58a91560d20f72887928dc8e01bf",
+      "run_id": "20261109-180502-515792-hpa-pilot3-livefix-review-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-181859-552738-hpa-pilot3-envelope-codex",
+      "name": "hpa-pilot-fix-20261109-181859-552738-hpa-pilot3-envelope-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "f5e6662be39a2de7156be2e5a67567a07a02c435897084983d0e32108b87f871",
+      "run_id": "20261109-181859-552738-hpa-pilot3-envelope-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-182757-510855-hpa-pilot3-envelope-review-codex",
+      "name": "hpa-pilot-fix-20261109-182757-510855-hpa-pilot3-envelope-review-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "0232bd997194b163588118a8bd81c406e80d3945a662d843c65136c33ed15843",
+      "run_id": "20261109-182757-510855-hpa-pilot3-envelope-review-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-184213-228996-hpa-pilot3-containment-codex",
+      "name": "hpa-pilot-fix-20261109-184213-228996-hpa-pilot3-containment-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "79687b64de75ebbb6ee79003be94d269b86f5d7c40830ab74a9eedd5f27dc403",
+      "run_id": "20261109-184213-228996-hpa-pilot3-containment-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-185117-322815-hpa-pilot3-containment-review-codex",
+      "name": "hpa-pilot-fix-20261109-185117-322815-hpa-pilot3-containment-review-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "b16230d9f9c8e7e6efa72847a9d396445896aaa44efebb7b57e08ce7f0c013dc",
+      "run_id": "20261109-185117-322815-hpa-pilot3-containment-review-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-191018-440414-hpa-pilot4-implementation-codex",
+      "name": "hpa-pilot-fix-20261109-191018-440414-hpa-pilot4-implementation-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "38377e0e5d53bf4a2169a366de13cb8bf465806b52ca0a29683eac09edfdd623",
+      "run_id": "20261109-191018-440414-hpa-pilot4-implementation-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-192158-477541-hpa-pilot4-review-codex",
+      "name": "hpa-pilot-fix-20261109-192158-477541-hpa-pilot4-review-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "36315f918faf6122fe5b657df2e28aa241d96f49c1c6398808ee4e43d765cbfc",
+      "run_id": "20261109-192158-477541-hpa-pilot4-review-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-192813-621820-hpa-pilot4-fence-dsh",
+      "name": "hpa-pilot-fix-20261109-192813-621820-hpa-pilot4-fence-dsh",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "dd20a73aa40c665be77f509cdd311d3213417959b401bc3d87891463603e1253",
+      "run_id": "20261109-192813-621820-hpa-pilot4-fence-dsh"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-193241-416080-hpa-pilot4-fence-review-dsh",
+      "name": "hpa-pilot-fix-20261109-193241-416080-hpa-pilot4-fence-review-dsh",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "dc693914b4a9ff62b060f789dbfc115fe72f45fa1ce8375c566c6027a2a76cbb",
+      "run_id": "20261109-193241-416080-hpa-pilot4-fence-review-dsh"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-200057-035183-hpa-pilot5-implementation-codex",
+      "name": "hpa-pilot-fix-20261109-200057-035183-hpa-pilot5-implementation-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "94d15b910a49592f10047c4539cbe828233e9cd4f988dda39151758d3d4cf5e3",
+      "run_id": "20261109-200057-035183-hpa-pilot5-implementation-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/hpa-pilot-fix-20261109-201139-283260-hpa-pilot5-correction-codex",
+      "name": "hpa-pilot-fix-20261109-201139-283260-hpa-pilot5-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "177cd027fc257c568dd1e14a959f1d505d736af6eee4bfe5d35169979eb0aa34",
+      "run_id": "20261109-201139-283260-hpa-pilot5-correction-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202040-358877-ws-archive-side-codex",
+      "name": "ws-archive-20261109-202040-358877-ws-archive-side-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "677b3c0829b4b637760be3a1e6c3611306e3fde7ec0bd409fd58ca1149483c9f",
+      "run_id": "20261109-202040-358877-ws-archive-side-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202224-082130-ws-archive-docs-codex",
+      "name": "ws-archive-20261109-202224-082130-ws-archive-docs-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "67bc63fa494029b225e3c8f9bfffd14268b1a692635d40b344b8e987bd650f19",
+      "run_id": "20261109-202224-082130-ws-archive-docs-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202549-985540-ws-archive-side-correction-codex",
+      "name": "ws-archive-20261109-202549-985540-ws-archive-side-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "6a27fcf1be83d8e27efe5f64caf5255ceee7e669a2032eaa357ccb8fa012b935",
+      "run_id": "20261109-202549-985540-ws-archive-side-correction-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202753-206116-ws-archive-docs-correction-codex",
+      "name": "ws-archive-20261109-202753-206116-ws-archive-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "751ba12cf13d109d783cb7f0469e868c75c8c581bdb43e8e0a384d1cfd644541",
+      "run_id": "20261109-202753-206116-ws-archive-docs-correction-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-202910-501359-ws-archive-docs-correction-codex",
+      "name": "ws-archive-20261109-202910-501359-ws-archive-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "15a8dff217ce730a2a7bf46c65c11edc2e04e521c158cae7fe9771fd12cf7055",
+      "run_id": "20261109-202910-501359-ws-archive-docs-correction-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-203105-676353-ws-archive-side-next-claude-v1",
+      "name": "ws-archive-20261109-203105-676353-ws-archive-side-next-claude-v1",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "68d4ccc56ecbed5cc87b495c3176abca52a301ded58c5d56f52fce0519da9428",
+      "run_id": "20261109-203105-676353-ws-archive-side-next-claude-v1"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-203612-539449-ws-archive-managed-codex",
+      "name": "ws-archive-20261109-203612-539449-ws-archive-managed-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "a43f75ae9cb626a65f4ce14d8b976bc0c958f67e9fd44acb1fd4acdfad6ab49b",
+      "run_id": "20261109-203612-539449-ws-archive-managed-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-204256-259463-ws-archive-side-local-codex",
+      "name": "ws-archive-20261109-204256-259463-ws-archive-side-local-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "b90f3b37e7a8d8d9b250f87582cffcb952cf57910956889322d4cd3f23064419",
+      "run_id": "20261109-204256-259463-ws-archive-side-local-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-204321-911379-ws-archive-docs-local-codex",
+      "name": "ws-archive-20261109-204321-911379-ws-archive-docs-local-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "5e6eaba6c3f70a94004598693b1357ec84fa37d12d3fc8fefee0ac5675cc87ee",
+      "run_id": "20261109-204321-911379-ws-archive-docs-local-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-204437-816436-ws-archive-release-codex",
+      "name": "ws-archive-20261109-204437-816436-ws-archive-release-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "f1d0944c0a8d2a01b2019068db7179fd5039cfbabc91b5c6d066d50acd0c80c6",
+      "run_id": "20261109-204437-816436-ws-archive-release-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205022-878985-ws-archive-compact-config-codex",
+      "name": "ws-archive-20261109-205022-878985-ws-archive-compact-config-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "f7e7df6358661d0415e1799e74f3b00472ad959644fd64e1bfa99fefc2e6e860",
+      "run_id": "20261109-205022-878985-ws-archive-compact-config-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205305-931705-ws-archive-compact-launch-codex",
+      "name": "ws-archive-20261109-205305-931705-ws-archive-compact-launch-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "35eadee73d3a5e629cb15d2cfa93a74f583c708defdb0f6bc320fb755b5a4469",
+      "run_id": "20261109-205305-931705-ws-archive-compact-launch-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205332-512993-ws-archive-compact-docs-correction-codex",
+      "name": "ws-archive-20261109-205332-512993-ws-archive-compact-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "39f2f20250b29c9fd22936271625ae27325b008bd21e77a16eee86e3a91014e8",
+      "run_id": "20261109-205332-512993-ws-archive-compact-docs-correction-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-archive-20261109-205534-444701-ws-archive-probe-codex",
+      "name": "ws-archive-20261109-205534-444701-ws-archive-probe-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "b5baa931ba5699b50b727f75cc94a2059aa74a7d653a02a70639208f6c9457b8",
+      "run_id": "20261109-205534-444701-ws-archive-probe-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213136-950855-ws-names-side-codex",
+      "name": "ws-names-20261109-213136-950855-ws-names-side-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "60ad54e3b08f68e09414018acfc911cb8d13e4ffe624147f3e0909d378638b1d",
+      "run_id": "20261109-213136-950855-ws-names-side-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213138-189773-ws-names-managed-codex",
+      "name": "ws-names-20261109-213138-189773-ws-names-managed-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "0d4b85ae2364adee93522d600c7ff1fe8bc725ad08ccdd418c49f8b25d4840fe",
+      "run_id": "20261109-213138-189773-ws-names-managed-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213139-756511-ws-names-docs-codex",
+      "name": "ws-names-20261109-213139-756511-ws-names-docs-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "6149374c1c4dbfbc113f619e457a8508f290129f44870dc4bb893293d15ee78e",
+      "run_id": "20261109-213139-756511-ws-names-docs-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213338-380693-ws-names-docs-correction-codex",
+      "name": "ws-names-20261109-213338-380693-ws-names-docs-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "117ed37aa9efd5a7cca145ec8299cee1b55f977dce1f411d8fb993775afd5134",
+      "run_id": "20261109-213338-380693-ws-names-docs-correction-codex"
+    },
+    {
+      "path": "/Users/anhtp/.hybrid-hands/worktrees/ws-names-20261109-213620-946391-ws-names-managed-correction-codex",
+      "name": "ws-names-20261109-213620-946391-ws-names-managed-correction-codex",
+      "classification": "unknown",
+      "reason": "detached HEAD without recorded base commit",
+      "bytes": 0,
+      "head": "",
+      "branch": "",
+      "registry_revision": "7eef92634d7c1bdab56d948447644105165284b2c06a332e01978ea0aa9f4dd2",
+      "run_id": "20261109-213620-946391-ws-names-managed-correction-codex"
+    }
+  ],
+  "eligible": 1,
+  "bytes": 6437025
+}

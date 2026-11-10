@@ -55,6 +55,9 @@ class ExtConfig:
         default_factory=lambda: copy.deepcopy(DEFAULTS["gpt_accounts"]))
     account_label_format: str = DEFAULTS["account_label_format"]
 
+    disk_guard: Dict[str, Any] = field(default_factory=dict)
+    ignore_disk_guard: bool = False
+
     def options(self, name: str) -> Dict[str, Any]:
         account = {"claude-main": "v1", "claude": "v2"}.get(name)
         if name.startswith("claude-v"):
@@ -259,4 +262,5 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         machine_state_dir=_state_dir(),
         max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo, native=native,
         gpt_accounts=gpt_accounts, account_label_format=label_fmt,
+        disk_guard=copy.deepcopy(result.effective.get("disk_guard", {})),
     )

@@ -144,6 +144,9 @@ def prepare(cfg: "ExtConfig", cwd: Path, run_id: str, run_dir: Path,
     worktree = cfg.worktree_root / f"{name}-{run_id}"
     if worktree.exists() or worktree.is_symlink():
         raise IsolationError(f"worktree đã tồn tại: {worktree}")
+    from .disk_guard import check_disk
+    check_disk(cfg.worktree_root, getattr(cfg, "disk_guard", {}),
+               ignore=getattr(cfg, "ignore_disk_guard", False))
     skipped: List[str] = []
     try:
         worktree.parent.mkdir(parents=True, exist_ok=True)
@@ -391,7 +394,7 @@ def cleanup(ctx: IsolationContext, *, keep: bool) -> str:
     return _remove_worktree(ctx.source_root, ctx.worktree, ctx.worktree_root)
 
 
-def _remove_worktree(root: Path, worktree: Path, worktree_root: Optional[Path]) -> str:
+def _remove_worktree(root: Path, worktree: Path, worktree_root: Optional[Path], *, gc_safe: bool = False) -> str:
     try:
         if worktree.resolve() == root.resolve():
             return "từ chối xoá thư mục nguồn"
@@ -400,6 +403,9 @@ def _remove_worktree(root: Path, worktree: Path, worktree_root: Optional[Path]) 
         if not worktree.exists() and not worktree.is_symlink():
             _git(["worktree", "prune"], root, ok=False)
             return ""
+        if gc_safe:
+            removed = _git(["worktree", "remove", str(worktree)], root, ok=False)
+            return "" if removed.returncode == 0 else _error_text(removed, ["worktree", "remove"])
         removed = _git(["worktree", "remove", "--force", str(worktree)], root, ok=False)
         if removed.returncode == 0:
             pruned = _git(["worktree", "prune"], root, ok=False)

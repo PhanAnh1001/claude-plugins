@@ -1,0 +1,13 @@
+{
+  "command": "hand-ext gc --cwd /Users/anhtp/app/live-tiktok-games --json",
+  "exit": 0,
+  "elapsed_s": 2.84,
+  "branch_count_before": 252,
+  "branch_count_after": 252,
+  "classes": {
+    "unknown": 89
+  },
+  "eligible": 0,
+  "bytes": 0,
+  "timestamp": "2026-11-10T19:20:07+0700"
+}

@@ -1,0 +1,10 @@
+{
+  "command": "env -u CODEX_SANDBOX python3 -m unittest discover -s hybrid-hands/tests -q",
+  "invocations": 1,
+  "exit": 1,
+  "elapsed_s": 95.33,
+  "summary": [
+    "Ran 575 tests in 94.874s",
+    "FAILED (failures=2, errors=3)"
+  ]
+}

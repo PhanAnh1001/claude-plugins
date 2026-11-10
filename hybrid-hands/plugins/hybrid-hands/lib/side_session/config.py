@@ -33,6 +33,9 @@ class SideConfig:
     claude_account: str = "v1"
     transport: str = C.TRANSPORT_PASEO
     main_session: dict = field(default_factory=dict)
+    default_base: str = C.DEFAULT_BASE
+    worktree_gc_auto: str = C.WORKTREE_GC_MERGED
+    disk_guard: dict | None = field(default_factory=dict)
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -73,16 +76,32 @@ def _bool_setting(raw: object, key: str) -> bool:
     return raw
 
 
+def _worktree_gc_auto(raw: object) -> str:
+    """Validate policy without echoing configuration values."""
+    if not isinstance(raw, dict):
+        raise ValueError("side_session.worktree_gc phải là object")
+    mode = raw.get("auto", C.WORKTREE_GC_MERGED)
+    if not isinstance(mode, str) or mode not in C.WORKTREE_GC_MODES:
+        raise ValueError("side_session.worktree_gc.auto phải là merged hoặc off")
+    return mode
+
+
 def load_config(cwd: Path) -> SideConfig:
     repo = git_toplevel(cwd)
     from shared_config import load_config as load_shared
     effective = load_shared(known_root=repo).effective
     merged = effective[C.CONFIG_SECTION]
+    disk_guard = effective.get("disk_guard", {})
+    if disk_guard is not None and not isinstance(disk_guard, dict):
+        raise ValueError("disk_guard phải là object hoặc null")
     max_parallel = merged["max_parallel"]
     if type(max_parallel) is not int or not 1 <= max_parallel <= C.MAX_PARALLEL:
         raise ValueError(f"side_session.max_parallel phải là số nguyên 1..{C.MAX_PARALLEL}")
     return SideConfig(
         repo=repo,
+        worktree_gc_auto=_worktree_gc_auto(merged.get("worktree_gc", {})),
+        disk_guard=disk_guard,
+        default_base=str(merged.get("default_base", C.DEFAULT_BASE)),
         provider=str(merged["provider"]),
         claude_model=str(merged["claude_model"]),
         claude_effort=str(merged["claude_effort"]),
