@@ -185,6 +185,18 @@ Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). C�
 
 Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.json` (đổi đường dẫn bằng `HYBRID_HANDS_CONFIG`) → repo `.claude/hybrid-hands.json` → cờ CLI. Dict merge sâu; list/scalar thay nguyên. Global thiếu thì bỏ qua; global hỏng báo lỗi kèm đường dẫn và dừng. `hand-ext config --json` in cấu hình hiệu lực, nguồn từng key và đường dẫn file đã đọc. `ext_hand.claude_accounts` và `ext_hand.backends.*` đặt được ở global. Dưới Paseo, biến `HYBRID_HANDS_CONFIG` phải có trong môi trường daemon mới có tác dụng.
 
+`parallel_subagents.enabled` mặc định `false`, chỉ chấp nhận bool JSON thật (`true`/`false`); sai kiểu về `false` và warning stderr. `true` chỉ hiệu lực khi provenance là repo `.claude/hybrid-hands.json` (kể cả fallback config main worktree); global `true` bị bỏ qua kèm warning, consumer chỉ thấy `false`. `hand-ext config --json` giữ nguồn và đường dẫn config. Hook gặp config lỗi sẽ warning không hiện giá trị, dùng policy thường và exit 0; CLI giữ cách báo lỗi cấu hình hiện có.
+
+Chỉ khi người dùng chốt cho repo đó mới migrate: tắt plugin `parallel-subagents` cũ (luôn tắt ở mọi repo), thêm key dưới đây vào config repo, rồi mở phiên mới vì luật đã nạp ở phiên cũ vẫn còn hiệu lực. Brain/hand không tự bật; ví dụ này chỉ là tài liệu:
+
+```json
+{
+  "parallel_subagents": {"enabled": true}
+}
+```
+
+Mode bật dùng một biến thể policy: brain giao native `Agent hybrid-hands:hand` cho gói độc lập khác file, tối đa `ext_hand.max_parallel` thực (1..4); cùng file/phụ thuộc tuần tự, brain review code hand mình giao. Đây là luật điều phối, không thêm admission runtime. Vẫn `hand-ext pick --json` trước native và guard v1 ≥5%/ngày; pick dsh/codex không chứng minh guard v1 đã qua. Dùng `hand-ext run --backend claude-v1` cho công việc cần wrapper enforce guard, không dùng run làm preflight giả rồi tạo writer trùng; guard chặn hoặc thiếu nguồn thì không spawn native v1, không sửa config/order.
+
 `main_session` áp cho `side-session start --main`: `provider` mặc định `codex`, `codex_model`/`codex_effort` mặc định `gpt-6.1-sol`/`high`, `claude_model`/`claude_effort`/`claude_account` mặc định `claude-opus-5-5`/`high`/`v1`. `side_session` có các key tương ứng, gồm `provider`, `codex_model`, `codex_effort` và các key `claude_*`. Cờ `--provider`, `--model`, `--effort`, `--account` ghi đè cấu hình; `--resume` mặc định provider Claude và giữ account của state. `main_session` không áp cho phiên người dùng tự mở bằng `claude`.
 
 `main_session.claude_auto_compact_window` mặc định `272000` cho mọi account Claude (`v1`, `v2`, …). Giá trị hợp lệ là số nguyên `100000..1000000` (kể cả hai biên); `null` hoặc chuỗi chính xác `"auto"` bỏ override. Boolean, chuỗi số và các kiểu/giá trị khác báo lỗi cấu hình kèm đường dẫn nguồn. Key và provenance có trong `hand-ext config --json`, theo thứ tự plugin → global → repo; không sửa settings Claude.

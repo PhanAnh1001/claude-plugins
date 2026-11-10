@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.37.0 — 2026-11-10
+
+- Thêm mode `parallel_subagents.enabled` mặc định tắt, chỉ bool thật và chỉ repo được bật; global true/sai kiểu bị bỏ qua kèm warning, giữ provenance và fallback worktree.
+- Hai hook dùng chung renderer policy: mode bật thay luật delegate/review bằng brain → native hand theo max_parallel thực và giữ guard v1; mode tắt giữ output 0.36.1, kể cả rút đoạn trùng AGENTS.md. Config lỗi fallback policy thường, không hiện giá trị lỗi.
+- Hướng dẫn migrate: tắt plugin parallel-subagents cũ, chỉ bật key repo khi người dùng chốt và mở phiên mới; không tự thay cấu hình/runtime.
+
 ## 0.36.1 — 2026-11-09
 
 - Đặt tên agent và workspace phiên phụ theo `<tên> · <loại> phụ` (Sol, Opus theo account, dsh); managed hand theo `<tên cha> › hand <backend> · <label>`, cha main xác minh dùng `chính`, unknown dùng `?`. Tối đa 60 ký tự, cắt label giữ tiền tố cha/backend; không đưa path/brief/secret vào tên, giữ title main/shared.
