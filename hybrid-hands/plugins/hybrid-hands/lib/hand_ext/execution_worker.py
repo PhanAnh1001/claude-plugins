@@ -314,7 +314,8 @@ class ExecutionWorker:
                 registry = RunRegistry(Path(completion['registry']), run_id,
                                        completion.get('label', ''), record.invocation.backend,
                                        spec.model, Path(record.invocation.source_cwd), spec.run_dir,
-                                       parent_session=record.invocation.parent_session, effort=spec.effort)
+                                       parent_session=record.invocation.parent_session, effort=spec.effort,
+                                       metadata=completion['context'])
                 registry.start()
                 kwargs['registry'] = registry
             result = self.runner(get_backend(record.invocation.backend), spec, **kwargs)

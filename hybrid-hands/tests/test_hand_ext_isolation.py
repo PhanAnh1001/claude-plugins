@@ -147,6 +147,42 @@ class IsolationCase(HandExtTestCase):
 
 
 class WorktreeRoundTripTest(IsolationCase):
+    def test_cleanup_ignored_cache_or_preserve_unknown(self):
+        from hand_ext import isolation, worktree_lifecycle
+        cfg = types.SimpleNamespace(worktree_root=self.worktrees, machine_state_dir=self.state, runs_dir=self.state, ledger=self.state, quota_state=self.state)
+        for name, note in [('__pycache__/x.pyc', ''), ('dist/app.js', 'chưa bảo toàn: file ignored dist/app.js')]:
+            with self.subTest(path=name), mock.patch('hand_ext.gc.auto_collect'), mock.patch('hand_ext.disk_guard.check_disk'):
+                run_dir = self.tmp / name.split('/')[0]
+                ctx = isolation.prepare(cfg, self.repo, run_dir.name, run_dir, isolation.IsolationChoice('worktree'))
+                with (ctx.worktree / '.gitignore').open('a') as stream:
+                    stream.write('\n__pycache__/\ndist/\n')
+                ignored = ctx.worktree / name
+                ignored.parent.mkdir(parents=True)
+                ignored.write_bytes(b'fixture')
+                result = isolation.finalize(ctx, run_dir, apply_changes=False)
+                self.assertEqual(worktree_lifecycle.remove_preserved(ctx, result, run_dir), note)
+                self.assertEqual(ctx.worktree.exists(), bool(note))
+
+    def test_ownership_survives_failure_immediately_after_worktree_creation(self):
+        from hand_ext import isolation
+        cfg = types.SimpleNamespace(worktree_root=self.worktrees, machine_state_dir=self.state)
+        real_git = isolation._git
+        def git(args, cwd, **kwargs):
+            if args[:2] == ['worktree', 'add']:
+                data = json.loads((self.state / 'runs' / 'intent.json').read_text())
+                self.assertEqual((data['backend'], data['mode']), ('fixture', 'managed'))
+                self.assertTrue(data['base_commit'] and data['repo_common_dir'])
+                self.assertFalse(Path(data['worktree']).exists())
+            return real_git(args, cwd, **kwargs)
+        with mock.patch('hand_ext.gc.auto_collect'), mock.patch('hand_ext.disk_guard.check_disk'), \
+             mock.patch.object(isolation, '_git', side_effect=git), \
+             mock.patch.object(isolation, '_apply_tracked_changes', side_effect=isolation.IsolationError('fixture')):
+            with self.assertRaises(isolation.IsolationError):
+                isolation.prepare(cfg, self.repo, 'intent', self.tmp / 'run',
+                                  isolation.IsolationChoice('worktree'), backend='fixture', mode='managed')
+        data = json.loads((self.state / 'runs' / 'intent.json').read_text())
+        self.assertTrue(data['worktree_created'] and Path(data['worktree']).exists())
+
     def test_worktree_hides_ignored_and_applies_changes_back(self) -> None:
         with self._scenario():
             code, out, err = self._run("--keep-worktree")

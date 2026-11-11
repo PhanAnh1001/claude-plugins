@@ -201,10 +201,10 @@ def _new_run_id(label: str, backend: str, attempt: int = 1) -> str:
 
 
 def _prepare_context(cfg: ExtConfig, cwd: Path, choice: isolation.IsolationChoice,
-                     run_id: str) -> Tuple[Optional[isolation.IsolationContext], int]:
+                     run_id: str, backend: str = "") -> Tuple[Optional[isolation.IsolationContext], int]:
     run_dir = cfg.runs_dir / run_id
     try:
-        return isolation.prepare(cfg, cwd, run_id, run_dir, choice), 0
+        return isolation.prepare(cfg, cwd, run_id, run_dir, choice, backend=backend), 0
     except isolation.IsolationError as exc:
         isolation.append_report(run_dir / REPORT_FILE, isolation.failure_block(str(exc)))
         print(f"hand-ext: {exc}", file=sys.stderr)
@@ -282,11 +282,15 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
         apply_result = isolation.finalize(ctx, run_dir, apply_changes=do_apply,
                                           skip_reason=skip_reason)
         will_cleanup = not keep_worktree and not preserve
-        if will_cleanup:
-            cleanup_note = isolation.cleanup(ctx, keep=False)
+        if will_cleanup and ctx.worktree is not None:
+            from .worktree_lifecycle import remove_preserved, record
+            cleanup_note = remove_preserved(ctx, apply_result, run_dir)
+            will_cleanup = not cleanup_note
+            record(registry.path, cleanup="removed" if will_cleanup else "retained")
         elif not keep_worktree and not is_cap:
-            # Capacity attempts keep the worktree: dsh continuations resume in it.
+            # Capacity attempts retain the checkout for a continuation.
             will_cleanup, cleanup_note = _release_saved_worktree(ctx, run_dir, apply_result)
+
     assert outcome is not None
     entry = _entry(run_id, label, backend.name, spec, started, cwd, outcome)
     ledger.append_entry(cfg.ledger, entry)
@@ -331,7 +335,8 @@ def _emit(result: _AttemptResult, extra_lines: Optional[List[str]] = None) -> No
     report = result.run_dir / REPORT_FILE
     isolation.append_report(report, isolation.report_block(
         result.ctx, result.apply_result, kept=result.kept,
-        cleanup_note=result.cleanup_note))
+        cleanup_note=result.cleanup_note, keep_reason=("lỗi" if result.outcome.status is not Status.OK else
+                     "--keep-worktree" if result.kept and not result.cleanup_note else "")))
     if extra_lines:
         isolation.append_report(report, "\n".join(extra_lines))
     isolation_line = isolation.summary_line(
@@ -382,7 +387,7 @@ def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend
         print(f"hand-ext: {exc}", file=sys.stderr)
         return EXIT_USAGE
     first_id = _new_run_id(label, backend.name)
-    ctx, code = _prepare_context(cfg, cwd, choice, first_id)
+    ctx, code = _prepare_context(cfg, cwd, choice, first_id, backend.name)
     if ctx is None:
         return code
     result = _run_attempt(cfg, args, backend, prompt, label, cwd, brief=brief,
@@ -414,8 +419,9 @@ def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend
                   file=sys.stderr)
             return EXIT_FAIL
         keep = bool(getattr(args, "keep_worktree", False))
-        note = isolation.cleanup(ctx, keep=keep)
-        result.kept = ctx.mode == ISOLATION_WORKTREE and keep
+        from .worktree_lifecycle import remove_preserved
+        note = "" if keep else remove_preserved(ctx, result.apply_result, result.run_dir)
+        result.kept = ctx.mode == ISOLATION_WORKTREE and (keep or bool(note))
         result.cleanup_note = note
         result.apply_result.detail = "bỏ patch dsh (dưới ngưỡng), không áp về gốc"
         code = _order_fallback(cfg, args, label, cwd, choice, brief=brief)
@@ -485,7 +491,7 @@ def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt:
             brief = prompt
         return _attempt_auto_dsh(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
     run_id = _new_run_id(label, backend.name)
-    ctx, code = _prepare_context(cfg, cwd, choice, run_id)
+    ctx, code = _prepare_context(cfg, cwd, choice, run_id, backend.name)
     if ctx is None:
         return code
     result = _run_attempt(cfg, args, backend, prompt, label, cwd, brief=brief,

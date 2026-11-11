@@ -6,6 +6,7 @@ import os
 import stat
 import subprocess
 import time
+import wt_legacy
 
 from hand_ext.locked_json import locked
 from pathlib import Path
@@ -159,7 +160,8 @@ def identity(path: Path, entry: dict, common: Path, owner: state.SessionState) -
 
 
 def inspect(cfg: SideConfig, *, name: str | None = None,
-            runtime: Callable = runtime_ended) -> dict:
+            runtime: Callable = runtime_ended, scan=None) -> dict:
+    scan = scan or wt_legacy.Scan()
     records = state.load_all(cfg.state_dir)
     owners: dict[Path, list[state.SessionState]] = {}
     for record in records:
@@ -212,38 +214,62 @@ def inspect(cfg: SideConfig, *, name: str | None = None,
         except (OSError, ValueError, subprocess.TimeoutExpired, paseo.PaseoError):
             row.update(class_="D", reason="runtime/base/git metadata unavailable")
     for row in rows:
+        path = Path(row['path'])
+        matches = owners.get(path, [])
+        entry = next(e for e in entries if Path(e['worktree']).resolve() == path)
+        protected = (path in {main_path, cfg.repo.resolve()} or 'locked' in entry
+                     or len(matches) > 1 or any(item.role == 'main' or item.paseo_send_pending
+                     or item.paseo_revived or item.status in {C.STATUS_RUNNING, C.STATUS_IDLE, C.STATUS_IDLE_NO_DONE}
+                     for item in matches))
+        if not protected and row['class_'] not in {'A', 'B'}:
+            legacy = scan.evaluate(cfg.repo, path)
+            if legacy['eligible']:
+                row.update(class_=wt_legacy.LEGACY, reason=legacy['reason'],
+                           identity=legacy['identity'], tracked_bytes=0, ignored_bytes=0)
+            else:
+                row['reason'] += '; legacy: ' + legacy['reason']
         row["class"] = row.pop("class_")
-    eligible = [row for row in rows if row["class"] == "A"]
+    eligible = [row for row in rows if row["class"] in {"A", wt_legacy.LEGACY}]
     return {"dry_run": True, "worktrees": rows,
             "totals": {"eligible": len(eligible), "eligible_bytes": sum(
                 row["tracked_bytes"] + row["ignored_bytes"] for row in eligible)}}
 
 
 def eligible_totals(report: dict, include_unmerged: bool = False) -> None:
-    classes = {"A", "B"} if include_unmerged else {"A"}
+    classes = {"A", "B", wt_legacy.LEGACY} if include_unmerged else {"A", wt_legacy.LEGACY}
     rows = [row for row in report["worktrees"] if row["class"] in classes]
     report["totals"] = {"eligible": len(rows), "eligible_bytes": sum(
         row["tracked_bytes"] + row["ignored_bytes"] for row in rows)}
 
 
+@wt_legacy.bounded
 def apply(cfg: SideConfig, *, name: str | None = None,
           include_unmerged: bool = False, prune_branches: bool = False,
-          fetch: bool = False) -> dict:
+          fetch: bool = False, deadline=None) -> dict:
     """Serialize by repository, not by the caller's possibly distinct state dir."""
+    from . import checkout
+    scan = wt_legacy.Scan(deadline)
+    for st in state.load_all(cfg.state_dir):
+        if deadline is not None and time.monotonic() >= deadline:
+            break
+        if (not name or st.name == name) and st.checkout_owner and not st.checkout_removed_at:
+            checkout.remove_done(cfg, st)
     common = common_dir(cfg.repo)
     with locked(common / "side-session-gc"):
         if fetch:
             git(cfg.repo, "fetch", "origin")
-        report = inspect(cfg, name=name)
+        report = inspect(cfg, name=name, scan=scan)
         eligible_totals(report, include_unmerged)
         report.update(dry_run=False, errors=[])
         cfg.state_dir.mkdir(parents=True, exist_ok=True)
         # Opening before removal is mandatory: an unavailable audit sink blocks GC.
         with (cfg.state_dir / "worktree-gc.jsonl").open("a", encoding="utf-8") as journal:
             for row in report["worktrees"]:
-                if row["class"] not in ({"A", "B"} if include_unmerged else {"A"}):
+                if row["class"] not in ({"A", "B", wt_legacy.LEGACY} if include_unmerged else {"A", wt_legacy.LEGACY}):
                     continue
-                fresh = inspect(cfg, name=row["name"])["worktrees"]
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+                fresh = inspect(cfg, name=name, scan=scan)["worktrees"]
                 current = next((r for r in fresh if r["path"] == row["path"]), None)
                 keys = ("name", "path", "branch", "class", "identity")
                 if (common_dir(cfg.repo) != common or current is None
@@ -251,26 +277,24 @@ def apply(cfg: SideConfig, *, name: str | None = None,
                     row["result"] = "skipped: identity/class/runtime changed"
                     continue
                 try:
-                    git(cfg.repo, "worktree", "remove", "--", row["path"])
+                    if row['class'] == wt_legacy.LEGACY:
+                        row['backup'] = scan.remove(cfg.repo, Path(row['path']))
+                    else:
+                        git(cfg.repo, "worktree", "remove", "--", row["path"])
                 except (OSError, ValueError, subprocess.TimeoutExpired):
                     row["result"] = "remove failed"
                     report["errors"].append(row["result"])
                     continue
                 event = {"timestamp": time.time(), "name": row["name"],
                          "path": row["path"], "branch": row["branch"],
-                         "HEAD": row["identity"]["head"], "class": row["class"],
-                         "bytes": current["tracked_bytes"] + current["ignored_bytes"]}
+                         "HEAD": (row["identity"][2] if row["class"] == wt_legacy.LEGACY else row["identity"]["head"]), "class": row["class"],
+                         "bytes": current["tracked_bytes"] + current["ignored_bytes"],
+                         "backup": row.get("backup", "")}
                 # A write/fsync failure propagates: removal must never look successful.
                 journal.write(json.dumps(event, ensure_ascii=True) + "\n")
                 journal.flush()
                 os.fsync(journal.fileno())
                 row["result"] = "removed"
-                if prune_branches and row["class"] == "A":
-                    try:
-                        git(cfg.repo, "branch", "-d", "--", row["branch"])
-                    except (OSError, ValueError, subprocess.TimeoutExpired):
-                        row["result"] += "; branch retained (prune failed)"
-                        report["errors"].append("branch prune failed")
         git(cfg.repo, "worktree", "prune")
         return report
 

@@ -369,7 +369,7 @@ Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố m�
 
 ### Dọn worktree và disk guard
 
-`side-session gc [--name NAME] [--json] [--fetch] [--apply] [--include-unmerged] [--prune-branches]` mặc định dry-run. `--name` giới hạn đúng gói; `--fetch` mới fetch origin, mặc định chỉ dùng refs sẵn có. Lệnh chỉ đọc metadata git/state/runtime và kích thước, không đọc nội dung file.
+`side-session gc [--name NAME] [--json] [--fetch] [--apply] [--include-unmerged] [--prune-branches]` mặc định dry-run. `--name` giới hạn đúng gói; `--fetch` mới fetch origin, mặc định chỉ dùng refs sẵn có. Đường exact đọc metadata git/state/runtime; lớp legacy đọc/hash file để chứng minh dữ liệu có thể khôi phục.
 
 | Lớp | Điều kiện | Khi apply |
 |---|---|---|
@@ -379,19 +379,23 @@ Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố m�
 | D | Đang chạy hoặc metadata/runtime/base chưa rõ | Giữ |
 | E | Không có ownership state chính xác của plugin | Chỉ báo cáo |
 
-Base lấy từ state, legacy dùng `side_session.default_base`; xét base local và `origin/<base>` nếu có. Dry-run hiện ahead, tracked/ignored bytes và lý do giữ. Apply khoá repo, kiểm tra lại từng worktree rồi dùng `git worktree remove` không force. **Ignored bytes cũng bị xoá khi apply**, không thể khôi phục chúng từ nhánh. Mặc định giữ nhánh; `--prune-branches` chỉ thử `git branch -d` cho A. Nhật ký `<state_dir>/worktree-gc.jsonl` giữ branch/HEAD và bytes; khôi phục tracked commits bằng `git worktree add <dir> <branch>`, hoặc dùng SHA trong journal nếu nhánh đã bị prune và commit còn tồn tại.
+Base lấy từ state, legacy dùng `side_session.default_base`; xét base local và `origin/<base>` nếu có. Dry-run hiện ahead, tracked/ignored bytes và lý do giữ. Apply khoá repo, kiểm tra lại từng worktree rồi dùng `git worktree remove` không force. **Ignored bytes cũng bị xoá khi apply**, không thể khôi phục chúng từ nhánh. Luôn giữ nhánh, kể cả khi truyền cờ tương thích `--prune-branches`. Nhật ký `<state_dir>/worktree-gc.jsonl` giữ branch/HEAD và bytes; khôi phục tracked commits bằng `git worktree add <dir> <branch>`, hoặc dùng SHA trong journal nếu nhánh đã bị prune và commit còn tồn tại.
 
-`side_session.worktree_gc.auto` nhận `merged` (mặc định đã duyệt) hoặc `off`. Start worktree mới tự dọn chỉ lớp A; lỗi GC cảnh báo nhưng vẫn kiểm disk. Dry-run/resume/không tạo worktree không auto-GC. Nếu brief/session chỉ cho dry-run hoặc cần duyệt apply, tôn trọng giới hạn đó: dùng `auto=off` đã được người có thẩm quyền cấu hình, không khởi tạo worktree để lách giới hạn.
+`side_session.worktree_gc.auto` nhận `merged` (mặc định đã duyệt) hoặc `off`. Start worktree mới tự dọn lớp A và `legacy-recoverable` với ngân sách 20 giây mỗi lượt; lỗi GC cảnh báo nhưng vẫn kiểm disk. Dry-run/resume/không tạo worktree không auto-GC. Nếu brief/session chỉ cho dry-run hoặc cần duyệt apply, tôn trọng giới hạn đó: dùng `auto=off` đã được người có thẩm quyền cấu hình, không khởi tạo worktree để lách giới hạn.
 
 Disk guard kiểm ổ chứa worktree root: `disk_guard.warn_gb=20`, `block_gb=5` (đo GiB). `side-session start --worktree` và `hand-ext run` tạo isolated worktree bị chặn dưới ngưỡng với **exit 9**; `--ignore-disk-guard` chỉ dùng khi chủ động được phép vượt chặn.
 
-`hand-ext gc [--cwd /ABS/REPO] [--json] [--apply]` cũng mặc định dry-run, chỉ dùng metadata ownership/registry/completion. Apply chỉ xoá worktree sạch đã kết thúc, recheck dưới khoá, không force; dirty/unknown/running hoặc managed execution chưa settled đều giữ. Detached HEAD đã dịch khỏi base ghi nhận cũng giữ. Journal ở `<machine_state_dir>/worktree-gc.jsonl`; không xoá report, patch hay `output/llm/`.
+`hand-ext gc [--cwd /ABS/REPO] [--json] [--apply]` cũng mặc định dry-run, chỉ dùng metadata ownership/registry/completion. Đường exact apply xoá worktree sạch đã kết thúc, recheck dưới khoá, không force; running hoặc managed execution chưa settled đều giữ. Dirty/unknown có thể được xét riêng theo lớp legacy bên dưới. Detached HEAD đã dịch khỏi base ghi nhận cũng giữ. Journal ở `<machine_state_dir>/worktree-gc.jsonl`; artifacts ngoài worktree được giữ.
 
 Sparse P4 **chưa có trong release này**: S0 đã được Sol review FAIL vì `isolation.prepare` làm mất excluded tracked paths trong baseline. `worktree_sparse_exclude` (thiết kế mặc định `[]`) và `--no-sparse` chỉ là thiết kế bị chặn, chưa dùng được. Hai pattern live-tiktok-games đã được duyệt ngày 10/11/2026; Opus chỉ cấu hình sau khi S0 đạt, không thử sparse trên repo thật trong gói hiện tại.
 
 ### Worktree sparse (tuỳ chọn)
 
 `side_session.worktree_sparse_exclude` là list pattern cú pháp gitignore, mặc định `[]` (checkout đủ như cũ). Khác rỗng thì `start --worktree` chạy `git worktree add --no-checkout …` → `git -C <wt> sparse-checkout set --no-cone --stdin` (dòng `/*` rồi `!<pattern>` mỗi pattern, truyền qua stdin) → `git -C <wt> checkout`; sparse chỉ ghi vào config riêng của worktree mới. Ví dụ: `"worktree_sparse_exclude": ["docs/assets/*-data/"]`. Pattern phải là chuỗi khác rỗng, không xuống dòng/NUL, không bắt đầu bằng `!`; sai thì báo lỗi trước khi tạo worktree. Cờ `--no-sparse` bỏ qua cấu hình. Bước sparse/checkout lỗi thì không launch agent và giữ nguyên worktree để xử lý.
+
+Hand tự dọn worktree khi hoàn tất và đã bảo toàn thay đổi. Side-session dọn checkout khi `done`; nếu process còn cwd trong checkout thì GC sẽ retry. Nhánh luôn giữ, `send`/`resume` tạo lại checkout đã dọn trước khi tiếp tục cùng phiên.
+
+Cả hai GC có lớp `legacy-recoverable`: worktree đã đăng ký, không phải checkout chính/locked/runtime active, HEAD còn reachable từ ref, mọi file thay đổi ngoài `output/` có bản khôi phục (blob Git đúng byte+mode hoặc cùng đường dẫn trong checkout chính đúng byte), không có ignored ngoài `output/` và `node_modules/`, không process/Paseo agent chưa archive giữ cwd, và đứng yên ít nhất 24 giờ. Thiếu/lỗi lsof hoặc Paseo thì giữ. Dry-run nêu lý do; apply và auto-GC kiểm tra lại dưới khoá, sao lưu `output/llm` vào `~/.hybrid-hands/wt-output-backup/<repo>-wt-<name>-output-llm-<stamp>.tar.gz`, kiểm chữ ký output rồi mới dùng `git worktree remove --force`. Dữ liệu output ngoài `output/llm` chưa được backup sẽ chặn xoá legacy. Không xoá nhánh hoặc dùng rmtree; auto-GC hết ngân sách để phần còn lại cho lượt sau, lỗi không chặn run/start.
 
 ### 5.3 Cách ly worktree (mặc định)
 

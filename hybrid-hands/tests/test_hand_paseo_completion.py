@@ -52,7 +52,7 @@ class CompletionTests(unittest.TestCase):
                               fixed_options=dict(run_dir=str(self.root / 'runs'), sandbox='workspace-write', timeout_s=2, max_tokens=100))
         self.attempt = Attempt('one', 'try', 1, 'request')
         self.admission.admit(self.inv, self.attempt, max_parallel=1)
-        self.ctx = isolation.IsolationContext('worktree', self.source, self.iso, self.iso, baseline_tree=self.baseline)
+        self.ctx = isolation.IsolationContext('worktree', self.source, self.iso, self.iso, baseline_tree=self.baseline, base_commit=git('rev-parse', 'HEAD'))
         self.service.bind(self.attempt.key, self.ctx, ledger_path=self.root / 'ledger.json', registry_dir=self.root / 'registry', policy='apply',
                           go_ledger=self.root / 'go.jsonl', go_summary=self.root / 'go-summary.json', go_monthly_limit=10,
                           quota_path=self.root / 'quota.json', label='fixture-label')
@@ -61,6 +61,7 @@ class CompletionTests(unittest.TestCase):
         def run(backend, spec, control):
             self.supervisor.register_writer(self.attempt.key, ProcessIdentity(123456,123456,'fake-owned'), control.owner)
             (self.iso / 'fixture').write_text('changed by fixture\n')
+            (self.iso / 'untracked').write_bytes(b'public fixture\x00binary')
             state = RunState(Usage(10, 2, 4), quota=Quota(5, None), final_text='fixture report', extra={'go_allowance_usd': 0.01})
             return RunOutcome(status, 0 if status == Status.OK else 1, state, 0.1, ['prefill_cap_refused'] if status == Status.FAILED else [])
         return run
@@ -108,6 +109,7 @@ class CompletionTests(unittest.TestCase):
             for _ in range(2): self.assertTrue(self.service.reconcile(self.attempt.key))
         self.assertEqual(self.applies, [True])
         self.assertEqual((self.source / 'fixture').read_text(), 'changed by fixture\n')
+        self.assertEqual((self.source / 'untracked').read_bytes(), b'public fixture\x00binary')
         self.assertEqual(len(json.loads((self.root / 'ledger.json').read_text())), 1)
         go = [json.loads(x) for x in (self.root / 'go.jsonl').read_text().splitlines()]
         self.assertEqual(len(go), 1); self.assertEqual(go[0]['cost_usd'], .01)
@@ -119,6 +121,10 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(reconstructed, self.ctx)
         self.assertEqual(conflicts, [True])
         self.assertEqual(json.loads(Path(r.artifacts['report']['registry']).read_text())['label'], 'fixture-label')
+        self.assertFalse(self.iso.exists())
+        registry = json.loads(Path(r.artifacts['report']['registry']).read_text())
+        self.assertEqual((registry['worktree'], registry['base_commit'], registry['cleanup']),
+                         (str(self.iso.resolve()), self.ctx.base_commit, 'removed'))
         # Callback schedules an independent bounded process only after the worker
         # releases its settlement lock; fake the process and every lifecycle API.
         from hand_ext.paseo_completion import deferred_archive
@@ -151,6 +157,8 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(self.store.get(self.attempt.key).outcome, r.outcome)
         # A second execution exercises Codex account/window projection without
         # reading any real account path or invoking a backend CLI.
+        subprocess.run(['git', '-C', str(self.source), 'worktree', 'add', '--detach', str(self.iso)],
+                       capture_output=True, check=True)
         options = dict(self.inv.fixed_options)
         options['options'] = {'home': str(self.root / 'fixture-codex-account')}
         self.inv = dataclasses.replace(self.inv, invocation_id='codex-fixture', backend='codex', account_alias='gpt', model='gpt-6.1-sol', effort='low', fixed_options=options)
@@ -163,6 +171,7 @@ class CompletionTests(unittest.TestCase):
         self.wait(lambda: self.store.get(self.attempt.key).state == 'awaiting_review')
         with worker.lock: pass
         codex = [json.loads(x) for x in (self.root / 'codex.jsonl').read_text().splitlines()]
+        self.assertFalse(self.iso.exists())
         self.assertEqual(len(codex), 1)
         self.assertEqual(codex[0]['codex_home'], 'fixture-codex-account')
 
@@ -221,6 +230,14 @@ class CompletionTests(unittest.TestCase):
         self.assertTrue(observation['capacity_failure'])
         self.assertNotIn('errors', observation)
         self.assertTrue(self.iso.is_dir())
+        r = self.store.get(self.attempt.key)
+        report = Path(r.artifacts['report']['report'])
+        self.assertIn('giữ lại (lỗi)', report.read_text())
+        r.receipt['completion']['keep_worktree'] = True
+        self.store.compare_and_swap(r.key, r.revision, r)
+        self.service._cleanup_worktree(r.key)
+        self.assertTrue(self.iso.exists())
+        self.assertIn('giữ lại (--keep-worktree)', report.read_text())
 
 
 if __name__ == '__main__': unittest.main()

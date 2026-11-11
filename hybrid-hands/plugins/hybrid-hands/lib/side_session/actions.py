@@ -13,7 +13,7 @@ from pathlib import Path
 from . import budget
 from . import commands as K
 from . import constants as C
-from . import external, gc, paseo, screen, state, tokens
+from . import external, gc, paseo, screen, state, tokens, checkout
 from hand_ext.disk_guard import check_disk, DiskGuardBlocked, EXIT_DISK_GUARD
 from .config import SideConfig, claude_account
 from .handoff import build_prompt, summary_block
@@ -130,7 +130,7 @@ def _worktree_preflight(cfg: SideConfig, a) -> int | None:
     if cfg.worktree_gc_auto == C.WORKTREE_GC_MERGED:
         try:
             report = gc.apply(cfg, include_unmerged=False, prune_branches=False,
-                              fetch=False)
+                              fetch=False, deadline=time.monotonic() + 20)
             failed = bool(report.get("errors"))
         except Exception:
             failed = True
@@ -257,8 +257,11 @@ def start(cfg: SideConfig, a) -> int:
                                  sparse=not getattr(a, "no_sparse", False))
         if a.dry_run:
             cmds.extend(step.argv for step in steps)
-        elif K.run_worktree_steps(steps) != 0:
-            return 1
+        else:
+            checkout.intent(cfg, st)
+            if K.run_worktree_steps(steps) != 0:
+                return 1
+            checkout.created(cfg, st)
     cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
                               prompt_file, a.hours, model=a.model, effort=a.effort,
                               account=account, config_dir=config_dir,
@@ -304,8 +307,18 @@ def resume(cfg: SideConfig, a) -> int:
         return C.EXIT_USAGE
     old = state.load(cfg.state_dir, a.name)
     if old.transport == C.TRANSPORT_PASEO:
-        print("side-session: --resume Paseo chưa hỗ trợ; mở lại đúng agent trong Paseo")
-        return C.EXIT_USAGE
+        if a.dry_run:
+            print(f"# dry-run: restore checkout and send to exact Paseo agent {old.name}")
+            return 0
+        if a.prompt_file:
+            return send(cfg, a)
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode="w", dir=cfg.state_dir,
+                                         suffix=".resume-prompt", encoding="utf-8") as prompt:
+            prompt.write(C.RESUME_PROMPT)
+            prompt.flush()
+            a.prompt_file = prompt.name
+            return send(cfg, a)
     if old.provider != C.PROVIDER_CLAUDE:
         print(f"side-session: --resume chỉ dùng cho phiên {C.PROVIDER_CLAUDE}, "
               f"{a.name} là {old.provider}")
@@ -339,6 +352,8 @@ def resume(cfg: SideConfig, a) -> int:
             return C.EXIT_USAGE
     else:
         prompt = C.RESUME_PROMPT
+    if not a.dry_run and not checkout.restore(cfg, old):
+        return 1
     max_tokens = a.max_tokens if a.max_tokens is not None else old.max_tokens
     chrome = old.chrome if a.chrome is None else a.chrome
     st = state.SessionState(
@@ -346,6 +361,8 @@ def resume(cfg: SideConfig, a) -> int:
         screen=screen_name, watch_screen=K.watch_screen(a.name), max_tokens=max_tokens,
         started=time.time(), status=C.STATUS_RUNNING, handoff=old.handoff,
         worktree=old.worktree, base=old.base,
+        checkout_owner=old.checkout_owner, checkout_branch=old.checkout_branch,
+        checkout_phase=old.checkout_phase, checkout_removed_at=old.checkout_removed_at,
         parent_session=os.environ.get(C.PARENT_SESSION_ENV) or old.parent_session,
         chrome=chrome, budget_exempt=bool(a.budget_exempt), tokens_used=0,
         account=old.account, claude_config_dir=config_dir,
@@ -500,6 +517,7 @@ def _finish_codex(cfg: SideConfig, st: state.SessionState) -> bool:
     state.save(cfg.state_dir, st)
     if st.transport == C.TRANSPORT_PASEO:
         _rearchive_revived(cfg, st)
+    checkout.remove_done(cfg, st)
     return True
 
 
@@ -662,6 +680,8 @@ def _finish_external(cfg: SideConfig, st: state.SessionState, run) -> bool:
     external.copy_report(run, Path(st.handoff))
     st.status = external.final_status(run)
     state.save(cfg.state_dir, st)
+    if st.status == C.STATUS_DONE:
+        checkout.remove_done(cfg, st)
     print(f"{st.name}: {st.status} ({st.tokens_used}/{st.max_tokens} tokens)")
     return False
 
@@ -846,6 +866,7 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
         st.tokens_used = count_tokens(cfg, st)
         st.status = C.STATUS_DONE
         state.save(cfg.state_dir, st)
+        checkout.remove_done(cfg, st)
         print(f"{st.name}: done")
         return False
     run = external.run_for(st) if st.provider in C.EXTERNAL_PROVIDERS else None
@@ -895,7 +916,7 @@ def send(cfg: SideConfig, a) -> int:
         st = state.load(cfg.state_dir, a.name)
         if (st.role == "main" or st.transport != C.TRANSPORT_PASEO
                 or st.status in C.ACTIVE_STATUSES or st.paseo_send_pending
-                or not Path(st.dir).is_dir() or not st.paseo_target
+                or not st.paseo_target
                 or not st.paseo_agent_id or not st.paseo_workspace_id):
             print("side-session: send cần side Paseo đã dừng, cwd và identity hợp lệ; pending cần đối chiếu trước")
             return C.EXIT_USAGE
@@ -912,6 +933,8 @@ def send(cfg: SideConfig, a) -> int:
         preflight = _preflight(cfg, a)
         if preflight is not None:
             return preflight
+        if not checkout.restore(cfg, st) or not Path(st.dir).is_dir():
+            return 1
         marker = K.done_path(st.handoff)
         # Reserve before dispatch; only definite non-delivery releases this reservation.
         history = None

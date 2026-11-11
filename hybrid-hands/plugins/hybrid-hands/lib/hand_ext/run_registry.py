@@ -64,7 +64,7 @@ def _epoch(raw: Any) -> Optional[float]:
     return moment.timestamp()
 
 
-REGISTRY_ISOLATION_KEYS = ("base_commit", "worktree")
+REGISTRY_ISOLATION_KEYS = ("base_commit", "worktree", "repo_common_dir", "mode", "cleanup", "worktree_created")
 
 
 def _worktree_alive(data: Dict[str, Any]) -> bool:
@@ -85,7 +85,10 @@ class RunRegistry:
         self.path = self.runs_dir / f"{run_id}.json"
         self.clock = clock
         self.meta_path = Path(run_dir) / "meta.json" if metadata is not None else None
-        self.metadata = dict(metadata or {})
+        from .locked_json import read_json
+        existing = read_json(self.path, {})
+        self.metadata = {**{k: existing[k] for k in REGISTRY_ISOLATION_KEYS if k in existing},
+                         **dict(metadata or {})}
         self.started_at = self.clock()
         self._last_write = 0.0
         self._tokens: TokenMap = _token_map(None)

@@ -55,6 +55,12 @@ class SessionState:
     base: str = ""
     # Agent tab joined the calling chat's workspace: never archive/restore that workspace.
     paseo_workspace_shared: bool = False
+    checkout_owner: str = ""
+    checkout_branch: str = ""
+    checkout_phase: str = ""
+    checkout_removed_at: float | None = None
+    checkout_reason: str = ""
+    checkout_backup: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

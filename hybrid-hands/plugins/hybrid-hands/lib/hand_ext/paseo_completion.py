@@ -59,8 +59,8 @@ class CompletionService:
 
     def bind(self, key, ctx, *, ledger_path, registry_dir, policy='no_apply',
              go_ledger=None, go_summary=None, go_monthly_limit=0,
-             codex_ledger=None, quota_path=None, label=''):
-        """Persist prepared context and sink paths. MVP always retains worktree.
+             codex_ledger=None, quota_path=None, label='', keep_worktree=False):
+        """Persist prepared context and sink paths before dispatch.
 
         policy: no_apply/check snapshot without source mutation; apply permits
         source apply only on successful authoritative terminal outcome.
@@ -72,7 +72,7 @@ class CompletionService:
             raise ValueError('managed completion requires prepared worktree')
         if Path(ctx.run_cwd).resolve() != Path(r.invocation.isolated_cwd).resolve() or not Path(r.invocation.source_cwd).resolve().is_relative_to(Path(ctx.source_root).resolve()):
             raise ValueError('prepared context identity mismatch')
-        config = dict(version=1, context=serialize_context(ctx), policy=policy, label=str(label),
+        config = dict(version=1, keep_worktree=bool(keep_worktree), context=serialize_context(ctx), policy=policy, label=str(label),
                       ledger=str(Path(ledger_path).resolve()), registry=str(Path(registry_dir).resolve()),
                       go_ledger=str(Path(go_ledger).resolve()) if go_ledger else None,
                       go_summary=str(Path(go_summary).resolve()) if go_summary else None,
@@ -116,6 +116,8 @@ class CompletionService:
 
     def _finalize(self, r, c, token, run_dir):
         ctx = reconstruct_context(c['context'])
+        if ctx.dirty:
+            isolation._write_base_patch(ctx.worktree, ctx.base_commit, ctx.baseline_tree, run_dir)
         apply = c['policy'] == 'apply' and r.outcome['status'] == 'ok' and r.outcome.get('backend_exit_code') in (0, None)
         result = isolation.finalize(ctx, run_dir, apply_changes=apply,
                                     skip_reason='managed policy: ' + c['policy'] if r.outcome['status'] == 'ok' else 'failed execution; preserve patch')
@@ -146,9 +148,14 @@ class CompletionService:
         result = dict(r.artifacts['finalize']['result'])
         result.pop('check_ok', None)
         if result.get('patch_path'): result['patch_path'] = Path(result['patch_path'])
-        block = isolation.report_block(ctx, isolation.ApplyResult(**result), kept=True)
+        reason = '--keep-worktree' if c.get('keep_worktree') else (
+            'lỗi' if r.outcome['status'] != 'ok' or r.outcome.get('backend_exit_code') not in (0, None)
+            else 'conflict' if result['status'] == isolation.APPLY_CONFLICT else 'chưa bảo toàn')
+        block = isolation.report_block(ctx, isolation.ApplyResult(**result), kept=True, keep_reason=reason)
         _text(run_dir / 'report.md', (r.outcome.get('final_text') or '').rstrip() + '\n\n' + block + '\n')
-        metadata = dict(entry, base_commit=ctx.base_commit, dirty=ctx.dirty, dirty_files=ctx.dirty_files,
+        from .worktree_lifecycle import ownership
+        metadata = dict(entry, **ownership(ctx.source_root, ctx.worktree, ctx.base_commit,
+                        r.invocation.origin, r.invocation.backend), dirty=ctx.dirty, dirty_files=ctx.dirty_files,
                         invocation_id=r.key.invocation_id, attempt_id=r.key.attempt_id, epoch=r.key.epoch,
                         agent_id=r.attempt.agent_id, run_dir=str(run_dir),
                         report_sha256=hashlib.sha256((run_dir / 'report.md').read_bytes()).hexdigest())
@@ -296,6 +303,7 @@ class CompletionService:
         return True
 
     def _after_release(self, key):
+        self._cleanup_worktree(key)
         try:
             self._schedule_archive(key)
         except Exception:
@@ -305,6 +313,39 @@ class CompletionService:
             # Release is already durable. Scheduling failure never changes the
             # authoritative outcome; the next controller/release call can retry.
             return
+
+    def _cleanup_worktree(self, key):
+        """All sink proofs are durable; cleanup can retry without repeating apply."""
+        from .worktree_lifecycle import remove_preserved, record
+        r = self.store.get(key)
+        if any(r.settle_keys.get(k, {}).get('state') != 'completed'
+               for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')):
+            return
+        refs = r.artifacts['report']
+        metadata_path = Path(refs['metadata'])
+        metadata = read_json(metadata_path, {})
+        # A later epoch may reuse this exact path: removed is a terminal cleanup.
+        if metadata.get('cleanup') == 'removed':
+            return
+        c = self._config(r)
+        ctx = reconstruct_context(c['context'])
+        data = dict(r.artifacts['finalize']['result'])
+        data.pop('check_ok', None)
+        if data.get('patch_path'): data['patch_path'] = Path(data['patch_path'])
+        result = isolation.ApplyResult(**data)
+        reason = ('--keep-worktree' if c.get('keep_worktree') else
+                  'lỗi' if r.outcome['status'] != 'ok' or r.outcome.get('backend_exit_code') not in (0, None) else
+                  'conflict' if result.status == isolation.APPLY_CONFLICT else
+                  'chưa bảo toàn' if result.status == isolation.APPLY_ERROR else '')
+        run_dir = Path(r.receipt['worker_run_dir'])
+        if not reason:
+            reason = remove_preserved(ctx, result, run_dir)
+        block = isolation.report_block(ctx, result, kept=bool(reason), keep_reason=reason)
+        _text(Path(refs['report']), (r.outcome.get('final_text') or '').rstrip() + '\n\n' + block + '\n')
+        metadata.update(cleanup='retained' if reason else 'removed', cleanup_reason=reason,
+                        report_sha256=hashlib.sha256(Path(refs['report']).read_bytes()).hexdigest())
+        atomic_json(metadata_path, metadata)
+        record(Path(refs['registry']), **metadata)
 
     def _archive_diagnostic(self, key):
         from .paseo_controller import lifecycle_diagnostic

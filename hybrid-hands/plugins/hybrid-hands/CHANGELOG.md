@@ -2,6 +2,13 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.55.0 — 2026-11-11
+
+- Hand worktree tự xoá khi xong: settle OK, patch đã lưu ngoài checkout, áp về gốc OK hoặc patch rỗng, HEAD/baseline/snapshot khớp patch → `git worktree remove`; chỉ còn cache tạo lại được (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `node_modules`, `.DS_Store`, `*.pyc/*.pyo`) vẫn xoá. Giữ lại khi lỗi, conflict, `--keep-worktree` hoặc chưa bảo toàn, report ghi đúng lý do ("giữ lại (<lý do>)"/"đã xoá"); áp cho cả đường shell và managed Paseo (dọn sau khi mọi bước settle hoàn tất, metadata `cleanup`).
+- Ownership worktree (repo common dir, base commit, mode, backend) ghi bền vào `runs/<id>.json` trước và sau `git worktree add`; bỏ fallback `rmtree`, lỗi giữa chừng không tự xoá checkout.
+- Phiên phụ: done + runtime đã dừng + không có thay đổi chưa commit + HEAD trên nhánh → xoá checkout, giữ nhánh; `output/llm` được tar vào `~/.hybrid-hands/wt-output-backup/` trước. `send`/`resume`/followup tạo lại checkout từ nhánh.
+- GC lớp `legacy-recoverable` (hand-ext gc, side-session gc, chạy trong auto-gc ≤20s): mọi file sửa/untracked trùng byte với lịch sử git hoặc checkout chính, HEAD thuộc một ref, không process/agent Paseo dùng, yên ≥24h; sao lưu `output/llm` rồi kiểm lại trước khi xoá. Thiếu thông tin thì giữ (fail-closed).
+
 ## 0.54.0 — 2026-11-11
 
 - Guard Claude v1 theo ngày nới từ 5% lên 8% (`CLAUDE_MAIN_MAX_DAY_PCT = 8.0`; mặc định `claude_accounts.v1.max_day_pct` dùng chung hằng). Cấu hình global/repo `max_day_pct` vẫn ghi đè được. Policy, skills, templates, README và AGENTS.md đồng bộ "≥8%/ngày"; spec lịch sử giữ số cũ.

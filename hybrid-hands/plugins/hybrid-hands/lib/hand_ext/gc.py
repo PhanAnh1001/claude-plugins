@@ -13,6 +13,8 @@ import time
 from collections import namedtuple
 from pathlib import Path
 
+import wt_legacy
+
 from . import isolation
 from .constants import CHANGES_PATCH_FILE, HAND_RUNS_SUBDIR
 
@@ -304,21 +306,59 @@ def classify(cfg, path: Path) -> dict:
     return row
 
 
-def collect(cfg, describe: bool = True) -> list[dict]:
+def legacy_classify(cfg, path: Path, scan) -> dict:
+    row = classify(cfg, path)
+    allowed = {'no exact registry ownership', 'detached HEAD without recorded base commit',
+               'detached HEAD moved past recorded base commit', 'unpreserved working changes',
+               'running or unknown runtime'}
+    if row['reason'] not in allowed or cfg.machine_state_dir.resolve().is_relative_to(path.resolve()):
+        return row
+    # A detached early return must not bypass active registry/runtime protection.
+    for registry in (cfg.machine_state_dir / HAND_RUNS_SUBDIR).glob('*.json'):
+        try:
+            data = _read(registry)
+            run_dir = Path(data.get('run_dir', ''))
+            if run_dir.is_absolute() and run_dir.resolve().is_relative_to(path.resolve()):
+                return row
+            if (path.name.endswith('-' + str(data.get('run_id', '')))
+                    and (data.get('status') in {'running', 'starting', 'busy', 'idle'}
+                         or any(_live(data.get(k)) for k in ('pid', 'child_pid'))
+                         or not _managed_settled(cfg, data, path))):
+                return row
+        except (OSError, ValueError, KeyError, TypeError):
+            return row
+    result = scan.evaluate(cfg.root, path)
+    if result['eligible']:
+        row.update(classification=wt_legacy.LEGACY, reason=result['reason'],
+                   legacy_identity=result['identity'])
+    else:
+        row['reason'] += '; legacy: ' + result['reason']
+    return row
+
+
+def collect(cfg, describe: bool = True, scan=None) -> list[dict]:
     if not cfg.worktree_root.is_dir():
         return []
+    scan = scan or wt_legacy.Scan()
     show = _describe if describe else (lambda row, _path: row)
-    return [show(classify(cfg, path), path) for path in sorted(cfg.worktree_root.iterdir())
-            if path.is_dir() or path.is_symlink()]
+    rows = []
+    for path in sorted(cfg.worktree_root.iterdir()):
+        if scan.deadline is not None and time.monotonic() >= scan.deadline:
+            break
+        if path.is_dir() or path.is_symlink():
+            rows.append(show(legacy_classify(cfg, path, scan), path))
+    return rows
 
 
 def removable(include_preserved: bool) -> frozenset:
-    return frozenset({CLASS_FINISHED, CLASS_PRESERVED} if include_preserved else {CLASS_FINISHED})
+    return frozenset({CLASS_FINISHED, CLASS_PRESERVED, wt_legacy.LEGACY} if include_preserved else {CLASS_FINISHED, wt_legacy.LEGACY})
 
 
+@wt_legacy.bounded
 def run_gc(cfg, *, apply: bool = False, include_preserved: bool = False,
-           describe: bool = True, wait_lock: bool = True) -> list[dict]:
-    rows = collect(cfg, describe)
+           describe: bool = True, wait_lock: bool = True, deadline=None) -> list[dict]:
+    scan = wt_legacy.Scan(deadline)
+    rows = collect(cfg, describe, scan)
     classes = removable(include_preserved)
     if not apply:
         return rows
@@ -336,16 +376,25 @@ def run_gc(cfg, *, apply: bool = False, include_preserved: bool = False,
             for row in rows:
                 if row['classification'] not in classes:
                     continue
-                fresh = classify(cfg, Path(row['path']))
+                if deadline is not None and time.monotonic() >= deadline:
+                    break
+                fresh = legacy_classify(cfg, Path(row['path']), scan)
                 if describe:
                     fresh = _describe(fresh, Path(row['path']))
                     fresh['age_seconds'] = row.get('age_seconds')
                 if fresh != row:
                     row['reason'] = 'changed during recheck'
                     continue
-                error = isolation._remove_worktree(
-                    cfg.root, Path(row['path']), cfg.worktree_root,
-                    gc_safe=row['classification'] == CLASS_FINISHED)
+                if row['classification'] == wt_legacy.LEGACY:
+                    try:
+                        row['backup'] = scan.remove(cfg.root, Path(row['path']))
+                        error = ''
+                    except (OSError, ValueError) as exc:
+                        error = str(exc)
+                else:
+                    error = isolation._remove_worktree(
+                        cfg.root, Path(row['path']), cfg.worktree_root,
+                        gc_safe=row['classification'] == CLASS_FINISHED)
                 row['removed'] = not bool(error)
                 if error:
                     row['error'] = 'git refused removal'
@@ -382,7 +431,8 @@ def auto_collect(cfg) -> None:
         return
     try:
         # Skip age/size walks and never wait on a held lock: this precedes a hand run.
-        rows = run_gc(cfg, apply=True, describe=False, wait_lock=False)
+        rows = run_gc(cfg, apply=True, describe=False, wait_lock=False,
+                      deadline=time.monotonic() + wt_legacy.AUTO_SECONDS)
         failed = any(row.get('error') for row in rows)
     except Exception:  # noqa: BLE001 - auto GC is best-effort; disk guard still runs
         failed = True

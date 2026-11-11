@@ -15,7 +15,7 @@ class StartGateTest(unittest.TestCase):
     def test_auto_policy(self):
         with patch.object(actions.gc, 'apply', side_effect=[{'errors': []}, TypeError('synthetic'), AttributeError('synthetic'), {'errors': ['synthetic']}]) as gc, patch.object(actions, 'check_disk') as disk:
             for _ in range(4): self.assertIsNone(actions._worktree_preflight(self.cfg, self.args('--worktree')))
-            self.assertEqual(gc.call_args.kwargs, dict(include_unmerged=False, prune_branches=False, fetch=False))
+            self.assertGreater(gc.call_args.kwargs.pop('deadline'), 0); self.assertEqual(gc.call_args.kwargs, dict(include_unmerged=False, prune_branches=False, fetch=False))
             actions._worktree_preflight(replace(self.cfg, worktree_gc_auto='off'), self.args('--worktree')); self.assertEqual((gc.call_count, disk.call_count), (4, 5))
     def test_disk_thresholds(self):
         with patch.object(disk_guard.shutil, 'disk_usage') as usage:

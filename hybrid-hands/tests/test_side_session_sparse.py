@@ -54,7 +54,8 @@ class SparseWorktreeTest(unittest.TestCase):
     def test_paseo_uses_shared_steps_and_bad_patterns_rejected(self):
         a = build_parser().parse_args(['start', '--name', 's', '--worktree'])
         st = type('St', (), {'role': 'main', 'name': 's'})()
-        with patch.object(K, 'run_worktree_steps', return_value=1) as run:
+        with patch('side_session.checkout.intent'), \
+                patch.object(K, 'run_worktree_steps', return_value=1) as run:
             self.assertEqual(paseo.start_session(self.cfg, a, st, '', '', ''), 1)
         argvs = [s.argv for s in run.call_args.args[0]]
         self.assertIn('--no-checkout', argvs[0]); self.assertEqual(argvs[2][-1], 'checkout')

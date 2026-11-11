@@ -93,7 +93,7 @@ class GCTest(unittest.TestCase):
         prune, _ = self.candidate('prune')
         with patch.object(gc, 'inspect', side_effect=lambda cfg, **kw: gc_inspect(cfg, runtime=lambda *_: True, **kw)):
             gc.apply(self.cfg, prune_branches=True)
-        self.assertNotIn(b'refs/heads/prune', self.git(self.repo, 'show-ref'))
+        self.assertIn(b'refs/heads/prune', self.git(self.repo, 'show-ref'))
     def test_unknown_runtime_ownership_and_recheck(self):
         path, st = self.candidate('unknown')
         sockets = "There are screens on:\n\t21239.side-other\t(Detached)\n1 Socket in /fixture/.screen.\n"
