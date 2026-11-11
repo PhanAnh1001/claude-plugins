@@ -67,6 +67,14 @@ HAND_RUNS_SUBDIR = "runs"
 HAND_RUNS_UPDATE_SECONDS = 15.0
 HAND_RUNS_RETENTION_SECONDS = 7 * 86400
 HAND_RUN_STATUS_RUNNING = "running"
+# Auto worktree GC before each isolated run: "finished" removes only clean, owned,
+# finished worktrees; "off" disables it. Preserved/dirty/unknown are never auto-removed.
+WORKTREE_GC_FINISHED = "finished"
+WORKTREE_GC_OFF = "off"
+WORKTREE_GC_MODES = (WORKTREE_GC_FINISHED, WORKTREE_GC_OFF)
+# Auto GC scans every worktree (git status each); at most once per hour machine-wide.
+WORKTREE_GC_AUTO_INTERVAL_SECONDS = 3600
+WORKTREE_GC_AUTO_STAMP = "worktree-gc-auto.stamp"
 PARENT_SESSION_ENV = "CLAUDE_CODE_SESSION_ID"
 PARENT_CLAUDE_PID_ENV = "CLAUDE_PID"
 RUN_REGISTRY_WARNING = "cảnh báo: không ghi được sổ lượt hand"
@@ -120,6 +128,7 @@ DEFAULTS = {
     # HYBRID_HANDS_STATE_DIR (default ~/.hybrid-hands/worktrees).
     "isolation": ISOLATION_WORKTREE,
     "worktree_root": "~/.hybrid-hands/worktrees",
+    "worktree_gc": {"auto": WORKTREE_GC_FINISHED},
     "backends": {
         "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "low",
                   CODEX_PRICE_KEY: dict(CODEX_DEFAULT_PRICE)},

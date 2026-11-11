@@ -508,8 +508,9 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
 
     Failed cleanup keeps status done with a one-line warning; the next ls/watch
     retries. A revived session never runs _finish_codex, even with a stale .done.
+    A shared workspace belongs to the calling chat: never restored here.
     """
-    if st.role == "main":
+    if st.role == "main" or st.paseo_workspace_shared:
         return
     revived, failure = paseo.revive(st)
     if failure:
@@ -526,7 +527,7 @@ def _revive_done(cfg: SideConfig, st: state.SessionState) -> None:
 
 def _rearchive_revived(cfg: SideConfig, st: state.SessionState) -> None:
     """Hide the private workspace once a revived agent is archived again."""
-    if st.role == "main":
+    if st.role == "main" or st.paseo_workspace_shared:
         return
     try:
         records = state.load_all(cfg.state_dir)
@@ -968,6 +969,10 @@ def tidy(cfg: SideConfig, args) -> int:
                 or key in seen):
             continue
         seen.add(key)
+        if st.paseo_workspace_shared:
+            # Owned by the calling chat, not an error: never archived by tidy.
+            print(f"{st.name}: skip workspace={st.paseo_workspace_id} (shared)")
+            continue
         owners = paseo.workspace_owners(st, records)
         if (st.role == "main" or not st.paseo_target or not owners
                 or any(o["role"] in ("main", "main_session") for o in owners)):

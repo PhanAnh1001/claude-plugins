@@ -64,6 +64,15 @@ def _epoch(raw: Any) -> Optional[float]:
     return moment.timestamp()
 
 
+REGISTRY_ISOLATION_KEYS = ("base_commit", "worktree")
+
+
+def _worktree_alive(data: Dict[str, Any]) -> bool:
+    """A registry outliving retention is still GC ownership proof for its worktree."""
+    worktree = data.get("worktree")
+    return isinstance(worktree, str) and Path(worktree).is_absolute() and Path(worktree).exists()
+
+
 class RunRegistry:
     """Best-effort state file for one backend attempt."""
 
@@ -104,6 +113,11 @@ class RunRegistry:
             "status": HAND_RUN_STATUS_RUNNING,
             "tokens": dict(self._tokens),
         }
+        # GC needs these in the machine registry: base_commit proves a detached HEAD
+        # did not move; worktree keeps the entry alive while the checkout exists.
+        for key in REGISTRY_ISOLATION_KEYS:
+            if self.metadata.get(key):
+                self._data[key] = self.metadata[key]
 
     def start(self) -> None:
         self._write()
@@ -176,6 +190,8 @@ class RunRegistry:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
                 if not isinstance(data, dict) or data.get("status") == HAND_RUN_STATUS_RUNNING:
+                    continue
+                if _worktree_alive(data):
                     continue
                 ended = _epoch(data.get("ended")) or _epoch(data.get("updated_at"))
                 if ended is None:
