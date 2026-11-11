@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-11 · commit `f73fd04`
+Cập nhật 2026-11-11 · commit `da6943c`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-11 · commit `f73fd04`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 258 commit.
+- **Hoạt động 14 ngày:** 260 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-258 commit.
+260 commit.
 
+- 2026-11-11 da6943c Merge ci/plan-status: plan-status page + Action for claude-plugins
+- 2026-11-11 f79255d ci(status): trang tình hình plan docs/status + GitHub Action plan-status-v1 (6 giờ/lần)
 - 2026-11-11 f73fd04 Merge fix/plan-status-init-globs (dev-workflow 0.10.1)
 - 2026-11-11 2d7e450 fix(dev-workflow): plan-status init collapses sibling plan dirs into <parent>/*/*.md, skips skills/templates/references (0.10.1)
 - 2026-11-11 a81da44 Merge feat/plan-status-action: shared Action + plan-status init (dev-workflow 0.10.0)
-- 2026-11-11 c6bd6b5 feat(dev-workflow): shared plan-status composite Action + dw plan-status init scaffold (0.10.0)
-- 2026-11-11 7a155ba Merge feat/plan-status-ref: plan-status per-page git ref (dev-workflow 0.9.0)
