@@ -24,6 +24,7 @@ OUT_DIR = "docs/status"
 OUT_FILE = f"{OUT_DIR}/plan-status.md"
 ACTION_REF = "PhanAnh1001/claude-plugins/dev-workflow/actions/plan-status@plan-status-v1"
 SCHEDULE_CRON = "17 */6 * * *"
+SIBLING_COLLAPSE_MIN = 2  # >= this many plan dirs under one parent -> "<parent>/*/*.md" (covers future plans)
 RULE_MARKER = "<!-- plan-status-rule -->"
 SKIP_DIRS = frozenset({".git", "node_modules", "handoffs", "output", "skills", "templates", "references"})
 CHECKBOX_RE = re.compile(r"^\s*[-*]\s+\[[ xX]\]\s", re.MULTILINE)
@@ -63,15 +64,33 @@ def glob_for(rel_dir: str) -> str:
     return "*.md" if rel_dir == "." else f"{rel_dir}/*.md"
 
 
+def plan_globs(plan_dirs: list[str]) -> list[str]:
+    """One glob per plan dir; sibling dirs sharing a parent collapse into `<parent>/*/*.md`."""
+    by_parent: dict[str, list[str]] = {}
+    for d in plan_dirs:
+        if d != ".":
+            by_parent.setdefault(Path(d).parent.as_posix(), []).append(d)
+    globs: list[str] = []
+    for d in plan_dirs:
+        parent = Path(d).parent.as_posix()
+        if d != "." and len(by_parent[parent]) >= SIBLING_COLLAPSE_MIN:
+            g = "*/*.md" if parent == "." else f"{parent}/*/*.md"
+        else:
+            g = glob_for(d)
+        if g not in globs:
+            globs.append(g)
+    return globs
+
+
 def render_config(repo_name: str, plan_dirs: list[str]) -> str:
-    include = ", ".join(f'"{glob_for(d)}"' for d in plan_dirs)
+    include = ", ".join(f'"{g}"' for g in plan_globs(plan_dirs))
     return (f'[defaults]\ndays = 14\nhtml = true\nout_dir = "{OUT_DIR}"\n\n'
             f'[[page]]\nname = "main"\ntitle = "{repo_name}"\ninclude = [{include}]\n'
             f'out = "{OUT_FILE}"\n')
 
 
 def render_workflow(plan_dirs: list[str]) -> str:
-    paths = [glob_for(d) for d in plan_dirs] + [CONFIG_PATH.as_posix(), WORKFLOW_PATH.as_posix()]
+    paths = plan_globs(plan_dirs) + [CONFIG_PATH.as_posix(), WORKFLOW_PATH.as_posix()]
     path_lines = "".join(f'      - "{p}"\n' for p in paths)
     return ("name: plan-status\n\non:\n  push:\n    branches: [main]\n    paths:\n" + path_lines
             + f"  schedule:\n    - cron: '{SCHEDULE_CRON}'\n  workflow_dispatch:\n\n"

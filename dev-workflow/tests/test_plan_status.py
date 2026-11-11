@@ -63,6 +63,11 @@ class PlanStatusTest(unittest.TestCase):
         self.assertIn('"docs/plans/*.md"', self.run_init().stdout)
         self.assertFalse((self.repo / ".claude/plan-status.toml").exists())
 
+    def test_init_collapses_sibling_plan_dirs(self) -> None:
+        for name in ("2026-11-01-a", "2026-11-02-b"):
+            write_file(self.repo, f"docs/wip/{name}/plan.md", "- [ ] việc\n")
+        self.assertIn('"docs/wip/*/*.md"', self.run_init().stdout)
+
     def test_init_write_is_idempotent(self) -> None:
         write_file(self.repo, "AGENTS.md", "# Luật\n")
         self.run_init("--write")
