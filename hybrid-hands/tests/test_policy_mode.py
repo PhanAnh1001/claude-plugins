@@ -1,4 +1,4 @@
-"""Repository policy mode; hashes captured from 0.36.1 before modification."""
+"""Repository policy mode; hashes track the expected policy text."""
 import hashlib
 import json
 import os
@@ -14,9 +14,9 @@ sys.path.insert(0, str(PLUGIN / "lib"))
 from shared_config import load_config
 
 HOOKS = ("session-start-policy.sh", "inject-policy.sh")
-BASELINE = ("f7da73cac0b0226c9a216b30b1f8aa9af417b3e3014f9e39d580edb71413a40e",
+BASELINE = ("d6fe69ba4aaa612c93d1f386cabddb214f7dfb5ac26e781e55674823c0f0bc69",
             "15fc1a8b0aa680cbf90118398ac071f1aec61f5e710c4022d1ea83c8b24cab38")
-MATCHED_SESSION = "80d4d1479acb5123316647e0d5daa7fa0bb23508c18d59114e728f460a95f45c"
+MATCHED_SESSION = "51bde83e41e5824a0fc6af02edf26955dd24e75069d484b137019018e1c85d8d"
 
 
 def hooks(cwd, payload=None):

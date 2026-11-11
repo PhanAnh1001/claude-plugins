@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.53.0 — 2026-11-11
+
+- Luật test: test hẹp chạy ngay; test có dấu hiệu nặng hoặc CPU toàn máy ≥90% chạy hạ ưu tiên bằng `nice -n 19 taskpolicy -b` trên macOS, thiếu taskpolicy dùng `nice -n 19`. Chỉ đo CPU trước test dự kiến >30s không có dấu hiệu nặng và không phải test hẹp; không tự bật song song, tăng timeout tương ứng. Giữ luật full suite một lần cuối khi brief giao và lệnh >4 phút giao hand riêng vì chi phí cache; chỉ sửa văn bản, không thêm hook/code.
+
 ## 0.52.0 — 2026-11-11
 
 - `side-session start` (không `--main`) mặc định mở agent tab trong workspace Paseo của phiên đang chat (`PASEO_AGENT_ID` → `agent.workspaceId`, chỉ khi agent chưa archived và workspace active); cờ `--new-workspace` giữ hành vi cũ, thiếu điều kiện thì fallback tạo workspace mới. State thêm `paseo_workspace_shared`; done/revive/followup chỉ archive/reopen child, không bao giờ archive/restore workspace dùng chung; `tidy` báo `skip (shared)`, đặt tên không warning.
