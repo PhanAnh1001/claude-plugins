@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.54.0 — 2026-11-11
+
+- Guard Claude v1 theo ngày nới từ 5% lên 8% (`CLAUDE_MAIN_MAX_DAY_PCT = 8.0`; mặc định `claude_accounts.v1.max_day_pct` dùng chung hằng). Cấu hình global/repo `max_day_pct` vẫn ghi đè được. Policy, skills, templates, README và AGENTS.md đồng bộ "≥8%/ngày"; spec lịch sử giữ số cũ.
+
 ## 0.53.1 — 2026-11-11
 
 - `side-session start --main` chạy từ tab Paseo mở tab cấp cao (không parent) trong cùng workspace của tab gọi: caller (`PASEO_AGENT_ID` → `agent.workspaceId`) giờ cũng dùng cho `--main`, chỉ để chọn workspace, không làm parent; `--new-workspace` và terminal (không caller) giữ tạo workspace mới như cũ.

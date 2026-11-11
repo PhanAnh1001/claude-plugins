@@ -14,9 +14,9 @@ sys.path.insert(0, str(PLUGIN / "lib"))
 from shared_config import load_config
 
 HOOKS = ("session-start-policy.sh", "inject-policy.sh")
-BASELINE = ("d6fe69ba4aaa612c93d1f386cabddb214f7dfb5ac26e781e55674823c0f0bc69",
+BASELINE = ("e32a7001afee39cc9e4a7b2cb772540be5d1b1b5db11a9c5e07298e4d912855b",
             "15fc1a8b0aa680cbf90118398ac071f1aec61f5e710c4022d1ea83c8b24cab38")
-MATCHED_SESSION = "51bde83e41e5824a0fc6af02edf26955dd24e75069d484b137019018e1c85d8d"
+MATCHED_SESSION = "4cc6569f01bee43b08b6399e99646886f155fbf7d1ab90158d16dc97a1e60ccc"
 
 
 def hooks(cwd, payload=None):

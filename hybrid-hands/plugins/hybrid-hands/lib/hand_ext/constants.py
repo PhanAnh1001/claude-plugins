@@ -19,7 +19,7 @@ CLAUDE_MAIN_CONFIG_DIR = "~/.claude"
 CLAUDE_MAIN_MODEL = "claude-opus-5-5"
 CLAUDE_MAIN_EFFORT = "low"
 CLAUDE_MAIN_MAX_TURNS = 80
-CLAUDE_MAIN_MAX_DAY_PCT = 5.0
+CLAUDE_MAIN_MAX_DAY_PCT = 8.0
 
 # Go usage ledger lives on the machine, not per repo: plan limits follow the account.
 GO_USAGE_SECTION = "go_usage"
@@ -111,7 +111,7 @@ DEFAULTS = {
     "max_parallel": MAX_PARALLEL,
     "order": ["dsh", "codex", "claude-v1", "claude-v2"],
     "claude_accounts": {
-        "v1": {"config_dir": "~/.claude", "max_day_pct": 5.0},
+        "v1": {"config_dir": "~/.claude", "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT},
         "v2": {"config_dir": "~/.claude-hand"},
     },
     # Label-only registry (optional plan/name per slot); codex still runs from backends.codex.

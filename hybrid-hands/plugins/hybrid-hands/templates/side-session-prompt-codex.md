@@ -84,7 +84,7 @@ Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… h
 
 Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥8%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
@@ -121,7 +121,7 @@ Không đọc hay in token, auth.json, file credential. Không giao hand ngoài 
 - Exit 7: mọi backend trong order không dùng được; chạy `{hand_ext} doctor`, ghi lý do để Opus quyết. Exit 8: chờ slot.
 - Việc sáng tạo (mockup, design token, câu chữ):
   `{hand_ext} run --backend claude-v1 --brief <file-brief> --cwd <worktree>`
-- `claude-v1` thoát mã 7 khi máy này đã dùng từ 5% Claude trong ngày (hoặc không tính
+- `claude-v1` thoát mã 7 khi máy này đã dùng từ 8% Claude trong ngày (hoặc không tính
   được): không thử lại, ghi yêu cầu sáng tạo vào file bàn giao để Opus quyết.
 - Chỉ giao hand ngoài (dsh, codex, gemini) code, test, tài liệu kỹ thuật, hoặc dữ liệu mẫu đã bỏ
   thông tin khách hàng và công khai được.

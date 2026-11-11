@@ -1,6 +1,6 @@
 ---
 name: side-session
-description: Mở và quản lý phiên phụ (phiên Sol Codex mặc định, hoặc Claude Code/dsh chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, cờ --model/--effort, hợp đồng bàn giao .done, đọc tóm tắt bàn giao, account v1/v2/v… và guard v1 5%/ngày, hand ngoài dsh trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage khi provider claude. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
+description: Mở và quản lý phiên phụ (phiên Sol Codex mặc định, hoặc Claude Code/dsh chạy riêng, có ngữ cảnh brain riêng) bằng lệnh side-session cho gói việc dài nhiều bước - khi nào mở, viết prompt giao việc, start/ls/watch/handoff/stop, cờ --model/--effort, hợp đồng bàn giao .done, đọc tóm tắt bàn giao, account v1/v2/v… và guard v1 8%/ngày, hand ngoài dsh trong worktree, Chrome khi việc cần trình duyệt, đồng bộ bằng ListAgents/SendMessage khi provider claude. Từ khoá kích hoạt - "phiên phụ", "side session", "side-session", "mở phiên mới", "phiên song song", "giao gói việc dài", "bàn giao", "handoff".
 ---
 
 Tóm tắt cập nhật 0.35.0: cấu hình global và repo quyết định lựa chọn phiên/hand theo tài khoản.
@@ -21,7 +21,7 @@ Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… h
 
 Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥5%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥8%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
 
 | Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
 |---|---|---|---|---|---|
@@ -112,7 +112,7 @@ Viết vào file trong scratchpad, theo khuôn brief 7 mục, thêm:
 
 - **Khi dùng `--chrome`:** chỉ khi việc thật sự cần trình duyệt có phiên đăng nhập sẵn (kiểm UI web, thao tác trang cần Chrome của người dùng); việc code/tài liệu bình thường để mặc định `--no-chrome` cho nhẹ ngữ cảnh. `--chrome` chỉ dùng với provider `claude`; provider khác thoát 2. `--no-chrome` để đè `claude_args` đang bật Chrome.
 - **Khi dùng provider `dsh`:** `side-session start --provider dsh` dành cho code/test/tài liệu tự chứa dài; bắt buộc cờ `--worktree` của side-session, không đụng cây chính. Prompt sau ghép phải có `LUẬT BẮT BUỘC` chép nguyên văn luật dữ liệu (cấm đọc `.env`/API key, không commit, không xoá `output/llm/`...). `start` ghi `<state_dir>/<tên>.prompt.md` rồi chạy `hand-ext run --backend dsh ... --label side:<tên>` trong screen; `watch` đọc token vào + ra, không cached, và chép report thành bàn giao khi lượt xong. Exit 7: doctor, ghi lý do để Opus quyết; exit 8: chờ slot.
-- **Sáng tạo:** mặc định Claude v1 low. Sol dùng `hand-ext run --backend claude-v1`; wrapper giữ guard v1 ≥5%/ngày (thiếu nguồn cũng chặn), không vượt guard, ghi yêu cầu vào bàn giao để Opus quyết. Native cùng account chỉ dùng khi preflight v1 đầy đủ như mục chọn hand; cờ `--worktree` ở bullet dsh là của side-session.
+- **Sáng tạo:** mặc định Claude v1 low. Sol dùng `hand-ext run --backend claude-v1`; wrapper giữ guard v1 ≥8%/ngày (thiếu nguồn cũng chặn), không vượt guard, ghi yêu cầu vào bàn giao để Opus quyết. Native cùng account chỉ dùng khi preflight v1 đầy đủ như mục chọn hand; cờ `--worktree` ở bullet dsh là của side-session.
 
 - **Trần ngày:** `side_session.budget_check_cmd` chạy ở `start` (mã khác 0 → thoát 4, trừ `--budget-exempt`/`--force-budget`) và mỗi vòng `watch` (mã 20 và không `budget_exempt` → `daystop`). `--budget-exempt` ghi vào state để `watch` cũng miễn; `--force-budget` chỉ bỏ qua lần `start` đó.
 

@@ -184,7 +184,7 @@ class DayBudgetTest(HandExtTestCase):
         self.home = Path(tempfile.mkdtemp(prefix="claude-home-"))
         (self.home / day_budget.USD_PER_PCT_PIN).write_text("1.0\n", encoding="utf-8")
         self.sb = Sandbox(order=["claude-main"], extra={"backends": {
-            "claude-main": {"config_dir": str(self.home), "max_day_pct": 5}}})
+            "claude-main": {"config_dir": str(self.home)}}})
         self.addCleanup(self.sb.close)
         self.outcome = RunOutcome(Status.OK, 0, RunState(usage=Usage()), 0.0)
 
@@ -197,12 +197,12 @@ class DayBudgetTest(HandExtTestCase):
         return code, err, run
 
     def test_day_cap_blocks_at_threshold_and_allows_below(self):
-        code, err, run = self._run(5.0)
+        code, err, run = self._run(8.0)
         self.assertEqual(code, 7, err)
-        self.assertIn("máy này đã dùng 5.0% Claude hôm nay (ngưỡng 5%)", err)
+        self.assertIn("máy này đã dùng 8.0% Claude hôm nay (ngưỡng 8%)", err)
         self.assertIn("ghi yêu cầu vào bàn giao để Opus quyết", err)
         run.assert_not_called()
-        code, _, run = self._run(4.0)
+        code, _, run = self._run(7.0)
         self.assertEqual(code, 0)
         run.assert_called_once()
 
