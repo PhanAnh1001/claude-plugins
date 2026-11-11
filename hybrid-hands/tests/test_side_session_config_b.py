@@ -47,7 +47,8 @@ class ConfigBTest(unittest.TestCase):
                     result, out = self.run_start(*main, '--prompt', 'fixture', '--dry-run', *override)
                     self.assertEqual(result, 0); guard.assert_called_with(self.cfg, 'claude', account)
                     self.assertIn(f'model={model} effort={effort}', out)
-                    self.assertIn(str(self.root/('.claude-hand' if account == 'v2' else '.claude')), out)
+                    self.assertEqual('CLAUDE_CONFIG_DIR' in out, account == 'v2')
+                    self.assertEqual('accountProvider' in out, account == 'v2')
         (self.root/'global.json').write_text('{}'); self.cfg = load_config(self.root)
         with patch.object(paseo, '_call', side_effect=AssertionError('dry run daemon call')):
             result, out = self.run_start('--provider', 'claude', '--account', 'v2', '--prompt', 'fixture', '--dry-run')
@@ -55,10 +56,15 @@ class ConfigBTest(unittest.TestCase):
         self.assertIn('"modeId": "bypassPermissions"', out); self.assertIn('"no-chrome": null', out)
         self.assertIn(str(self.root/'.claude-hand'), out); self.assertIn('claude-opus-5-5', out)
         with patch.object(paseo, '_call', return_value={}) as call:
-            paseo.start_agent(workdir=str(self.root), name='fixture', model='claude-opus-5-5', effort='high', initial_prompt='fixture', codex_home=self.cfg.codex_home, target_key='fixture', hand_scope='scope', project_root=str(self.root), provider='claude', claude_config_dir=str(self.root/'.claude-hand'))
+            paseo.start_agent(workdir=str(self.root), name='fixture', model='claude-opus-5-5', effort='high', initial_prompt='fixture', codex_home=self.cfg.codex_home, target_key='fixture', hand_scope='scope', project_root=str(self.root), provider='claude', account='v2', claude_config_dir=str(self.root/'.claude-hand'))
         payload = call.call_args.args[1]
+        self.assertEqual(payload['accountProvider'], 'claude-v2')
         self.assertEqual(payload['env'], {'CLAUDE_CONFIG_DIR': str(self.root/'.claude-hand'), 'HYBRID_HANDS_HAND_SCOPE': 'scope'})
         self.assertEqual((payload['provider'], payload['model'], payload['effort']), ('claude', 'claude-opus-5-5', 'high'))
+        with patch.object(paseo, '_call', return_value={}) as call:
+            paseo.start_agent(workdir=str(self.root), name='fixture', model='m', effort='high', initial_prompt='fixture', codex_home=self.cfg.codex_home, target_key='fixture', hand_scope='scope', project_root=str(self.root), provider='claude', account='v1', claude_config_dir=str(self.root/'.claude'))
+        self.assertNotIn('CLAUDE_CONFIG_DIR', call.call_args.args[1]['env'])
+        self.assertNotIn('accountProvider', call.call_args.args[1])
         with patch.object(paseo, 'cli_package_root', return_value=self.root), patch.object(paseo, 'disabled', return_value=False), patch.object(paseo, 'ready', return_value={'targetKey': 'fixture'}), patch.object(paseo, 'start_agent', side_effect=paseo.PaseoError('AGENT_CREATE_FAILED')), patch.object(paseo.codex_trust, 'ensure_codex_compact_limit') as compact, patch.object(actions.subprocess, 'run') as screen:
             result, out = self.run_start('--provider', 'claude', '--account', 'v2', '--prompt', 'fixture')
         self.assertEqual(result, 1); self.assertIn('không fallback screen', out)

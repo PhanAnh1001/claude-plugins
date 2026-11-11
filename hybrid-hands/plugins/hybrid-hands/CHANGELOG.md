@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.53.1 — 2026-11-11
+
+- `side-session start --main` chạy từ tab Paseo mở tab cấp cao (không parent) trong cùng workspace của tab gọi: caller (`PASEO_AGENT_ID` → `agent.workspaceId`) giờ cũng dùng cho `--main`, chỉ để chọn workspace, không làm parent; `--new-workspace` và terminal (không caller) giữ tạo workspace mới như cũ.
+- Account Claude dùng thư mục mặc định `~/.claude` (v1) chạy provider Paseo `claude`, không gửi `CLAUDE_CONFIG_DIR` và không chọn provider `claude-v1` (trước đó báo "Not logged in"); account khác (v2 `~/.claude-hand`) giữ provider `claude-vN` + `CLAUDE_CONFIG_DIR`. Áp cho cả phiên chính và phiên phụ Claude qua Paseo, kể cả dry-run.
+
 ## 0.53.0 — 2026-11-11
 
 - Luật test: test hẹp chạy ngay; test có dấu hiệu nặng hoặc CPU toàn máy ≥90% chạy hạ ưu tiên bằng `nice -n 19 taskpolicy -b` trên macOS, thiếu taskpolicy dùng `nice -n 19`. Chỉ đo CPU trước test dự kiến >30s không có dấu hiệu nặng và không phải test hẹp; không tự bật song song, tăng timeout tương ứng. Giữ luật full suite một lần cuối khi brief giao và lệnh >4 phút giao hand riêng vì chi phí cache; chỉ sửa văn bản, không thêm hook/code.
