@@ -18,10 +18,11 @@ import datetime as dt
 import fnmatch
 import os
 import re
-import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from plan_status_git import RefSource, git_lines
 
 try:
     import tomllib
@@ -49,7 +50,6 @@ MAX_OPEN_TASKS, MAX_COMMITS = 10, 5
 MAX_TASK_CHARS, MAX_TITLE_CHARS, MAX_ITEM_TITLE_CHARS = 90, 40, 30
 DEFAULT_EXCLUDE_PARTS = frozenset({"handoffs", "node_modules"})
 PLAN_MARKER = "plan"
-GIT_TIMEOUT_SECONDS = 20
 DONE_STATUSES = frozenset({"completed", "done", "closed", "xong"})
 STATUS_LABELS = {"done": "✅ Xong", "active": "🔄 Đang làm", "todo": "⏳ Chưa bắt đầu", "empty": "— Không có task"}
 
@@ -70,6 +70,7 @@ class Plan:
     skipped: int = 0
     open_tasks: list[str] = field(default_factory=list)
     meta: dict[str, str] = field(default_factory=dict)
+    url: str = ""
 
     @property
     def open(self) -> int:
@@ -115,7 +116,10 @@ def derive_status(meta_status: str, done: int, open_count: int) -> str:
 
 
 def parse_plan(path: Path, repo: Path) -> Plan | None:
-    text = path.read_text(encoding="utf-8", errors="replace")
+    return parse_text(path.read_text(encoding="utf-8", errors="replace"), path.relative_to(repo).as_posix())
+
+
+def parse_text(text: str, rel: str) -> Plan | None:
     meta = parse_frontmatter(text)
     done = skipped = 0
     open_tasks: list[str] = []
@@ -137,9 +141,9 @@ def parse_plan(path: Path, repo: Path) -> Plan | None:
     if done + skipped + len(open_tasks) == 0:
         return None
     h1 = H1_RE.search(text)
-    title = meta.get("title") or (h1.group(1).strip() if h1 else path.stem)
+    title = meta.get("title") or (h1.group(1).strip() if h1 else Path(rel).stem)
     status = derive_status(meta.get("status", ""), done, len(open_tasks))
-    return Plan(path.relative_to(repo).as_posix(), title, status, done, skipped, open_tasks, meta)
+    return Plan(rel, title, status, done, skipped, open_tasks, meta)
 
 
 @dataclass
@@ -151,6 +155,8 @@ class Page:
     exclude_dirs: frozenset[str]
     exclude_files: list[str] = field(default_factory=list)
     git_paths: list[str] = field(default_factory=list)
+    ref: str = ""
+    link_base: str = ""
 
 
 @dataclass
@@ -203,7 +209,8 @@ def load_settings(repo: Path) -> Settings:
             raise ValueError("every [[page]] needs a non-empty 'name' and 'out'")
         pages.append(Page(name, str(raw.get("title") or name), (repo / out).resolve(),
                           str_list(raw, "include") or list(FALLBACK_GLOBS), excluded,
-                          str_list(raw, "exclude_files"), str_list(raw, "git_paths")))
+                          str_list(raw, "exclude_files"), str_list(raw, "git_paths"),
+                          str(raw.get("ref") or ""), str(raw.get("link_base") or "")))
     if len({p.name for p in pages}) != len(pages):
         raise ValueError("[[page]] names must be unique")
     return Settings(days, with_html, out_dir, pages, multi=True)
@@ -220,15 +227,6 @@ def find_plan_files(repo: Path, page: Page) -> list[Path]:
             return False
         return not any(d in page.exclude_dirs or d.startswith(".") for d in rel.parts[:-1])
     return sorted((p for p in found if keep(p)), key=lambda p: p.as_posix())
-
-
-def git_lines(repo: Path, *args: str) -> list[str]:
-    try:
-        result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
-                                timeout=GIT_TIMEOUT_SECONDS, check=False)
-    except (OSError, subprocess.TimeoutExpired):
-        return []
-    return result.stdout.splitlines() if result.returncode == 0 else []
 
 
 def progress_bar(percent: int) -> str:
@@ -253,6 +251,7 @@ class Report:
     commits: list[str]
     days: int
     today: str
+    source: str = ""
     done: int = field(init=False)
     open: int = field(init=False)
     skipped: int = field(init=False)
@@ -279,7 +278,9 @@ def is_real_plan(plan: Plan) -> bool:
 
 
 def link(plan: Plan, out_rel: Path | None) -> str:
-    """Relative to the output dir when it is inside the repo, else the repo-relative path."""
+    """Web URL for ref plans, else relative to the output dir (inside the repo) or repo-relative."""
+    if plan.url:
+        return plan.url
     return plan.path if out_rel is None else Path(os.path.relpath(plan.path, out_rel)).as_posix()
 
 
@@ -295,7 +296,7 @@ def summary_lines(report: Report) -> list[str]:
     if items:
         lines.append(f"- **Việc kế tiếp:** {items[0][1]} — _{shorten(items[0][0].title, MAX_ITEM_TITLE_CHARS)}_.")
     lines.append(f"- **Hoạt động {report.days} ngày:** {len(report.commits)} commit.")
-    return lines
+    return lines + ([report.source] if report.source else [])
 
 
 def read_manual(md_path: Path) -> str:
@@ -312,16 +313,19 @@ def rel_to_repo(repo: Path, out_dir: Path) -> Path | None:
 
 
 def write_page(repo: Path, page: Page, days: int, with_html: bool, today: str) -> tuple[list[Path], Report]:
-    plans = [p for f in find_plan_files(repo, page) if (p := parse_plan(f, repo.resolve()))]
+    src = RefSource(repo, page.ref, page.link_base) if page.ref else None
+    out_rel, manual = rel_to_repo(repo, page.md_path.parent), read_manual(page.md_path)
+    plans = src.plans(page, parse_text, out_rel) if src else [
+        p for f in find_plan_files(repo, page) if (p := parse_plan(f, repo.resolve()))]
     if not plans:
         raise ValueError(f"no plan with task checkboxes found for page '{page.name or 'default'}' under {repo}")
-    head = next(iter(git_lines(repo, "rev-parse", "--short", "HEAD")), "")
+    head = src.sha if src else next(iter(git_lines(repo, "rev-parse", "--short", "HEAD")), "")
     pathspec = ["--", *page.git_paths] if page.git_paths else []
-    commits = git_lines(repo, "log", f"--since={days} days ago", "--date=short", "--pretty=%ad %h %s", *pathspec)
-    report = Report(plans, head, commits, days, today)
+    commits = git_lines(repo, "log", *([page.ref] if src else []), f"--since={days} days ago",
+                        "--date=short", "--pretty=%ad %h %s", *pathspec)
+    report = Report(plans, head, commits, days, today, src.source_line(repo) if src else "")
     from plan_status_html import render_html, render_md  # lazy: that module imports this one
     page.md_path.parent.mkdir(parents=True, exist_ok=True)
-    out_rel, manual = rel_to_repo(repo, page.md_path.parent), read_manual(page.md_path)
     page.md_path.write_text(render_md(report, out_rel, manual, page.title), encoding="utf-8")
     written = [page.md_path]
     if with_html:

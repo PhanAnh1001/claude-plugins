@@ -37,7 +37,20 @@ description: Generate a short, visual project status page from the repo's Markdo
   exclude_files = ["docs/work-in-progress/*social*"]  # file globs to skip
   out = "docs/status/game.md"                         # .html with the same name
   git_paths = ["src", "docs/work-in-progress"]        # optional git log filter
+  [[page]]
+  name = "trend"
+  include = ["docs/**/*trend*.md"]                    # whole-path globs, ** = any dirs
+  out = "docs/status/trend.md"
+  ref = "origin/feat/trend-listening"                 # read plans from this unmerged branch
+  # link_base = "https://github.com/o/r/blob/feat/trend-listening"  # optional link override
   ```
+
+- `ref` (optional): the page reads its plan files from that git ref (`git ls-tree` + `git show`), not
+  the working tree, so the command still runs from the main checkout. Head commit and git log come from
+  the ref; links go to `https://github.com/<o>/<r>/blob/<branch>/<path>` derived from the remote URL
+  (`link_base` overrides; no GitHub remote -> plain path text); the summary adds a "Nguồn: nhánh ..."
+  line unless the ref is main or the current branch. Run `git fetch` first for a remote ref. An
+  unknown ref exits 2 and stops every page.
 
 - No `[[page]]`: one page `<out_dir>/plan-status.md`. With pages: every page runs, `--page` runs one
   (the index is only rewritten when all pages run), `--out <dir>` is only valid for a single page.

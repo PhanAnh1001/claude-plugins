@@ -69,6 +69,30 @@ class PlanStatusTest(unittest.TestCase):
         self.assertIn("[Trang A](a.md)", index)
         self.assertIn("[Trang B](b.md)", index)
 
+    def test_page_ref_reads_unmerged_branch(self) -> None:
+        git = lambda *a: subprocess.run(["git", "-C", str(self.repo), "-c", "user.name=t", "-c",  # noqa: E731
+                                         "user.email=t@t", *a], capture_output=True, check=True)
+        git("init", "-q", "-b", "main")
+        git("remote", "add", "origin", "https://github.com/o/r.git")
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        git("checkout", "-qb", "feat")
+        write_file(self.repo, "docs/plans/x-plan.md", "# Kế hoạch X\n\n- [x] a\n- [ ] b\n")
+        git("add", "-A")
+        git("commit", "-qm", "x")
+        git("checkout", "-q", "main")
+        toml = '[[page]]\nname = "x"\ninclude = ["docs/**/x-*.md"]\nout = "docs/status/x.md"\nref = "{}"\n'
+        write_file(self.repo, ".claude/plan-status.toml", toml.format("feat"))
+        self.run_tool()
+        text = (self.repo / "docs/status/x.md").read_text(encoding="utf-8")
+        self.assertIn("50% (1/2 task xong", text)
+        self.assertIn("(https://github.com/o/r/blob/feat/docs/plans/x-plan.md)", text)
+        self.assertIn("**Nguồn:** nhánh `feat` @ `", text)
+        write_file(self.repo, ".claude/plan-status.toml", toml.format("nope"))
+        result = run_script("plan_status.py", ["--repo", str(self.repo)], self.repo)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("'nope' not found", result.stderr)
+
 
 PAGES_TOML = """[[page]]
 name = "a"
