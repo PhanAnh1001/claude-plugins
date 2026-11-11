@@ -179,6 +179,79 @@ export async function connectToDaemon(){let active=false; const log=x=>appendFil
                     self.assertEqual(result["data"].get("notSent", False), broken.startswith("restore"))
                 self.assertEqual(events.read_text().splitlines(), ["restore:w"] + ([] if broken.startswith("restore") else ["send:a"]))
 
+    def test_bridge_start_joins_caller_workspace_or_falls_back(self):
+        import subprocess
+        # Also: Claude account provider claude-v2 is used only when the daemon lists it ready.
+        for archived, shared, listed in ((False, True, "claude-v2"), (True, False, "")):
+            with self.subTest(archived=archived), tempfile.TemporaryDirectory() as d:
+                root = Path(d)
+                utils = root / "dist" / "utils"
+                utils.mkdir(parents=True)
+                (root / "package.json").write_text('{"type":"module"}')
+                (utils / "daemon-target.js").write_text('export const selectDaemonTarget=()=>({kind:"instance",home:"/fake"});')
+                (utils / "client.js").write_text("""
+import {appendFileSync} from 'node:fs';
+const log=x=>appendFileSync(process.env.TEST_EVENTS,x+'\\n');
+export async function connectToDaemon(){return {
+ addProject:async()=>({project:{projectId:'p'}}),
+ fetchAgent:async({agentId})=>({agent:{id:agentId,workspaceId:agentId==='chat'?'wchat':undefined,
+   archivedAt:agentId==='chat'&&process.env.TEST_ARCHIVED?'2026-01-01':null}}),
+ inspectWorkspaceRecovery:async id=>({kind:'unavailable',reason:'workspace_not_archived',workspaceId:id}),
+ createWorkspace:async()=>{log('createWorkspace');return {workspace:{id:'wnew'}};},
+ getProvidersSnapshot:async()=>({entries:[{provider:'claude',enabled:true,status:'ready'},
+   ...(process.env.TEST_LISTED?[{provider:process.env.TEST_LISTED,enabled:true,status:'ready'}]:[])]}),
+ createAgent:async a=>{log('createAgent:'+a.workspaceId+':'+a.provider);return {id:'side'};},
+ close:async()=>{} };}
+""")
+                events = root / "events"
+                proc = subprocess.run(["node", str(actions.paseo.BRIDGE), str(root)], input=json.dumps({
+                    "command": "start", "projectRoot": "/repo", "workdir": "/repo/wt",
+                    "source": {"kind": "directory", "path": "/repo/wt"}, "callerAgentId": "chat",
+                    "provider": "claude", "accountProvider": "claude-v2"}),
+                    text=True, capture_output=True, timeout=5,
+                    env={**os.environ, "TEST_EVENTS": str(events), "TEST_ARCHIVED": "1" if archived else "",
+                         "TEST_LISTED": listed})
+                result = json.loads(proc.stdout)
+                self.assertEqual((result["workspaceShared"], result["workspaceId"]),
+                                 (shared, "wchat" if shared else "wnew"))
+                self.assertEqual("createWorkspace" in events.read_text(), not shared)
+                self.assertEqual(result["provider"], listed or "claude")
+
+    def test_start_stores_shared_and_done_never_touches_shared_workspace(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = cfg_for(Path(d))
+            st = state.SessionState(name="s", uuid="u", provider=C.PROVIDER_CODEX, dir=str(cfg.repo),
+                                    screen="", watch_screen="", max_tokens=1, started=0.0, status="", handoff="")
+            reply = {"agentId": "side", "workspaceId": "wchat", "workspaceShared": True, "targetKey": "t"}
+            with mock.patch.dict(os.environ, {C.PASEO_CALLER_AGENT_ENV: "chat"}), \
+                    mock.patch.object(actions.paseo, "start_agent", return_value=reply) as start, \
+                    mock.patch.object(actions.paseo.codex_trust, "ensure_codex_compact_limit"), \
+                    mock.patch.object(actions.K, "watch_cmd", return_value=["true"]):
+                actions.paseo.start_session(cfg, start_args("s", worktree=False), st, str(cfg.repo), "p", "t")
+            self.assertEqual(start.call_args.kwargs["caller_agent_id"], "chat")
+            self.assertEqual((st.paseo_workspace_id, st.paseo_workspace_shared), ("wchat", True))
+            st.status = C.STATUS_RUNNING
+            ok = {"agentArchived": True, "agentId": "side", "workspaceId": "wchat", "targetKey": "t"}
+            out = io.StringIO()
+            with mock.patch.object(actions.paseo, "_call", return_value=ok) as call, \
+                    mock.patch.object(actions, "count_tokens", return_value=0), \
+                    mock.patch.object(actions, "_pin_rollout"), mock.patch.object(actions, "_capture_paseo_thread"), \
+                    redirect_stdout(out):
+                self.assertTrue(actions._finish_codex(cfg, st))
+                actions.watch_tick(cfg, "s")
+            self.assertEqual([c.args[0] for c in call.call_args_list], ["finish"])
+            self.assertFalse(call.call_args.args[1]["privateWorkspace"])
+            self.assertNotIn("warning: workspace", out.getvalue())
+            st.paseo_name_done, st.paseo_name_attempts = False, 0
+            named = {"agentNamed": True, "workspaceNamed": False, "warning": "NAME_WORKSPACE_BLOCKED"}
+            with mock.patch.object(actions.paseo, "_call", return_value=named), redirect_stdout(out):
+                mock.patch.stopall()  # real names.retry (setUp stubs it)
+                actions.names.retry(cfg, st)
+                self.assertEqual(actions.tidy(cfg, build_parser().parse_args(["tidy", "--name", "s"])), 0)
+            self.assertTrue(st.paseo_name_done)
+            self.assertNotIn("NAME_WORKSPACE_BLOCKED", out.getvalue())
+            self.assertIn("skip workspace=wchat (shared)", out.getvalue())
+
     def test_tidy_defaults_and_preserves_state_on_error(self):
         for apply, broken in ((False, False), (True, False), (True, True)):
             with tempfile.TemporaryDirectory() as d:

@@ -313,6 +313,39 @@ function agentArchived(agent) {
   return agent.archivedAt != null;
 }
 
+// Claude per-account provider (e.g. claude-v2) only when the daemon lists it enabled
+// and ready; any error keeps the requested provider (env CLAUDE_CONFIG_DIR still set).
+async function accountProvider(client, request) {
+  if (request.provider !== "claude" || !nonemptyId(request.accountProvider)
+      || typeof client.getProvidersSnapshot !== "function") return request.provider;
+  try {
+    const snapshot = await client.getProvidersSnapshot();
+    const found = (Array.isArray(snapshot?.entries) ? snapshot.entries : []).some(e =>
+      e?.provider === request.accountProvider && e.enabled !== false && e.status === "ready");
+    return found ? request.accountProvider : request.provider;
+  } catch {
+    return request.provider;
+  }
+}
+
+// Workspace of the calling chat agent, or "" (fallback: new workspace) unless the
+// agent exists, is not archived and its workspace is confirmed active.
+async function callerWorkspace(client, request) {
+  if (!nonemptyId(request.callerAgentId) || typeof client.fetchAgent !== "function"
+      || typeof client.inspectWorkspaceRecovery !== "function") return "";
+  try {
+    const fetched = await client.fetchAgent({ agentId: request.callerAgentId });
+    const caller = fetched?.agent;
+    if (!caller || caller.id !== request.callerAgentId || agentArchived(caller)
+        || !nonemptyId(caller.workspaceId)) return "";
+    const inspected = await client.inspectWorkspaceRecovery(caller.workspaceId);
+    return workspaceActive(inspected, {expectedWorkspaceId: caller.workspaceId})
+      ? caller.workspaceId : "";
+  } catch {
+    return "";
+  }
+}
+
 // Public client 0.15.0 sendMessage resolves {} once the daemon accepted the message;
 // only a queued delivery carries {deliveryStatus: "queued"}. Anything else is unknown.
 function sendAcknowledged(ack) {
@@ -491,6 +524,10 @@ async function main() {
       // The public directory lists active workspaces only: inspect and restore the
       // exact archived workspace in place first, then verify its public ID/cwd.
       const inspected = await client.inspectWorkspaceRecovery(request.expectedWorkspaceId);
+      // A shared workspace belongs to the calling chat: never restored, no cwd match.
+      if (request.sharedWorkspace === true && !workspaceActive(inspected, request)) {
+        fail("WORKSPACE_SHARED_INACTIVE"); return;
+      }
       if (!workspaceActive(inspected, request)) {
         if (!workspaceUnarchivable(inspected, request)) {
           fail("WORKSPACE_RECOVERY_UNSUPPORTED"); return;
@@ -501,7 +538,7 @@ async function main() {
           fail("WORKSPACE_RESTORE_UNCONFIRMED"); return;
         }
       }
-      if (!await exactWorkspace(client, request)) return;
+      if (request.sharedWorkspace !== true && !await exactWorkspace(client, request)) return;
       sendPreDispatch = false;
       const ack = await client.sendMessage(request.agentId, request.text);
       if (!sendAcknowledged(ack)) { fail("SEND_ACK_UNKNOWN"); return; }
@@ -542,17 +579,22 @@ async function main() {
         fail("PROJECT_REGISTRATION_FAILED");
         return;
       }
-      const workspace = await client.createWorkspace({
+      // Join the calling chat's workspace when it is provably live; else a new one.
+      const sharedId = await callerWorkspace(client, request);
+      const workspaceShared = sharedId !== "";
+      const workspace = workspaceShared ? null : await client.createWorkspace({
         source: { ...request.source, projectId },
       });
-      const workspaceId = workspace && workspace.workspace && workspace.workspace.id;
+      const workspaceId = workspaceShared ? sharedId
+        : workspace && workspace.workspace && workspace.workspace.id;
       if (!workspaceId) {
         fail("WORKSPACE_CREATE_FAILED");
         return;
       }
       let agent;
+      const provider = await accountProvider(client, request);
       const createArgs = {
-        provider: request.provider,
+        provider,
         cwd: request.workdir,
         workspaceId,
         title: request.title,
@@ -569,11 +611,11 @@ async function main() {
       try {
         agent = await client.createAgent(createArgs);
       } catch (error) {
-        fail("AGENT_CREATE_FAILED", { workspaceId });
+        fail("AGENT_CREATE_FAILED", { workspaceId, workspaceShared });
         return;
       }
       if (!agent || typeof agent.id !== "string" || !agent.id) {
-        fail("AGENT_CREATE_NO_ID", { workspaceId });
+        fail("AGENT_CREATE_NO_ID", { workspaceId, workspaceShared });
         return;
       }
       // From here on the mutation is known: always return the agent id, even when the
@@ -591,6 +633,8 @@ async function main() {
         ok: true,
         agentId: agent.id,
         workspaceId: detail.workspaceId || workspaceId,
+        workspaceShared,
+        provider,
         threadId: threadId(detail) || threadId(agent),
         targetKey: key,
       });

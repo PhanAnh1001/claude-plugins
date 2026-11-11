@@ -144,6 +144,8 @@ def prepare(cfg: "ExtConfig", cwd: Path, run_id: str, run_dir: Path,
     worktree = cfg.worktree_root / f"{name}-{run_id}"
     if worktree.exists() or worktree.is_symlink():
         raise IsolationError(f"worktree đã tồn tại: {worktree}")
+    from .gc import auto_collect
+    auto_collect(cfg)
     from .disk_guard import check_disk
     check_disk(cfg.worktree_root, getattr(cfg, "disk_guard", {}),
                ignore=getattr(cfg, "ignore_disk_guard", False))

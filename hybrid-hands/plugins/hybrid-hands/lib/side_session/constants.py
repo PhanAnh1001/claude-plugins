@@ -130,9 +130,15 @@ PASEO_STATUS_TIMEOUT_S = 15
 PASEO_STOP_TIMEOUT_S = 15
 # Never let a side session resolve an ambient Paseo agent/workspace.
 PASEO_INHERITED_ENVS = ("PASEO_AGENT_ID", "PASEO_WORKSPACE_ID")
+# Agent of the calling chat; read once at start and passed explicitly so the side
+# agent joins that workspace (never resolved ambiently by the bridge).
+PASEO_CALLER_AGENT_ENV = "PASEO_AGENT_ID"
 # Explicit test/offline escape hatch; normal runs never set it.
 PASEO_DISABLE_ENV = "SIDE_SESSION_NO_PASEO"
 PASEO_PROVIDER = "codex-hand"
+# Paseo provider "claude" plus per-account custom providers "claude-v1", "claude-v2"…
+PASEO_CLAUDE_PROVIDER = "claude"
+PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX = "claude-"
 PASEO_AGENT_RUNNING = "running"
 PASEO_AGENT_INITIALIZING = "initializing"
 PASEO_AGENT_IDLE = "idle"

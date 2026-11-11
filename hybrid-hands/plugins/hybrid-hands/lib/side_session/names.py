@@ -59,9 +59,14 @@ def retry(cfg, st: state.SessionState, *, reset: bool = False) -> None:
         result = rename(st, records, True)
     except (OSError, ValueError, TypeError):
         result = {"warning": "NAME_STATE_UNAVAILABLE"}
-    st.paseo_name_done = result.get("agentNamed") is True and result.get("workspaceNamed") is True
+    # A shared workspace belongs to the calling chat: its title is never ours to set.
+    workspace_ok = st.paseo_workspace_shared or result.get("workspaceNamed") is True
+    st.paseo_name_done = result.get("agentNamed") is True and workspace_ok
     if not st.paseo_name_done:
-        print(f"side-session: warning: {result.get('warning', 'NAME_RENAME_PENDING')}")
+        warning = result.get("warning", "NAME_RENAME_PENDING")
+        if st.paseo_workspace_shared and warning == "NAME_WORKSPACE_BLOCKED":
+            warning = "NAME_RENAME_FAILED"
+        print(f"side-session: warning: {warning}")
     try:
         state.save(cfg.state_dir, st)
     except OSError:

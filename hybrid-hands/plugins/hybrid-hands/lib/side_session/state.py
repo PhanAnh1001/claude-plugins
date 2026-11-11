@@ -53,6 +53,8 @@ class SessionState:
     paseo_name_attempts: int = 0
     paseo_name_done: bool = False
     base: str = ""
+    # Agent tab joined the calling chat's workspace: never archive/restore that workspace.
+    paseo_workspace_shared: bool = False
 
 
 def _from_dict(raw: dict) -> "SessionState":

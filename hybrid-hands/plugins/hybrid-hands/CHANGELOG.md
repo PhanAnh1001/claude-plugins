@@ -2,6 +2,15 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.52.0 — 2026-11-11
+
+- `side-session start` (không `--main`) mặc định mở agent tab trong workspace Paseo của phiên đang chat (`PASEO_AGENT_ID` → `agent.workspaceId`, chỉ khi agent chưa archived và workspace active); cờ `--new-workspace` giữ hành vi cũ, thiếu điều kiện thì fallback tạo workspace mới. State thêm `paseo_workspace_shared`; done/revive/followup chỉ archive/reopen child, không bao giờ archive/restore workspace dùng chung; `tidy` báo `skip (shared)`, đặt tên không warning.
+- Agent Claude của side-session dùng provider Paseo `claude-vN` khi daemon có provider đó ở trạng thái ready, vẫn giữ `CLAUDE_CONFIG_DIR`; thiếu thì dùng `claude` + env như cũ.
+- Plugin Paseo `paseo-hh-tree` 0.2.0: hook `agent.create.before` cho agent tạo bằng clear/new chat kế thừa provider/model/effort và chỉ `CLAUDE_CONFIG_DIR`/`CODEX_HOME` của agent mới nhất cùng cwd và cùng họ provider; request đã có account env, internal hoặc không có nguồn thì giữ nguyên; lỗi trả nguyên request. Cần reload plugin Paseo; phiên đang mở không đổi.
+- `hand-ext` tự dọn worktree lớp `finished` trước run isolation (`ext_hand.worktree_gc.auto=finished|off`, mặc định `finished`), tối đa mỗi giờ một lần, không chờ lock, lỗi chỉ warning. Registry giữ `base_commit`/`worktree` và không bị xoá khi worktree còn. Lớp mới `preserved` (patch đã lưu khớp thay đổi hiện tại) chỉ xoá bằng `hand-ext gc --apply --include-preserved`; output gc có `age_seconds` và bytes mọi mục.
+- Run hand-ext có isolation kết thúc lỗi/không OK xoá worktree ngay khi `changes.patch` khớp thay đổi hiện tại (run bắt đầu sạch, `base_commit` hợp lệ, apply không lỗi); patch và meta giữ trong run_dir. Lượt dsh quá tải còn chạy tiếp, `--keep-worktree`, run bắt đầu dirty, patch lệch hoặc lỗi xác minh vẫn giữ worktree.
+- Chưa kiểm chứng với daemon thật: agent tab trong workspace dùng chung khi cwd là worktree khác thư mục workspace; nút clear/new chat của app gửi `create_agent_request` (suy từ protocol, chưa thử trên app).
+
 ## 0.51.1 — 2026-11-10
 
 - Supervisor tự chứng minh lại containment incomplete đã cũ (`stale_uncertainty_reproved`): chỉ khi root đã reap, root/owner/mọi pid từng theo dõi đã mất hoặc bị tái dùng, quét toàn bộ tiến trình cùng uid không còn marker và không env sống nào đọc lỗi; còn nghi ngờ thì vẫn chặn.

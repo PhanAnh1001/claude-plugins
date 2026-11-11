@@ -13,13 +13,13 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
 
-from . import capacity, codex_usage, go_live, go_usage, isolation, ledger, quota_state, render
+from . import capacity, codex_usage, gc, go_live, go_usage, isolation, ledger, quota_state, render
 from .backends import BackendUnavailable, codex as codex_backend, dsh as dsh_backend
 from .backends import get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import PLUGIN_DIR, ExtConfig
 from .constants import (
-    AUTO_BACKEND, BROWSER_BACKEND,
+    AUTO_BACKEND, BROWSER_BACKEND, CHANGES_PATCH_FILE,
     DSH_CAPACITY_MAX_CONTINUATIONS, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_USAGE,
     FALLBACK_STATUSES, EXIT_PARALLEL_FULL,
     GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
@@ -172,6 +172,7 @@ def _write_meta(run_dir: Path, ctx: isolation.IsolationContext, spec: RunSpec,
                 backend: str, label: str) -> dict:
     meta = {
         "base_commit": ctx.base_commit, "dirty": ctx.dirty,
+        "worktree": str(ctx.worktree) if ctx.worktree else None,
         "dirty_files": ctx.dirty_files, "plugin_version": _plugin_version(),
         "backend": backend, "model": spec.model, "label": label,
     }
@@ -283,6 +284,9 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
         will_cleanup = not keep_worktree and not preserve
         if will_cleanup:
             cleanup_note = isolation.cleanup(ctx, keep=False)
+        elif not keep_worktree and not is_cap:
+            # Capacity attempts keep the worktree: dsh continuations resume in it.
+            will_cleanup, cleanup_note = _release_saved_worktree(ctx, run_dir, apply_result)
     assert outcome is not None
     entry = _entry(run_id, label, backend.name, spec, started, cwd, outcome)
     ledger.append_entry(cfg.ledger, entry)
@@ -299,6 +303,28 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
         kept=ctx.mode == ISOLATION_WORKTREE and not will_cleanup,
         cleanup_note=cleanup_note, capacity=is_cap,
         go_line=go_line, go_extra=go_extra)
+
+
+def _release_saved_worktree(ctx: isolation.IsolationContext, run_dir: Path,
+                            apply_result: isolation.ApplyResult) -> Tuple[bool, str]:
+    """Remove a failed run's worktree only once changes.patch provably holds its changes."""
+    if (ctx.mode != ISOLATION_WORKTREE or ctx.worktree is None
+            or apply_result.status == isolation.APPLY_ERROR
+            or not gc.patch_matches_worktree(ctx.worktree, ctx.base_commit,
+                                             run_dir / CHANGES_PATCH_FILE,
+                                             started_clean=not ctx.dirty)):
+        return False, ""
+    note = isolation.cleanup(ctx, keep=False)
+    return not note, note
+
+
+def _release_final(result: _AttemptResult, args: argparse.Namespace) -> None:
+    """End of a capacity branch: no continuation will reuse the worktree any more."""
+    if getattr(args, "keep_worktree", False) or not result.kept:
+        return
+    removed, note = _release_saved_worktree(result.ctx, result.run_dir, result.apply_result)
+    result.kept = not removed
+    result.cleanup_note = note or result.cleanup_note
 
 
 def _emit(result: _AttemptResult, extra_lines: Optional[List[str]] = None) -> None:
@@ -379,6 +405,7 @@ def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend
     lines = result.apply_result.changed_lines
     if lines < threshold:
         if getattr(args, "browser", False):
+            _release_final(result, args)
             _emit(result, capacity.report_lines(
                 "giữ patch dsh, không chạy codex", lines, threshold, wait_s, 0,
                 "codex không hỗ trợ --browser; giữ worktree và patch dsh",
@@ -439,6 +466,7 @@ def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend
                 continuation, "vẫn quá tải, còn lần chạy tiếp" + note,
                 retry.apply_result.patch_path))
             continue
+        _release_final(retry, args)
         _emit(retry, capacity.report_lines(
             "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s,
             continuation,

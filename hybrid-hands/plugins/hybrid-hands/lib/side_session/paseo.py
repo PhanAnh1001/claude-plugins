@@ -109,7 +109,8 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
                 project_root: str, provider: str = C.PROVIDER_CODEX,
                 claude_config_dir: str = "", mode_id: str = "",
                 claude_options: dict | None = None,
-                claude_auto_compact_window: int | None = None) -> dict:
+                claude_auto_compact_window: int | None = None,
+                caller_agent_id: str = "", account: str = "") -> dict:
     """Create a directory workspace and the selected provider in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
@@ -124,6 +125,9 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
             env[C.CLAUDE_AUTO_COMPACT_ENV] = str(claude_auto_compact_window)
         provider_options = claude_options or {}
         claude_only = {"modeId": mode_id or None}
+        if account:
+            # Bridge prefers this per-account Paseo provider when the daemon lists it.
+            claude_only["accountProvider"] = C.PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX + account
     return _call("start", {
         "source": {"kind": "directory", "path": workdir},
         "projectRoot": project_root,
@@ -137,6 +141,7 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
         "providerOptions": provider_options,
         "expectedTargetKey": target_key,
         "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
+        "callerAgentId": caller_agent_id or None,
         **claude_only,
     }, timeout=C.PASEO_START_TIMEOUT_S)
 
@@ -184,8 +189,9 @@ def _exact_agent(st: state.SessionState) -> dict | None:
             "expectedWorkspaceId": st.paseo_workspace_id,
             "expectedTargetKey": st.paseo_target,
             "timeoutMs": C.PASEO_CONNECT_TIMEOUT_MS,
-            "privateWorkspace": bool(st.role != "main"
+            "privateWorkspace": bool(st.role != "main" and not st.paseo_workspace_shared
                                      and Path(st.dir).is_absolute()),
+            "sharedWorkspace": st.paseo_workspace_shared,
             "workdir": st.dir}
 
 
@@ -295,7 +301,8 @@ def workspace_owners(st: state.SessionState, records: list[state.SessionState]) 
 def tidy_workspace(st: state.SessionState, records: list[state.SessionState], apply: bool) -> dict:
     payload = {"expectedWorkspaceId": st.paseo_workspace_id,
                "expectedTargetKey": st.paseo_target, "workdir": st.dir,
-               "privateWorkspace": st.role != "main", "apply": apply,
+               "privateWorkspace": st.role != "main" and not st.paseo_workspace_shared,
+               "apply": apply,
                "workspaceOwners": workspace_owners(st, records)}
     result = _call("tidy", payload, timeout=C.PASEO_STOP_TIMEOUT_S)
     if (result.get("workspaceId") != st.paseo_workspace_id
@@ -386,6 +393,13 @@ def _print_unknown_guidance(st: state.SessionState) -> None:
           f"SAU ĐÓ chạy `side-session stop {st.name}` để xác nhận cleanup và giải phóng slot.")
 
 
+def _caller_agent_id(a, st: state.SessionState) -> str:
+    """Calling chat's agent whose workspace the side agent joins; "" keeps a new workspace."""
+    if st.role == "main" or getattr(a, "new_workspace", False):
+        return ""
+    return os.environ.get(C.PASEO_CALLER_AGENT_ENV, "").strip()
+
+
 def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
                   full_prompt: str, target: str) -> int:
     """Create worktree then workspace/agent; any failure after the ready check is final."""
@@ -398,9 +412,13 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         if st.claude_auto_compact_window is not None:
             env[C.CLAUDE_AUTO_COMPACT_ENV] = str(st.claude_auto_compact_window)
         options = process_options(cfg, st.chrome) if st.provider == C.PROVIDER_CLAUDE else {}
+        # Dry-run never probes the daemon: show the account provider tried first.
         print(json.dumps({"provider": "claude" if st.provider == C.PROVIDER_CLAUDE
                           else C.PASEO_PROVIDER, "env": env,
                           "model": st.model, "thinkingOptionId": st.effort,
+                          **({"accountProvider": C.PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX
+                              + st.account + " (nếu daemon có, không thì claude)"}
+                             if st.provider == C.PROVIDER_CLAUDE else {}),
                           **({"modeId": options["mode_id"] or None,
                               "providerOptions": options["claude_options"]} if options else {})}, ensure_ascii=False))
         if a.worktree:
@@ -437,12 +455,15 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
             codex_home=cfg.codex_home, hand_scope=st.uuid,
             project_root=str(cfg.repo),
             target_key=st.paseo_target,
+            caller_agent_id=_caller_agent_id(a, st),
             **({"provider": st.provider, "claude_config_dir": st.claude_config_dir,
+                "account": st.account,
                 "claude_auto_compact_window": st.claude_auto_compact_window,
                 **process_options(cfg, st.chrome)} if st.provider == C.PROVIDER_CLAUDE else {}))
     except PaseoError as exc:
         st.paseo_agent_id = str(exc.data.get("agentId") or "")
         st.paseo_workspace_id = str(exc.data.get("workspaceId") or "")
+        st.paseo_workspace_shared = exc.data.get("workspaceShared") is True
         if _create_uncertain(exc, st.paseo_agent_id):
             st.status = C.STATUS_UNKNOWN
             state.save(cfg.state_dir, st)
@@ -458,6 +479,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         return 1
     st.paseo_agent_id = str(result.get("agentId") or "")
     st.paseo_workspace_id = str(result.get("workspaceId") or "")
+    st.paseo_workspace_shared = result.get("workspaceShared") is True
     st.paseo_target = str(result.get("targetKey") or st.paseo_target)
     capture_native_id(st, str(result.get("threadId") or ""))
     if not st.paseo_agent_id:

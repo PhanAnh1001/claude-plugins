@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from .parallel import validate_limit
 from .constants import (
-    CONFIG_SECTION, DEFAULTS, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
+    CONFIG_SECTION, DEFAULTS, WORKTREE_GC_FINISHED, WORKTREE_GC_MODES, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
     GO_USAGE_LEDGER_NAME, GO_USAGE_LIVE_DEFAULT, GO_USAGE_LIVE_KEY, GO_USAGE_SECTION,
     GO_USAGE_STATE_DIR_ENV, ISOLATIONS, PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH,
     WORKTREES_DIRNAME, MAX_PARALLEL,
@@ -57,6 +57,7 @@ class ExtConfig:
 
     disk_guard: Dict[str, Any] = field(default_factory=dict)
     ignore_disk_guard: bool = False
+    worktree_gc_auto: str = WORKTREE_GC_FINISHED
 
     def options(self, name: str) -> Dict[str, Any]:
         account = {"claude-main": "v1", "claude": "v2"}.get(name)
@@ -72,6 +73,16 @@ class ExtConfig:
             return {"model": "claude-opus-5-5", "effort": "low", "max_turns": 80,
                     **self.claude_accounts[account], **self.backends.get(name, {})}
         return dict(self.backends.get(name, {}))
+
+
+def _worktree_gc_auto(raw: object) -> str:
+    """Validate ext_hand.worktree_gc.auto (finished|off)."""
+    if not isinstance(raw, dict):
+        raise ValueError(f"{CONFIG_SECTION}.worktree_gc phải là object")
+    mode = raw.get("auto", WORKTREE_GC_FINISHED)
+    if mode not in WORKTREE_GC_MODES:
+        raise ValueError(f"{CONFIG_SECTION}.worktree_gc.auto phải là một trong {WORKTREE_GC_MODES}")
+    return mode
 
 
 def git_toplevel(cwd: Path) -> Path:
@@ -263,4 +274,5 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo, native=native,
         gpt_accounts=gpt_accounts, account_label_format=label_fmt,
         disk_guard=copy.deepcopy(result.effective.get("disk_guard", {})),
+        worktree_gc_auto=_worktree_gc_auto(merged.get("worktree_gc", {})),
     )

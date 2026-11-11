@@ -132,3 +132,102 @@ class GCTest(unittest.TestCase):
             (inside.machine_state_dir/'runs/done2.json').write_text(json.dumps(meta))
             for config in (cfg, inside):
                 self.assertEqual(gc.classify(config, done)['reason'], 'state or run artifacts inside worktree')
+
+
+class AutoAndPreservedGCTest(unittest.TestCase):
+    def setUp(self):
+        holder = tempfile.TemporaryDirectory(); self.addCleanup(holder.cleanup)
+        self.tmp = Path(holder.name)
+        self.root = self.tmp / 'repo'; self.root.mkdir()
+        self.git('init'); (self.root / 'tracked').write_text('fixture')
+        self.git('add', 'tracked'); self.git('-c', 'user.name=F', '-c', 'user.email=f@example.invalid',
+                                             'commit', '-m', 'fixture')
+        self.cfg = SimpleNamespace(root=self.root, worktree_root=self.tmp / 'wt', paseo={},
+                                   machine_state_dir=self.tmp / 'state', disk_guard=None,
+                                   worktree_gc_auto='finished')
+        (self.cfg.machine_state_dir / 'runs').mkdir(parents=True)
+
+    def git(self, *args, cwd=None):
+        return subprocess.run(['git', '-C', str(cwd or self.root), *args], check=True,
+                              capture_output=True, text=True).stdout.strip()
+
+    def run_worktree(self, run_id, change=None, patch=None):
+        """Detached run worktree + registry; optional working change and saved changes.patch."""
+        path = self.cfg.worktree_root / ('repo-' + run_id)
+        self.git('worktree', 'add', '--detach', str(path), 'HEAD')
+        run_dir = self.tmp / 'runs' / run_id; run_dir.mkdir(parents=True)
+        (run_dir / 'meta.json').write_text(json.dumps(dict(dirty=False)))
+        if change:
+            (path / change).write_text('fixture change')
+        if patch is not None:
+            (run_dir / 'changes.patch').write_bytes(patch)
+        (self.cfg.machine_state_dir / 'runs' / (run_id + '.json')).write_text(json.dumps(dict(
+            run_id=run_id, cwd=str(self.root), status='ok', exit_code=0, run_dir=str(run_dir),
+            base_commit=self.git('rev-parse', 'HEAD'), worktree=str(path))))
+        return path
+
+    def test_prepare_auto_collects_finished_and_keeps_dirty(self):
+        done, dirty = self.run_worktree('done'), self.run_worktree('dirty', change='new')
+        with patch('hand_ext.disk_guard.check_disk', side_effect=RuntimeError('stop after gc')):
+            with self.assertRaises(RuntimeError):
+                gc.isolation.prepare(self.cfg, self.root, 'next', self.tmp / 'runs/next',
+                                     gc.isolation.IsolationChoice('worktree', explicit=True))
+        self.assertFalse(done.exists())
+        self.assertTrue(dirty.exists())
+        with patch.object(gc, 'collect') as scan:  # throttled: no rescan within the interval
+            gc.auto_collect(self.cfg)
+        scan.assert_not_called()
+
+    def test_registry_kept_while_worktree_exists(self):
+        from hand_ext.run_registry import RunRegistry
+        path = self.run_worktree('old')
+        entry = self.cfg.machine_state_dir / 'runs/old.json'
+        entry.write_text(json.dumps(dict(json.loads(entry.read_text()), ended_at=1.0)))
+        RunRegistry(self.cfg.machine_state_dir / 'runs', 'new', 'l', 'b', 'm', self.root,
+                    self.tmp / 'runs/new')._cleanup(now=10**10)
+        self.assertTrue(entry.exists())
+        self.git('worktree', 'remove', str(path))  # tmp fixture only
+        RunRegistry(self.cfg.machine_state_dir / 'runs', 'new', 'l', 'b', 'm', self.root,
+                    self.tmp / 'runs/new')._cleanup(now=10**10)
+        self.assertFalse(entry.exists())
+
+    def test_preserved_only_with_include_flag(self):
+        probe = self.run_worktree('probe', change='new')
+        self.git('add', '-N', 'new', cwd=probe)
+        saved = subprocess.run(['git', '-C', str(probe), 'diff', '--binary', '--no-color',
+                                '--src-prefix=a/', '--dst-prefix=b/', 'HEAD', '--'],
+                               check=True, capture_output=True).stdout
+        self.git('reset', '-q', cwd=probe)
+        (self.tmp / 'runs/probe/changes.patch').write_bytes(saved)
+        self.assertEqual(gc.classify(self.cfg, probe)['classification'], 'preserved')
+        self.assertTrue(probe.exists() and gc.run_gc(self.cfg, apply=True) and probe.exists())
+        (probe / 'new').write_text('drifted')
+        self.assertEqual(gc.classify(self.cfg, probe)['classification'], 'dirty')
+        (probe / 'new').write_text('fixture change')
+        gc.run_gc(self.cfg, apply=True, include_preserved=True)
+        self.assertFalse(probe.exists())
+
+
+class FailedRunReleaseTest(AutoAndPreservedGCTest):
+    """Failed isolated run: worktree removed only when changes.patch provably saves it."""
+
+    def attempt(self, run_id, *, dirty=False, drift=False, keep=False):
+        from hand_ext import run_cmd
+        path = self.run_worktree(run_id, change='new')
+        run_dir = self.tmp / 'runs' / run_id
+        (run_dir / 'changes.patch').write_bytes(gc._current_patch(path, self.git('rev-parse', 'HEAD')))
+        if drift:
+            (path / 'new').write_text('drifted')
+        ctx = gc.isolation.IsolationContext('worktree', self.root, path, worktree=path,
+                                            worktree_root=self.cfg.worktree_root,
+                                            base_commit=self.git('rev-parse', 'HEAD'), dirty=dirty)
+        result = SimpleNamespace(ctx=ctx, run_dir=run_dir, kept=True, cleanup_note='',
+                                 apply_result=gc.isolation.ApplyResult())
+        run_cmd._release_final(result, SimpleNamespace(keep_worktree=keep))
+        self.assertTrue((run_dir / 'changes.patch').is_file())
+        return path.exists(), result.kept
+
+    def test_release_only_when_patch_matches(self):
+        self.assertEqual(self.attempt('saved'), (False, False))
+        for kwargs in (dict(drift=True), dict(dirty=True), dict(keep=True)):
+            self.assertEqual(self.attempt(next(iter(kwargs)), **kwargs), (True, True), kwargs)

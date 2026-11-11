@@ -96,6 +96,8 @@ def _parser() -> argparse.ArgumentParser:
     gc.add_argument("--cwd")
     gc.add_argument("--json", action="store_true")
     gc.add_argument("--apply", action="store_true")
+    gc.add_argument("--include-preserved", action="store_true",
+                    help="với --apply: xoá cả worktree dirty khớp changes.patch")
     pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
     pick.add_argument("--backend")
