@@ -131,7 +131,8 @@ def resolve_choice(cfg: "ExtConfig", cwd: Path, cli_isolation: Optional[str]) ->
 
 
 def prepare(cfg: "ExtConfig", cwd: Path, run_id: str, run_dir: Path,
-            choice: IsolationChoice) -> IsolationContext:
+            choice: IsolationChoice, *, backend: str = "", mode: str = "shell",
+            registry_run_id: Optional[str] = None) -> IsolationContext:
     """Create the clean worktree and capture its baseline tree."""
     resolved_cwd = cwd.resolve()
     if choice.mode == ISOLATION_NONE:
@@ -153,7 +154,13 @@ def prepare(cfg: "ExtConfig", cwd: Path, run_id: str, run_dir: Path,
     try:
         worktree.parent.mkdir(parents=True, exist_ok=True)
         base_commit = _head_commit(root)
+        from .worktree_lifecycle import ownership, record
+        owner_id = registry_run_id or run_id
+        registry = cfg.machine_state_dir / "runs" / (owner_id + ".json")
+        intent = ownership(root, worktree, base_commit, mode, backend)
+        record(registry, run_id=owner_id, status="preparing", cleanup="pending", **intent)
         _git(["worktree", "add", "--detach", str(worktree), "HEAD"], root)
+        record(registry, worktree_created=True)
         _apply_tracked_changes(root, worktree)
         skipped = _copy_untracked(root, worktree, run_dir,
                                   _generated_paths(cfg, root, run_dir))
@@ -162,7 +169,7 @@ def prepare(cfg: "ExtConfig", cwd: Path, run_id: str, run_dir: Path,
         if dirty_files:
             _write_base_patch(worktree, base_commit, baseline, run_dir)
     except BaseException:
-        _remove_worktree(root, worktree, cfg.worktree_root)
+        # Partial preparation may contain caller changes: retain ownership for GC.
         raise
     run_cwd = _run_cwd(root, worktree, resolved_cwd)
     return IsolationContext(ISOLATION_WORKTREE, root, run_cwd, worktree=worktree,
@@ -339,6 +346,8 @@ def finalize(ctx: IsolationContext, run_dir: Path, *, apply_changes: bool,
             return ApplyResult(APPLY_ERROR, detail=_error_text(diff, ["diff"]))
         patch = diff.stdout
         patch_path.write_bytes(patch)
+        from .worktree_lifecycle import sync_file
+        sync_file(patch_path)
         added, removed, stats_error = _diff_stats(ctx.worktree, ctx.baseline_tree, final_tree)
         if stats_error:
             return ApplyResult(APPLY_ERROR, patch_path=patch_path, detail=stats_error,
@@ -427,9 +436,7 @@ def _remove_worktree(root: Path, worktree: Path, worktree_root: Optional[Path], 
             pruned = _git(["worktree", "prune"], root, ok=False)
             return "" if pruned.returncode == 0 else _error_text(pruned, ["worktree", "prune"])
         detail = _error_text(removed, ["worktree", "remove"])
-        shutil.rmtree(worktree)
-        _git(["worktree", "prune"], root, ok=False)
-        return f"git worktree remove lỗi ({detail}); đã xoá thư mục"
+        return f"git worktree remove lỗi ({detail}); giữ lại checkout"
     except (OSError, IsolationError) as exc:
         return f"không dọn được worktree: {exc}"
 
@@ -451,7 +458,7 @@ def _apply_text(result: ApplyResult) -> str:
 
 
 def report_block(ctx: IsolationContext, result: ApplyResult, *, kept: bool,
-                 cleanup_note: str = "") -> str:
+                 cleanup_note: str = "", keep_reason: str = "") -> str:
     lines = ["## Cách ly worktree", f"- Chế độ: `{ctx.mode}`"]
     if ctx.warning:
         lines.append(f"- Cảnh báo: {ctx.warning}")
@@ -470,11 +477,13 @@ def report_block(ctx: IsolationContext, result: ApplyResult, *, kept: bool,
     if result.files:
         lines.append("- File thay đổi: " + ", ".join(f"`{name}`" for name in result.files))
     if kept:
-        lines.append(f"- Worktree: giữ lại `{ctx.worktree}` (--keep-worktree)")
+        reason = keep_reason or ("conflict" if result.status == APPLY_CONFLICT else
+                                 "lỗi" if result.status == APPLY_ERROR else "chưa bảo toàn")
+        lines.append(f"- Worktree: giữ lại ({reason}) `{ctx.worktree}`")
     elif cleanup_note:
         lines.append(f"- Worktree: dọn lỗi — {cleanup_note}")
     else:
-        lines.append("- Worktree: đã dọn")
+        lines.append("- Worktree: đã xoá")
     return "\n".join(lines)
 
 

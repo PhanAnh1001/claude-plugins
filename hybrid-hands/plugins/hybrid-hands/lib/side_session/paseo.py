@@ -447,10 +447,13 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     if st.role != "main":
         cfg.handoff_dir.mkdir(parents=True, exist_ok=True)
     if a.worktree:
+        from . import checkout
+        checkout.intent(cfg, st)
         steps = K.worktree_steps(cfg, st.name, a.base or C.DEFAULT_BASE,
                                  sparse=not getattr(a, "no_sparse", False))
         if K.run_worktree_steps(steps) != 0:
             return 1
+        checkout.created(cfg, st)
     st.transport = C.TRANSPORT_PASEO
     st.screen = ""
     st.paseo_target = target

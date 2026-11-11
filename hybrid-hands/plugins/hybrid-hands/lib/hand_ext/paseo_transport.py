@@ -160,7 +160,7 @@ class PaseoTransport:
             return result
         if record.get('pending'):
             return {'ok': False, 'state': 'unresolved', 'code': 'RECONCILE_REQUIRED'}
-        if not Path(record['cwd']).is_dir():
+        if not Path(record['cwd']).is_dir() and not (command == 'archive' and record.get('settled')):
             raise TransportError('CWD_MISSING')
         # Durable intent also fences a concurrent caller. Never resend pending op.
         if command in ('workspace','create') and not record.get('admitted'):

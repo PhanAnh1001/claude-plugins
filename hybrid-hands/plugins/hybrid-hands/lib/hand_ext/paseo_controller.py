@@ -376,10 +376,32 @@ class PaseoController:
             raise ExecutionUnresolved('ARCHIVE_UNRESOLVED')
         return record
 
-    def _restore(self, old, *, capacity=False):
+    def _restore(self, old, *, capacity=False, registry_run_id=None):
         # Restore before creating an epoch: failure leaves the reviewed latest key
         # retryable and cannot reserve capacity or create another writer.
         try:
+            from .paseo_completion import reconstruct_context
+            ctx = reconstruct_context(old.receipt['completion']['context'])
+            if not ctx.worktree.exists():
+                metadata = json.loads(Path(old.artifacts['report']['metadata']).read_text())
+                if metadata.get('cleanup') != 'removed':
+                    raise StateConflict('missing checkout without cleanup proof')
+                prefix = ctx.source_root.name + '-'
+                if (ctx.worktree.parent.resolve() != self.cfg.worktree_root.resolve() or
+                        not ctx.worktree.name.startswith(prefix)):
+                    raise StateConflict('worktree ownership path mismatch')
+                run_id = ctx.worktree.name[len(prefix):]
+                restored = isolation.prepare(self.cfg, Path(old.invocation.source_cwd), run_id,
+                    self.cfg.runs_dir / ('restore-' + old.key.attempt_id),
+                    isolation.IsolationChoice('worktree'), backend=old.invocation.backend, mode='managed',
+                    registry_run_id=registry_run_id)
+                if restored.worktree.resolve() != ctx.worktree.resolve():
+                    raise StateConflict('restored checkout identity mismatch')
+                if old.receipt['completion']['policy'] != 'apply':
+                    patch = Path(old.artifacts['finalize']['result']['patch_path']).read_bytes()
+                    if patch.strip():
+                        isolation._git(['apply', '--check', '--binary', '-'], ctx.worktree, input_data=patch)
+                        isolation._git(['apply', '--binary', '-'], ctx.worktree, input_data=patch)
             result = self.transport.reopen_child(old.key, **({'capacity': True} if capacity else {}))
             if not result.get('ok') or result.get('state') != 'reopened':
                 raise TransportError('REOPEN_UNRESOLVED')
@@ -403,9 +425,9 @@ class PaseoController:
                 raise StateConflict('review and quiescence required')
             if not isinstance(brief, str) or not brief.strip():
                 raise ValueError('fresh self-contained brief required')
-            self._restore(old)
             attempt = replace(old.attempt, attempt_id=str(uuid.uuid4()), epoch=old.attempt.epoch + 1,
-                              request_key=str(uuid.uuid4()), run_id=None, thread_id=None)
+                              request_key=str(uuid.uuid4()), run_id=str(uuid.uuid4()), thread_id=None)
+            self._restore(old, registry_run_id=attempt.run_id)
             record = self.store.create_intent(old.invocation, attempt)
             bind_followup(self.store, old, record)
             # Fresh policy/admission still precedes every new send.
@@ -424,7 +446,10 @@ def bind_followup(store, previous, record):
     ctx = reconstruct_context(binding['context'])
     run_dir = Path(record.invocation.fixed_options['run_dir']) / ('baseline-' + record.attempt.attempt_id)
     run_dir.mkdir(parents=True, exist_ok=True)
+    ctx.base_commit = isolation._head_commit(ctx.worktree)
     ctx.baseline_tree = isolation._snapshot_tree(ctx.worktree, run_dir, 'baseline')
+    ctx.dirty_files = sorted(isolation._changed_files(ctx.worktree, ctx.base_commit, ctx.baseline_tree))
+    ctx.dirty = bool(ctx.dirty_files)
     record.receipt = {'controller': dict(previous.receipt['controller']),
                       'completion': dict(binding, context=serialize_context(ctx))}
     return store.compare_and_swap(record.key, record.revision, record)
@@ -504,7 +529,7 @@ def cmd_managed_run(cfg, args, *, mode):
     try:
         completion = _completion_service(store, controller.supervisor, controller.admission)
         controller.completion = completion
-        ctx = isolation.prepare(cfg, cwd, run_id, cfg.runs_dir / run_id, choice)
+        ctx = isolation.prepare(cfg, cwd, run_id, cfg.runs_dir / run_id, choice, backend=selected.name, mode=mode)
         if store.root.is_relative_to(ctx.run_cwd.resolve()):
             raise ValueError('execution state must be outside isolated writer cwd')
         opts = with_sandbox(cfg, selected.name)
@@ -526,6 +551,7 @@ def cmd_managed_run(cfg, args, *, mode):
         store.compare_and_swap(record.key, record.revision, record)
         from . import codex_usage
         completion.bind(attempt.key, ctx, label=safe_label(args), ledger_path=cfg.ledger,
+                        keep_worktree=bool(getattr(args, 'keep_worktree', False)),
                         registry_dir=cfg.machine_state_dir / HAND_RUNS_SUBDIR,
                         policy='no_apply' if getattr(args, 'no_apply', False) else 'apply',
                         go_ledger=cfg.go_usage_ledger, go_summary=cfg.go_usage_summary,

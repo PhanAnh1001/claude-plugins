@@ -91,12 +91,13 @@ class ControllerTests(unittest.TestCase):
         self.preflight=p.start();self.addCleanup(p.stop)
 
     def intent(self):
-        ctx=isolation.prepare(self.cfg,self.repo,str(uuid.uuid4()),self.root/'prep',isolation.IsolationChoice('worktree'))
+        run_id = str(uuid.uuid4())
+        ctx=isolation.prepare(self.cfg,self.repo,run_id,self.root/'prep',isolation.IsolationChoice('worktree'), backend='codex', mode='managed')
         opts=run_cmd.with_sandbox(self.cfg,'codex')
         inv=Invocation(str(uuid.uuid4()),parallel.scope_digest(self.repo),'canonical-parent','parent-agent',
             'codex','gpt',opts['model'],opts['effort'],'managed',str(self.repo),str(ctx.run_cwd),
             dict(run_dir=str(self.root/'worker'),sandbox=self.cfg.sandbox,timeout_s=1,max_tokens=100,options=opts),('repo:*',))
-        attempt=Attempt(inv.invocation_id,str(uuid.uuid4()),1,str(uuid.uuid4()))
+        attempt=Attempt(inv.invocation_id,str(uuid.uuid4()),1,str(uuid.uuid4()),run_id=run_id)
         r=self.store.create_intent(inv,attempt)
         r.receipt={'controller':dict(version=1,policy_root=str(self.repo),backend='codex')}
         self.store.compare_and_swap(r.key,r.revision,r)

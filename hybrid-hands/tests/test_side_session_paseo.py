@@ -456,7 +456,7 @@ export async function connectToDaemon(){return {
                                                  "threadId": "thread-1"}):
                 self.assertEqual(len(actions._running(cfg)), 1)
             self.assertEqual([event for event in events if event[0] == "save"],
-                             [("save", C.STATUS_RUNNING)])
+                             [("save", C.STATUS_RUNNING)] * 3)
             self.assertEqual(events[-2:], [("save", C.STATUS_RUNNING), ("run", ["watch-ok"])])
             watch_cmd.assert_called_once_with(cfg, "n")
             # Native config RPC, not a TOML regex edit; no thread/turn/model/auth call.
@@ -495,6 +495,7 @@ export async function connectToDaemon(){return {
                     mock.patch.object(actions.subprocess, "run",
                                       return_value=SimpleNamespace(returncode=0)), \
                     mock.patch.object(actions.screen, "screen_names", return_value=set()), \
+                    mock.patch.object(actions.checkout.gc, "common_dir", return_value=tmp / "git"), \
                     redirect_stdout(io.StringIO()) as out:
                 self.assertEqual(actions.start(cfg, start_args("fallback")), 0)
             self.assertIn("DAEMON_UNREACHABLE", out.getvalue())
