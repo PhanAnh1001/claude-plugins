@@ -111,7 +111,7 @@ Mã thoát của `dw trace`:
 | Kết thúc | `self-review` | Checklist review diff trước khi báo xong |
 | Kết thúc | `trace-check` | Kiểm FR ↔ task ↔ test, miễn trừ, ID trùng |
 | Kết thúc | `session-closeout` | Gate, tick plan, truy vết, Jira, báo cáo cuối phiên |
-| Kết thúc | `plan-status` | Trang tình hình plan (bảng, thanh tiến độ, Mermaid) đọc trên điện thoại qua GitHub; tuỳ chọn HTML tự chứa |
+| Kết thúc | `plan-status` | Trang tình hình plan (bảng, thanh tiến độ, Mermaid) đọc trên điện thoại qua GitHub; tuỳ chọn HTML tự chứa; chạy `dw plan-status`, nhiều trang cho dự án con qua `.claude/plan-status.toml` |
 | Kết thúc | `jira-workflow` | Tìm/tạo task, estimate ×hệ số, log work, Done |
 | Khôi phục | `resume-work` | Hết context, lỗi 529, hand chết, mất việc |
 
