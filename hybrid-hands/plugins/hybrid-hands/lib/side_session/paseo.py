@@ -104,6 +104,22 @@ def ready() -> dict:
     return _call("ready", timeout=C.PASEO_READY_TIMEOUT_S)
 
 
+def _claude_launch(config_dir: str, account: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Primary login requires an unset config override and the default provider.
+
+    Resolve paths just as the screen launcher does; account names alone cannot
+    identify the primary login because account directories are configurable.
+    """
+    primary = (Path(config_dir).expanduser().resolve()
+               == (Path.home() / ".claude").resolve())
+    if primary:
+        return {}, {}
+    env = {"CLAUDE_CONFIG_DIR": config_dir}
+    selection = ({"accountProvider": C.PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX + account}
+                 if account else {})
+    return env, selection
+
+
 def start_agent(*, workdir: str, name: str, model: str, effort: str,
                 initial_prompt: str, codex_home: Path, target_key: str, hand_scope: str,
                 project_root: str, provider: str = C.PROVIDER_CODEX,
@@ -120,14 +136,13 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
     # Codex payload keeps the old shape: Claude-only fields are added below.
     claude_only: dict = {}
     if provider == C.PROVIDER_CLAUDE:
-        env = {"CLAUDE_CONFIG_DIR": claude_config_dir, C.HAND_SCOPE_ENV: hand_scope}
+        env, selection = _claude_launch(claude_config_dir, account)
+        env[C.HAND_SCOPE_ENV] = hand_scope
         if claude_auto_compact_window is not None:
             env[C.CLAUDE_AUTO_COMPACT_ENV] = str(claude_auto_compact_window)
         provider_options = claude_options or {}
         claude_only = {"modeId": mode_id or None}
-        if account:
-            # Bridge prefers this per-account Paseo provider when the daemon lists it.
-            claude_only["accountProvider"] = C.PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX + account
+        claude_only.update(selection)
     return _call("start", {
         "source": {"kind": "directory", "path": workdir},
         "projectRoot": project_root,
@@ -394,8 +409,8 @@ def _print_unknown_guidance(st: state.SessionState) -> None:
 
 
 def _caller_agent_id(a, st: state.SessionState) -> str:
-    """Calling chat's agent whose workspace the side agent joins; "" keeps a new workspace."""
-    if st.role == "main" or getattr(a, "new_workspace", False):
+    """Caller selects the workspace for any role, never the new agent's parent."""
+    if getattr(a, "new_workspace", False):
         return ""
     return os.environ.get(C.PASEO_CALLER_AGENT_ENV, "").strip()
 
@@ -406,9 +421,12 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
     if a.dry_run:
         print(f"# dry-run: Paseo role={st.role or 'side'} dir={workdir} "
               f"model={a.model or cfg.codex_model} effort={a.effort or cfg.codex_effort}")
-        env = ({"CLAUDE_CONFIG_DIR": st.claude_config_dir, C.HAND_SCOPE_ENV: st.uuid}
-               if st.provider == C.PROVIDER_CLAUDE else
-               {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: st.uuid})
+        selection: dict[str, str] = {}
+        if st.provider == C.PROVIDER_CLAUDE:
+            env, selection = _claude_launch(st.claude_config_dir, st.account)
+        else:
+            env = {"CODEX_HOME": str(cfg.codex_home)}
+        env[C.HAND_SCOPE_ENV] = st.uuid
         if st.claude_auto_compact_window is not None:
             env[C.CLAUDE_AUTO_COMPACT_ENV] = str(st.claude_auto_compact_window)
         options = process_options(cfg, st.chrome) if st.provider == C.PROVIDER_CLAUDE else {}
@@ -416,9 +434,8 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         print(json.dumps({"provider": "claude" if st.provider == C.PROVIDER_CLAUDE
                           else C.PASEO_PROVIDER, "env": env,
                           "model": st.model, "thinkingOptionId": st.effort,
-                          **({"accountProvider": C.PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX
-                              + st.account + " (nếu daemon có, không thì claude)"}
-                             if st.provider == C.PROVIDER_CLAUDE else {}),
+                          **({"accountProvider": selection["accountProvider"]
+                              + " (nếu daemon có, không thì claude)"} if selection else {}),
                           **({"modeId": options["mode_id"] or None,
                               "providerOptions": options["claude_options"]} if options else {})}, ensure_ascii=False))
         if a.worktree:

@@ -200,7 +200,7 @@ export async function connectToDaemon(){return {
  createWorkspace:async()=>{log('createWorkspace');return {workspace:{id:'wnew'}};},
  getProvidersSnapshot:async()=>({entries:[{provider:'claude',enabled:true,status:'ready'},
    ...(process.env.TEST_LISTED?[{provider:process.env.TEST_LISTED,enabled:true,status:'ready'}]:[])]}),
- createAgent:async a=>{log('createAgent:'+a.workspaceId+':'+a.provider);return {id:'side'};},
+ createAgent:async a=>{if(Object.keys(a).some(k=>/parent|label|initiator/i.test(k)))throw Error('parent metadata');log('createAgent:'+a.workspaceId+':'+a.provider);return {id:'side'};},
  close:async()=>{} };}
 """)
                 events = root / "events"
@@ -272,9 +272,10 @@ export async function connectToDaemon(){return {
     def test_main_start(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.object(actions.paseo, "plan", return_value={"target": "fake"}), mock.patch.object(actions.paseo, "start_agent", return_value={"agentId": "main"}) as agent, mock.patch.object(actions.K, "watch_cmd") as watch, mock.patch.object(actions.paseo.codex_trust, "ensure_codex_compact_limit") as compact:
             cfg = cfg_for(Path(d))
-            with mock.patch.object(actions, "_running", return_value=[None] * cfg.max_parallel):
+            with mock.patch.object(actions, "_running", return_value=[None] * cfg.max_parallel), mock.patch.dict(os.environ, {"PASEO_AGENT_ID": "chat", "PASEO_WORKSPACE_ID": ""}):
                 self.assertEqual(actions.start(cfg, start_args("main", main=True, worktree=False, prompt=None)), 0)
             call = agent.call_args.kwargs
+            self.assertEqual(call["caller_agent_id"], "chat")
             self.assertEqual((call["workdir"], call["effort"]), (str(cfg.repo), "high"))
             self.assertIn("PHIÊN CHÍNH", call["initial_prompt"])
             self.assertIn(C.MAIN_DEFAULT_PROMPT, call["initial_prompt"])
