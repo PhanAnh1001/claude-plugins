@@ -4,7 +4,7 @@
 #   e.g. "7d:12.2% (T6 2.1% · T7 5.4%)", "7d:2.8%", "$13.74/1%" (the USD moves inside the
 #   Claude 7d parentheses; the labels "máy này"/"máy khác" are the table's first column).
 # Usage: week-split.sh [--color] <week_pct> <week_reset> <cached_week_reset>
-#   (values may be empty; extra arguments are ignored; per-session lines are session-lines.sh)
+#   (values may be empty; extra arguments are ignored)
 #   1. records one (epoch, pct, reset) sample per render when the live payload has both values;
 #   2. starts week_split.py detached when its summary is missing or old (it scans transcripts);
 #   3. prints the cells from the summary when it belongs to the current 7-day window, else nothing.

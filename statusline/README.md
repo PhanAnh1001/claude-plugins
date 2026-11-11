@@ -6,9 +6,11 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.23.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
+  `statusline` (bản 0.25.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
+- **Bản 0.25.0:** bỏ khối dòng nhóm phiên (`▶ <tên>  Claude …% | Go …%`) khỏi status line; xoá
+  `session-lines.sh`. Các dòng khác giữ nguyên.
 - **Bản 0.23.0:** dòng Claude đổi nhãn `Claude v1 ultra`; thêm dòng `Claude v2 pro` ngay dưới, cùng
   cột. Tài khoản của phiên đang vẽ lấy số live, tài khoản còn lại đọc cache statusline riêng của nó
   (`<home>/.statusline-cache.json`, có `~`, thiếu/qua reset hiện `?`); dòng v2 chỉ có số sau khi
@@ -53,7 +55,6 @@ Theo lựa chọn người dùng, rate được chia sẻ để ước tính ph�
 | 3b | hai dòng `· máy này` (từng thứ trong tuần) và `· máy khác` của cùng bảng, ô 5h để trống; ước tính, chưa có tóm tắt cho cửa sổ hiện tại thì không có hai dòng này | `· máy này   \| 7d:1.5% (T6 1.5%)`<br>`· máy khác  \| 7d:1.5%` |
 | cuối | dòng `Go` của cùng bảng (căn cột theo bảng, in ở dòng cuối cùng): mức OpenCode Go thật (5h/tuần/tháng) kèm giờ reset, số lẻ có `~` khi có ước tính của hand-ext; hoặc ô `DS` (không có giờ reset) khi chưa có cache; không có cả hai thì không có dòng này | `Go        5h:~2.7% (reset 05/11 03:55) \| wk:~12.4% (reset 09/11 07:00) \| mo:~6.2% (reset 04/12 15:17)` |
 | 5 | dòng `GPT` của cùng bảng: % 5h và 7d của mẫu quota mới nhất cùng USD ước tính hôm nay của tài khoản `~/.codex` (rollout cục bộ); không có mẫu trong 24 giờ thì không có dòng này | `GPT        5h:? \| 7d:31% (reset 16/11 13:19) \| hôm nay ~$1.85` |
-| 6 | mỗi nhóm phiên chính một dòng (tối đa 5), nhóm hiện tại đứng đầu có `▶` | `▶ luxian  Sửa statusline  Claude 0.8% \| Go 3.1%` |
 | sau đó | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
 - **Bảng hạn mức (dòng 3–5):** cột 1 là nhãn dòng (`Claude`, `· máy này`, `· máy khác`, `Go`,
@@ -171,7 +172,7 @@ số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá 
 - **Chia và phiên:**
   - Máy này = USD từ đầu cửa sổ 7 ngày ÷ $/1%; máy khác = % tài khoản − máy này (không âm). Phần
     trong ngoặc là % máy này theo từng thứ.
-  - % theo phiên nằm ở "Khối dòng phiên" bên dưới, không còn ở dòng này.
+  - % theo phiên không còn hiện trên status line (bỏ từ 0.25.0).
 - **Dấu `~`:** mức $/1% còn là mức mặc định (chưa hiệu chỉnh được) hoặc tóm tắt cũ hơn 30 phút.
 - **Các file trạng thái** (trong `$CLAUDE_HOME`, mặc định `~/.claude`):
   `.statusline-week-samples.tsv` (mẫu % mỗi lần vẽ, 3 cột `epoch pct reset`; cột thừa của bản cũ
@@ -209,51 +210,6 @@ số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá 
   - Chỉ dùng khi sổ cập nhật trong 5 giờ và có `estimated: true`; số hiện = ước tính ép vào
     [max(0, API − 0,5), API + 0,4], tức vẫn làm tròn ra đúng số API. Không có ước tính thì in số
     nguyên như cũ; cửa sổ đã qua giờ reset vẫn in `~0%`.
-
-## Khối dòng phiên
-
-Ví dụ:
-
-```text
-▶︎ luxian  Sửa statusline  Claude  0.8% | Go 3.1%
-· docs                    Claude 12.4% | Go 0.0%
-```
-
-- **Nhóm:** một phiên chính (gốc của cây phiên phụ) cùng subagent/hand của nó (cùng session id) và
-  mọi phiên phụ `claude` con cháu. Phiên phụ đọc từ state của plugin hybrid-hands trong repo của
-  phiên hoặc của lượt hand (`side_session.state_dir` trong `.claude/hybrid-hands.json`, mặc định
-  `output/llm/side-sessions`).
-- **Claude %** = USD Claude của nhóm trong cửa sổ 7 ngày ÷ $/1% (cùng cách tính dòng 3b).
-- **Go %** = USD Go của nhóm trong tuần Go ÷ giới hạn USD tuần × 100.
-  - Tuần Go bắt đầu ở `windows.weekly.resets_at` − 7 ngày (cache Go thật); giới hạn là
-    `7d.limit_usd` của model `deepseek*` trong `go_usage_summary.json`. Thiếu một trong hai thì in
-    `Go -`.
-  - Lượt đã xong lấy `cost_usd` trong `go_usage.jsonl` (lọc theo `ended`); lượt đang chạy trong
-    `runs/` được ước tính theo model chính xác và giá từ file canonical chung
-    (DeepSeek dùng giá peak ước tính bảo thủ); thiếu model/giá thì không cộng USD ước tính. Lượt nối với phiên qua
-    `parent_session`; lượt không có trường này không thuộc phiên nào.
-- **Phiên đang mở:** khi có thư mục `$CLAUDE_HOME/sessions` (sổ Claude Code ghi mỗi tiến trình một
-  file `<pid>.json`), chỉ hiện nhóm có ít nhất một thành viên (phiên gốc hoặc phiên phụ) có tiến
-  trình còn sống (kiểm bằng `kill -0`), kể cả nhóm 0.0%. File của tiến trình đã chết và file hỏng bị
-  bỏ qua; không đọc được sổ thì coi như sổ rỗng. Không có thư mục này thì không lọc như bản cũ.
-- **Tên:** `<tên>` là tên của phiên gốc trong sổ phiên khi phiên gốc đang sống (tên người dùng đặt
-  hoặc tên Claude Code tự đặt kiểu `ai-luxian-06`; nhiều file cùng phiên thì tên người dùng đặt
-  thắng, sau đó tới bản cập nhật mới nhất). Không có thì `custom-title` mới nhất của transcript phiên
-  gốc, không có nữa thì `agent-name`;
-  alias là `ai-title` mới nhất (in mờ, không có ngoặc), chỉ in khi khác rỗng và khác tên. Không có tên thì dùng 8 ký tự
-  đầu của session id làm tên (hai phiên trùng alias vẫn phân biệt được). Tên cắt còn tối đa 16 cột, alias
-  16 cột, ký tự cuối thay bằng `…`; ký tự điều khiển bị bỏ.
-- **Dóng cột:** dòng hiện tại bắt đầu bằng `▶` + U+FE0E (ép dạng chữ, không thành emoji) + dấu cách,
-  các dòng khác bằng `· ` (U+00B7). Không dòng nào bắt đầu bằng khoảng trắng vì Claude Code cắt
-  khoảng trắng đầu dòng (hai dấu cách cũ bị mất, dòng khác lệch trái); `▶` và `·` cùng lớp độ rộng
-  East Asian Ambiguous nên hai tiền tố luôn rộng bằng nhau trên mọi terminal. Cột tên rộng bằng
-  tên dài nhất trong các dòng được in, cột alias bằng alias dài nhất (không dòng nào có alias thì bỏ
-  cột này), hai cột cách nhau hai dấu cách. Số % đệm trái theo số dài nhất của từng cột, `Go -` đệm
-  cho thẳng với dấu `%`. Độ rộng đếm theo codepoint, giả định chuỗi ở dạng NFC.
-- **Thứ tự:** nhóm chứa phiên hiện tại (kể cả khi đang ở phiên phụ) đứng đầu với `▶`, kể cả khi
-  0.0%; các nhóm khác theo Claude % giảm dần, tối đa 5 dòng. Khi không có sổ phiên thì bỏ nhóm có
-  cả hai % bằng 0.
-- **Dấu `~`:** cùng quy tắc dòng 3b ($/1% còn mặc định hoặc tóm tắt cũ hơn 30 phút).
 
 ## Cài đặt
 
@@ -334,7 +290,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   ├── scripts/go-segments.sh            # ô Go của bảng hạn mức (source từ statusline.sh)
 │   ├── scripts/gpt_usage.py              # ô GPT: % quota và USD hôm nay từ rollout ~/.codex
 │   ├── scripts/week-split.sh, week_split.py, usage_ledger.py   # dòng tách % 7 ngày theo máy (quét chạy nền)
-│   ├── scripts/go_sessions.py, session-lines.sh   # nhóm phiên: % Claude và % Go
+│   ├── scripts/go_sessions.py            # tuần Go và nhóm phiên trong tóm tắt (không còn vẽ)
 │   ├── scripts/go-usage-fetch.sh         # gọi API usage OpenCode Go, ghi cache (chạy nền)
 │   ├── scripts/last-skill.sh, last_skill.py   # dòng skill gần nhất (port từ dev-workflow 0.3.0)
 │   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn agent + mô tả (cắt 30 ký tự)
@@ -350,3 +306,8 @@ statusline/                               # gốc marketplace (đưa cho marketp
 
 Statusline không còn vẽ cây phiên/subagent/hand-ext và không gọi `hh-ps` khi vẽ.
 Xem cây đó bằng `hh-ps` hoặc pane hybrid-hands.
+
+### Khối dòng phiên — bỏ từ 0.25.0
+
+Statusline không còn vẽ mỗi nhóm phiên chính một dòng (% Claude và % Go của nhóm); `session-lines.sh`
+đã xoá. Trường `groups` trong tóm tắt `.statusline-week-split.json` vẫn được ghi nhưng không còn ai đọc.

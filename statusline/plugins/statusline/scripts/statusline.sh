@@ -14,7 +14,6 @@
 #   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
 #      the estimated DS cells from hand-ext; aligned with the table, printed as the LAST line
 #   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from ~/.codex rollouts
-#   3e. one line per main-session group (session-lines.sh): Claude and Go % of the group
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
 #      inline-code colour, note in parentheses dimmed like "(high)" on line 2); none when no skill.
@@ -39,7 +38,6 @@ esac
 LAST_SKILL_SCRIPT="$SCRIPTS_DIR/last-skill.sh"
 GO_FETCH_SCRIPT="$SCRIPTS_DIR/go-usage-fetch.sh"
 WEEK_SPLIT_SCRIPT="$SCRIPTS_DIR/week-split.sh"
-SESSION_LINES_SCRIPT="$SCRIPTS_DIR/session-lines.sh"
 GPT_USAGE_SCRIPT="$SCRIPTS_DIR/gpt_usage.py"
 # Summary of week_split.py: the 7-day estimate is used only when it is recent and matches the
 # integer % and the reset shown.
@@ -103,8 +101,6 @@ five=$(json_field '.rate_limits.five_hour.used_percentage')
 five_reset=$(json_field '.rate_limits.five_hour.resets_at')
 week=$(json_field '.rate_limits.seven_day.used_percentage')
 week_reset=$(json_field '.rate_limits.seven_day.resets_at')
-session_id=$(json_field '.session_id')
-session_name=$(json_field '.session_name')
 
 col_for_pct() {
   # Colour escape for a usage percentage (awk compares decimals; bash cannot).
@@ -389,9 +385,6 @@ if [ -n "$go_row" ]; then
   go_line=${limit_table##*$'\n'}
   if [ "$go_line" = "$limit_table" ]; then limit_table=""; else limit_table=${limit_table%$'\n'*}; fi
 fi
-line_sessions=""
-[ -f "$SESSION_LINES_SCRIPT" ] && line_sessions=$(bash "$SESSION_LINES_SCRIPT" --color \
-  "$session_id" 2>/dev/null)
 maybe_start_go_live_fetch
 # --- Skill block (after the rate-limit lines) ---
 build_skill_block() {
@@ -407,8 +400,6 @@ out="$line1"
 [ -n "$line2" ] && out="${out}\n${line2}"
 printf "%b" "$out"
 [ -n "$limit_table" ] && printf '\n%s' "$limit_table"
-# printf %s, not %b: session names and aliases are data.
-[ -n "$line_sessions" ] && printf '\n%s' "$line_sessions"
 # printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
 [ -n "$skill_block" ] && printf '\n%s' "$skill_block"
 [ -n "$go_line" ] && printf '\n%s' "$go_line"

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.25.0 — 2026-11-11
+
+- Bỏ khối dòng nhóm phiên (`▶ <tên>  <alias>  Claude …% | Go …%`, mỗi phiên chính một dòng) khỏi status line. Xoá `session-lines.sh` và test của nó; statusline không còn đọc `session_id`/`session_name`. Các dòng khác giữ nguyên.
+
 ## 0.24.0 — 2026-11-10
 
 - Bỏ cây phiên/subagent/hand-ext khỏi status line để đỡ chiếm chỗ. Status line không còn gọi `hh-ps` mỗi lần vẽ (bỏ timeout 2 s). Xem cây đó bằng `hh-ps` hoặc pane. Xoá `hand_lines.py`; `STATUSLINE_HANDS`, `HYBRID_HANDS_HH_PS` không còn tác dụng. Các dòng khác giữ nguyên.
