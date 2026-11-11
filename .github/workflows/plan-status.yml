@@ -1,0 +1,27 @@
+name: plan-status
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dev-workflow/docs/plans/*.md"
+      - "docs/work-in-progress/*/*.md"
+      - "hybrid-hands/docs/*.md"
+      - ".claude/plan-status.toml"
+      - ".github/workflows/plan-status.yml"
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plan-status
+  cancel-in-progress: false
+
+jobs:
+  plan-status:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: PhanAnh1001/claude-plugins/dev-workflow/actions/plan-status@plan-status-v1

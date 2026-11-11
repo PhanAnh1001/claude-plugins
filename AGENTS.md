@@ -105,3 +105,11 @@ Membership chỉ theo public `agent.workspaceId`, không theo cwd vì nhiều wo
 ## Kiểm chứng
 
 Chỉ chạy test hẹp phần đang sửa; full suite chỉ khi brief giao, một lần cuối. Tài liệu/manifest: kiểm JSON hợp lệ và link nội bộ, không thêm test cho text tài liệu, không claim cài đặt/test chưa chạy. Giữ mức test tối thiểu theo brief; chỉ hai nhóm cần mức kỹ là tính năng giữ chân/chi tiêu và bảo mật chống tấn công từ ngoài. Báo rõ lệnh/kết quả thật và phần còn chưa kiểm chứng.
+
+<!-- plan-status-rule -->
+## Trang tình hình plan
+
+- Số liệu trong `docs/status/` do GitHub Action plan-status tự cập nhật; không sửa tay phần số liệu.
+- Sau khi tick plan hoặc xong việc lớn: `git pull`, có thể chạy `/dev-workflow:plan-status`, viết lại khối
+  ghi chú tay (rủi ro, quyết định chờ người dùng, ≤5 dòng) rồi commit `docs/status/`.
+- Cấu hình ở `.claude/plan-status.toml`; dự án con thêm một `[[page]]`.
