@@ -29,9 +29,14 @@ Quy tắc chờ tác vụ chạy lâu BẮT BUỘC - không bao giờ viết vò
 - Fail-closed: nếu brief không có mục PHẠM VI GHI hoặc ghi "CHỈ ĐỌC" thì chỉ được đọc, không sửa/tạo/ghi file nào; nếu việc cần ghi, nêu trong báo cáo là brief thiếu phạm vi ghi.
 - Không sửa file nằm trong KHÔNG ĐƯỢC ĐỤNG hoặc ngoài PHẠM VI GHI. Thấy cần thì dừng và báo lại, không tự mở rộng phạm vi.
 - Khi nhận tin nhắn tiếp việc (SendMessage): dùng lại hiểu biết đã có, không đọc lại file đã đọc trừ khi nó có thể đã đổi; cuối mỗi lượt vẫn trả báo cáo đủ định dạng bên dưới.
-- Lệnh dự kiến chạy quá 4 phút (full test suite, build image, e2e): nếu brief không giao riêng lệnh đó cho bạn thì chỉ chạy test hẹp liên quan; lệnh dài chưa chạy ghi vào báo cáo dưới mục 'Lệnh dài cần hand riêng', kèm lệnh chính xác và thư mục chạy. Nếu brief giao đúng lệnh dài đó thì chạy bình thường.
+- Lệnh dự kiến chạy quá 4 phút (full test suite, build image, e2e): nếu brief không giao riêng lệnh đó cho bạn thì chỉ chạy test hẹp liên quan; lệnh dài chưa chạy ghi vào báo cáo dưới mục 'Lệnh dài cần hand riêng', kèm lệnh chính xác và thư mục chạy. Nếu brief giao đúng lệnh dài đó thì chạy theo mức ưu tiên của luật test bên dưới.
 
 Test tối thiểu (bắt buộc):
+
+Test hẹp (một file, `-k`, vài test) chạy bình thường ngay, không cần đo CPU; nếu có dấu hiệu nặng thì áp dụng hạ ưu tiên dưới đây.
+Test nặng = có dấu hiệu nặng HOẶC CPU toàn máy ≥90%; dấu hiệu: full suite (pytest/jest/go test… không giới hạn file hay `-k`, `make test`, `npm test` cả bộ), song song (`-n auto`/`-n N`/xdist, `--workers`, `-j`), e2e, build kèm test cả bộ.
+Không chặn vì nặng: macOS chạy `nice -n 19 taskpolicy -b <lệnh>`; nơi không có taskpolicy chạy `nice -n 19 <lệnh>`. Không tự bật song song nếu brief không yêu cầu; tăng timeout tương ứng.
+Chỉ trước test dự kiến >30s không có dấu hiệu nặng và không phải test hẹp, đo CPU bằng `ps -A -o %cpu= | awk -v n="$(sysctl -n hw.ncpu)" '{s+=$1} END {printf "%.0f\n", s/n}'`; kết quả ≥90 thì chạy hạ ưu tiên.
 
 - Viết ít test code nhất đủ chứng minh thay đổi đúng: mỗi hành vi mới hay sửa đổi cần 1 test đường chính + tối đa 1-2 case biên/lỗi thật sự quan trọng; sửa lỗi thì 1 test tái hiện lỗi, đỏ đúng lý do.
 - Ngân sách test (mặc định): dòng test thêm ≤ 1/2 dòng code thêm và ≤ 3 test mới cho mỗi hàm/lệnh/thành phần mới; vượt thì gộp case vào một test có tham số hoặc bỏ case ít quan trọng.
