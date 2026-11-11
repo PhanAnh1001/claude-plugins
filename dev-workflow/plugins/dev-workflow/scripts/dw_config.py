@@ -76,6 +76,12 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "lanes": {
         "l0_max_files": 2,
     },
+    "plan_status": {  # read by plan_status.py when .claude/plan-status.toml is absent
+        "out_dir": "docs/status",
+        "exclude": [],
+        "days": 14,
+        "html": False,
+    },
 }
 
 

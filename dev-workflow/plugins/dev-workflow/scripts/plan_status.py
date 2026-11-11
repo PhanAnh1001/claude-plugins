@@ -2,18 +2,20 @@
 """Build a phone-friendly project status page from the repo's Markdown plans.
 
 Usage:
-    python3 plan_status.py --repo PATH [--out DIR] [--html] [--days 14]
+    dw plan-status --repo PATH [--page NAME] [--out DIR] [--html] [--days 14]
 
-Writes <out>/plan-status.md (+ .html). Out: --out, `[plan_status] out_dir`, else docs/status.
-Plans: Markdown files with task checkboxes under `paths.plans` or the fallback globs, minus
-`handoffs`, hidden dirs, node_modules and `[plan_status] exclude`. Manual block survives re-runs.
-Exit codes: 0 ok, 2 bad arguments or no plan found.
+Config: `.claude/plan-status.toml` (`[defaults]` + `[[page]]`), else `[plan_status]` in
+`.claude/dev-workflow.toml`. No `[[page]]` -> one page <out>/plan-status.md (+ .html); with pages
+each page writes its own `out`, and >= 2 pages also write <out_dir>/README.md (index).
+Plans: Markdown files with task checkboxes (page `include` globs, or `paths.plans` + fallback globs),
+minus `handoffs`, hidden dirs, node_modules, `exclude` dirs and `exclude_files` globs.
+Manual block survives re-runs. Exit codes: 0 ok, 2 bad arguments, bad config or no plan found.
 """
 from __future__ import annotations
 
 import argparse
 import datetime as dt
-import html
+import fnmatch
 import os
 import re
 import subprocess
@@ -28,10 +30,14 @@ except ModuleNotFoundError:  # Python < 3.11: config is optional here
 
 EXIT_OK, EXIT_ERROR = 0, 2
 CONFIG_RELATIVE = Path(".claude") / "dev-workflow.toml"
+PAGES_CONFIG_RELATIVE = Path(".claude") / "plan-status.toml"
 CONFIG_SECTION, CONFIG_OUT_KEY, CONFIG_EXCLUDE_KEY = "plan_status", "out_dir", "exclude"
+DEFAULTS_SECTION, PAGE_SECTION = "defaults", "page"
 DEFAULT_OUT = "docs/status"
 DEFAULT_DAYS = 14
-MD_NAME, HTML_NAME = "plan-status.md", "plan-status.html"
+DEFAULT_TITLE = "Tình hình plan dự án"
+MD_NAME, HTML_SUFFIX, INDEX_NAME = "plan-status.md", ".html", "README.md"
+MIN_PAGES_FOR_INDEX = 2
 FALLBACK_GLOBS = ("docs/plans/**/*.md", "docs/**/*plan*.md", "docs/**/*roadmap*.md",
                   "docs/**/*milestone*.md", "docs/work-in-progress/**/*.md")
 MANUAL_START = "<!-- plan-status:manual:start -->"
@@ -136,26 +142,83 @@ def parse_plan(path: Path, repo: Path) -> Plan | None:
     return Plan(path.relative_to(repo).as_posix(), title, status, done, skipped, open_tasks, meta)
 
 
-def load_config(repo: Path) -> dict:
-    path = repo / CONFIG_RELATIVE
+@dataclass
+class Page:
+    name: str
+    title: str
+    md_path: Path
+    include: list[str]
+    exclude_dirs: frozenset[str]
+    exclude_files: list[str] = field(default_factory=list)
+    git_paths: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Settings:
+    days: int
+    html: bool
+    out_dir: Path
+    pages: list[Page]
+    multi: bool
+
+
+def read_toml(path: Path) -> dict:
     if tomllib is None or not path.is_file():
         return {}
     with path.open("rb") as handle:
         return tomllib.load(handle)
 
 
-def find_plan_files(repo: Path, config: dict, out_dir: Path) -> list[Path]:
-    plans_dir = config.get("paths", {}).get("plans")
-    globs = [f"{plans_dir.rstrip('/')}/**/*.md"] if isinstance(plans_dir, str) and plans_dir else []
-    globs += list(FALLBACK_GLOBS)
-    extra = config.get(CONFIG_SECTION, {}).get(CONFIG_EXCLUDE_KEY, [])
-    excluded = DEFAULT_EXCLUDE_PARTS | ({str(x) for x in extra} if isinstance(extra, list) else set())
-    found = {p.resolve() for pattern in globs for p in repo.glob(pattern) if p.is_file()}
-    out, root = out_dir.resolve(), repo.resolve()
+def str_list(table: dict, key: str) -> list[str]:
+    value = table.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+        raise ValueError(f"'{key}' must be a list of strings")
+    return value
 
-    def keep(p: Path) -> bool:  # skip handoffs, hidden dirs, node_modules and [plan_status] exclude
-        dirs = p.relative_to(root).parts[:-1]
-        return out not in p.parents and not any(d in excluded or d.startswith(".") for d in dirs)
+
+def load_settings(repo: Path) -> Settings:
+    pages_cfg = read_toml(repo / PAGES_CONFIG_RELATIVE)
+    dw_cfg = {} if pages_cfg else read_toml(repo / CONFIG_RELATIVE)
+    defaults = pages_cfg.get(DEFAULTS_SECTION, {}) if pages_cfg else dw_cfg.get(CONFIG_SECTION, {})
+    if not isinstance(defaults, dict):
+        raise ValueError("config defaults must be a table")
+    out_name = defaults.get(CONFIG_OUT_KEY) or DEFAULT_OUT
+    out_dir = (repo / str(out_name)).resolve()
+    excluded = DEFAULT_EXCLUDE_PARTS | frozenset(str_list(defaults, CONFIG_EXCLUDE_KEY))
+    days, with_html = defaults.get("days", DEFAULT_DAYS), defaults.get("html", False)
+    if not isinstance(days, int) or isinstance(days, bool) or not isinstance(with_html, bool):
+        raise ValueError("'days' must be an integer and 'html' a boolean")
+    raw_pages = pages_cfg.get(PAGE_SECTION, [])
+    if not isinstance(raw_pages, list) or not all(isinstance(p, dict) for p in raw_pages):
+        raise ValueError("[[page]] must be an array of tables")
+    if not raw_pages:
+        plans_dir = dw_cfg.get("paths", {}).get("plans")
+        globs = [f"{plans_dir.rstrip('/')}/**/*.md"] if isinstance(plans_dir, str) and plans_dir else []
+        page = Page("", DEFAULT_TITLE, out_dir / MD_NAME, globs + list(FALLBACK_GLOBS), excluded)
+        return Settings(days, with_html, out_dir, [page], multi=False)
+    pages = []
+    for raw in raw_pages:
+        name, out = raw.get("name"), raw.get("out")
+        if not isinstance(name, str) or not name or not isinstance(out, str) or not out:
+            raise ValueError("every [[page]] needs a non-empty 'name' and 'out'")
+        pages.append(Page(name, str(raw.get("title") or name), (repo / out).resolve(),
+                          str_list(raw, "include") or list(FALLBACK_GLOBS), excluded,
+                          str_list(raw, "exclude_files"), str_list(raw, "git_paths")))
+    if len({p.name for p in pages}) != len(pages):
+        raise ValueError("[[page]] names must be unique")
+    return Settings(days, with_html, out_dir, pages, multi=True)
+
+
+def find_plan_files(repo: Path, page: Page) -> list[Path]:
+    root = repo.resolve()
+    found = {p.resolve() for pattern in page.include for p in root.glob(pattern) if p.is_file()}
+    out = page.md_path.parent
+
+    def keep(p: Path) -> bool:  # skip output dir, handoffs, hidden dirs, node_modules, excludes
+        rel = p.relative_to(root)
+        if out in p.parents or any(fnmatch.fnmatch(rel.as_posix(), g) for g in page.exclude_files):
+            return False
+        return not any(d in page.exclude_dirs or d.startswith(".") for d in rel.parts[:-1])
     return sorted((p for p in found if keep(p)), key=lambda p: p.as_posix())
 
 
@@ -235,99 +298,6 @@ def summary_lines(report: Report) -> list[str]:
     return lines
 
 
-def milestone_chart(plans: list[Plan]) -> list[str]:
-    dated = [p for p in plans if any(DATE_RE.match(p.meta.get(k, "")) for k in START_KEYS)
-             and any(DATE_RE.match(p.meta.get(k, "")) for k in END_KEYS)]
-    if dated:
-        out = ["```mermaid", "gantt", "  dateFormat YYYY-MM-DD", "  title Lịch plan"]
-        for i, p in enumerate(sorted(dated, key=lambda p: p.path)):
-            start = next(p.meta[k] for k in START_KEYS if DATE_RE.match(p.meta.get(k, "")))
-            end = next(p.meta[k] for k in END_KEYS if DATE_RE.match(p.meta.get(k, "")))
-            tag = "done" if p.status == "done" else ("active" if p.status == "active" else "")
-            name = p.title.replace(":", " ")
-            out.append(f"  {name} :{tag + ', ' if tag else ''}p{i}, {start}, {end}")
-        return out + ["```"]
-    stones = sorted((p for p in plans if p.milestone is not None), key=lambda p: (p.milestone, p.path))
-    if len(stones) < 2:
-        return []
-    out = ["```mermaid", "flowchart LR"]
-    for i, p in enumerate(stones):
-        label = f"M{p.milestone} {p.percent}%".replace('"', "'")
-        out.append(f'  n{i}["{label}"]:::{p.status}')
-        if i:
-            out.append(f"  n{i - 1} --> n{i}")
-    out += ["  classDef done fill:#2e7d32,color:#fff", "  classDef active fill:#1565c0,color:#fff",
-            "  classDef todo fill:#9e9e9e,color:#fff", "  classDef empty fill:#eeeeee", "```"]
-    return out
-
-
-def render_md(report: Report, out_rel: Path, manual: str) -> str:
-    lines = [f"# Tình hình plan dự án", "",
-             f"Cập nhật {report.today} · commit `{report.head or '?'}`", "", "## Tóm tắt", ""]
-    lines += summary_lines(report)
-    lines += ["", "## Ghi chú (giữ tay)", "", MANUAL_START, manual, MANUAL_END, "",
-              "## Các plan", "", "| Plan | Trạng thái | Tiến độ | Còn |", "|---|---|---|---|"]
-    for p in sorted(report.plans, key=sort_key):
-        lines.append(f"| [{md_cell(shorten(p.title, MAX_TITLE_CHARS))}]({link(p, out_rel)}) | {STATUS_LABELS[p.status]} "
-                     f"| {progress_bar(p.percent)} | {p.open} |")
-    lines += ["", "## Phân bố task", "", "```mermaid", "pie showData",
-              f'  "Xong" : {report.done}', f'  "Còn" : {report.open}', f'  "Bỏ" : {report.skipped}', "```"]
-    chart = milestone_chart(report.plans)
-    if chart:
-        lines += ["", "## Milestone", ""] + chart
-    lines += ["", f"## Việc đang mở (tối đa {MAX_OPEN_TASKS})", ""]
-    items = report.open_items()
-    lines += [f"- [ ] {md_cell(t)} — [{md_cell(shorten(p.title, MAX_ITEM_TITLE_CHARS))}]({link(p, out_rel)})" for p, t in items] or ["_Không còn việc mở._"]
-    lines += ["", f"## Hoạt động {report.days} ngày qua", "", f"{len(report.commits)} commit."]
-    if report.commits:
-        lines += [""] + [f"- {c}" for c in report.commits[:MAX_COMMITS]]
-    return "\n".join(lines) + "\n"
-
-
-HTML_CSS = """body{font:15px/1.45 -apple-system,system-ui,sans-serif;margin:0;padding:12px;max-width:720px;
-color:#1b1f24;background:#fff}h1{font-size:20px}h2{font-size:17px;margin-top:22px}
-.card{border:1px solid #d0d7de;border-radius:8px;padding:8px 10px;margin:6px 0}
-.bar{background:#e5e7eb;border-radius:4px;height:8px;margin:4px 0}.bar>div{background:#2e7d32;height:8px;border-radius:4px}
-.muted{color:#6b7280;font-size:13px}a{color:#0969da}ul{padding-left:20px}
-@media(prefers-color-scheme:dark){body{background:#0d1117;color:#e6edf3}.card{border-color:#30363d}a{color:#58a6ff}}"""
-
-
-def pie_svg(parts: list[tuple[str, int, str]]) -> str:
-    total = sum(v for _, v, _ in parts) or 1
-    radius, circ, offset = 15.9155, 100.0, 0.0
-    segs = []
-    for _, value, color in parts:
-        share = 100 * value / total
-        segs.append(f'<circle r="{radius}" cx="21" cy="21" fill="none" stroke="{color}" stroke-width="8" '
-                    f'stroke-dasharray="{share:.2f} {circ - share:.2f}" stroke-dashoffset="{-offset + 25:.2f}"/>')
-        offset += share
-    legend = " · ".join(f'<span style="color:{c}">■</span> {html.escape(n)} {v}' for n, v, c in parts)
-    return f'<svg viewBox="0 0 42 42" width="140" height="140">{"".join(segs)}</svg><div class="muted">{legend}</div>'
-
-
-def render_html(report: Report, out_rel: Path, manual: str) -> str:
-    esc = html.escape
-    body = [f"<h1>Tình hình plan dự án</h1><p class=muted>Cập nhật {esc(report.today)} · commit {esc(report.head or '?')}</p>",
-            "<h2>Tóm tắt</h2><ul>"]
-    body += [f"<li>{esc(line[2:].replace('**', ''))}</li>" for line in summary_lines(report)]
-    body.append(f"</ul><h2>Ghi chú</h2><div class=card><pre style='white-space:pre-wrap;margin:0'>{esc(manual.strip())}</pre></div>")
-    body.append("<h2>Các plan</h2>")
-    for p in sorted(report.plans, key=sort_key):
-        body.append(f"<div class=card><a href='{esc(link(p, out_rel))}'>{esc(shorten(p.title, MAX_TITLE_CHARS))}</a><div class=bar>"
-                    f"<div style='width:{p.percent}%'></div></div><span class=muted>{STATUS_LABELS[p.status]} · "
-                    f"{p.percent}% · còn {p.open}</span></div>")
-    body.append("<h2>Phân bố task</h2>" + pie_svg([("Xong", report.done, "#2e7d32"),
-                                                    ("Còn", report.open, "#1565c0"), ("Bỏ", report.skipped, "#9e9e9e")]))
-    body.append("<h2>Việc đang mở</h2><ul>")
-    body += [f"<li>{esc(t)} <span class=muted>— {esc(shorten(p.title, MAX_ITEM_TITLE_CHARS))}</span></li>" for p, t in report.open_items()]
-    body.append(f"</ul><h2>Hoạt động {report.days} ngày qua</h2><p>{len(report.commits)} commit.</p><ul>")
-    body += [f"<li>{esc(c)}</li>" for c in report.commits[:MAX_COMMITS]]
-    body.append("</ul>")
-    return ("<!doctype html><html lang=vi><head><meta charset=utf-8><meta name=viewport "
-            "content='width=device-width,initial-scale=1'><title>Tình hình plan</title>"
-            f"<style>{HTML_CSS}</style></head><body>{''.join(body)}</body></html>\n")
-
-
 def read_manual(md_path: Path) -> str:
     text = md_path.read_text(encoding="utf-8") if md_path.is_file() else ""
     start, end = text.find(MANUAL_START), text.find(MANUAL_END)
@@ -336,59 +306,84 @@ def read_manual(md_path: Path) -> str:
     return text[start + len(MANUAL_START): end].strip("\n")
 
 
-def resolve_out(repo: Path, config: dict, out_arg: str | None) -> Path:
-    if out_arg:
-        return Path(out_arg).expanduser().resolve()
-    configured = config.get(CONFIG_SECTION, {}).get(CONFIG_OUT_KEY)
-    return (repo / (configured if isinstance(configured, str) and configured else DEFAULT_OUT)).resolve()
+def rel_to_repo(repo: Path, out_dir: Path) -> Path | None:
+    root = repo.resolve()
+    return out_dir.relative_to(root) if out_dir == root or root in out_dir.parents else None
 
 
-def build_report(repo: Path, out_dir: Path, days: int, today: str) -> Report:
-    config = load_config(repo)
-    plans = [p for f in find_plan_files(repo, config, out_dir) if (p := parse_plan(f, repo))]
+def write_page(repo: Path, page: Page, days: int, with_html: bool, today: str) -> tuple[list[Path], Report]:
+    plans = [p for f in find_plan_files(repo, page) if (p := parse_plan(f, repo.resolve()))]
+    if not plans:
+        raise ValueError(f"no plan with task checkboxes found for page '{page.name or 'default'}' under {repo}")
     head = next(iter(git_lines(repo, "rev-parse", "--short", "HEAD")), "")
-    commits = git_lines(repo, "log", f"--since={days} days ago", "--date=short", "--pretty=%ad %h %s")
-    return Report(plans, head, commits, days, today)
-
-
-def generate(repo: Path, out_dir: Path, days: int, with_html: bool, today: str) -> list[Path]:
-    report = build_report(repo, out_dir, days, today)
-    if not report.plans:
-        raise ValueError(f"no plan with task checkboxes found under {repo}")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_abs, root = out_dir.resolve(), repo.resolve()
-    out_rel = out_abs.relative_to(root) if out_abs == root or root in out_abs.parents else None
-    md_path = out_dir / MD_NAME
-    manual = read_manual(md_path)
-    md_path.write_text(render_md(report, out_rel, manual), encoding="utf-8")
-    written = [md_path]
+    pathspec = ["--", *page.git_paths] if page.git_paths else []
+    commits = git_lines(repo, "log", f"--since={days} days ago", "--date=short", "--pretty=%ad %h %s", *pathspec)
+    report = Report(plans, head, commits, days, today)
+    from plan_status_html import render_html, render_md  # lazy: that module imports this one
+    page.md_path.parent.mkdir(parents=True, exist_ok=True)
+    out_rel, manual = rel_to_repo(repo, page.md_path.parent), read_manual(page.md_path)
+    page.md_path.write_text(render_md(report, out_rel, manual, page.title), encoding="utf-8")
+    written = [page.md_path]
     if with_html:
-        html_path = out_dir / HTML_NAME
-        html_path.write_text(render_html(report, out_rel, manual), encoding="utf-8")
+        html_path = page.md_path.with_suffix(HTML_SUFFIX)
+        html_path.write_text(render_html(report, out_rel, manual, page.title), encoding="utf-8")
         written.append(html_path)
+    return written, report
+
+
+def write_index(out_dir: Path, done: list[tuple[Page, Report]]) -> Path:
+    lines = [f"# {DEFAULT_TITLE}", "", "## Tóm tắt", "", f"{len(done)} trang; mở từng trang để xem chi tiết.", "",
+             "| Trang | Tiến độ | Còn |", "|---|---|---|"]
+    for page, report in done:
+        href = Path(os.path.relpath(page.md_path, out_dir)).as_posix()
+        lines.append(f"| [{md_cell(page.title)}]({href}) | {progress_bar(report.percent)} | {report.open} |")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    index = out_dir / INDEX_NAME
+    index.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return index
+
+
+def run(repo: Path, args: argparse.Namespace, today: str) -> list[Path]:
+    settings = load_settings(repo)
+    pages = [p for p in settings.pages if args.page in (None, p.name)]
+    if not pages:
+        raise ValueError(f"unknown page '{args.page}'; known: {', '.join(p.name for p in settings.pages)}")
+    if args.out:
+        if len(pages) != 1:
+            raise ValueError("--out needs a single page; add --page NAME")
+        pages[0].md_path = Path(args.out).expanduser().resolve() / pages[0].md_path.name
+    days = args.days if args.days is not None else settings.days
+    if days < 1:
+        raise ValueError("--days must be >= 1")
+    written, done = [], []
+    for page in pages:
+        files, report = write_page(repo, page, days, args.html or settings.html, today)
+        written += files
+        done.append((page, report))
+    if settings.multi and args.page is None and len(done) >= MIN_PAGES_FOR_INDEX:
+        written.append(write_index(settings.out_dir, done))
     return written
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a phone-friendly plan status page.")
+    parser = argparse.ArgumentParser(description="Generate phone-friendly plan status pages.")
     parser.add_argument("--repo", required=True, help="repository root to scan")
-    parser.add_argument("--out", help=f"output dir (default: [{CONFIG_SECTION}] {CONFIG_OUT_KEY} or {DEFAULT_OUT})")
-    parser.add_argument("--html", action="store_true", help=f"also write {HTML_NAME}")
-    parser.add_argument("--days", type=int, default=DEFAULT_DAYS, help="git activity window in days")
+    parser.add_argument("--page", help="only this [[page]] name (default: every page)")
+    parser.add_argument("--out", help=f"output dir for a single page (default: config or {DEFAULT_OUT})")
+    parser.add_argument("--html", action="store_true", help="also write the .html page")
+    parser.add_argument("--days", type=int, default=None, help=f"git activity window (default {DEFAULT_DAYS})")
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     repo = Path(args.repo).expanduser().resolve()
-    if not repo.is_dir() or args.days < 1:
-        print("plan_status: --repo must be a directory and --days >= 1", file=sys.stderr)
+    if not repo.is_dir():
+        print("plan_status: --repo must be a directory", file=sys.stderr)
         return EXIT_ERROR
     try:
-        config = load_config(repo)
-        out_dir = resolve_out(repo, config, args.out)
-        written = generate(repo, out_dir, args.days, args.html, dt.date.today().isoformat())
-    except (ValueError, OSError) as exc:
+        written = run(repo, args, dt.date.today().isoformat())
+    except (ValueError, OSError) as exc:  # tomllib.TOMLDecodeError is a ValueError
         print(f"plan_status: {exc}", file=sys.stderr)
         return EXIT_ERROR
     for path in written:
