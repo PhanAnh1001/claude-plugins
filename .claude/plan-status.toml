@@ -1,0 +1,10 @@
+[defaults]
+days = 14
+html = true
+out_dir = "docs/status"
+
+[[page]]
+name = "main"
+title = "claude-plugins"
+include = ["dev-workflow/docs/plans/*.md", "docs/work-in-progress/*/*.md", "hybrid-hands/docs/*.md"]
+out = "docs/status/plan-status.md"
