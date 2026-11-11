@@ -53,6 +53,26 @@ class PlanStatusTest(unittest.TestCase):
         self.assertIn("<svg", page)
         self.assertNotIn("— _", page)
 
+    def run_init(self, *extra: str) -> subprocess.CompletedProcess:
+        result = subprocess.run([str(SCRIPTS_DIR / "dw"), "plan-status", "init", "--repo", str(self.repo), *extra],
+                                capture_output=True, text=True, timeout=60, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result
+
+    def test_init_dry_run_writes_nothing(self) -> None:
+        self.assertIn('"docs/plans/*.md"', self.run_init().stdout)
+        self.assertFalse((self.repo / ".claude/plan-status.toml").exists())
+
+    def test_init_write_is_idempotent(self) -> None:
+        write_file(self.repo, "AGENTS.md", "# Luật\n")
+        self.run_init("--write")
+        self.run_init("--write")
+        self.assertTrue((self.repo / ".claude/plan-status.toml").is_file())
+        workflow = (self.repo / ".github/workflows/plan-status.yml").read_text(encoding="utf-8")
+        self.assertIn("uses: PhanAnh1001/claude-plugins/dev-workflow/actions/plan-status@plan-status-v1", workflow)
+        agents = (self.repo / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertEqual(agents.count("<!-- plan-status-rule -->"), 1)
+
     def test_pages_index_and_single_page(self) -> None:
         write_file(self.repo, ".claude/plan-status.toml", PAGES_TOML)
         self.run_tool("--page", "b")

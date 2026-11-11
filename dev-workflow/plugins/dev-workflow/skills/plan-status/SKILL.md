@@ -74,3 +74,13 @@ description: Generate a short, visual project status page from the repo's Markdo
 2. Replace the text between `<!-- plan-status:manual:start -->` and `<!-- plan-status:manual:end -->`
    with 3-5 Vietnamese lines: main risks, decisions that need a person, blocked plans. Re-runs keep it.
 3. Report the overall %, the running plan and the output path(s) to the user.
+
+## 3. Deploy to a new repo
+
+1. `"${CLAUDE_PLUGIN_ROOT}/scripts/dw" plan-status init --repo "<repo root>"` (dry-run): finds `.md` files with
+   checkboxes and prints the files it would create - `.claude/plan-status.toml` (page "main"),
+   `.github/workflows/plan-status.yml` (calls the shared Action
+   `PhanAnh1001/claude-plugins/dev-workflow/actions/plan-status@plan-status-v1`) and a marked rule block
+   appended to `AGENTS.md`. Exit 2 = no plan found. Existing config/workflow are kept unless `--force`.
+2. Review the proposal with the user, then rerun with `--write`; re-runs never duplicate the AGENTS.md block.
+3. Commit and push; pushing a workflow file needs a token with the `workflow` scope.

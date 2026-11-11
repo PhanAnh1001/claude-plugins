@@ -1,0 +1,80 @@
+name: plan-status
+description: Regenerate the plan-status pages (dev-workflow) and commit them only when real content changed.
+inputs:
+  branch:
+    description: Branch to push the refreshed status pages to
+    default: main
+  python-version:
+    description: Python version (>= 3.11, needs tomllib)
+    default: '3.11'
+  commit-message:
+    description: Commit message for the status update
+    default: 'docs(status): tự cập nhật trang tình hình'
+  config:
+    description: Path of the plan-status config file
+    default: '.claude/plan-status.toml'
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Read config (out_dir, refs)
+      id: cfg
+      shell: bash
+      env:
+        CONFIG: ${{ inputs.config }}
+      run: |
+        set -euo pipefail
+        python - <<'PY' >> "$GITHUB_OUTPUT"
+        import os, tomllib, pathlib
+        path = pathlib.Path(os.environ["CONFIG"])
+        cfg = tomllib.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        out_dir = (cfg.get("defaults", {}).get("out_dir") or "docs/status").rstrip("/")
+        refs = sorted({str(p["ref"]) for p in cfg.get("page", []) if p.get("ref")})
+        print(f"out_dir={out_dir}")
+        print("refs=" + " ".join(refs))
+        PY
+    - name: Check page refs exist
+      shell: bash
+      env:
+        REFS: ${{ steps.cfg.outputs.refs }}
+      run: |
+        set -euo pipefail
+        for ref in $REFS; do
+          if ! git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null; then
+            echo "::error::plan-status: ref '${ref}' không tồn tại (cần fetch-depth 0 và nhánh đã push)"
+            exit 1
+          fi
+        done
+    - name: Generate status pages
+      shell: bash
+      env:
+        TZ: Asia/Ho_Chi_Minh
+      run: |
+        set -euo pipefail
+        python "${{ github.action_path }}/../../plugins/dev-workflow/scripts/plan_status.py" --repo .
+    - name: Commit when content changed
+      shell: bash
+      env:
+        OUT_DIR: ${{ steps.cfg.outputs.out_dir }}
+        BRANCH: ${{ inputs.branch }}
+        MESSAGE: ${{ inputs.commit-message }}
+      run: |
+        set -euo pipefail
+        untracked="$(git ls-files --others --exclude-standard -- "$OUT_DIR")"
+        real_diff="$(git diff -U0 -- "$OUT_DIR" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -v 'Cập nhật ' || true)"
+        if [ -z "$untracked" ] && [ -z "$real_diff" ]; then
+          echo "plan-status: chỉ đổi dòng 'Cập nhật', bỏ qua commit"
+          git checkout -- "$OUT_DIR"
+          exit 0
+        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+        git add -- "$OUT_DIR"
+        git commit -m "$MESSAGE"
+        git pull --rebase origin "$BRANCH"
+        git push origin "HEAD:$BRANCH"
