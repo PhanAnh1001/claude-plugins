@@ -35,7 +35,8 @@ Luật bàn giao cho phiên phụ {name} (hand ngoài, chạy không có ngườ
 
 
 def build_prompt(user_prompt: str, name: str, handoff: Path, brain: str,
-                 external: bool = False, account: str = "v1", main: bool = False) -> str:
+                 external: bool = False, account: str = "v1", main: bool = False,
+                 model: str = "", effort: str = "") -> str:
     if external:
         return f"{user_prompt.rstrip()}\n\n{EXTERNAL_RULES.format(name=name).strip()}\n"
     relpath = (C.MAIN_CLAUDE_TEMPLATE_RELPATH if main else
@@ -43,7 +44,10 @@ def build_prompt(user_prompt: str, name: str, handoff: Path, brain: str,
     path = PLUGIN_ROOT / relpath
     if not path.is_file():
         raise ValueError(f"side-session: thiếu template {relpath} (dependency gói C)")
-    tpl = path.read_text(encoding="utf-8").replace(C.CLAUDE_ACCOUNT_PLACEHOLDER, account)
+    model = model or C.CLAUDE_MODEL_DEFAULT
+    tpl = (path.read_text(encoding="utf-8").replace(C.CLAUDE_ACCOUNT_PLACEHOLDER, account)
+           .replace(C.CLAUDE_MODEL_LABEL_PLACEHOLDER, C.CLAUDE_MODEL_LABELS.get(model, model))
+           .replace(C.CLAUDE_EFFORT_PLACEHOLDER, effort or C.CLAUDE_EFFORT_DEFAULT))
     out_lines = []
     for line in tpl.splitlines():
         if C.BRAIN_LINE_MARKER in line:

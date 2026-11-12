@@ -6,7 +6,8 @@ from usage_pricing import load_prices
 from .constants import MODEL_CAPABILITIES, PROVIDER_EFFORTS
 
 TIER_LABELS = {"brain": "Brain chính", "side": "Phiên phụ", "hand": "Hand"}
-CLAUDE_MODEL_ORDER = ("claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5")
+CLAUDE_MODEL_ORDER = ("claude-opus-5-5", "claude-fable-5-2", "claude-sonnet-5-5",
+                      "claude-haiku-5-5")
 
 
 def build_options(result, status: dict) -> dict:

@@ -38,6 +38,7 @@ def test_view(tmp_path, monkeypatch, capsys):
     options = json.loads(capsys.readouterr().out)
     assert [row["value"] for row in options["tiers"]] == ["brain", "side", "hand"]
     assert "claude-sonnet-5-5" in options["providers"]["claude"]["models"]
+    assert options["providers"]["claude"]["models"][:2] == ["claude-opus-5-5", "claude-fable-5-2"]
     assert [row["value"] for row in options["hand_backends"] if row["in_order"]] == data["hand"]["order"]["value"]
     assert set(options["presets"]) == {"brain", "side", "hand_claude", "hand_other"}
     assert all(rows[0]["args"] == [] and len(rows) <= 4 for rows in options["presets"].values())
@@ -63,6 +64,10 @@ def test_set_and_validation(tmp_path, monkeypatch, capsys):
     assert main(prefix + ["--hand", "dsh=deepseek-v4.1-flash:high", "--hand-mode", "native", "--dry-run"]) == 2
     assert "dsh không có native subagent" in capsys.readouterr().err
     assert diff["ext_hand.backends.claude-v2.model"][1] == "claude-haiku-5-5"
+    assert main(prefix + ["--brain", "claude-fable-5-2:high@v2", "--dry-run"]) == 0
+    fable = json.loads(capsys.readouterr().out)["diff"]
+    assert fable["main_session.claude_model"] == [None, "claude-fable-5-2"]
+    assert fable["main_session.claude_account"][1] == "v2"
     for invalid in ("codex:missing:low", "codex:gpt-6.1-sol:invalid", "claude:claude-opus-5-5:high@v99"):
         assert main(prefix + ["--brain", invalid]) == 2
         assert path.read_bytes() == original

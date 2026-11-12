@@ -33,6 +33,8 @@ class NamesTests(unittest.TestCase):
                 self.assertTrue(title.endswith(f' · {suffix} phụ'))
         for label in ['/private/file', 'task\nbrief', 'api-key-secret']:
             self.assertEqual(names.title(session(name=label)), 'side · Sol phụ')
+        fable = session(provider='claude', account='v2', model='claude-fable-5-2')
+        self.assertTrue(names.title(fable).endswith(' · Fable v2 phụ'))
 
     def test_retry_bounded_reset_and_main(self):
         with tempfile.TemporaryDirectory() as tmp, redirect_stdout(io.StringIO()):

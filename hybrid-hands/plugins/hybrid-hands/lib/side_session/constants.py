@@ -199,5 +199,10 @@ RESUME_PROMPT = ("Phiên này được mở lại sau khi bị dừng. Đọc l�
 CLAUDE_MODEL_DEFAULT = "claude-opus-5-5"
 CLAUDE_EFFORT_DEFAULT = "high"
 CLAUDE_ACCOUNT_PLACEHOLDER = "{account}"
+# The main Claude template names the model actually launched, not a fixed one.
+CLAUDE_MODEL_LABELS = {"claude-fable-5-2": "Fable 5.2", "claude-opus-5-5": "Opus 5.5",
+                       "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5"}
+CLAUDE_MODEL_LABEL_PLACEHOLDER = "{model_label}"
+CLAUDE_EFFORT_PLACEHOLDER = "{effort}"
 MAIN_CLAUDE_TEMPLATE_RELPATH = "templates/main-session-prompt-claude.md"
 CLAUDE_ACCOUNT_TEMPLATE_RELPATH = "templates/side-session-prompt-claude.md"

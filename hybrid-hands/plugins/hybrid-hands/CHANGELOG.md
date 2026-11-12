@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.57.0 — 2026-11-12
+
+- Thêm model Claude Fable 5.2 (`claude-fable-5-2`): `hand-ext models set/options` nhận model này cho brain, phiên phụ và hand Claude; giá lấy từ bảng giá chính thức ngày 12/11/2026 (input 8, cache read 0,2, output 40, cache write 5 phút 10, 1 giờ 16 USD/MTok).
+- Template phiên chính Claude xưng đúng model/effort được mở (`{model_label} {effort}`) thay cho chữ cố định "Opus 5.5 high"; tên phiên phụ Claude trên Paseo dùng họ model thực (ví dụ `Fable v2 phụ`), model lạ vẫn ghi `Opus`.
+
 ## 0.56.0 — 2026-11-12
 
 - Công tắc guard Claude theo ngày: `claude_accounts.<vN>.day_guard` (mặc định `true` ở v1) và `day_guard_off_date` (`"YYYY-MM-DD"` giờ máy). `day_guard: false` tắt hẳn ngưỡng `max_day_pct`; `day_guard_off_date` bằng hôm nay chỉ tắt trong ngày đó, sang ngày sau guard tự bật lại. Giá trị sai kiểu giữ guard bật (fail-closed). Áp cho `hand-ext run`/`pick` (cả alias `claude-main`) và `side-session` (`budget_check_cmd`). Đặt được ở global `~/.hybrid-hands/config.json` hoặc repo.

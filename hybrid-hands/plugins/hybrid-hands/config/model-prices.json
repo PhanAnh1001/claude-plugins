@@ -18,6 +18,15 @@
       "source": "https://platform.claude.com/docs/en/about-claude/pricing",
       "price_date": "2026-11-07"
     },
+    "claude-fable-5-2": {
+      "input": 8,
+      "cached": 0.2,
+      "output": 40,
+      "cache_write_5m": 10,
+      "cache_write_1h": 16,
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "price_date": "2026-11-12"
+    },
     "claude-sonnet-5-5": {
       "input": 2,
       "cached": 0.1,

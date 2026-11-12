@@ -21,7 +21,8 @@ def title(st: state.SessionState) -> str:
     if st.provider == C.PROVIDER_CLAUDE:
         account = (st.account if len(st.account) <= ACCOUNT_LIMIT
                    and re.fullmatch(r"v[1-9][0-9]*", st.account) else "?")
-        kind = f"Opus {account}"
+        family = C.CLAUDE_MODEL_LABELS.get(st.model, "Opus").split()[0]
+        kind = f"{family} {account}"
     suffix = f" · {kind} phụ"
     return label[:TITLE_LIMIT - len(suffix)] + suffix
 

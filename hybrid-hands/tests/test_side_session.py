@@ -317,6 +317,14 @@ class SideSessionTest(unittest.TestCase):
         self.assertIn('phiên brain "main"', p)
         self.assertIn("/h/n1.md", p)
 
+    def test_main_claude_prompt_names_launched_model(self) -> None:
+        p = build_prompt("Task", "m", Path("/h/m.md"), "", account="v2", main=True,
+                         model="claude-fable-5-2", effort="high")
+        self.assertIn("Bạn là Fable 5.2 high Claude account v2", p)
+        p = build_prompt("Task", "m", Path("/h/m.md"), "", account="v1", main=True)
+        self.assertIn("Bạn là Opus 5.5 high Claude account v1", p)
+        self.assertNotIn("{model_label}", p)
+
     def test_prompt_for_external_hand_does_not_ask_to_write_outside_worktree(self) -> None:
         p = build_prompt("Task", "n1", Path("/h/n1.md"), "main", external=True)
         self.assertNotIn("/h/n1.md", p)

@@ -195,7 +195,8 @@ FALLBACK_STATUSES = (Status.QUOTA, Status.NOT_LOGGED_IN)
 
 # Provider capabilities are deliberately independent of the pricing registry.
 MODEL_CAPABILITIES = {
-    "claude": frozenset({"claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"}),
+    "claude": frozenset({"claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5",
+                         "claude-haiku-5-5"}),
     "codex": frozenset({"gpt-6.1-sol"}),
     "dsh": frozenset({"deepseek-v4.1-flash"}),
 }

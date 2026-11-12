@@ -202,7 +202,8 @@ def start(cfg: SideConfig, a) -> int:
         try:
             full_prompt = build_prompt(
                 prompt_text or C.MAIN_DEFAULT_PROMPT, name, handoff, a.brain or "",
-                external=a.provider in C.EXTERNAL_PROVIDERS, account=account, main=is_main)
+                external=a.provider in C.EXTERNAL_PROVIDERS, account=account, main=is_main,
+                model=a.model or "", effort=a.effort or "")
         except ValueError as exc:
             print(exc)
             return C.EXIT_USAGE
