@@ -92,6 +92,22 @@ def usd_per_pct(home: Path) -> Optional[float]:
     return _pin(home) or _calibrated(home)
 
 
+def guard_enabled(options: dict, now: Optional[float] = None) -> bool:
+    """False only when `day_guard` is exactly false or `day_guard_off_date` is today.
+
+    `day_guard_off_date` is a local `YYYY-MM-DD`, so the guard turns itself back on the next
+    day. Any other value, malformed included, keeps the guard on (fail closed).
+    """
+    if options.get("day_guard", True) is False:
+        return False
+    off = options.get("day_guard_off_date")
+    if not isinstance(off, str):
+        return True
+    moment = time.time() if now is None else now
+    today = dt.datetime.fromtimestamp(moment).astimezone().date().isoformat()
+    return off.strip() != today
+
+
 def _max_pct(options: dict) -> float:
     value = _positive(options.get("max_day_pct", CLAUDE_MAIN_MAX_DAY_PCT))
     if value is None:

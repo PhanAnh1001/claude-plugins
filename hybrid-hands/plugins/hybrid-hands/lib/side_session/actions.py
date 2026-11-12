@@ -14,6 +14,7 @@ from . import budget
 from . import commands as K
 from . import constants as C
 from . import external, gc, paseo, screen, state, tokens, checkout
+from hand_ext.day_budget import guard_enabled
 from hand_ext.disk_guard import check_disk, DiskGuardBlocked, EXIT_DISK_GUARD
 from .config import SideConfig, claude_account
 from .handoff import build_prompt, summary_block
@@ -71,7 +72,10 @@ def _refuse_budget(result: budget.BudgetResult) -> int:
 
 def _uses_day_guard(cfg: SideConfig, provider: str, account: str) -> bool:
     # Preserve the existing command guard; accounts without a cap must not inherit v1's.
-    return provider != C.PROVIDER_CLAUDE or "max_day_pct" in claude_account(cfg, account)
+    if provider != C.PROVIDER_CLAUDE:
+        return True
+    options = claude_account(cfg, account)
+    return "max_day_pct" in options and guard_enabled(options)
 
 
 def _preflight(cfg: SideConfig, a) -> int | None:

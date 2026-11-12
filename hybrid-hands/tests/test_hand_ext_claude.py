@@ -206,6 +206,21 @@ class DayBudgetTest(HandExtTestCase):
         self.assertEqual(code, 0)
         run.assert_called_once()
 
+    def test_day_guard_toggle_and_off_date(self):
+        now = datetime(2026, 11, 12, 10, 0).timestamp()
+        self.assertTrue(day_budget.guard_enabled({}, now))
+        self.assertFalse(day_budget.guard_enabled({"day_guard": False}, now))
+        self.assertTrue(day_budget.guard_enabled({"day_guard": "false"}, now))
+        self.assertFalse(day_budget.guard_enabled({"day_guard_off_date": "2026-11-12"}, now))
+        self.assertTrue(day_budget.guard_enabled({"day_guard_off_date": "2026-11-11"}, now))
+        self.assertTrue(day_budget.guard_enabled({"day_guard_off_date": 20261112}, now))
+        self.sb.close()
+        self.sb = Sandbox(order=["claude-main"], extra={"backends": {
+            "claude-main": {"config_dir": str(self.home), "day_guard": False}}})
+        code, err, run = self._run(9.0)
+        self.assertEqual(code, 0, err)
+        run.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

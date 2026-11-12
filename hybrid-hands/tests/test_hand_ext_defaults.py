@@ -42,6 +42,8 @@ class DefaultsTest(HandExtTestCase):
                 self.assertEqual(get_backend(name).name, name)
             self.assertEqual(cfg.options("claude-v3")["max_day_pct"], 2)
             self.assertEqual(cfg.options("claude-v1")["max_day_pct"], 8)
+            self.assertIs(cfg.options("claude-v1")["day_guard"], True)
+            self.assertIs(cfg.claude_accounts["v1"]["day_guard"], True)
             backend = get_backend("claude-v1")
             self.assertEqual(backend._base_env(cfg.options("claude-v1"))["CLAUDE_CONFIG_DIR"],
                              str(root / "first"))

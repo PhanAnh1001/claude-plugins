@@ -206,7 +206,8 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
                     **overrides.get(canonical, {})}
         if not isinstance(resolved.get("config_dir"), str) or not resolved["config_dir"]:
             raise ValueError(f"claude_accounts.{account}.config_dir phải là đường dẫn")
-        accounts[account] = {key: resolved[key] for key in ("config_dir", "max_day_pct") + LABEL_KEYS
+        accounts[account] = {key: resolved[key] for key in ("config_dir", "max_day_pct", "day_guard",
+                                                           "day_guard_off_date") + LABEL_KEYS
                              if key in resolved}
         backends[canonical] = {key: _expand(value) for key, value in resolved.items()
                                if key not in LABEL_KEYS}

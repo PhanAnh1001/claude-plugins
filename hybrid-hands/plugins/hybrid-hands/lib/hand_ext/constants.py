@@ -13,7 +13,8 @@ DEFAULT_COMPACT_AT = 272_000
 DEFAULT_CONTEXT_WINDOW = 1_048_576
 
 # Legacy names remain aliases for the numbered Claude account registry.
-# v1 stops once this machine has used max_day_pct of the weekly limit today.
+# v1 stops once this machine has used max_day_pct of the weekly limit today; `day_guard: false`
+# turns that off, `day_guard_off_date: "YYYY-MM-DD"` turns it off for that local day only.
 CLAUDE_MAIN_BACKEND = "claude-main"
 CLAUDE_MAIN_CONFIG_DIR = "~/.claude"
 CLAUDE_MAIN_MODEL = "claude-opus-5-5"
@@ -111,7 +112,8 @@ DEFAULTS = {
     "max_parallel": MAX_PARALLEL,
     "order": ["dsh", "codex", "claude-v1", "claude-v2"],
     "claude_accounts": {
-        "v1": {"config_dir": "~/.claude", "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT},
+        "v1": {"config_dir": "~/.claude", "max_day_pct": CLAUDE_MAIN_MAX_DAY_PCT,
+               "day_guard": True},
         "v2": {"config_dir": "~/.claude-hand"},
     },
     # Label-only registry (optional plan/name per slot); codex still runs from backends.codex.

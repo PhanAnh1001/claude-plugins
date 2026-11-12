@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.56.0 — 2026-11-12
+
+- Công tắc guard Claude theo ngày: `claude_accounts.<vN>.day_guard` (mặc định `true` ở v1) và `day_guard_off_date` (`"YYYY-MM-DD"` giờ máy). `day_guard: false` tắt hẳn ngưỡng `max_day_pct`; `day_guard_off_date` bằng hôm nay chỉ tắt trong ngày đó, sang ngày sau guard tự bật lại. Giá trị sai kiểu giữ guard bật (fail-closed). Áp cho `hand-ext run`/`pick` (cả alias `claude-main`) và `side-session` (`budget_check_cmd`). Đặt được ở global `~/.hybrid-hands/config.json` hoặc repo.
+
 ## 0.55.0 — 2026-11-11
 
 - Hand worktree tự xoá khi xong: settle OK, patch đã lưu ngoài checkout, áp về gốc OK hoặc patch rỗng, HEAD/baseline/snapshot khớp patch → `git worktree remove`; chỉ còn cache tạo lại được (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `node_modules`, `.DS_Store`, `*.pyc/*.pyo`) vẫn xoá. Giữ lại khi lỗi, conflict, `--keep-worktree` hoặc chưa bảo toàn, report ghi đúng lý do ("giữ lại (<lý do>)"/"đã xoá"); áp cho cả đường shell và managed Paseo (dọn sau khi mọi bước settle hoàn tất, metadata `cleanup`).
