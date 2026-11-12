@@ -1,11 +1,16 @@
-"""GPT (Codex) cells for the statusline limit table, from the ~/.codex account's rollouts.
+"""GPT (Codex) cells for the statusline limit table, from the rollouts of ~/.codex and ~/.codex-hand.
+
+Both dirs belong to one ChatGPT account (the Codex hand of hybrid-hands uses ~/.codex-hand), so
+they share one quota: their rollouts are merged before scanning; missing dirs are skipped.
 
 5h / 7d %: the newest `token_count.rate_limits` sample (by timestamp) in `sessions/` and
 `archived_sessions/`. A window is labelled by `window_minutes` (300 = 5h, 10080 = 7d); a legacy
 sample without durations keeps primary = 5h, secondary = 7d. Expired resets show "?".
 Today's USD~: per-thread token deltas of today's (local) `token_count` events x the canonical
 price file; an unpriced model or unreadable price file gives "?". Read-only, offline estimate.
-Only rollouts modified within SCAN_DAYS are read. STATUSLINE_CODEX_DIR overrides ~/.codex.
+A thread seen in both dirs counts once (keyed by session id and cumulative total).
+Only rollouts modified within SCAN_DAYS are read. STATUSLINE_CODEX_DIR overrides the dir list
+with one or more paths separated by os.pathsep.
 """
 from __future__ import annotations
 
@@ -15,12 +20,13 @@ import math
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator, Optional, Sequence
 
 from shared_prices import load_prices
 
 CODEX_DIR_ENV = "STATUSLINE_CODEX_DIR"
-CODEX_DIR_NAME = ".codex"
+# Same ChatGPT account: the main Codex home and the hybrid-hands Codex hand home.
+CODEX_DIR_NAMES = (".codex", ".codex-hand")
 ROLLOUT_DIRS = ("sessions", "archived_sessions")
 ROLLOUT_GLOB = "rollout-*.jsonl"
 SCAN_DAYS = 7
@@ -36,8 +42,14 @@ CELL_SEPARATOR = "\x1f"
 EVENT_MARKER = '"token_count"'
 
 
-def codex_dir() -> Path:
-    return Path(os.environ.get(CODEX_DIR_ENV) or Path.home() / CODEX_DIR_NAME)
+def codex_dirs() -> list[Path]:
+    """Existing Codex homes: STATUSLINE_CODEX_DIR (os.pathsep list) or the default names."""
+    override = os.environ.get(CODEX_DIR_ENV)
+    if override:
+        candidates = [Path(part) for part in override.split(os.pathsep) if part]
+    else:
+        candidates = [Path.home() / name for name in CODEX_DIR_NAMES]
+    return [path for path in candidates if path.is_dir()]
 
 
 def finite_number(value: Any) -> Optional[float]:
@@ -69,11 +81,11 @@ def parse_moment(value: Any) -> Optional[dt.datetime]:
     return moment if moment.tzinfo else moment.astimezone()
 
 
-def recent_rollouts(root: Path, since: float) -> list[tuple[float, Path]]:
-    """(mtime, path) of rollouts modified at or after `since`, newest first."""
+def recent_rollouts(roots: Sequence[Path], since: float) -> list[tuple[float, Path]]:
+    """(mtime, path) of rollouts in all roots modified at or after `since`, newest first."""
     found = []
-    for name in ROLLOUT_DIRS:
-        for path in (root / name).rglob(ROLLOUT_GLOB):
+    for name in (root / sub for root in roots for sub in ROLLOUT_DIRS):
+        for path in name.rglob(ROLLOUT_GLOB):
             try:
                 mtime = path.stat().st_mtime
             except OSError:
@@ -140,10 +152,10 @@ def token_delta(total: dict, previous: Optional[dict]) -> dict:
     return {k: max(current[k] - previous[k], 0) for k in keys}
 
 
-def collect(root: Path, now: dt.datetime, prices: dict) -> Optional[tuple]:
+def collect(roots: Sequence[Path], now: dt.datetime, prices: dict) -> Optional[tuple]:
     """(5h, 7d windows dict, today's USD text) or None without a sample in the last 24h."""
     today = now.astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
-    files = recent_rollouts(root, now.timestamp() - SCAN_DAYS * 86400)
+    files = recent_rollouts(roots, now.timestamp() - SCAN_DAYS * 86400)
     newest: Optional[tuple] = None
     threads: dict = {}
     for mtime, path in files:
@@ -188,7 +200,7 @@ def today_usd(threads: dict, today: dt.datetime, prices: dict) -> str:
 
 def main() -> int:
     now = dt.datetime.now(dt.timezone.utc)
-    data = collect(codex_dir(), now, load_prices())
+    data = collect(codex_dirs(), now, load_prices())
     if data is None:
         return 0
     windows, usd = data

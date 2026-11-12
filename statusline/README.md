@@ -6,9 +6,11 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.26.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
+  `statusline` (bản 0.26.1). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
+- **Bản 0.26.1:** dòng `GPT` đọc rollout của cả `~/.codex` và `~/.codex-hand` (Codex hand của
+  hybrid-hands, cùng tài khoản ChatGPT nên chung hạn mức).
 - **Bản 0.26.0:** dọn code chết của khối dòng nhóm phiên: tóm tắt `.statusline-week-split.json`
   không còn `groups`/`go_week`, sổ USD không còn ghi tiêu đề phiên. Output không đổi.
 - **Bản 0.25.0:** bỏ khối dòng nhóm phiên (`▶ <tên>  Claude …% | Go …%`) khỏi status line; xoá
@@ -16,7 +18,7 @@
 - **Bản 0.23.0:** dòng Claude đổi nhãn `Claude v1 ultra`; thêm dòng `Claude v2 pro` ngay dưới, cùng
   cột. Tài khoản của phiên đang vẽ lấy số live, tài khoản còn lại đọc cache statusline riêng của nó
   (`<home>/.statusline-cache.json`, có `~`, thiếu/qua reset hiện `?`); dòng v2 chỉ có số sau khi
-  statusline đã chạy trong một phiên `~/.claude-hand`. Dòng GPT đọc rollout của `~/.codex`; dòng
+  statusline đã chạy trong một phiên `~/.claude-hand`. Dòng GPT đọc rollout của `~/.codex` và `~/.codex-hand`; dòng
   `Go` vẫn căn cột với bảng nhưng in ở dòng cuối cùng của statusline.
 - **Bản 0.19.1:** thêm dòng `GPT` dưới dòng `Go` (hoặc cuối bảng khi không có `Go`): % 5h/7d mới
   nhất và USD ước tính hôm nay của tài khoản `.codex-hand`, đọc từ sổ `codex_usage.jsonl` của
@@ -56,7 +58,7 @@ Theo lựa chọn người dùng, rate được chia sẻ để ước tính ph�
 | 3a | dòng `Claude v2 pro` ngay dưới, cùng cột: 5h/7d của `~/.claude-hand`, live khi phiên chạy trên tài khoản đó, nếu không thì từ cache statusline riêng của nó (`~`, thiếu/qua reset thì `?`); dòng v1 theo quy tắc ngược lại | `Claude v2 pro    5h:2% \| 7d:20% (reset 14/11 07:00)` |
 | 3b | hai dòng `· máy này` (từng thứ trong tuần) và `· máy khác` của cùng bảng, ô 5h để trống; ước tính, chưa có tóm tắt cho cửa sổ hiện tại thì không có hai dòng này | `· máy này   \| 7d:1.5% (T6 1.5%)`<br>`· máy khác  \| 7d:1.5%` |
 | cuối | dòng `Go` của cùng bảng (căn cột theo bảng, in ở dòng cuối cùng): mức OpenCode Go thật (5h/tuần/tháng) kèm giờ reset, số lẻ có `~` khi có ước tính của hand-ext; hoặc ô `DS` (không có giờ reset) khi chưa có cache; không có cả hai thì không có dòng này | `Go        5h:~2.7% (reset 05/11 03:55) \| wk:~12.4% (reset 09/11 07:00) \| mo:~6.2% (reset 04/12 15:17)` |
-| 5 | dòng `GPT` của cùng bảng: % 5h và 7d của mẫu quota mới nhất cùng USD ước tính hôm nay của tài khoản `~/.codex` (rollout cục bộ); không có mẫu trong 24 giờ thì không có dòng này | `GPT        5h:? \| 7d:31% (reset 16/11 13:19) \| hôm nay ~$1.85` |
+| 5 | dòng `GPT` của cùng bảng: % 5h và 7d của mẫu quota mới nhất cùng USD ước tính hôm nay của tài khoản ChatGPT sau `~/.codex` và `~/.codex-hand` (rollout cục bộ); không có mẫu trong 24 giờ thì không có dòng này | `GPT        5h:? \| 7d:31% (reset 16/11 13:19) \| hôm nay ~$1.85` |
 | sau đó | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
 - **Bảng hạn mức (dòng 3–5):** cột 1 là nhãn dòng (`Claude`, `· máy này`, `· máy khác`, `Go`,
@@ -125,8 +127,10 @@ Theo lựa chọn người dùng, rate được chia sẻ để ước tính ph�
   cache Go ở trạng thái `rejected`, segment DS thêm chữ mờ `(khoá Go bị từ chối)`. File thiếu hoặc
   JSON hỏng thì không in gì và statusline vẫn thoát 0; phần này chỉ đọc file bằng một lần `jq`,
   không gọi `hand-ext`, không gọi mạng. Có cache Go thật thì không in `DS` để tránh trùng.
-- **GPT (`GPT`)** đọc rollout của tài khoản `~/.codex` (`sessions/`, `archived_sessions/`, chỉ
-  file sửa trong 7 ngày; `STATUSLINE_CODEX_DIR` đổi thư mục). % 5h/7d là mẫu `rate_limits` mới nhất
+- **GPT (`GPT`)** đọc rollout của `~/.codex` và `~/.codex-hand` (Codex hand của hybrid-hands; cùng
+  một tài khoản ChatGPT nên chung hạn mức; thư mục không tồn tại bị bỏ qua) trong `sessions/`,
+  `archived_sessions/`, chỉ file sửa trong 7 ngày. `STATUSLINE_CODEX_DIR` ghi đè danh sách, nhận một
+  hoặc nhiều đường dẫn phân tách bằng `:`. Cùng thread id ở hai thư mục chỉ tính một lần. % 5h/7d là mẫu `rate_limits` mới nhất
   theo timestamp, nhãn theo `window_minutes` (300 = 5h, 10080 = 7d; thiếu thì primary = 5h,
   secondary = 7d); ô thiếu hoặc đã qua reset in `?`, ô có số kèm giờ reset. USD hôm nay (0h theo
   múi giờ máy) là token delta của từng thread × giá trong `model-prices.json`; model chưa có giá
@@ -290,7 +294,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   ├── scripts/statusline.sh             # vẽ 3 dòng + các dòng skill
 │   ├── scripts/table.sh                  # đệm ô theo độ rộng hiển thị (source từ statusline.sh)
 │   ├── scripts/go-segments.sh            # ô Go của bảng hạn mức (source từ statusline.sh)
-│   ├── scripts/gpt_usage.py              # ô GPT: % quota và USD hôm nay từ rollout ~/.codex
+│   ├── scripts/gpt_usage.py              # ô GPT: % quota và USD hôm nay từ rollout ~/.codex + ~/.codex-hand
 │   ├── scripts/week-split.sh, week_split.py, usage_ledger.py   # dòng tách % 7 ngày theo máy (quét chạy nền)
 │   ├── scripts/go_sessions.py            # lượt Go trong tuần, cộng dồn phiên phụ (cho trường sessions)
 │   ├── scripts/go-usage-fetch.sh         # gọi API usage OpenCode Go, ghi cache (chạy nền)

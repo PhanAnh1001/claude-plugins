@@ -73,7 +73,7 @@ Same order with `--uninstall`: `--uninstall --dry-run`, then `--uninstall`. It r
   (no fetch yet, rejected key, or an older outage) the optional `DS ...` tail reads
   `~/.hybrid-hands/go_usage_summary.json` (or `$HYBRID_HANDS_STATE_DIR`); the statusline never
   calls `hand-ext`. A missing or broken file is silent, so this needs no setup step.
-- The `GPT` row is read-only too: `scripts/gpt_usage.py` reads the Codex ledger above and never
+- The `GPT` row is read-only too: `scripts/gpt_usage.py` reads Codex rollouts in `~/.codex` and `~/.codex-hand` and never
   writes it, calls the network or needs a setup step. Missing, broken or older-than-24h data hides
   the row; an expired reset hides only that percentage.
 - Requirements: `jq` (rendering and live cache), `curl` (live Go fetch), `python3` >= 3.9 (skill

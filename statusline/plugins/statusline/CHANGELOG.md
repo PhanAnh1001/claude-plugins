@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.1 — 2026-11-12
+
+- Dòng `GPT` đọc rollout của cả `~/.codex` và `~/.codex-hand` (Codex hand của hybrid-hands; cùng một tài khoản ChatGPT, chung hạn mức): % 5h/7d là mẫu `rate_limits` mới nhất trong cả hai, USD hôm nay cộng cả hai, cùng thread id ở hai nơi chỉ tính một lần; thư mục không tồn tại bị bỏ qua. `STATUSLINE_CODEX_DIR` vẫn ghi đè, nhận nhiều đường dẫn phân tách bằng `:`. Trước đây chỉ đọc `~/.codex` nên dòng GPT ẩn khi chỉ hand dùng Codex.
+
 ## 0.26.0 — 2026-11-12
 
 - Dọn code chết sau 0.25.0: `week_split.py` không còn ghi `groups` và `go_week` vào `.statusline-week-split.json`; xoá `build_groups`, `go_own`, `tree_members`, `go_week_summary` trong `go_sessions.py`; `usage_ledger.py` không còn ghi tiêu đề phiên (`custom_title`, `agent_name`, `alias`) vào sổ, bỏ `session_name`/`title_update`. Giữ `load_go_week` và trường `sessions` vì test so khớp của hybrid-hands (`test_hh_ps_limits.py`) còn dùng. Tóm tắt và sổ cũ còn trường thừa vẫn đọc được. Output status line không đổi.
