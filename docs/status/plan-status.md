@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-11 · commit `d3a8fb9`
+Cập nhật 2026-11-12 · commit `abcf89c`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-11 · commit `d3a8fb9`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 271 commit.
+- **Hoạt động 14 ngày:** 272 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-271 commit.
+272 commit.
 
+- 2026-11-11 abcf89c docs(status): tự cập nhật trang tình hình
 - 2026-11-11 d3a8fb9 Merge fix/worktree-lifecycle: vòng đời worktree tự dọn (hybrid-hands 0.55.0)
 - 2026-11-11 940fab6 fix(hybrid-hands): vòng đời worktree — tự xoá hand/side checkout khi xong, gc legacy-recoverable (0.55.0)
 - 2026-11-11 147cfa8 feat(statusline): bỏ gọi session-lines, bump 0.25.0 kèm changelog và tài liệu
 - 2026-11-11 3818038 feat(statusline): bỏ khối dòng nhóm phiên khỏi status line (0.25.0)
-- 2026-11-11 314dad5 Merge feat/guard-v1-8pct: guard Claude v1 8%/ngày (hybrid-hands 0.54.0)
