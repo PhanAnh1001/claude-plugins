@@ -67,49 +67,7 @@ class EstimateWeekTest(unittest.TestCase):
         week = summary["claude_estimates"]["week"]
         self.assertEqual((week["pct"], week["label"]), (4.1, ws.RATE_PRIOR))
         self.assertNotIn("five", summary["claude_estimates"])
-        self.assertNotIn("go_week", summary)
-
-
-class LedgerTitleTest(unittest.TestCase):
-    def setUp(self) -> None:
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.home = Path(tmp.name)
-        (self.home / "projects" / "p" / "s1" / "subagents").mkdir(parents=True)
-        self.main = self.home / "projects" / "p" / "s1.jsonl"
-
-    def usage(self, msg_id: str) -> str:
-        return json.dumps({"type": "assistant", "requestId": f"r{msg_id}",
-                           "timestamp": "2026-11-06T08:00:00Z",
-                           "message": {"id": msg_id, "model": "claude-opus-5-5",
-                                       "usage": {"output_tokens": 1}}}, separators=(",", ":"))
-
-    def title(self, kind: str, key: str, value: str) -> str:
-        return json.dumps({"type": kind, key: value, "sessionId": "s1"}, separators=(",", ":"))
-
-    def ledger(self) -> dict:
-        return ul.update_ledger(self.home, 1_794_000_000.0)
-
-    def test_titles_recorded_later_wins(self) -> None:
-        self.main.write_text("\n".join([
-            self.usage("a"), self.title("custom-title", "customTitle", "old"),
-            self.title("agent-name", "agentName", "agent"),
-            self.title("custom-title", "customTitle", "luxian"),
-            self.title("ai-title", "aiTitle", "Sửa statusline"), ""]))
-        session = self.ledger()["sessions"]["s1"]
-        self.assertEqual((session["custom_title"], session["agent_name"]), ("luxian", "agent"))
-        self.assertEqual(ul.session_name(session), ("luxian", "Sửa statusline"))
-
-    def test_agent_name_when_no_custom_title(self) -> None:
-        self.main.write_text("\n".join([self.usage("a"),
-                                        self.title("agent-name", "agentName", "hand-1"), ""]))
-        self.assertEqual(ul.session_name(self.ledger()["sessions"]["s1"]), ("hand-1", ""))
-
-    def test_subagent_titles_ignored(self) -> None:
-        self.main.write_text(self.usage("a") + "\n")
-        sub = self.home / "projects" / "p" / "s1" / "subagents" / "agent-1.jsonl"
-        sub.write_text(self.title("custom-title", "customTitle", "sub") + "\n")
-        self.assertNotIn("custom_title", self.ledger()["sessions"]["s1"])
+        self.assertFalse({"go_week", "groups"} & set(summary))
 
 
 if __name__ == "__main__":

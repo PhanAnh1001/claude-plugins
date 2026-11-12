@@ -5,8 +5,8 @@ The statusLine payload only carries the account-wide 7-day percentage. week-spli
 sample (epoch, pct, reset) per render; this script (run detached) prices this machine's API calls
 from the local transcripts (usage_ledger.py), calibrates USD per 1 % from daily time windows when
 only this machine runs, and converts this machine's USD in the current window to a percentage.
-It also groups sessions under their main session (subagents share its id; claude side sessions
-hang below it) with Claude and OpenCode Go usage (go_sessions.py), and estimates the 7-day % to
+It also totals USD per session with its claude side sessions rolled up (Go runs extend the repos
+searched for side sessions, go_sessions.py), and estimates the 7-day % to
 0.1 (the payload's integer plus this machine's USD since it last changed, capped at p + 0.9).
 
 Ported from live-tiktok-games sessions/ops/runs/calibrate.sh (solo windows, MIN_DELTA_PCT,
@@ -28,10 +28,8 @@ from itertools import accumulate
 from pathlib import Path
 from typing import Optional
 
-from go_sessions import (GoWeek, build_groups, go_week_summary, group_total, load_go_week,
-                         state_dir)
-from usage_ledger import (DAY_SECONDS, RETENTION_SECONDS, session_name, update_ledger,
-                          write_atomic)
+from go_sessions import GoWeek, group_total, load_go_week, state_dir
+from usage_ledger import DAY_SECONDS, RETENTION_SECONDS, update_ledger, write_atomic
 
 SUMMARY_VERSION = 2
 WEEK_SECONDS = 7 * DAY_SECONDS
@@ -415,8 +413,7 @@ def build_summary(samples: list[Sample], ledger: dict, now: float,
     repos = ledger_repos(ledger, set(own)) | {find_repo(run.cwd) for run in
                                               (go_week.runs if go_week else [])}
     children = session_children(repos)
-    names = {sid: session_name(entry) for sid, entry in ledger["sessions"].items()}
-    summary = {
+    return {
         "version": SUMMARY_VERSION, "computed_at": int(now), "reset": int(latest.reset),
         "window_start": int(start), "total": latest.pct, "local": round(local, 2),
         "other": round(max(0.0, latest.pct - local), 2), "local_usd": round(local_usd, 4),
@@ -424,11 +421,7 @@ def build_summary(samples: list[Sample], ledger: dict, now: float,
         "days": days, "sessions": session_totals(ledger, start, rate.usd_per_pct, children),
         "unpriced_models": sorted(ledger.get("unpriced", {})),
         "claude_estimates": {"week": estimate_week(samples, index, now, rate)},
-        "groups": build_groups(own, children, rate.usd_per_pct, go_week, names),
     }
-    if go_week is not None:
-        summary["go_week"] = go_week_summary(go_week)
-    return summary
 
 
 # --- Lock and entry point ---

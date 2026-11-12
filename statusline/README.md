@@ -6,9 +6,11 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.25.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
+  `statusline` (bản 0.26.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
+- **Bản 0.26.0:** dọn code chết của khối dòng nhóm phiên: tóm tắt `.statusline-week-split.json`
+  không còn `groups`/`go_week`, sổ USD không còn ghi tiêu đề phiên. Output không đổi.
 - **Bản 0.25.0:** bỏ khối dòng nhóm phiên (`▶ <tên>  Claude …% | Go …%`) khỏi status line; xoá
   `session-lines.sh`. Các dòng khác giữ nguyên.
 - **Bản 0.23.0:** dòng Claude đổi nhãn `Claude v1 ultra`; thêm dòng `Claude v2 pro` ngay dưới, cùng
@@ -290,7 +292,7 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   ├── scripts/go-segments.sh            # ô Go của bảng hạn mức (source từ statusline.sh)
 │   ├── scripts/gpt_usage.py              # ô GPT: % quota và USD hôm nay từ rollout ~/.codex
 │   ├── scripts/week-split.sh, week_split.py, usage_ledger.py   # dòng tách % 7 ngày theo máy (quét chạy nền)
-│   ├── scripts/go_sessions.py            # tuần Go và nhóm phiên trong tóm tắt (không còn vẽ)
+│   ├── scripts/go_sessions.py            # lượt Go trong tuần, cộng dồn phiên phụ (cho trường sessions)
 │   ├── scripts/go-usage-fetch.sh         # gọi API usage OpenCode Go, ghi cache (chạy nền)
 │   ├── scripts/last-skill.sh, last_skill.py   # dòng skill gần nhất (port từ dev-workflow 0.3.0)
 │   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn agent + mô tả (cắt 30 ký tự)
@@ -310,4 +312,4 @@ Xem cây đó bằng `hh-ps` hoặc pane hybrid-hands.
 ### Khối dòng phiên — bỏ từ 0.25.0
 
 Statusline không còn vẽ mỗi nhóm phiên chính một dòng (% Claude và % Go của nhóm); `session-lines.sh`
-đã xoá. Trường `groups` trong tóm tắt `.statusline-week-split.json` vẫn được ghi nhưng không còn ai đọc.
+đã xoá. Từ 0.26.0 tóm tắt `.statusline-week-split.json` cũng không còn ghi `groups`, `go_week`.

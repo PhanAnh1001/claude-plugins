@@ -32,12 +32,6 @@ PER_TOKENS = 1_000_000
 SYNTHETIC_MODEL = "<synthetic>"
 USAGE_MARKER = b'"usage"'
 SUBAGENTS_DIR = "subagents"
-# Title records of a main transcript: (type, value key, ledger session key). Later records win.
-TITLE_RECORDS = (("custom-title", "customTitle", "custom_title"),
-                 ("agent-name", "agentName", "agent_name"),
-                 ("ai-title", "aiTitle", "alias"))
-TITLE_MARKERS = tuple((f'"type":"{kind}"'.encode(), kind, key, field)
-                      for kind, key, field in TITLE_RECORDS)
 
 
 @dataclass(frozen=True)
@@ -139,28 +133,6 @@ def usage_record(line: bytes, sid: str) -> Optional[UsageRecord]:
                        cwd if isinstance(cwd, str) else "", model, price is not None)
 
 
-def title_update(line: bytes) -> Optional[tuple[str, str]]:
-    """(ledger session field, value) for a custom-title / agent-name / ai-title record."""
-    for marker, kind, key, field in TITLE_MARKERS:
-        if marker not in line:
-            continue
-        try:
-            record = json.loads(line)
-        except ValueError:
-            return None
-        value = record.get(key) if isinstance(record, dict) else None
-        if isinstance(value, str) and record.get("type") == kind:
-            return field, value
-        return None
-    return None
-
-
-def session_name(entry: dict) -> tuple[str, str]:
-    """(name, alias) of a ledger session: custom title first, then agent name."""
-    name = entry.get("custom_title") or entry.get("agent_name") or ""
-    return str(name), str(entry.get("alias") or "")
-
-
 # --- Ledger ---
 def empty_ledger() -> dict:
     return {"version": LEDGER_VERSION, "pricing": refresh_prices(),
@@ -210,15 +182,10 @@ def scan_file(path: Path, entry: Optional[dict], ledger: dict) -> dict:
     if end < 0:
         return {"ino": stat.st_ino, "offset": offset}
     sid = session_id_for(path)
-    is_main = path.parent.name != SUBAGENTS_DIR
     for line in chunk[:end].split(b"\n"):
         record = usage_record(line, sid)
         if record is not None:
             add_record(ledger, record)
-        elif is_main:
-            update = title_update(line)
-            if update is not None:
-                ledger["sessions"].setdefault(sid, {"cwd": "", "last_ts": 0})[update[0]] = update[1]
     return {"ino": stat.st_ino, "offset": offset + end + 1}
 
 

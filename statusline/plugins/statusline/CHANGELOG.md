@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.0 — 2026-11-12
+
+- Dọn code chết sau 0.25.0: `week_split.py` không còn ghi `groups` và `go_week` vào `.statusline-week-split.json`; xoá `build_groups`, `go_own`, `tree_members`, `go_week_summary` trong `go_sessions.py`; `usage_ledger.py` không còn ghi tiêu đề phiên (`custom_title`, `agent_name`, `alias`) vào sổ, bỏ `session_name`/`title_update`. Giữ `load_go_week` và trường `sessions` vì test so khớp của hybrid-hands (`test_hh_ps_limits.py`) còn dùng. Tóm tắt và sổ cũ còn trường thừa vẫn đọc được. Output status line không đổi.
+
 ## 0.25.0 — 2026-11-11
 
 - Bỏ khối dòng nhóm phiên (`▶ <tên>  <alias>  Claude …% | Go …%`, mỗi phiên chính một dòng) khỏi status line. Xoá `session-lines.sh` và test của nó; statusline không còn đọc `session_id`/`session_name`. Các dòng khác giữ nguyên.

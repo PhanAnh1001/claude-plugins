@@ -1,4 +1,4 @@
-"""Tests for scripts/go_sessions.py: Go week runs and the main-session groups in the summary."""
+"""Tests for scripts/go_sessions.py: Go week runs; the summary no longer carries groups."""
 from __future__ import annotations
 
 import json
@@ -64,52 +64,38 @@ class GoSessionsTest(unittest.TestCase):
         self.log.append(json.dumps({"run_id": run_id, "ended": iso(ended), "cost_usd": usd}))
         (self.state / gs.GO_USAGE_LOG_NAME).write_text("\n".join(self.log) + "\n")
 
-    def summary(self) -> dict:
+    def usd_by_parent(self) -> dict:
         week = gs.load_go_week(self.home, self.state)
-        ledger = {"messages": {"m1": [NOW - 60, 24.0, "A"], "m2": [NOW - 60, 12.0, "X"]},
-                  "sessions": {"A": {"cwd": str(self.repo), "last_ts": NOW, "custom_title": "main"},
-                               "X": {"cwd": "", "last_ts": NOW}}, "unpriced": {}}
-        return ws.build_summary([ws.Sample(NOW - 10, 4, CLAUDE_RESET)], ledger, NOW, [], week)
+        self.assertEqual((week.window_start, week.limit_usd), (WINDOW_START, LIMIT))
+        totals: dict = {}
+        for run in week.runs:
+            totals[run.parent] = round(totals.get(run.parent, 0.0) + run.usd, 4)
+        return totals
 
-    def groups(self) -> dict[str, dict]:
-        return {group["root"]: group for group in self.summary()["groups"]}
-
-    def test_finished_and_running_runs_roll_up_nested_side_sessions(self) -> None:
+    def test_finished_and_running_runs_in_the_window(self) -> None:
         self.finished("r1", "A", 1.0, NOW - 3600)
-        self.finished("r2", "C", 2.0, NOW - 3600)
+        self.finished("old", "A", 5.0, WINDOW_START - 60)
+        self.finished("r2", None, 2.0, NOW - 3600)
         # 1M uncached input + 1M output at the default price = 0.30 + 1.20 USD.
         self.run_record("r3", "B", status=gs.RUN_STATUS_RUNNING,
                         tokens={"input": 1_000_000, "cached_input": 0, "output": 1_000_000})
-        groups = self.groups()
-        self.assertEqual(set(groups), {"A", "X"})
-        self.assertEqual(groups["A"]["members"], ["A", "B", "C"])
-        self.assertEqual((groups["A"]["go_usd"], groups["A"]["go_pct"]), (4.5, 9.0))
-        self.assertEqual((groups["A"]["claude_pct"], groups["A"]["name"]), (2.0, "main"))
-        self.assertEqual(groups["X"]["go_pct"], 0.0)
-        self.assertEqual([g["root"] for g in self.summary()["groups"]], ["A", "X"])
-        self.assertEqual(self.summary()["go_week"],
-                         {"window_start": int(WINDOW_START), "limit_usd": LIMIT})
+        self.assertEqual(self.usd_by_parent(), {"A": 1.0, None: 2.0, "B": 1.5})
 
     def test_logged_run_still_marked_running_is_not_counted_twice(self) -> None:
         self.finished("r1", "A", 1.0, NOW - 3600)
         self.run_record("r1", "A", status=gs.RUN_STATUS_RUNNING, tokens={"output": 10_000_000})
-        self.assertEqual(self.groups()["A"]["go_usd"], 1.0)
+        self.assertEqual(self.usd_by_parent(), {"A": 1.0})
 
-    def test_run_without_parent_belongs_to_no_session(self) -> None:
-        self.finished("r1", None, 5.0, NOW - 3600)
-        self.assertEqual(self.groups()["A"]["go_usd"], 0.0)
-
-    def test_run_before_the_window_is_dropped(self) -> None:
-        self.finished("old", "A", 5.0, WINDOW_START - 60)
-        self.finished("new", "A", 1.0, WINDOW_START + 60)
-        self.assertEqual(self.groups()["A"]["go_usd"], 1.0)
-
-    def test_missing_limit_or_window_drops_go(self) -> None:
-        self.finished("r1", "A", 1.0, NOW - 3600)
+    def test_summary_has_no_groups_and_missing_limit_or_window_drops_go(self) -> None:
+        week = gs.load_go_week(self.home, self.state)
+        ledger = {"messages": {"m1": [NOW - 60, 24.0, "A"]},
+                  "sessions": {"A": {"cwd": str(self.repo), "last_ts": NOW, "custom_title": "old"}},
+                  "unpriced": {}}
+        summary = ws.build_summary([ws.Sample(NOW - 10, 4, CLAUDE_RESET)], ledger, NOW, [], week)
+        self.assertFalse({"groups", "go_week"} & set(summary))
+        self.assertEqual(summary["sessions"]["A"]["pct"], 2.0)
         self.write_limit(None)
-        summary = self.summary()
-        self.assertNotIn("go_week", summary)
-        self.assertIsNone({g["root"]: g for g in summary["groups"]}["A"]["go_pct"])
+        self.assertIsNone(gs.load_go_week(self.home, self.state))
         self.write_limit(LIMIT)
         (self.home / gs.GO_LIVE_CACHE_NAME).unlink()
         self.assertIsNone(gs.load_go_week(self.home, self.state))
