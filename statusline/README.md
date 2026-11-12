@@ -6,9 +6,12 @@
   main và các subagent, của Claude Code thành plugin để
   máy nào cũng cài và cập nhật được bằng `claude plugin`.
 - **Marketplace / plugin:** thư mục `statusline/` là marketplace `statusline-local`, chứa plugin
-  `statusline` (bản 0.26.1). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
+  `statusline` (bản 0.27.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
+- **Bản 0.27.0:** cuối dòng `Claude v1 ultra` có ô `Fable`: hạn mức tuần riêng của Fable 5.2 (payload
+  status line không có), đọc từ `cachedUsageUtilization` mà CLI ghi vào `~/.claude.json` mỗi khi mở
+  `/usage`; luôn có `~`, kèm giờ lấy số (`lấy dd/mm HH:MM`), qua giờ reset thì `?`.
 - **Bản 0.26.1:** dòng `GPT` đọc rollout của cả `~/.codex` và `~/.codex-hand` (Codex hand của
   hybrid-hands, cùng tài khoản ChatGPT nên chung hạn mức).
 - **Bản 0.26.0:** dọn code chết của khối dòng nhóm phiên: tóm tắt `.statusline-week-split.json`
@@ -54,7 +57,7 @@ Theo lựa chọn người dùng, rate được chia sẻ để ước tính ph�
 |---|---|---|
 | 1 | `user@host`, tên thư mục hiện tại (`~` nếu là thư mục home), nhánh git màu xanh | `anh@mac dev-workflow (main)` |
 | 2 | model (mức effort), tổng tokens của phiên, % context đang dùng | `Opus(high) \| tokens:6.5k \| ctx:55%` |
-| 3 | dòng `Claude v1 ultra` của bảng hạn mức: rate limit 5 giờ và 7 ngày kèm giờ reset, USD/1% trong ngoặc ô 7d; 7d có thể là số ước tính tới 0,1% | `Claude    5h:- \| 7d:~4.3% (reset 15/10 10:46 · $13.74/1%)` |
+| 3 | dòng `Claude v1 ultra` của bảng hạn mức: rate limit 5 giờ và 7 ngày kèm giờ reset, USD/1% trong ngoặc ô 7d; 7d có thể là số ước tính tới 0,1%; ô cuối `Fable` là hạn mức tuần của Fable từ `~/.claude.json` (CLI cập nhật khi mở `/usage`, luôn `~`, kèm giờ lấy số; qua reset thì `?`, không có hạn mức Fable thì không có ô) | `Claude    5h:- \| 7d:~4.3% (reset 15/10 10:46 · $13.74/1%)` |
 | 3a | dòng `Claude v2 pro` ngay dưới, cùng cột: 5h/7d của `~/.claude-hand`, live khi phiên chạy trên tài khoản đó, nếu không thì từ cache statusline riêng của nó (`~`, thiếu/qua reset thì `?`); dòng v1 theo quy tắc ngược lại | `Claude v2 pro    5h:2% \| 7d:20% (reset 14/11 07:00)` |
 | 3b | hai dòng `· máy này` (từng thứ trong tuần) và `· máy khác` của cùng bảng, ô 5h để trống; ước tính, chưa có tóm tắt cho cửa sổ hiện tại thì không có hai dòng này | `· máy này   \| 7d:1.5% (T6 1.5%)`<br>`· máy khác  \| 7d:1.5%` |
 | cuối | dòng `Go` của cùng bảng (căn cột theo bảng, in ở dòng cuối cùng): mức OpenCode Go thật (5h/tuần/tháng) kèm giờ reset, số lẻ có `~` khi có ước tính của hand-ext; hoặc ô `DS` (không có giờ reset) khi chưa có cache; không có cả hai thì không có dòng này | `Go        5h:~2.7% (reset 05/11 03:55) \| wk:~12.4% (reset 09/11 07:00) \| mo:~6.2% (reset 04/12 15:17)` |

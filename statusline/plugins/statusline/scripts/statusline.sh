@@ -14,6 +14,8 @@
 #   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
 #      the estimated DS cells from hand-ext; aligned with the table, printed as the LAST line
 #   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from ~/.codex rollouts
+#   3e. cell "Fable" at the end of the v1 row: the Fable weekly limit the CLI last fetched into
+#      ~/.claude.json (cachedUsageUtilization; "~", fetch time after "lấy", "?" past its reset)
 #   4+. "🔧 <skill> (main)" for the main agent, then '🔧 <skill> (<agent>: "<description start>")'
 #      per recent subagent, from "last-skill.sh --color" next to this script (skill in Claude Code's
 #      inline-code colour, note in parentheses dimmed like "(high)" on line 2); none when no skill.
@@ -23,8 +25,8 @@
 # CLAUDE_HOME (default: $HOME/.claude), which the installed shim exports.
 #
 # NOTE: the documented statusLine payload only exposes rate_limits.five_hour and
-# rate_limits.seven_day. If the CLI starts sending another weekly limit, add it as its own
-# segment instead of overloading seven_day.
+# rate_limits.seven_day. Other weekly limits get their own segment (the Fable cell reads
+# ~/.claude.json) instead of overloading seven_day.
 
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
 # Last known rate-limit percentages/reset times, so line 3 shows real numbers on CLI startup
@@ -56,6 +58,11 @@ CLAUDE_V1_HOME="$HOME/.claude"
 CLAUDE_V2_HOME="$HOME/.claude-hand"
 CACHE_NAME=".statusline-cache.json"
 UNKNOWN_CELL="?"
+# Fable weekly limit of account v1: not in the statusLine payload, so it is read from the usage the
+# CLI last fetched into ~/.claude.json (cachedUsageUtilization, refreshed when /usage opens).
+CLAUDE_V1_STATE="$HOME/.claude.json"
+FABLE_LABEL="Fable"
+FETCHED_TIME_FORMAT="+%d/%m %H:%M"
 # shellcheck source=go-segments.sh
 . "$SCRIPTS_DIR/go-segments.sh"
 
@@ -279,6 +286,28 @@ build_other_account_cells() {
   join_cells "$(cached_cell 5h "$five_pct" "$five_at")" "$(cached_cell 7d "$week_pct" "$week_at")"
 }
 
+fable_cell() {
+  # The v1 Fable weekly limit as "Fable:~N% (reset X · lấy Y)", Y = when the CLI fetched it; "?"
+  # once that reset has passed; nothing when the file or the Fable limit is missing.
+  local row pct at fetched_ms fetched
+  [ -f "$CLAUDE_V1_STATE" ] || return 0
+  row=$(jq -r --arg name "$FABLE_LABEL" '.cachedUsageUtilization as $u
+    | [$u.utilization.limits[]? | select(.kind == "weekly_scoped" and .scope.model.display_name == $name)][0]
+    | select(. != null)
+    | [((.percent | numbers | tostring) // ""),
+       (try (.resets_at | sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | fromdateiso8601 | tostring) catch ""),
+       (($u.fetchedAtMs | numbers | tostring) // "")] | join("\u001f")' "$CLAUDE_V1_STATE" 2>/dev/null)
+  [ -n "$row" ] || return 0
+  IFS=$TABLE_US read -r pct at fetched_ms <<< "$row"
+  if [ -z "$pct" ] || ! [[ "$at" =~ ^[0-9]+$ ]] || [ "$at" -le "$(date +%s)" ]; then
+    printf '%s' "${DIM}${FABLE_LABEL}:${UNKNOWN_CELL}${RESET}"
+    return 0
+  fi
+  fetched=""
+  [[ "$fetched_ms" =~ ^[0-9]+$ ]] && fetched=$(date -r "$((fetched_ms / 1000))" "$FETCHED_TIME_FORMAT" 2>/dev/null)
+  rate_limit_segment "$FABLE_LABEL" "" "" "$pct" "$at" "" "" "" "${fetched:+lấy $fetched}"
+}
+
 save_cache() {
   # Persist the newest values so the next render (even the first one after CLI startup) has a
   # fallback. Empty fields are dropped (5h data may be absent), so the 7d values still persist.
@@ -344,14 +373,17 @@ build_claude_row() {
 }
 
 build_limit_table() {
-  # Args: claude_cells local_cell other_cell go_cells gpt_cells other_account_cells. Builds the
-  # aligned rows (v1 then v2, whichever is live) and prints them, Go last (the caller moves it to
-  # the end of the status line); labels never start with a space (Claude Code trims it).
+  # Args: claude_cells local_cell other_cell go_cells gpt_cells other_account_cells fable_cell.
+  # Builds the aligned rows (v1 then v2, whichever is live; v1 ends with its Fable cell) and prints
+  # them, Go last (the caller moves it to the end of the status line); labels never start with a
+  # space (Claude Code trims it).
   local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 gpt_cells=$5 account_cells=$6
-  local rows="${CLAUDE_V1_LABEL}${TABLE_US}${claude_cells}"
+  local fable=${7:-}
+  local rows="${CLAUDE_V1_LABEL}${TABLE_US}${claude_cells}${fable:+${TABLE_US}${fable}}"
   if on_v2_account; then
     rows="${CLAUDE_V2_LABEL}${TABLE_US}${claude_cells}"
-    [ -n "$account_cells" ] && rows="${CLAUDE_V1_LABEL}${TABLE_US}${account_cells}"$'\n'"${rows}"
+    [ -n "$account_cells" ] \
+      && rows="${CLAUDE_V1_LABEL}${TABLE_US}${account_cells}${fable:+${TABLE_US}${fable}}"$'\n'"${rows}"
   else
     [ -n "$account_cells" ] && rows="${rows}"$'\n'"${CLAUDE_V2_LABEL}${TABLE_US}${account_cells}"
   fi
@@ -377,8 +409,9 @@ claude_row=$(build_claude_row "$usd_text")
 go_row=$(build_go_row)
 gpt_row=$(build_gpt_cells)
 v2_row=$(build_other_account_cells)
+fable_row=$(fable_cell)
 limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row" "$gpt_row" \
-  "$v2_row")
+  "$v2_row" "$fable_row")
 # The Go row keeps the table's column widths but is printed as the last status-line line.
 go_line=""
 if [ -n "$go_row" ]; then

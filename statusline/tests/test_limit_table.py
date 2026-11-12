@@ -110,6 +110,26 @@ class LimitTableTest(unittest.TestCase):
         self.assertRegex(rows[1], r"^Claude v2 pro\s+5h:5% ")
         self.assertEqual(json.loads((v2_home / ".statusline-cache.json").read_text())["five"], "5.3")
 
+    def write_fable(self, percent: int, resets_at: int) -> None:
+        reset = dt.datetime.fromtimestamp(resets_at, dt.timezone.utc).isoformat().replace("+00:00", ".5+00:00")
+        fable = {"kind": "weekly_scoped", "group": "weekly", "percent": percent, "resets_at": reset,
+                 "scope": {"model": {"id": None, "display_name": "Fable"}, "surface": None}}
+        weekly = {"kind": "weekly_all", "percent": 51, "resets_at": reset, "scope": None}
+        (self.home / ".claude.json").write_text(json.dumps({"cachedUsageUtilization": {
+            "fetchedAtMs": self.now * 1000, "utilization": {"limits": [weekly, fable]}}}), encoding="utf-8")
+
+    def test_fable_cell_ends_the_v1_row_from_the_cli_usage_cache(self) -> None:
+        self.write_fable(6, self.reset)
+        rows = self.table_rows(self.render())
+        self.assertRegex(rows[0], r"\| 7d:5% \(reset .+\) \| Fable:~6% \(reset .+ · lấy .+\)$")
+        self.assertRegex(rows[1], r"^Claude v2 pro\s+5h:\?\s+\| 7d:\?$")
+        self.assert_aligned(rows)
+        # Past its reset the cached % no longer applies; with no Fable limit there is no cell.
+        self.write_fable(6, self.now - 60)
+        self.assertRegex(self.table_rows(self.render())[0], r"\| Fable:\?$")
+        (self.home / ".claude.json").write_text("{}", encoding="utf-8")
+        self.assertNotIn("Fable", self.table_rows(self.render())[0])
+
     def test_gpt_row_reads_the_newest_codex_rollout_sample_and_today_cost(self) -> None:
         sessions = self.home / "codex" / "sessions" / "2026"
         sessions.mkdir(parents=True)

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0 — 2026-11-12
+
+- Dòng `Claude v1 ultra` thêm ô cuối `Fable`: hạn mức tuần riêng của Fable 5.2. Payload status line chỉ có `five_hour`/`seven_day`, nên ô này đọc mục `weekly_scoped` có `scope.model.display_name == "Fable"` trong `cachedUsageUtilization` của `~/.claude.json` (CLI ghi khi mở `/usage`). Luôn hiện `~` kèm giờ lấy số (`lấy dd/mm HH:MM`); qua giờ reset thì `Fable:?`; không có file hay không có hạn mức Fable thì không có ô. Dòng v2 không đổi.
+
 ## 0.26.1 — 2026-11-12
 
 - Dòng `GPT` đọc rollout của cả `~/.codex` và `~/.codex-hand` (Codex hand của hybrid-hands; cùng một tài khoản ChatGPT, chung hạn mức): % 5h/7d là mẫu `rate_limits` mới nhất trong cả hai, USD hôm nay cộng cả hai, cùng thread id ở hai nơi chỉ tính một lần; thư mục không tồn tại bị bỏ qua. `STATUSLINE_CODEX_DIR` vẫn ghi đè, nhận nhiều đường dẫn phân tách bằng `:`. Trước đây chỉ đọc `~/.codex` nên dòng GPT ẩn khi chỉ hand dùng Codex.
