@@ -1,6 +1,6 @@
 {
   "name": "jira-tools",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "CLI Jira Server 9.x (REST v2, xác thực PAT Bearer) dùng chung cho nhiều dự án: host và dự án cấu hình trong config/jira.json, dự án tự chọn theo repo git của thư mục hiện tại; SessionStart hook báo đường dẫn CLI và dự án đang khớp; lệnh report và skill weekly-report tạo báo cáo tuần (đã làm, sẽ làm).",
   "author": {
     "name": "jira-tools"

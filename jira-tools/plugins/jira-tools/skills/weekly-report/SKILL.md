@@ -13,6 +13,8 @@ description: Tạo 4 báo cáo tuần từ Jira của tài khoản hiện tại 
   tuần trước → thứ Sáu tuần này (cả hai đầu); sẽ làm = thứ Sáu tuần này → thứ Năm tuần sau.
 - **Cách làm:** 4 bước — lấy dữ liệu (`report --json`), soạn nội dung, render bằng
   `report --input` để đúng format, rồi ghi chú ngắn. Không tự viết format bằng tay.
+- **Độ dài:** báo cáo phải gọn: gộp task theo kết quả, ít dòng, dòng ngắn (cách làm ở Bước 2).
+  Không có giới hạn cứng, tự cân theo lượng việc trong tuần.
 - **Giới hạn:** chỉ đọc Jira; không sửa Jira trừ khi người dùng yêu cầu.
 
 ## Bước 1. Lấy dữ liệu
@@ -36,13 +38,40 @@ Chạy từ thư mục repo của dự án (cwd), để CLI tự chọn dự án
 
 ## Bước 2. Soạn nội dung
 
-- Gộp các task liên quan thành một dòng; nhóm theo chủ đề (epic/label), đặt tên nhóm theo chức
-  năng người dùng hiểu, ví dụ "Nạp tài liệu và kho tri thức", "Trợ lý AI", "Hạ tầng và triển
-  khai", "Kiến trúc".
+Người nhận đọc lướt trong chat/email nên báo cáo phải gọn: ít dòng, mỗi dòng ngắn. Không có giới
+hạn cứng; tự cân theo lượng việc trong tuần, tuần ít việc thì viết ít hơn.
+
+- Gộp theo kết quả, không theo task: nhiều task cùng một kết quả thành một dòng và liệt kê mọi
+  key của chúng trong `keys` (một dòng mang vài key là bình thường). Không bỏ key nào của dữ liệu
+  khỏi báo cáo chi tiết.
+- Mỗi dòng chỉ nêu vài ý ngắn. Không liệt kê từng màn hình, endpoint, tên hàm, tên bảng, tên job;
+  giữ số ADR và tên tính năng người đọc đã biết.
+- Tránh nhóm chỉ có một dòng: gộp việc lẻ (sửa lỗi, hạ tầng) vào nhóm gần nhất hoặc một nhóm
+  ghép, ví dụ "Bản vẽ, mô tả hình và hạ tầng".
+- Nhóm theo chủ đề (epic/label), đặt tên nhóm theo chức năng người dùng hiểu, ví dụ "Nạp tài liệu
+  và kho tri thức", "Trợ lý AI", "Hạ tầng và triển khai", "Kiến trúc". Báo cáo tóm tắt dùng cùng
+  nhóm với báo cáo chi tiết.
 - Dùng `commits` để mô tả đúng việc đã làm, không chỉ chép summary.
-- Báo cáo chi tiết: giữ key Jira trong `keys`, viết bằng ngôn ngữ kỹ thuật vừa phải.
-- Báo cáo tóm tắt: ngôn ngữ người quản lý đọc được, nêu kết quả, không key, không thuật ngữ nội bộ.
+- Báo cáo chi tiết: ngôn ngữ kỹ thuật vừa phải; việc chưa xong ghi "(đang làm)" ở cuối dòng.
+- Báo cáo tóm tắt: ngắn hơn hẳn báo cáo chi tiết, mỗi nhóm một hai dòng; ngôn ngữ người quản lý
+  đọc được, nêu kết quả, không key, không thuật ngữ nội bộ.
 - Báo cáo "sẽ làm": task đang In Progress viết là "Hoàn tất ...".
+- Soạn xong đọc lại một lượt: dòng nào gộp được với dòng khác, hay bỏ bớt chi tiết mà không mất
+  ý, thì gộp và bỏ trước khi render.
+
+Ví dụ gộp — thay vì ba dòng:
+
+```
+ - Lõi license thay cờ bật nhóm tính năng (AILUX-212)
+ - Danh mục tính năng và API /v1/features mới (AILUX-213)
+ - Triển khai license bằng Secret và bộ cài (AILUX-215)
+```
+
+viết một dòng:
+
+```
+ - Lõi license thay cờ bật nhóm, danh mục tính năng, triển khai bằng Secret và bộ cài (AILUX-212, AILUX-213, AILUX-215)
+```
 
 ## Bước 3. Render đúng format
 
@@ -96,6 +125,7 @@ Format: báo cáo chi tiết mở bằng `* Dự án <title>`, tóm tắt mở b
 
 ## Bước 4. Ghi chú sau 4 khối
 
-Ghi ngắn: task chưa log work (không có `worklog` trong `sources`), task có commit nhưng vẫn To Do
-hoặc In Progress, tổng ước lượng còn lại (`plan.remaining_hours`) so với 40 giờ/tuần. Không sửa
-Jira trừ khi người dùng yêu cầu.
+Ghi ngắn, vài gạch đầu dòng, không lặp lại nội dung báo cáo: task chưa log work
+(không có `worklog` trong `sources`), task có commit nhưng vẫn To Do hoặc In Progress, tổng ước
+lượng còn lại (`plan.remaining_hours`) so với 40 giờ/tuần. Không sửa Jira trừ khi người dùng yêu
+cầu.
