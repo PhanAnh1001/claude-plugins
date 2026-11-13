@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-13 · commit `68a9969`
+Cập nhật 2026-11-13 · commit `5705813`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-13 · commit `68a9969`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 280 commit.
+- **Hoạt động 14 ngày:** 282 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-280 commit.
+282 commit.
 
+- 2026-11-13 5705813 docs(jira-tools): skill weekly-report hướng dẫn soạn báo cáo gọn, gộp task theo kết quả (1.2.1)
+- 2026-11-12 3539c13 docs(status): tự cập nhật trang tình hình
 - 2026-11-12 68a9969 docs(status): tự cập nhật trang tình hình
 - 2026-11-12 e6913e4 feat(hybrid-hands): thêm model Claude Fable 5.2 cho ba tầng, template phiên chính xưng đúng model (0.57.0)
 - 2026-11-12 b76f937 feat(hybrid-hands): công tắc guard Claude theo ngày day_guard / day_guard_off_date (0.56.0)
-- 2026-11-12 4288cf4 feat(statusline): ô Fable cuối dòng Claude v1 ultra từ cache usage của CLI (0.27.0)
-- 2026-11-12 e8a98f2 fix(statusline): dòng GPT đọc cả ~/.codex và ~/.codex-hand (0.26.1)
