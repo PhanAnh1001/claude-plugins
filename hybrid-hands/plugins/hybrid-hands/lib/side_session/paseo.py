@@ -586,11 +586,13 @@ def capture_native_id(st: state.SessionState, native_id: str) -> bool:
     return True
 
 
-def send(st: state.SessionState, text: str) -> None:
+def send(st: state.SessionState, text: str, *, watch_identity: dict | None = None) -> None:
     payload = _exact_agent(st)
     if payload is None or not st.paseo_target:
         raise PaseoError("SEND_IDENTITY_UNKNOWN", {"notSent": True})
-    result = _call("send", {**payload, "text": text}, timeout=C.PASEO_START_TIMEOUT_S)
+    safety = ({"watchNativeId": watch_identity["native_id"],
+               "watchProvider": watch_identity["paseo_provider"]} if watch_identity else {})
+    result = _call("send", {**payload, "text": text, **safety}, timeout=C.PASEO_START_TIMEOUT_S)
     if (result.get("accepted") is not True
             or result.get("agentId") != st.paseo_agent_id
             or result.get("workspaceId") != st.paseo_workspace_id

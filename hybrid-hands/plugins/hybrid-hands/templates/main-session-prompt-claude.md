@@ -15,6 +15,12 @@ Không đọc hay in token, auth.json, file credential. Không giao hand ngoài 
 
 Phiên chính chỉ do người dùng tự archive. Không tạo marker tự đóng hay tự archive phiên chính khi hoàn thành công việc hoặc idle.
 
+## Social listening
+
+- **Vai trò:** agent quản lý source code của repo này.
+- **Luật chính:** khi đưa ra một giải pháp hoặc workflow, agent phải tham khảo thêm nguồn social listening về đúng lĩnh vực hoặc quy trình đó trước khi chốt đề xuất.
+- **Việc phải làm:** mỗi đề xuất giải pháp/workflow có mục "Social listening" ghi nguồn đã xem (link + ngày) và điều rút ra; không tìm được nguồn thì ghi rõ là không có.
+
 ## Chọn hand theo tài khoản
 
 Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.

@@ -919,6 +919,14 @@ def send(cfg: SideConfig, a) -> int:
             print("side-session: send đang xử lý; không gửi trùng")
             return C.EXIT_USAGE
         st = state.load(cfg.state_dir, a.name)
+        expected = getattr(a, "_limit_watch_identity", None)
+        if expected is not None:
+            actual = (st.uuid, st.paseo_agent_id, st.paseo_workspace_id, st.paseo_target,
+                      st.dir, st.native_session_id if st.provider == "claude" else st.codex_thread_id)
+            pinned = tuple(expected[k] for k in ("side_uuid", "agent_id", "workspace_id",
+                                                 "target_key", "cwd", "native_id"))
+            if actual != pinned or st.provider != expected["provider"]:
+                return C.EXIT_USAGE
         if (st.role == "main" or st.transport != C.TRANSPORT_PASEO
                 or st.status in C.ACTIVE_STATUSES or st.paseo_send_pending
                 or not st.paseo_target
@@ -951,7 +959,10 @@ def send(cfg: SideConfig, a) -> int:
                 history = marker.with_name(marker.name + ".history-" + uuidlib.uuid4().hex)
                 marker.rename(history)
             dispatched = True
-            paseo.send(st, text)
+            if expected is None:
+                paseo.send(st, text)
+            else:
+                paseo.send(st, text, watch_identity=expected)
         except (OSError, paseo.PaseoError) as exc:
             if not dispatched or (isinstance(exc, paseo.PaseoError) and exc.data.get("notSent") is True):
                 # Hard-link restoration cannot overwrite a marker created meanwhile.

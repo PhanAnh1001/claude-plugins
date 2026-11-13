@@ -63,6 +63,12 @@ UNKNOWN_CELL="?"
 CLAUDE_V1_STATE="$HOME/.claude.json"
 FABLE_LABEL="Fable"
 FETCHED_TIME_FORMAT="+%d/%m %H:%M"
+# Live v1 limits fetched every CLAUDE_LIVE_REFRESH_SECONDS by claude_usage_fetch.py (detached);
+# a value newer than two cycles is shown without "~".
+CLAUDE_FETCH_SCRIPT="$SCRIPTS_DIR/claude_usage_fetch.py"
+CLAUDE_LIVE_CACHE="$CLAUDE_V1_HOME/.statusline-claude-usage.json"
+CLAUDE_LIVE_REFRESH_SECONDS=300
+CLAUDE_LIVE_FRESH_SECONDS=$((2 * CLAUDE_LIVE_REFRESH_SECONDS))
 # shellcheck source=go-segments.sh
 . "$SCRIPTS_DIR/go-segments.sh"
 
@@ -286,7 +292,39 @@ build_other_account_cells() {
   join_cells "$(cached_cell 5h "$five_pct" "$five_at")" "$(cached_cell 7d "$week_pct" "$week_at")"
 }
 
+maybe_start_claude_live_fetch() {
+  # Never wait for the network: the fetch runs detached and applies its own lock and backoff.
+  [ "${STATUSLINE_CLAUDE_LIVE:-1}" != "0" ] || return 0
+  [ -f "$CLAUDE_FETCH_SCRIPT" ] && [ -d "$CLAUDE_V1_HOME" ] || return 0
+  local mtime
+  mtime=$(stat -f '%m' "$CLAUDE_LIVE_CACHE" 2>/dev/null || stat -c '%Y' "$CLAUDE_LIVE_CACHE" 2>/dev/null)
+  if [[ "$mtime" =~ ^[0-9]+$ ]] && [ $(($(date +%s) - mtime)) -lt "$CLAUDE_LIVE_REFRESH_SECONDS" ]; then
+    return 0
+  fi
+  CLAUDE_V1_HOME="$CLAUDE_V1_HOME" nohup python3 "$CLAUDE_FETCH_SCRIPT" </dev/null >/dev/null 2>&1 &
+  disown 2>/dev/null || true
+}
+
+fable_live_cell() {
+  # The Fable limit from the live cache: no "~" within two cycles, else "~" plus the fetch time.
+  local row pct at ok_at fetched
+  [ -f "$CLAUDE_LIVE_CACHE" ] || return 1
+  row=$(jq -r --arg name "$FABLE_LABEL" '. as $c | [$c.limits[]? | select(.label == $name)][0]
+    | select(. != null) | [(.percent | tostring), (.resets_at // "" | tostring),
+      ($c.last_ok_at // "" | tostring)] | join("\u001f")' "$CLAUDE_LIVE_CACHE" 2>/dev/null)
+  [ -n "$row" ] || return 1
+  IFS=$TABLE_US read -r pct at ok_at <<< "$row"
+  [[ "$at" =~ ^[0-9]+$ ]] && [[ "$ok_at" =~ ^[0-9]+$ ]] && [ "$at" -gt "$(date +%s)" ] || return 1
+  if [ $(($(date +%s) - ok_at)) -lt "$CLAUDE_LIVE_FRESH_SECONDS" ]; then
+    rate_limit_segment "$FABLE_LABEL" "$pct" "$at"
+    return 0
+  fi
+  fetched=$(date -r "$ok_at" "$FETCHED_TIME_FORMAT" 2>/dev/null)
+  rate_limit_segment "$FABLE_LABEL" "" "" "$pct" "$at" "" "" "" "${fetched:+lấy $fetched}"
+}
+
 fable_cell() {
+  fable_live_cell && return 0
   # The v1 Fable weekly limit as "Fable:~N% (reset X · lấy Y)", Y = when the CLI fetched it; "?"
   # once that reset has passed; nothing when the file or the Fable limit is missing.
   local row pct at fetched_ms fetched
@@ -409,6 +447,7 @@ claude_row=$(build_claude_row "$usd_text")
 go_row=$(build_go_row)
 gpt_row=$(build_gpt_cells)
 v2_row=$(build_other_account_cells)
+maybe_start_claude_live_fetch
 fable_row=$(fable_cell)
 limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row" "$gpt_row" \
   "$v2_row" "$fable_row")

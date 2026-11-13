@@ -43,6 +43,14 @@ Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ ha
 
 Sol lấy exact key bằng `hand-ext managed ls --cwd /ABS/REPO`, đọc diff/report trước `hand-ext managed review-approve --cwd /ABS/REPO --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH`. `hand-ext managed archive --cwd /ABS/REPO --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH` là thao tác idempotent sau settlement, không đợi review; `review-approve` vẫn bắt buộc trước followup. Giao tiếp bằng `hand-ext managed followup --cwd /ABS/REPO --key INVOCATION_UUID:ATTEMPT_UUID:EPOCH --brief /ABS/fresh-brief.md`; key phải latest, epoch mới không resume CLI. Không archive parent hay cleanup worktree. Xem [recipe operator](../../../../README.md#vận-hành-managed-hand-paseo) khi cần setup/status; không tự chạy live setup từ một brief hand.
 
+## Chờ usage limit bằng code — 0.58.0
+
+Khi công việc còn dở và cần tự tiếp tục đúng phiên sau usage limit, dùng `hand-ext limit-watch on --persistent`, rồi `hand-ext limit-watch on --persistent --target /ABS/target.json` để đăng ký exact target và checkpoint. Không dùng vòng `/loop` gọi LLM để poll quota. Tắt bằng `hand-ext limit-watch off`, xem `hand-ext limit-watch status`; bỏ `--persistent` để one-shot. Job rỗng không tự tìm phiên. JSON/quan sát block, hướng dẫn brain và Sol, giới hạn ACK/tmux ở [README limit-watch](../../README.md). Brain/main dùng adapter Paseo riêng; `side-session send` vẫn cấm role main. Không sửa guard, account/model hoặc đăng ký target từ transcript/secret. Nếu đăng ký sau khi quota đã chặn phải có khối `blocked` từ quan sát thật của chính phiên, không suy từ quota account đầy.
+
+### Social listening
+
+Kế thừa nghiên cứu đã duyệt ngày 12/11/2026: [Claude #92004](https://github.com/anthropics/claude-code/issues/92004) (04/09/2026) → theo từng phiên; [Codex #8310](https://github.com/openai/codex/issues/8310) (19/12/2025) → checkpoint + bước tiếp; [Claude #35744](https://github.com/anthropics/claude-code/issues/35744) (18/03/2026, bình luận 28/05/2026) → kiểm runtime trước gửi. Đây là báo cáo cộng đồng chưa tái hiện; không dùng làm bằng chứng quota phục hồi.
+
 ## Usage panel 0.26.0
 
 `hh-ps --once` chạy một lần; `--json` giữ dữ liệu máy đọc, `--watch 5` theo dõi. Mặc định hiện đủ việc chạy/vừa xong theo `--since`, không gấp còn 3 việc và không ẩn cây đã xong (`--full`/`--ended` giữ tương thích). Mỗi dòng session/subagent/hand và phiên phụ mọi provider/backend có model, effort, USD~, quota tài khoản 5h/tuần, ended hoặc `đang chạy`, elapsed. Elapsed đang chạy tăng theo thời gian; ended cố định duration khi xong. Không hiện giờ bắt đầu trong text/panel/statusline; metadata/JSON vẫn giữ started. Thiếu nguồn hoặc legacy unknown hiện `?`, không bịa.
@@ -176,3 +184,9 @@ hand-ext managed names --cwd /ABS/REPO --apply
 Mỗi run isolation tự gọi GC trước disk guard, chỉ lớp `finished` (`ext_hand.worktree_gc.auto=finished|off`, mặc định `finished`; lỗi chỉ cảnh báo). Lớp `preserved` (dirty nhưng `changes.patch` khớp diff hiện tại của run bắt đầu sạch) chỉ xoá bằng `--apply --include-preserved`. Run lỗi giữ worktree (nhánh giữ patch dsh, kể cả lượt cuối quá tải) tự xoá worktree ngay khi run bắt đầu sạch và `changes.patch` khớp diff hiện tại (rỗng = sạch); không khớp/lỗi xác minh, run bắt đầu dirty, lượt quá tải còn chạy tiếp hoặc `--keep-worktree` thì giữ. Dry-run liệt kê thêm `age_seconds` và bytes mọi mục; registry còn worktree sống không bị xoá theo hạn 7 ngày.
 
 Trước tạo isolated worktree, disk guard cảnh báo dưới `disk_guard.warn_gb=20` GiB và chặn dưới `disk_guard.block_gb=5` GiB, exit 9. `--ignore-disk-guard` chỉ vượt chặn khi được phép chủ động. Sparse P4 bị chặn bởi S0 FAIL baseline `isolation.prepare`; không quảng bá `worktree_sparse_exclude` hay `--no-sparse` là đã có.
+
+Sau `side-session start` cho Sol làm việc dài, dùng [skill limit-watch](../limit-watch/SKILL.md) để đăng ký `hand-ext limit-watch add --side NAME --checkpoint "Đã xong gì; bước kế; file .done"` trước khi hết hạn mức.
+
+## Điều phối nhiệt và trình duyệt
+
+Tóm tắt: brain chạy `hh-heat status` trước khi mở thêm phiên song song. Mỗi lúc tối đa một trình duyệt headless toàn máy qua `hh-heat browser --timeout-min 10 -- <lệnh>`; tối đa hai luồng Sol có trình duyệt/build nặng, luồng thứ ba xếp hàng. Gom ảnh kiểm vào cuối đợt, đóng browser sau mỗi lượt; chụp khung cố định rồi dừng render khi làm được. Trước test nặng dùng `hh-heat gate --wait`; trình duyệt dùng ngưỡng CPU toàn máy 60%, luật hạ ưu tiên test thường 90% giữ nguyên. Không tự thêm cờ Metal/SwiftShader vì chưa có số đo xác nhận.

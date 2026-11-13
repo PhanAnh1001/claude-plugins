@@ -14,9 +14,9 @@ sys.path.insert(0, str(PLUGIN / "lib"))
 from shared_config import load_config
 
 HOOKS = ("session-start-policy.sh", "inject-policy.sh")
-BASELINE = ("e32a7001afee39cc9e4a7b2cb772540be5d1b1b5db11a9c5e07298e4d912855b",
+BASELINE = ("e3f0e26dc2f6a16575aff958f826068588e62b590659a858adb9eb4c4dd632e1",
             "15fc1a8b0aa680cbf90118398ac071f1aec61f5e710c4022d1ea83c8b24cab38")
-MATCHED_SESSION = "4cc6569f01bee43b08b6399e99646886f155fbf7d1ab90158d16dc97a1e60ccc"
+MATCHED_SESSION = "5fd1f4f41b68714fc08bf37b5751ac34ce7754c3c026b2292c17e9d9c0fe21f2"
 
 
 def hooks(cwd, payload=None):
@@ -68,7 +68,7 @@ class PolicyModeTest(unittest.TestCase):
                 if i == 0:
                     assert "ext_hand.max_parallel thực = 2" in text and "claude-opus-5-5" in text
                     assert "effort `low`" in text and "pick --json --backend claude-v1" in text
-                    assert all(law in text for law in ("LUẬT DỮ LIỆU", "LUẬT TIẾP VIỆC", "LUẬT TEST TỐI THIỂU", "LUẬT NGỮ CẢNH BRAIN"))
+                    assert all(law in text for law in ("LUẬT SOCIAL LISTENING", "LUẬT DỮ LIỆU", "LUẬT TIẾP VIỆC", "LUẬT TEST TỐI THIỂU", "LUẬT NGỮ CẢNH BRAIN"))
         config.write_text('{"parallel_subagents":{"enabled":true,"backend":"claude-v2","account":"v2"},"main_session":{"claude_account":"v1"}}')
         for i, result in enumerate(hooks(tmp_path)):
             assert "hand-ext run --backend claude-v2" in context(result, i) and "--account v2" in context(result, i)

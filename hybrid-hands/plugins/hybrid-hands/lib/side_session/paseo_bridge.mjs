@@ -514,6 +514,17 @@ async function main() {
     if (request.command === "send") {
       const agent = await fetchExactAgent(client, request);
       if (!agent) return;
+      if (request.watchNativeId) {
+        const quotaError = agent.attentionReason === "error" && typeof agent.lastError === "string"
+          && /(?:usage.?limit|rate.?limit|quota|limit.?reached|out of usage)/i.test(agent.lastError)
+          && !/(?:capacity|overload|prefill_cap)/i.test(agent.lastError);
+        if (threadId(agent) !== request.watchNativeId || agent.provider !== request.watchProvider
+            || agent.activeTurn || !Array.isArray(agent.pendingPermissions)
+            || agent.pendingPermissions.length || agent.providerUnavailable
+            || !(agent.status === "idle" || (agent.status === "error" && quotaError))) {
+          fail("WATCH_RUNTIME_UNCONFIRMED"); return;
+        }
+      }
       if (["running", "busy", "starting", "initializing"].includes(agent.status)) {
         fail("AGENT_ALREADY_RUNNING"); return;
       }

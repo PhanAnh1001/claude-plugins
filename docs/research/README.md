@@ -3,10 +3,22 @@
 ## Tóm tắt
 
 - **Mục đích:** lưu các nghiên cứu nhiều nguồn của repo, có dẫn nguồn và ngày dữ liệu.
-- **Số nghiên cứu:** 2.
+- **Số nghiên cứu:** 3.
 - **Thêm mới:** tạo `docs/research/<YYYY-MM-DD>-<slug>/report.md` + `notes/<topic>.md` theo skill summary-first-docs:saving-research, rồi thêm mục ở đầu danh sách dưới (mới nhất trước).
 
 ## Danh mục
+
+- [2026-11-13 — Nhiệt và Chrome headless](2026-11-13-headless-heat/report.md): khóa trình duyệt, cleanup bảo thủ; chưa có benchmark.
+
+### 2026-11-11 - So sánh Paperclip và hybrid-hands
+
+- **Câu hỏi:** Paperclip điều phối agent khác hybrid-hands thế nào, ưu điểm nào áp dụng được?
+- **Kết luận:**
+  - Paperclip là control plane MIT với ticket + execution lock, budget có auto pause, audit log và config rollback ([nguồn](https://github.com/paperclipai/paperclip), 11/2026).
+  - Nên áp dụng ưu tiên Cao: audit log JSONL, budget USD~ cứng, khoá claim theo brief (suy luận).
+  - Ưu tiên Vừa: revision cấu hình + rollback, goal ancestry trong brief (suy luận).
+  - Không học heartbeat tự trị, org chart nhiều cấp, server/DB riêng (suy luận).
+- **Liên kết:** [report](2026-11-11-so-sanh-paperclip/report.md), [notes](2026-11-11-so-sanh-paperclip/notes/paperclip.md)
 
 ### 2026-11-10 - Switch model, effort, provider, tài khoản
 

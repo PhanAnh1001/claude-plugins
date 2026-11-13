@@ -2,6 +2,32 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.61.0 — 2026-11-13
+
+Tóm tắt: thêm LUẬT SOCIAL LISTENING vào policy SessionStart (`lib/policy_rules.txt`, mọi repo) và vào khuôn phiên chính/phụ (`templates/main-session-prompt-*.md`, `templates/side-session-prompt-*.md`): mỗi đề xuất giải pháp/workflow phải có mục "Social listening" (link + ngày + điều rút ra, hoặc ghi rõ không có). Prompt hook mỗi lượt không đổi.
+
+Social listening: không có — thay đổi là luật người dùng yêu cầu nguyên văn, không phải lựa chọn giải pháp.
+
+## 0.60.1 — 2026-11-13
+
+Tóm tắt: sửa limit-watch kết thúc nhầm brain Paseo sau một lượt trả lời. Brain giữ theo dõi qua idle/finished, tự về armed sau receipt và chỉ gửi khi có chuỗi blocked → eligible mới. Thêm `done --id ID`, chặn dispatch_pending; đăng ký lại cùng ID khôi phục armed. Side giữ quy tắc `.done`/stopped.
+
+Social listening: không cần nguồn mới — sửa lỗi theo hành vi đã duyệt; nguồn đóng gói skill/slash command giữ tại [README](README.md#social-listening--đóng-gói-skill-và-command).
+
+## 0.60.0 — 2026-11-13
+
+Tóm tắt: thêm `hh-heat status|gate|browser|reap`, khóa trình duyệt toàn máy, ưu tiên nền và cleanup bảo thủ; thêm hướng dẫn hai skill. Bổ sung cleanup Chrome detached mới theo PID trước/sau, slot cấu hình CLI/env, lỗi sandbox exit 3 và luật trình duyệt trong policy SessionStart. Chưa benchmark Metal/SwiftShader; nguồn social listening ở README.
+
+## 0.59.0 — 2026-11-13
+
+Tóm tắt: đóng gói limit-watch thành skill và slash command, thêm `add --self|--side NAME --checkpoint TEXT [--next-step TEXT] [--id ID] [--dry-run]` tự điền metadata public, giữ state/persistent target khác. Social listening và nguồn ngày 13/11/2026 ở [README](README.md#social-listening--đóng-gói-skill-và-command). Chưa hỗ trợ remove riêng target.
+
+## 0.58.0 — 2026-11-12
+
+- Thêm `hand-ext limit-watch on|off|status|tick [--persistent]`: LaunchAgent local kiểm phút 0/15/30/45, poll bằng code, state atomic 0600 + flock và đăng ký exact identity/checkpoint bằng `on --target FILE`.
+- Chỉ tiếp tục phiên có việc dở đã quan sát chặn quota; Codex đọc RPC chính thức `account/rateLimits/read`, Claude dùng timestamp metadata/Paseo đúng account, không dùng mtime cache làm bằng chứng mới. Claude cache cũ được thử một lần sau reset chặn muộn nhất + 120 giây, nhãn “reset dự kiến”; vẫn giữ day guard v1.
+- Brain gửi qua adapter Paseo riêng; Sol dùng đường `side-session send` với recheck identity/native/provider/quyền dưới lock/transport. ACK mơ hồ giữ `dispatch_pending` không gửi trùng; one-shot tắt sau receipt được nhận, persistent chờ block mới. Tmux chưa có bằng chứng ô nhập đáng tin nên bị từ chối. Hướng dẫn và giới hạn ở [README](README.md).
+
 ## 0.57.0 — 2026-11-12
 
 - Thêm model Claude Fable 5.2 (`claude-fable-5-2`): `hand-ext models set/options` nhận model này cho brain, phiên phụ và hand Claude; giá lấy từ bảng giá chính thức ngày 12/11/2026 (input 8, cache read 0,2, output 40, cache write 5 phút 10, 1 giờ 16 USD/MTok).

@@ -48,6 +48,7 @@ LỆNH DÀI: lệnh dự kiến chạy quá 4 phút (full test suite, build imag
 
 Test hẹp (một file, `-k`, vài test) chạy bình thường ngay, không cần đo CPU; nếu có dấu hiệu nặng thì áp dụng hạ ưu tiên dưới đây.
 Test nặng = có dấu hiệu nặng HOẶC CPU toàn máy ≥90%; dấu hiệu: full suite (pytest/jest/go test… không giới hạn file hay `-k`, `make test`, `npm test` cả bộ), song song (`-n auto`/`-n N`/xdist, `--workers`, `-j`), e2e, build kèm test cả bộ.
+Trình duyệt: mọi Chrome/Playwright headless chạy qua `hh-heat browser`; tối đa 1 trình duyệt toàn máy, tối đa 2 luồng Sol song song làm việc có trình duyệt/build nặng. Brain chạy `hh-heat status` trước khi mở thêm phiên song song; `hot`/`busy` thì không mở thêm. Đóng trình duyệt ngay sau lượt kiểm; chụp khung cố định, gom ảnh kiểm cuối đợt.
 Không chặn vì nặng: macOS chạy `nice -n 19 taskpolicy -b <lệnh>`; nơi không có taskpolicy chạy `nice -n 19 <lệnh>`. Không tự bật song song nếu brief không yêu cầu; tăng timeout tương ứng.
 Chỉ trước test dự kiến >30s không có dấu hiệu nặng và không phải test hẹp, đo CPU bằng `ps -A -o %cpu= | awk -v n="$(sysctl -n hw.ncpu)" '{s+=$1} END {printf "%.0f\n", s/n}'`; kết quả ≥90 thì chạy hạ ưu tiên.
 
@@ -59,3 +60,8 @@ LUẬT NGỮ CẢNH BRAIN (mỗi lượt gọi của brain đọc lại toàn b�
 - XOAY PHIÊN: không giữ một phiên brain qua nhiều đợt việc. Xong một đợt (đã commit/push và ghi trạng thái còn mở vào tài liệu điều phối hay bàn giao), hoặc khi phiên đã nghỉ quá 1 giờ (cache brain hết hạn, lượt đầu phải ghi lại cả ngữ cảnh ở giá 2x), brain ghi trạng thái còn mở vào tài liệu bàn giao rồi đề nghị người dùng mở phiên brain mới (`/clear` hoặc phiên mới) bắt đầu từ tài liệu đó, thay vì làm tiếp tới khi ngữ cảnh tự nén. Việc thuộc repo khác (vd sửa plugin) làm ở phiên brain riêng của repo đó.
 - KHÔNG TỰ TRA CỨU: brain không tự tra cứu code, tài liệu hay log bằng `grep`/`cat`/`sed`/`head`/`git log`/Read. Cần quá 2 lệnh đọc để trả lời một câu hỏi thì giao hand (hand ngoài hoặc hand Claude) trả kết luận gọn kèm file:dòng. Brain chỉ tự đọc: báo cáo của hand, đoạn đã biết đích danh (≤ 80 dòng), và diff khi review (`git diff --stat` rồi hunk của file quyết định đúng sai: logic, luật, test; file lớn hay sinh tự động thì xem stat và kết quả test). Ảnh đã duyệt không đọc lại.
 - KHÔNG HỎI TRẠNG THÁI: trong lúc chờ hand, phiên phụ hay lệnh nền, brain không hỏi trạng thái (`side-session ls`/`watch`, `hh-ps`, `hand-ext status`, `git log` lặp lại): kết thúc lượt và chờ thông báo hoàn thành; việc không tự báo thì đặt một `Monitor` chờ file kết thúc (done, handoff). Chỉ hỏi trạng thái khi người dùng hỏi hoặc việc đã quá hạn dự kiến.
+
+LUẬT SOCIAL LISTENING (mọi repo):
+- **Vai trò:** agent quản lý source code của repo này.
+- **Luật chính:** khi đưa ra một giải pháp hoặc workflow, agent phải tham khảo thêm nguồn social listening về đúng lĩnh vực hoặc quy trình đó trước khi chốt đề xuất.
+- **Việc phải làm:** mỗi đề xuất giải pháp/workflow có mục "Social listening" ghi nguồn đã xem (link + ngày) và điều rút ra; không tìm được nguồn thì ghi rõ là không có.

@@ -191,3 +191,9 @@ Disk guard kiểm ổ chứa worktree root: `disk_guard.warn_gb=20`, `block_gb=5
 Sparse P4 **chưa có trong release này**: S0 đã được Sol review FAIL vì `isolation.prepare` làm mất excluded tracked paths trong baseline. `worktree_sparse_exclude` (thiết kế mặc định `[]`) và `--no-sparse` chỉ là thiết kế bị chặn, chưa dùng được. Hai pattern live-tiktok-games đã được duyệt ngày 10/11/2026; Opus chỉ cấu hình sau khi S0 đạt, không thử sparse trên repo thật trong gói hiện tại.
 
 Sau merge gói, Sol xem `side-session gc --name <gói>` rồi chạy `side-session gc --name <gói> --apply` khi phạm vi brief/session cho phép. Nếu đang bị cấm apply hoặc cần người dùng duyệt, chỉ dry-run và bàn giao kết quả để duyệt; không tự apply. Archive Paseo và GC thư mục là hai thao tác riêng, không suy archive cho phép xoá.
+
+Sau `side-session start` cho Sol làm việc dài, dùng [skill limit-watch](../limit-watch/SKILL.md) để đăng ký `hand-ext limit-watch add --side NAME --checkpoint "Đã xong gì; bước kế; file .done"` trước khi hết hạn mức.
+
+## Điều phối nhiệt và trình duyệt
+
+Tóm tắt: brain chạy `hh-heat status` trước khi mở thêm phiên song song. Mỗi lúc tối đa một trình duyệt headless toàn máy qua `hh-heat browser --timeout-min 10 -- <lệnh>`; tối đa hai luồng Sol có trình duyệt/build nặng, luồng thứ ba xếp hàng. Gom ảnh kiểm vào cuối đợt, đóng browser sau mỗi lượt; chụp khung cố định rồi dừng render khi làm được. Trước test nặng dùng `hh-heat gate --wait`; trình duyệt dùng ngưỡng CPU toàn máy 60%, luật hạ ưu tiên test thường 90% giữ nguyên. Không tự thêm cờ Metal/SwiftShader vì chưa có số đo xác nhận.

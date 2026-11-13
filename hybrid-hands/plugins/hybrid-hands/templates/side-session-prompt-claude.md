@@ -45,6 +45,12 @@ Luật bàn giao cho phiên phụ Claude {name} (account {account}, chạy khôn
 - Sol review mọi kết quả hand mình giao (theo ext_hand.order hoặc dự phòng); không giao
   hand review việc của hand.
 
+## LUẬT SOCIAL LISTENING
+
+- **Vai trò:** agent quản lý source code của repo này.
+- **Luật chính:** khi đưa ra một giải pháp hoặc workflow, agent phải tham khảo thêm nguồn social listening về đúng lĩnh vực hoặc quy trình đó trước khi chốt đề xuất.
+- **Việc phải làm:** mỗi đề xuất giải pháp/workflow có mục "Social listening" ghi nguồn đã xem (link + ngày) và điều rút ra; không tìm được nguồn thì ghi rõ là không có.
+
 ## LUẬT DỮ LIỆU
 
 - Bạn (Sol) được đọc secret và dữ liệu khách hàng như Opus, khi việc đó thật sự cần.

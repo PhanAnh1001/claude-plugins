@@ -124,6 +124,14 @@ class LimitTableTest(unittest.TestCase):
         self.assertRegex(rows[0], r"\| 7d:5% \(reset .+\) \| Fable:~6% \(reset .+ · lấy .+\)$")
         self.assertRegex(rows[1], r"^Claude v2 pro\s+5h:\?\s+\| 7d:\?$")
         self.assert_aligned(rows)
+        # The live fetch cache wins: no "~" within two cycles, "~" with the fetch time after.
+        live = self.home / ".claude" / ".statusline-claude-usage.json"
+        for ok_at, pattern in ((self.now - 60, r"\| Fable:9% \(reset [^·]+\)$"),
+                               (self.now - 3600, r"\| Fable:~9% \(reset .+ · lấy .+\)$")):
+            live.write_text(json.dumps({"last_ok_at": ok_at, "limits": [
+                {"label": "Fable", "percent": 9, "resets_at": self.reset}]}), encoding="utf-8")
+            self.assertRegex(self.table_rows(self.render())[0], pattern)
+        live.unlink()
         # Past its reset the cached % no longer applies; with no Fable limit there is no cell.
         self.write_fable(6, self.now - 60)
         self.assertRegex(self.table_rows(self.render())[0], r"\| Fable:\?$")

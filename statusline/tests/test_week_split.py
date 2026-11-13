@@ -17,6 +17,7 @@ import usage_ledger as ul  # noqa: E402
 
 OPUS = "claude-opus-5-5"
 HAIKU = "claude-haiku-5-5"
+FABLE = "claude-fable-5-2"  # id written by transcripts for Claude Fable 5.2
 MILLION = 1_000_000
 
 
@@ -38,7 +39,24 @@ class PriceTest(unittest.TestCase):
         usage = {"input_tokens": MILLION, "output_tokens": MILLION}
         self.assertAlmostEqual(ul.usage_usd(ul.price_for(OPUS), usage), 24.0)
         self.assertAlmostEqual(ul.usage_usd(ul.price_for(HAIKU), usage), 0.60)
+        self.assertAlmostEqual(ul.usage_usd(ul.price_for(FABLE), usage), 48.0)
         self.assertAlmostEqual(ul.usage_usd(ul.price_for("claude-sonnet-5-5"), usage), 12.0)
+
+    def test_stale_cache_does_not_hide_marketplace_prices(self) -> None:
+        import shared_prices as sp
+        with tempfile.TemporaryDirectory() as tmp:
+            home, live = Path(tmp) / "claude", Path(tmp) / "live"
+            stale = home / "plugins/cache/m/hybrid-hands/0.55.0"
+            for root, models in ((stale, {OPUS: 1}), (live / sp.PLUGIN_SUBDIR, {OPUS: 9, FABLE: 8})):
+                (root / "config").mkdir(parents=True)
+                (root / sp.PRICES_RELATIVE).write_text(json.dumps({"version": 1, "models": {
+                    m: {"input": v, "cached": 0, "output": v} for m, v in models.items()}}))
+            (home / "plugins/known_marketplaces.json").write_text(
+                json.dumps({"m": {"source": {"source": "directory", "path": str(live)}}}))
+            with patch.dict("os.environ", {"CLAUDE_HOME": str(home)}), \
+                    patch.object(sp, "__file__", str(Path(tmp) / "a/b/c/d/x.py")):
+                rows = sp.load_prices()
+        self.assertEqual((rows[OPUS]["input"], rows[FABLE]["input"]), (9, 8))
 
     def test_unknown_model_is_unpriced(self) -> None:
         self.assertIsNone(ul.price_for("claude-opus-9-1"))
@@ -130,6 +148,12 @@ class LedgerTest(unittest.TestCase):
         ledger = self.ledger()
         self.assertEqual(ledger["version"], ul.LEDGER_VERSION)
         self.assertEqual(list(ledger["messages"]), ["new|req-new"])
+
+    def test_opus_and_fable_mix_priced_per_model(self) -> None:
+        self.write(self.main, [record("a", self.now - 10), record("b", self.now - 5, model=FABLE)])
+        ledger = self.ledger()
+        self.assertAlmostEqual(self.total(ledger), 60.0)  # 20 Opus + 40 Fable, feeds machine %
+        self.assertEqual(ledger["unpriced"], {})
 
     def test_unpriced_models_listed(self) -> None:
         self.write(self.main, [record("a", self.now - 10, model="gpt-x")])

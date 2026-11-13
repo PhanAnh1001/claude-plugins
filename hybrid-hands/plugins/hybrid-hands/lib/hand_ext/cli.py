@@ -42,6 +42,8 @@ def _parser() -> argparse.ArgumentParser:
         prog="hand-ext",
         description="Chạy hand ngoài qua CLI đăng nhập gói subscription (không API).")
     sub = p.add_subparsers(dest="cmd", required=True)
+    from .limit_watch.cli import register as register_limit_watch
+    register_limit_watch(sub)
     for name, text in (("setup", "ghi cấu hình CLI, in lệnh đăng nhập gói"),
                        ("doctor", "kiểm cài đặt, đăng nhập gói, cấu hình")):
         s = sub.add_parser(name, help=text)
@@ -404,6 +406,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         args = _parser().parse_args(actual)
     try:
+        if args.cmd == "limit-watch":
+            from .limit_watch.cli import command
+            return command(args)
         if args.cmd == "accounts":
             from .accounts_cmd import command
             return command(args)

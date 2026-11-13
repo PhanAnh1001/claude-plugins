@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.28.0 — 2026-11-13
+
+Tóm tắt: ô `Fable` tự làm mới mỗi 5 phút, không cần mở `/usage`; % dùng máy tính đủ Claude Fable 5.2 theo giá riêng.
+
+- Mới `scripts/claude_usage_fetch.py` (người dùng duyệt 13/11/2026): chạy nền tách khỏi status line, khoá thư mục, throttle 300 giây theo cache, gọi `GET /api/oauth/usage` (header `anthropic-beta: oauth-2025-04-20`) bằng access token đọc từ Keychain `Claude Code-credentials` (hoặc `~/.claude/.credentials.json`) chỉ trong tiến trình Python; token không vào argv, log, cache hay stdout. Cache `~/.claude/.statusline-claude-usage.json` (mode 600, ghi atomic) chỉ có số: `limits` (mọi hạn mức tuần, gồm theo model), `windows` (`seven_day*`, `five_hour`), `extra_usage`, `resets_at`, `last_ok_at`. Thiếu token/401/429/lỗi mạng: giữ số cũ, ghi lỗi ngắn, lùi 5→10→20→40→60 phút. Tắt bằng `STATUSLINE_CLAUDE_LIVE=0`.
+- Ô `Fable` đọc cache này trước: số lấy trong 2 chu kỳ (10 phút) hiện không `~`; cũ hơn hiện `~` kèm `lấy dd/mm HH:MM`; không có thì fallback `cachedUsageUtilization` như 0.27.0.
+- Sửa lỗi % máy (gộp bản 0.27.1 chưa phát hành): sửa "% dùng máy này" thiếu phần Claude Fable 5.2. Bản statusline đã cài chỉ đọc bảng giá của bản hybrid-hands mới nhất trong cache (0.55.0, chưa có `claude-fable-5-2`), nên mọi lượt Fable bị ghi `unpriced`, USD = 0 và % máy bị tính thiếu. Nay `shared_prices.py` đọc thêm thư mục nguồn của marketplace local (`known_marketplaces.json`) trước cache và gộp theo từng model (nguồn đứng trước thắng), vẫn một bảng giá chuẩn `model-prices.json`. Công thức % máy (USD / `usd_per_pct`) vốn tính theo giá từng model, không đổi.
+
+Social listening (13/11/2026):
+- [claude-code issue 93107](https://claudeissues.com/issue/93107-status-line-expose-per-model-weekly-rate-limit-fable-in-rate-limits-or-keep-cach): payload status line chưa có hạn mức riêng Fable; `cachedUsageUtilization` chỉ mới khi mở `/usage`.
+- [issue 82656](https://claudeissues.com/issue/82656-expose-model-scoped-rate-limits-and-extra-usage-in-the-statusline-json-payload), [issue 34445](https://claudeissues.com/issue/34445-feature-request-oauth-subscription-usage-tracking-in-statusline): đang xin Anthropic đưa hạn mức theo model vào payload.
+- [cship usage_limits.rs](https://docs.rs/crate/cship/1.7.1/source/src/usage_limits.rs), [claude-usage MCP](https://glama.ai/mcp/servers/Orellius/claudeusage-mcp/tree/a7aa791da16ed35a4027843cd1848c5ca2bb87e7): công cụ cộng đồng gọi `GET /api/oauth/usage` (header `anthropic-beta: oauth-2025-04-20`) bằng token Keychain `Claude Code-credentials`; endpoint không công bố, bị rate-limit gắt, cache 60–120 giây.
+- Rút ra: chưa có cách chính thức; cộng đồng dùng endpoint OAuth với cache ngắn và giữ số cũ khi 429 — nên chu kỳ 5 phút, backoff, fallback `/usage`.
+
 ## 0.27.0 — 2026-11-12
 
 - Dòng `Claude v1 ultra` thêm ô cuối `Fable`: hạn mức tuần riêng của Fable 5.2. Payload status line chỉ có `five_hour`/`seven_day`, nên ô này đọc mục `weekly_scoped` có `scope.model.display_name == "Fable"` trong `cachedUsageUtilization` của `~/.claude.json` (CLI ghi khi mở `/usage`). Luôn hiện `~` kèm giờ lấy số (`lấy dd/mm HH:MM`); qua giờ reset thì `Fable:?`; không có file hay không có hạn mức Fable thì không có ô. Dòng v2 không đổi.
