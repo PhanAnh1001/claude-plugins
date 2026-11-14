@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-14 · commit `b2d2ce0`
+Cập nhật 2026-11-15 · commit `f2545b1`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-14 · commit `b2d2ce0`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 286 commit.
+- **Hoạt động 14 ngày:** 287 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-286 commit.
+287 commit.
 
+- 2026-11-14 f2545b1 docs(status): tự cập nhật trang tình hình
 - 2026-11-13 b2d2ce0 docs(status): tự cập nhật trang tình hình
 - 2026-11-13 abfdf9c Merge branch 'main' of https://github.com/PhanAnh1001/claude-plugins
 - 2026-11-13 ce27635 feat(hybrid-hands,statusline): limit-watch, hh-heat, luật social listening (0.61.0); giá Fable và hạn mức usage tự làm mới (statusline 0.28.0)
 - 2026-11-13 9c6cb34 docs(status): tự cập nhật trang tình hình
-- 2026-11-13 5705813 docs(jira-tools): skill weekly-report hướng dẫn soạn báo cáo gọn, gộp task theo kết quả (1.2.1)
