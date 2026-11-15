@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.61.1 — 2026-11-15
+
+- `limit-watch add`: từ chối agent trùng ID khác kể cả done với ID an toàn và hướng dẫn `--id`; giữ rearm cùng ID đã done và chặn dispatch_pending để đối soát ACK thủ công.
+- Lỗi ValueError dùng thông báo soạn sẵn/allowlist, lỗi lạ có hướng xử lý chung, không hiện nội dung exception. Dry-run kiểm tra xung đột chỉ đọc trước khi in JSON.
+- Social listening: [flask-apscheduler #54](https://github.com/viniciuschiele/flask-apscheduler/issues/54) (08/09/2017) và [APScheduler user guide](https://apscheduler.readthedocs.io/en/3.x/userguide.html#adding-jobs) (ngày xuất bản không rõ), truy cập 15/11/2026: ưu tiên ID tường minh; chọn từ chối thay thế ngầm để giữ journal ACK. Các nguồn không bảo đảm an toàn ACK.
+
 ## 0.61.0 — 2026-11-13
 
 Tóm tắt: thêm LUẬT SOCIAL LISTENING vào policy SessionStart (`lib/policy_rules.txt`, mọi repo) và vào khuôn phiên chính/phụ (`templates/main-session-prompt-*.md`, `templates/side-session-prompt-*.md`): mỗi đề xuất giải pháp/workflow phải có mục "Social listening" (link + ngày + điều rút ra, hoặc ghi rõ không có). Prompt hook mỗi lượt không đổi.

@@ -26,7 +26,7 @@ hand-ext limit-watch add --self --checkpoint "Đã xong A, còn B" --next-step "
 hand-ext limit-watch add --side sol --checkpoint "Đã xong A, còn B" --dry-run
 ```
 
-Bỏ `--dry-run` để ghi `~/.hybrid-hands/limit-watch/targets/<id>.json` và đăng ký. Tự lấy metadata public qua fetchAgent; thiếu agent/workspace/native/account home thì lỗi, không đoán. Dry-run chỉ in JSON, không ghi hoặc đăng ký. Add giữ persistent và generation hiện tại, không thay state target khác; trùng agent hoặc target đang dispatch_pending bị từ chối. `done --id ID` kết thúc riêng target, từ chối khi dispatch_pending; không dùng off để huỷ riêng target. Đăng ký lại cùng ID đã done đưa target về armed. JSON đăng ký có `work_pending=false` kết thúc target.
+Bỏ `--dry-run` để ghi `~/.hybrid-hands/limit-watch/targets/<id>.json` và đăng ký. Tự lấy metadata public qua fetchAgent; thiếu agent/workspace/native/account home thì lỗi, không đoán. Dry-run kiểm tra metadata và xung đột registry trước khi in JSON, không ghi hoặc đăng ký. Add giữ persistent và generation hiện tại, không thay state target khác; trùng agent hoặc target đang dispatch_pending bị từ chối. `done --id ID` kết thúc riêng target, từ chối khi dispatch_pending; không dùng off để huỷ riêng target. Đăng ký lại cùng ID đã done đưa target về armed. JSON đăng ký có `work_pending=false` kết thúc target.
 
 ## Đăng ký đúng phiên
 
@@ -131,3 +131,5 @@ Policy SessionStart đã có luật trình duyệt và chặn mở thêm phiên 
 ### Social listening — hh-heat
 
 Tóm tắt: ngày 13/11/2026 xem [issue Playwright về Chrome mồ côi](https://github.com/microsoft/playwright-cli/issues/312) và [thảo luận Puppeteer khi reload](https://www.reddit.com/r/nextjs/comments/1g6sdsk). Cộng đồng ghi nhận tiến trình trình duyệt còn sống sau controller; issue đề xuất dò theo user-data-dir. Thiết kế bổ sung so PID trước/sau ngoài process group, kiểm lại profile tạm, orphan và CDP trước TERM; không dọn Chrome có trước. Đây là báo cáo cộng đồng, chưa kiểm chứng độc lập; kiểm chứng triển khai dùng fixtures giả, không chạy Chrome thật.
+
+Trùng agent dưới ID khác bị từ chối kể cả target đã `done`; dùng đúng ID được báo qua `add --self|--side NAME --checkpoint TEXT --id ID_CŨ`. Không tạo ID mới để né xung đột. Cùng ID đã `done` vẫn rearm; `dispatch_pending` cùng hoặc khác ID luôn cần operator đối soát ACK thủ công trước, không có bypass. `--dry-run` kiểm tra registry chỉ đọc, không tạo lock/target, không gọi launchd; đăng ký thật kiểm tra lại dưới lock nên kết quả preview có thể thay đổi.
