@@ -99,3 +99,6 @@ Luật áp dụng nguyên văn: "Bạn quản lý source code repo này, khi đ�
 ## Giới hạn / việc brain còn làm
 
 Dry-run là snapshot không lock: registry có thể đổi trước add thật; add thật luôn kiểm tra lại. Không thay lifecycle, generation, persistent hoặc dispatch semantics. Test duplicate mới dùng registration.build giả; test build self/side hiện hữu vẫn xanh. Không kiểm thử daemon/launchd hay account thật theo brief. Giữ nguyên brief chưa tracked của brain. Brain review, chạy full suite đúng một lần theo kế hoạch riêng, rồi commit/release/cập nhật runtime và xác minh phiên bản nạp qua công cụ chính thức; executor không làm các bước đó.
+
+## Commit bàn giao
+`988877d` trên nhánh `side/fix-limit-watch-valueerror`, worktree `/Users/anhtp/app/claude-plugins-wt/fix-limit-watch-valueerror`. Không push.
