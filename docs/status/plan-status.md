@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-15 · commit `b9ba466`
+Cập nhật 2026-11-15 · commit `7bdfe17`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-15 · commit `b9ba466`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 292 commit.
+- **Hoạt động 14 ngày:** 293 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-292 commit.
+293 commit.
 
+- 2026-11-15 7bdfe17 docs(status): tự cập nhật trang tình hình
 - 2026-11-15 b9ba466 Merge branch 'side/fix-limit-watch-valueerror'
 - 2026-11-15 417aee7 docs: record limit-watch fix commit for brain
 - 2026-11-15 988877d fix(hybrid-hands): explain limit-watch registration conflicts (0.61.1)
 - 2026-11-14 234a79d docs(status): tự cập nhật trang tình hình
-- 2026-11-14 4b5f6dd docs(status): tự cập nhật trang tình hình
