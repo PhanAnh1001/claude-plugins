@@ -14,6 +14,6 @@ In kết quả lệnh; lỗi thì báo nguyên văn, không đổi ID hoặc off
 
 Chi tiết: [README limit-watch](../../README.md). Slash command: `/hybrid-hands:limit-watch`.
 
-Kết thúc riêng target: `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" limit-watch done --id "<ID>"`, chỉ khi người dùng yêu cầu rõ và cung cấp ID; dispatch_pending bị từ chối để đối soát ACK. Đăng ký lại cùng ID đã done khôi phục armed. Brain Paseo sống qua idle/finished và tự về armed sau resumed; side vẫn kết thúc theo `.done`/stopped.
+Kết thúc riêng target: `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" limit-watch done --id "<ID>"`, chỉ khi người dùng yêu cầu rõ và cung cấp ID; dispatch_pending bị từ chối để đối soát ACK. Đăng ký lại cùng ID đã done khôi phục armed. Brain Paseo sống qua idle/finished và tự về armed sau resumed. Brain Paseo chỉ kết thúc khi agent bị archive; Paseo khởi động lại giữ target armed (status closed chưa archive không kết thúc; agent tạm vắng hoặc lệch định danh ghi reason `identity_or_runtime_unconfirmed`, không gửi), không cần `add --self` lại; side vẫn kết thúc theo `.done`/stopped.
 
 Trùng agent dưới ID khác bị từ chối kể cả target đã `done`; dùng đúng ID được báo qua `add --self|--side NAME --checkpoint TEXT --id ID_CŨ`. Không tạo ID mới để né xung đột. Cùng ID đã `done` vẫn rearm; `dispatch_pending` cùng hoặc khác ID luôn cần operator đối soát ACK thủ công trước, không có bypass. `--dry-run` kiểm tra registry chỉ đọc, không tạo lock/target, không gọi launchd; đăng ký thật kiểm tra lại dưới lock nên kết quả preview có thể thay đổi.

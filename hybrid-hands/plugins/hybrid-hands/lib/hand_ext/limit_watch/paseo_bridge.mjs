@@ -28,7 +28,8 @@ try {
   if (!agent || agent.id !== request.agent_id || agent.workspaceId !== request.workspace_id
       || agent.cwd !== request.cwd || native !== request.native_id
       || agent.provider !== request.paseo_provider) {
-    emit({valid: true, closed: true, idle: false, receipt: 'not_sent'});
+    // Missing/mismatched agent is unconfirmed (e.g. daemon restart), not closure.
+    emit({valid: false, receipt: 'not_sent'});
   } else {
   // Do not return provider text; just classify this current metadata event.
   const quota = agent.attentionReason === 'error' && typeof agent.lastError === 'string'
@@ -39,7 +40,9 @@ try {
     && !agent.activeTurn && Array.isArray(agent.pendingPermissions)
     && agent.pendingPermissions.length === 0 && !agent.archivedAt && !agent.providerUnavailable;
   // A finished attention event ends a turn, not the registered brain work.
-  const closed = Boolean(agent.archivedAt) || ['closed', 'stopped'].includes(agent.status);
+  // Paseo writes status 'closed' transiently on daemon restart and then resumes;
+  // only archivedAt ends the work.
+  const closed = Boolean(agent.archivedAt);
   const result = {valid: true, idle, blocked_at: Number.isFinite(stamp) ? stamp : null,
     closed, status: agent.status};
   if (request.command === 'send') {

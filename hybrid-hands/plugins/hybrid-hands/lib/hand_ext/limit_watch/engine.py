@@ -69,9 +69,12 @@ def work_finished(target: dict, live: dict) -> bool:
     """Separate work lifetime from the provider's per-turn attention status.
 
     Paseo brains remain registered across idle/finished turns. Only confirmed
-    closure/identity loss or an explicit pending-work withdrawal ends them.
-    A failed observation is not proof of closure and is handled before this
-    predicate. Side completion markers retain their existing meaning.
+    closure (an archive confirmed by the bridge) or an explicit pending-work
+    withdrawal ends them. A failed observation is not proof of closure and is
+    handled before this predicate. During a Paseo restart, status closed
+    without an archive arrives as closed=false and does not end the work;
+    a missing or mismatched agent arrives as valid=false and is handled
+    before this predicate. Side completion markers retain their meaning.
     Pending dispatches are reconciled before evaluating work completion.
     """
     if live.get('closed'):
