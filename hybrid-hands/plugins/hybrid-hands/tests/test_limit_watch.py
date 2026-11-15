@@ -84,6 +84,52 @@ class LimitWatchTests(unittest.TestCase):
         self.assertTrue((self.store.path.parent / 'targets/sol.json').exists())
         install.assert_not_called()
 
+    def add_result(self, raw, dry=False, error=None):
+        from hand_ext.limit_watch import cli
+        import contextlib, io
+        args = SimpleNamespace(action='add', self_target=raw['adapter'] == 'paseo', side='sol' if raw['adapter'] == 'side' else None, checkpoint='test', next_step=None, id=raw['id'], dry_run=dry, persistent=False, target=[])
+        with patch.object(cli, 'Store', side_effect=lambda path=None: Store(path) if path else self.store), patch.object(cli.registration, 'build', return_value=raw, side_effect=error), patch.object(cli.launchd, 'install') as install, contextlib.redirect_stdout(io.StringIO()) as out:
+            rc = cli.command(args)
+        install.assert_not_called()
+        return rc, json.loads(out.getvalue())
+
+    def test_add_duplicate_done_refuses_without_writes(self):
+        for adapter in ('paseo', 'side'):
+            for dry in (False, True):
+                with self.subTest(adapter=adapter, dry=dry):
+                    self.target.update(state='done', adapter=adapter, side_name='sol', side_uuid='fake-uuid')
+                    self.seed()
+                    before = self.store.path.read_bytes()
+                    rc, out = self.add_result(dict(self.target, id='different'), dry)
+                    self.assertEqual(rc, 1)
+                    self.assertIn('--id fake', out.get('message', ''))
+                    self.assertEqual(self.store.path.read_bytes(), before)
+                    self.assertFalse((self.store.path.parent / 'targets').exists())
+
+    def test_add_pending_blocks_and_done_rearms(self):
+        for ident in ('fake', 'different'):
+            for dry in (False, True):
+                with self.subTest(ident=ident, dry=dry):
+                    self.target.update(state='dispatch_pending', dispatch_generation=7)
+                    self.seed()
+                    before = self.store.path.read_bytes()
+                    rc, out = self.add_result(dict(self.target, id=ident), dry)
+                    self.assertEqual(rc, 1)
+                    self.assertIn('ACK', out.get('message', ''))
+                    self.assertEqual(self.store.path.read_bytes(), before)
+                    self.assertFalse((self.store.path.parent / 'targets').exists())
+        self.target['state'] = 'done'
+        self.seed()
+        self.assertEqual(self.add_result(self.target.copy())[0], 0)
+        self.assertEqual(self.store.read()['targets']['fake']['state'], 'armed')
+    def test_add_value_errors_have_safe_actionable_message(self):
+        for error in ('target_path_missing', 'invalid_watch_state', 'SECRET_SENTINEL /private/input.json'):
+            with self.subTest(kind=error.split()[0]):
+                rc, out = self.add_result(self.target.copy(), error=ValueError(error))
+                self.assertEqual(rc, 1)
+                self.assertTrue(out.get('message'))
+                self.assertNotIn('SECRET_SENTINEL', json.dumps(out))
+
     def tearDown(self):
         self.tmp.cleanup()
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -98,13 +99,96 @@ def target_registration(raw, now):
     return target
 
 
+# Only authored validation codes may cross the CLI error boundary. Exception
+# text from JSON, URL parsing, paths or external metadata is never a diagnostic.
+ADD_VALUE_ERRORS = {
+    'target_must_be_object':
+        'Target phải là JSON object; kiểm tra metadata đăng ký.',
+    'target_identity_or_checkpoint_missing':
+        'Thiếu identity/checkpoint; kiểm tra metadata và --checkpoint.',
+    'unsupported_provider_or_adapter':
+        'Provider/adapter chưa hỗ trợ; dùng phiên Paseo Claude hoặc Codex.',
+    'unsupported_account':
+        'Account chưa hỗ trợ; kiểm tra cấu hình account của phiên.',
+    'unfinished_work_attestation_required':
+        'Thiếu xác nhận việc còn dở; kiểm tra work_pending.',
+    'target_path_missing':
+        'Thư mục target không tồn tại; kiểm tra cwd và account home.',
+    'target_endpoint_required':
+        'Thiếu endpoint target; kiểm tra metadata Paseo.',
+    'target_endpoint_invalid':
+        'Endpoint không hợp lệ; kiểm tra metadata Paseo.',
+    'credential_endpoint_forbidden':
+        'Endpoint chứa dữ liệu bị cấm; dùng endpoint không có credential.',
+    'target_endpoint_mismatch':
+        'Endpoint không khớp identity; kiểm tra metadata Paseo.',
+    'side_identity_required':
+        'Thiếu identity side; kiểm tra metadata side-session.',
+    'invalid_block_observation':
+        'Quan sát block không hợp lệ; kiểm tra metadata block.',
+    'invalid_block_window':
+        'Cửa sổ block không hợp lệ; kiểm tra metadata block.',
+    'invalid_watch_state':
+        'Registry không hợp lệ; nhờ operator kiểm tra journal trước khi add lại.',
+}
+ADD_VALUE_FALLBACK = (
+    'Không thể xác thực đăng ký; kiểm tra metadata, --checkpoint và registry bằng '
+    'limit-watch status; nhờ operator kiểm tra trước khi thử lại. '
+    'Không đổi ID hoặc off/on để bỏ qua ACK.'
+)
+
+
+def safe_target_id(value) -> str:
+    """Registry contents are untrusted; never echo paths or arbitrary input."""
+    if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_-]+', value):
+        return value
+    return ''
+
+
+def registration_conflict(target, pending: bool) -> registration.RegistrationError:
+    """Name a usable existing ID, without leaking other target metadata."""
+    ident = safe_target_id(target.get('id'))
+    identity = f' (ID {ident})' if ident else ' (ID không hợp lệ)'
+    if pending:
+        return registration.RegistrationError(
+            'dispatch_pending' + identity + ': cần operator đối soát ACK thủ công '
+            'trước khi đăng ký lại; không đổi --id hoặc off/on để bỏ qua.'
+        )
+    remedy = f'dùng --id {ident} để đăng ký lại cùng target' if ident else (
+        'nhờ operator kiểm tra ID trong registry trước khi đăng ký lại'
+    )
+    return registration.RegistrationError(
+        'Agent đã có đăng ký' + identity + ', kể cả target done; ' + remedy + '.'
+    )
+
+
 def check_registration(state, target):
+    """Refuse duplicates before any raw registration or journal write.
+
+    Same-ID done targets may rearm. A pending receipt, under either the same
+    ID or a conflicting ID, must retain its journal for manual reconciliation.
+    """
     old = state['targets'].get(target['id'])
     if old and old['state'] == 'dispatch_pending':
-        raise ValueError('pending_receipt_requires_manual_reconciliation')
-    if any(t['id'] != target['id'] and (t['target_key'], t['agent_id']) ==
-           (target['target_key'], target['agent_id']) for t in state['targets'].values()):
-        raise ValueError('duplicate_agent_registration')
+        raise registration_conflict(old, pending=True)
+    conflicts = [t for t in state['targets'].values()
+                 if t['id'] != target['id'] and (t['target_key'], t['agent_id']) ==
+                 (target['target_key'], target['agent_id'])]
+    # A pending receipt takes priority even in a legacy registry with multiple
+    # conflicting entries. Never suggest rearming another entry around it.
+    pending = next((t for t in conflicts if t['state'] == 'dispatch_pending'), None)
+    if pending is not None:
+        raise registration_conflict(pending, pending=True)
+    if conflicts:
+        raise registration_conflict(conflicts[0], pending=False)
+
+
+def add_value_message(exc: ValueError) -> str:
+    """Match exact internal codes only; unknown text stays private."""
+    code = exc.args[0] if len(exc.args) == 1 else None
+    if isinstance(code, str):
+        return ADD_VALUE_ERRORS.get(code, ADD_VALUE_FALLBACK)
+    return ADD_VALUE_FALLBACK
 
 
 def finish_target(store: Store, target_id: str) -> None:
@@ -150,6 +234,9 @@ def command(args):
             raw = registration.build(args)
             target = target_registration(raw.copy(), now)
             if args.dry_run:
+                # Read-only preview: no lock file/directory creation and no
+                # launchd calls. Real add rechecks under the dispatch lock.
+                check_registration(store.read(), target)
                 print(json.dumps(raw, ensure_ascii=False, indent=2))
                 return 0
             with store.locked():
@@ -213,5 +300,7 @@ def command(args):
         error = dict(ok=False, code=type(exc).__name__)
         if isinstance(exc, registration.RegistrationError):
             error['message'] = str(exc)
+        elif args.action == 'add' and isinstance(exc, ValueError):
+            error['message'] = add_value_message(exc)
         print(json.dumps(error, ensure_ascii=False))
         return 1
