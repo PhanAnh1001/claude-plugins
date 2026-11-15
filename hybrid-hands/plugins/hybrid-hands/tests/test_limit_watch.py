@@ -145,6 +145,45 @@ class LimitWatchTests(unittest.TestCase):
     def tick(self, now=NOW, guard=lambda *_: True):
         engine.tick(self.store, lambda t: self.live, self.quota, self.sender, guard, now)
 
+    def bridge_tick(self, status='running', *, missing=False, archived_at=None, now=NOW):
+        if not shutil.which('node'):
+            self.skipTest('node is required for the real Paseo bridge')
+        client_dir = self.root / 'dist/utils'
+        client_dir.mkdir(parents=True, exist_ok=True)
+        (self.root / 'package.json').write_text('{"type":"module"}')
+        agent = None if missing else dict(id='agent-fake', workspaceId='workspace-fake',
+            cwd=str(self.root), provider='claude', status=status, archivedAt=archived_at,
+            persistence=dict(nativeHandle='native-fake'), pendingPermissions=[], activeTurn=None)
+        (client_dir / 'client.js').write_text('export async function connectToDaemon(){return {'
+            'fetchAgent:async()=>({agent:'+json.dumps(agent)+'}),close:async()=>{}}}')
+        with patch('side_session.paseo.cli_package_root', return_value=self.root):
+            live = adapters.runtime(self.target)
+        engine.tick(self.store, lambda _: live, self.quota, self.sender, lambda *_: True, now)
+        return self.store.read()['targets']['fake']
+
+    def test_paseo_restart_closed_stays_armed(self):
+        self.seed()
+        for offset, status in enumerate(('running', 'closed', 'running')):
+            with self.subTest(tick=offset, status=status):
+                row = self.bridge_tick(status, now=NOW+offset)
+                self.assertEqual(row['state'], 'armed')
+        self.sender.assert_not_called()
+
+    def test_paseo_restart_missing_agent_stays_armed(self):
+        self.seed()
+        for offset, missing in enumerate((False, True, False)):
+            with self.subTest(tick=offset, missing=missing):
+                row = self.bridge_tick(missing=missing, now=NOW+offset)
+                self.assertEqual(row['state'], 'armed')
+                if missing:
+                    self.assertEqual(row['reason'], 'identity_or_runtime_unconfirmed')
+
+    def test_paseo_archived_agent_finishes_work(self):
+        self.seed()
+        row = self.bridge_tick(archived_at='2026-11-15T10:00:00Z')
+        self.assertEqual(row['state'], 'done')
+        self.assertEqual(row['reason'], 'work_finished')
+
     def test_paseo_finished_turn_stays_armed(self):
         self.seed()
         self.live.update(done=True, status='idle')

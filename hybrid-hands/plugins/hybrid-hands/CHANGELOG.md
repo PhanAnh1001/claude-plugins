@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.61.2 — 2026-11-15
+
+- `limit-watch` adapter `paseo`: sửa lỗi brain chuyển done nhầm khi Paseo khởi động lại (daemon ghi running→closed rồi resume về running). Chỉ `archivedAt` mới là kết thúc; status `closed` chưa archive giữ armed. Xem [báo cáo lỗi](../../../docs/bugs/2026-11-15-limit-watch-paseo-closed-done.md).
+- Agent null hoặc lệch định danh trả `valid=false`, engine giữ nguyên trạng thái với reason `identity_or_runtime_unconfirmed`; lệnh send vẫn không gửi (`not_sent`).
+- Social listening: [GitHub jdx/pitchfork #634](https://github.com/jdx/pitchfork/discussions/634) và [Kubernetes probe failureThreshold – OneUptime](https://oneuptime.com/blog/post/2026-02-09-probe-failure-success-threshold/markdown), truy cập 15/11/2026: trạng thái tạm lúc restart không được coi là cuối; một lần quan sát lỗi không dẫn tới hành động vĩnh viễn.
+
 ## 0.61.1 — 2026-11-15
 
 - `limit-watch add`: từ chối agent trùng ID khác kể cả done với ID an toàn và hướng dẫn `--id`; giữ rearm cùng ID đã done và chặn dispatch_pending để đối soát ACK thủ công.
