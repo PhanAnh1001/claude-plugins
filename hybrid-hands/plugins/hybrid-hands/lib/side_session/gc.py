@@ -41,6 +41,10 @@ def runtime_ended(st: state.SessionState, records: list[state.SessionState]) -> 
             return False
         if paseo.agent_archive_states([st]).get(st.paseo_agent_id) is not True:
             return False
+        if st.paseo_workspace_shared:
+            # A shared workspace belongs to the calling chat (see actions._revive_done):
+            # side-session never archives it, so the archived agent is the whole proof.
+            return True
         return paseo.tidy_workspace(st, records, False).get("archived") is True
     if st.transport != C.TRANSPORT_SCREEN or not st.screen:
         return False
@@ -159,6 +163,49 @@ def identity(path: Path, entry: dict, common: Path, owner: state.SessionState) -
             "branch": branch, "common_dir": str(common)}
 
 
+REASON_MAX_CHARS = 160  # keep one gc table row readable
+
+
+def failure_reason(step: str, exc: BaseException) -> str:
+    detail = getattr(exc, "code", None) or str(exc) or type(exc).__name__
+    return f"{step} failed: {type(exc).__name__}: {detail}"[:REASON_MAX_CHARS]
+
+
+def handoff_mirror(cfg: SideConfig, path: Path, relative: str) -> bool:
+    """An untracked worktree copy of a handoff that the main handoff dir holds byte-for-byte."""
+    try:
+        handoff_rel = cfg.handoff_dir.resolve().relative_to(cfg.repo.resolve())
+    except ValueError:
+        return False
+    candidate = Path(relative)
+    if candidate.parent != handoff_rel or candidate.suffix not in {".md", C.DONE_SUFFIX}:
+        return False
+    copy, original = path / candidate, cfg.handoff_dir / candidate.name
+    if copy.is_symlink() or not copy.is_file() or not original.is_file():
+        return False
+    return copy.read_bytes() == original.read_bytes()
+
+
+def dirty_entries(cfg: SideConfig, path: Path) -> list[str]:
+    raw = git(path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+    entries = [os.fsdecode(item) for item in raw.split(b"\0") if item]
+    return [item for item in entries
+            if not (item.startswith("?? ") and handoff_mirror(cfg, path, item[3:]))]
+
+
+def remove_worktree(cfg: SideConfig, path: Path) -> None:
+    """Drop re-verified handoff mirrors only, then a non-forced `git worktree remove`."""
+    raw = git(path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+    for item in (os.fsdecode(entry) for entry in raw.split(b"\0") if entry):
+        if item.startswith("?? ") and handoff_mirror(cfg, path, item[3:]):
+            (path / item[3:]).unlink()
+    result = subprocess.run(["git", "-C", str(cfg.repo), "worktree", "remove", "--", str(path)],
+                            capture_output=True, text=True, timeout=GIT_TIMEOUT)
+    if result.returncode:
+        raise ValueError(result.stderr.strip().splitlines()[-1] if result.stderr.strip()
+                         else f"git exit {result.returncode}")
+
+
 def inspect(cfg: SideConfig, *, name: str | None = None,
             runtime: Callable = runtime_ended, scan=None) -> dict:
     scan = scan or wt_legacy.Scan()
@@ -196,23 +243,28 @@ def inspect(cfg: SideConfig, *, name: str | None = None,
         if "locked" in entry or "prunable" in entry or not row["branch"]:
             row["reason"] = "protected/locked/prunable/detached worktree"
             continue
+        step = "identity"
         try:
             row["identity"] = identity(registered_path, entry, common, st)
+            step = "runtime"
             if not runtime(st, records):
+                row["reason"] = "runtime not ended (agent not archived/closed or screen alive)"
                 continue
+            step = "bases"
             refs = bases(cfg, st)
-            dirty = git(path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
+            step = "git"
+            dirty = dirty_entries(cfg, path)
             row["tracked_bytes"] = file_bytes(path, git(path, "ls-files", "-z", "--cached"))
             row["ignored_bytes"] = file_bytes(path, git(path, "ls-files", "-z", "--others",
                                                        "--ignored", "--exclude-standard"))
             if dirty:
-                row.update(class_="C", reason="tracked changes or untracked files")
+                row.update(class_="C", reason=f"tracked changes or untracked files ({len(dirty)}, e.g. {dirty[0][3:]})"[:REASON_MAX_CHARS])
                 continue
             is_merged, row["ahead"] = merged(path, refs)
             row.update(class_="A" if is_merged else "B",
                        reason="merged/equivalent in base" if is_merged else "unmerged commits")
-        except (OSError, ValueError, subprocess.TimeoutExpired, paseo.PaseoError):
-            row.update(class_="D", reason="runtime/base/git metadata unavailable")
+        except (OSError, ValueError, subprocess.TimeoutExpired, paseo.PaseoError) as exc:
+            row.update(class_="D", reason=failure_reason(step, exc))
     for row in rows:
         path = Path(row['path'])
         matches = owners.get(path, [])
@@ -280,9 +332,9 @@ def apply(cfg: SideConfig, *, name: str | None = None,
                     if row['class'] == wt_legacy.LEGACY:
                         row['backup'] = scan.remove(cfg.repo, Path(row['path']))
                     else:
-                        git(cfg.repo, "worktree", "remove", "--", row["path"])
-                except (OSError, ValueError, subprocess.TimeoutExpired):
-                    row["result"] = "remove failed"
+                        remove_worktree(cfg, Path(row["path"]))
+                except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+                    row["result"] = f"remove failed: {exc}"[:REASON_MAX_CHARS]
                     report["errors"].append(row["result"])
                     continue
                 event = {"timestamp": time.time(), "name": row["name"],

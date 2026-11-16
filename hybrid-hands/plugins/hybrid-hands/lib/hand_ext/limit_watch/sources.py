@@ -105,6 +105,20 @@ def codex_sample(raw, now, bucket='codex'):
                 server_blocked=blocked, source='codex_app_server')
 
 
+# Thư mục mặc định của Claude Code: đặt CLAUDE_CONFIG_DIR trỏ vào nó làm
+# `claude auth status` báo chưa đăng nhập, nên phải bỏ biến.
+CLAUDE_CODE_DEFAULT_HOME = Path('~/.claude')
+
+
+def claude_env(home: Path) -> dict:
+    env = dict(os.environ)
+    if Path(home).expanduser().resolve() == CLAUDE_CODE_DEFAULT_HOME.expanduser().resolve():
+        env.pop('CLAUDE_CONFIG_DIR', None)
+    else:
+        env['CLAUDE_CONFIG_DIR'] = str(home)
+    return env
+
+
 def claude_sample(target, now):
     home = Path(target['account_home'])
     live = read_object(home / '.hh-claude-rate-limit.json')
@@ -132,7 +146,7 @@ def claude_sample(target, now):
         # Match the authenticated account via the official CLI. Only the digest
         # leaves this function, never an email/token/auth response.
         from hh_ps.claude_calibration import identity_digest
-        env = dict(os.environ, CLAUDE_CONFIG_DIR=str(home))
+        env = claude_env(home)
         try:
             auth = cli_json(['claude', 'auth', 'status', '--json'], env)
             email = auth.get('email') or (auth.get('account') or {}).get('email')

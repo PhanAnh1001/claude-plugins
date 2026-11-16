@@ -674,10 +674,28 @@ def stop(cfg: SideConfig, a) -> int:
     stop_session(cfg, st, C.STATUS_STOPPED, stop_watch=True)
     print(_stopped_message(st))
     if st.worktree:
-        print(f"worktree kept; remove with: git -C {shlex.quote(str(cfg.repo))} worktree remove "
-              f"{shlex.quote(st.dir)} && git -C {shlex.quote(str(cfg.repo))} branch -D "
-              f"{C.BRANCH_PREFIX}{st.name}")
+        _collect_stopped_worktree(cfg, st)
     return 0
+
+
+STOP_GC_DEADLINE_S = 20  # same budget as the start-time auto GC
+
+
+def _collect_stopped_worktree(cfg: SideConfig, st: state.SessionState) -> None:
+    """Class-A-only GC of this session's worktree; any failure keeps it and never fails stop."""
+    try:
+        report = gc.apply(cfg, name=st.name, include_unmerged=False, prune_branches=False,
+                          fetch=False, deadline=time.monotonic() + STOP_GC_DEADLINE_S)
+        row = next((r for r in report["worktrees"] if r["path"] == str(Path(st.dir).resolve())), None)
+    except Exception as exc:  # noqa: BLE001 - stop already succeeded; report and keep
+        row = {"class": "D", "reason": f"gc failed: {type(exc).__name__}"}
+    if row and row.get("result") == "removed":
+        print(f"worktree removed (class {row['class']}): {st.dir}")
+        return
+    reason = row["reason"] if row else "not a registered worktree"
+    print(f"worktree kept ({reason}); remove with: git -C {shlex.quote(str(cfg.repo))} worktree remove "
+          f"{shlex.quote(st.dir)} && git -C {shlex.quote(str(cfg.repo))} branch -D "
+          f"{C.BRANCH_PREFIX}{st.name}")
 
 
 def _finish_external(cfg: SideConfig, st: state.SessionState, run) -> bool:

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,9 +15,9 @@ sys.path.insert(0, str(PLUGIN / "lib"))
 from shared_config import load_config
 
 HOOKS = ("session-start-policy.sh", "inject-policy.sh")
-BASELINE = ("e3f0e26dc2f6a16575aff958f826068588e62b590659a858adb9eb4c4dd632e1",
+BASELINE = ("672f31ab38b0669d71fcc24253d2606b0d84c79a7cf0cf15a5aea8fb78e5c6c6",
             "15fc1a8b0aa680cbf90118398ac071f1aec61f5e710c4022d1ea83c8b24cab38")
-MATCHED_SESSION = "5fd1f4f41b68714fc08bf37b5751ac34ce7754c3c026b2292c17e9d9c0fe21f2"
+MATCHED_SESSION = "05321af3cefacb5edce9e28c831668346d64842a2b3c5b3c7a9e4cdeb3a15dbb"
 
 
 def hooks(cwd, payload=None):
@@ -100,3 +101,22 @@ class PolicyModeTest(unittest.TestCase):
         for i, output in enumerate(hooks(tmp_path)):
             assert hashlib.sha256(output.stdout.replace(str(PLUGIN), "<ROOT>").encode()).hexdigest() == BASELINE[i]
             assert "bỏ qua global" in output.stderr
+
+
+class DiskReminderTest(unittest.TestCase):
+    def run_render(self, free_gib, git_out=None):
+        import policy_mode
+        usage = shutil._ntuple_diskusage(0, 0, int(free_gib * 1024 ** 3))
+        git = (patch("disk_reminder.subprocess.run", side_effect=OSError) if git_out is None else
+               patch("disk_reminder.subprocess.run",
+                     return_value=subprocess.CompletedProcess([], 0, git_out, "")))
+        with patch("disk_reminder.shutil.disk_usage", return_value=usage), git:
+            return policy_mode.render("session", PLUGIN, json.dumps({"cwd": tempfile.gettempdir()}))
+
+    def test_reminder_only_when_low_disk_and_extra_worktree(self):
+        two = "worktree /a\nHEAD x\n\nworktree /b\nHEAD y\n"
+        low = self.run_render(3, two)
+        assert low.count("NHẮC DỌN WORKTREE") == 1 and "1 worktree phụ" in low and "side-session gc --apply" in low
+        assert "NHẮC DỌN WORKTREE" not in self.run_render(500, two)
+        broken = self.run_render(3)  # git fails: policy unchanged, no reminder
+        assert "NHẮC DỌN WORKTREE" not in broken and "LUẬT NGỮ CẢNH BRAIN" in broken

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from shared_config import GlobalConfigError, load_config
 from hand_ext.config import load_config as load_ext_config
+from disk_reminder import disk_reminder
 
 MODE_KEY = "parallel_subagents.enabled"
 NORMAL_PROMPT = "POLICY: xem SessionStart và AGENTS.md. Hand theo ext_hand.order (pick trước native); brain không tự tra cứu; cấm hiện .env/token/credential."
@@ -115,7 +116,8 @@ def render(hook: str, root: Path, payload: str) -> str:
     brief = (root / "templates/hand-brief.md").read_text(encoding="utf-8").rstrip("\n")
     return (mode_line + "POLICY hybrid-hands - KHUÔN BRIEF (bắt buộc khi gọi Agent với hybrid-hands:hand và khi viết brief cho hand-ext; điền đủ các mục, ngắn gọn):\n"
             + brief + "\n" + rules + "\n"
-            + f"Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): {root}/bin/hand-ext, {root}/bin/side-session, {root}/bin/hh-ps, {root}/bin/cc-switch")
+            + f"Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): {root}/bin/hand-ext, {root}/bin/side-session, {root}/bin/hh-ps, {root}/bin/cc-switch"
+            + (f"\n{reminder}" if (reminder := disk_reminder(cwd)) else ""))
 
 
 if __name__ == "__main__":

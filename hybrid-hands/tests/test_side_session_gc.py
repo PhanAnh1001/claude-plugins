@@ -146,7 +146,31 @@ class GCTest(unittest.TestCase):
                 self.assertEqual(gc.inspect(self.cfg, name=st.name, runtime=lambda *_: True)['worktrees'][0]['class'], 'D')
         with patch.object(gc.paseo, 'status', side_effect=gc.paseo.PaseoError('LOOKUP_FAILED')):
             with patch.object(state, 'load_all', return_value=[replace(st, transport='paseo', paseo_agent_id='fake', paseo_workspace_id='fake', paseo_target='fake')]):
-                self.assertEqual(gc.inspect(self.cfg, name=st.name)['worktrees'][0]['class'], 'D')
+                row = gc.inspect(self.cfg, name=st.name)['worktrees'][0]
+                self.assertEqual((row['class'], row['reason'][:15]), ('D', 'runtime failed:'))
+                self.assertIn('LOOKUP_FAILED', row['reason'])
+    def test_apply_removes_worktree_with_handoff_mirror(self):
+        cfg = replace(self.cfg, handoff_dir=self.repo / 'handoffs')
+        cfg.handoff_dir.mkdir()
+        (cfg.handoff_dir / 'mirror.done').write_text('ok')
+        path, _ = self.candidate('mirror')
+        (path / 'handoffs').mkdir()
+        (path / 'handoffs/mirror.done').write_text('ok')
+        with patch.object(gc, 'inspect', side_effect=lambda c, **kw: gc_inspect(c, runtime=lambda *_: True, **kw)):
+            self.assertEqual(gc.apply(cfg, name='mirror')['worktrees'][0]['result'], 'removed')
+        self.assertFalse(path.exists())
+        self.assertEqual((cfg.handoff_dir / 'mirror.done').read_text(), 'ok')
+    def test_stop_collects_clean_worktree_and_explains_dirty(self):
+        from side_session import actions
+        with patch.object(gc, 'inspect', side_effect=lambda cfg, **kw: gc_inspect(cfg, runtime=lambda *_: True, **kw)):
+            for name, dirty in (('stop-clean', False), ('stop-dirty', True)):
+                path, st = self.candidate(name, status='stopped')
+                if dirty:
+                    (path / 'notes.txt').write_text('dirty')
+                with redirect_stdout(io.StringIO()) as output:
+                    actions._collect_stopped_worktree(self.cfg, st)
+                self.assertEqual(path.exists(), dirty)
+                self.assertIn('worktree kept (tracked changes' if dirty else 'worktree removed', output.getvalue())
 
 
 gc_inspect = gc.inspect
