@@ -14,7 +14,7 @@
 
 ## Profile và vai
 
-Khoá `profile` đặt ở repo `.claude/hybrid-hands.json` (hoặc global). Thiếu khoá thì `pick --role`, `run --role` và `side-session start` báo lỗi kèm gợi ý `hand-ext profile set <tên>`; không tự chọn profile.
+Khoá `profile` đặt ở repo `.claude/hybrid-hands.json` (hoặc global). Thiếu khoá thì `pick --role`, `run --role` và `side-session start` báo lỗi kèm gợi ý `hand-ext profile set <tên>`; không tự chọn profile. Trong Claude Code dùng [`/hybrid-hands:profile`](plugins/hybrid-hands/commands/profile.md): không đối số chỉ xem; `/hybrid-hands:profile hybrid` đặt ngay; `/hybrid-hands:profile set` hỏi chọn một trong ba profile qua AskUserQuestion rồi đặt. Lệnh chỉ ghi khoá `profile` của repo; profile mới áp dụng cho phiên mở sau.
 
 | Vai | `claude-mono` | `gpt-mono` | `hybrid` |
 |---|---|---|---|
@@ -137,6 +137,7 @@ hybrid-hands/
     ├── bin/hand-ext, bin/side-session, bin/hh-ps, bin/cc-switch  # vào PATH của tool Bash khi plugin bật
     ├── lib/hand_ext/ (backends/: codex | claude; profiles.py, ladder.py, day_budget.py, isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
     ├── commands/to-paseo.md, commands/to-term.md  # slash command chuyển phiên hai chiều
+    ├── commands/profile.md                       # slash command xem/đổi profile repo
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/

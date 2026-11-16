@@ -4,7 +4,7 @@ argument-hint: "[set [FLAGS]|unset brain|side|hand|options] [--dry-run] [--json]
 allowed-tools: Bash, AskUserQuestion
 ---
 
-Không đối số chỉ xem model/effort/account ba tầng (lệnh cũ, chưa theo ô vai của profile; vai và model của brain/subagent xem `hand-ext profile`); `set` không cờ mở danh sách chọn cấu hình. Các đối số khác chuyển nguyên cho CLI. Chạy bằng tool Bash tại cwd repo hiện tại theo đúng một trong ba luồng dưới đây.
+Không đối số chỉ xem model/effort/account ba tầng (lệnh cũ, chưa theo ô vai của profile; vai và model của brain/subagent xem hoặc đổi bằng `/hybrid-hands:profile`); `set` không cờ mở danh sách chọn cấu hình. Các đối số khác chuyển nguyên cho CLI. Chạy bằng tool Bash tại cwd repo hiện tại theo đúng một trong ba luồng dưới đây.
 
 ## 1. Không đối số: chỉ xem
 
