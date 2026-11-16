@@ -52,7 +52,7 @@ Brain ghi file JSON metadata/checkpoint công khai được, không chứa secre
 }
 ```
 
-`paseo_provider` phải là đúng provider metadata public trả về (có thể `claude` khi dùng env tài khoản riêng), không đoán từ nhãn. `account_home` phải là home thực của tài khoản chạy phiên; không chuyển tài khoản để né quota. Codex dùng `provider: "codex"`, `account: "gpt"`, home đúng `~/.codex-hand` hoặc `~/.codex`, `paseo_provider` đúng metadata (thường `codex`), và native thread ID. Bucket quota mặc định `codex`; chỉ đặt `limit_id` khác khi có bucket thực tương ứng. Claude hỗ trợ v1/v2; v1 luôn giữ trần day guard tối đa 8%/ngày, thiếu dữ liệu guard thì chờ.
+`paseo_provider` phải là đúng provider metadata public trả về (có thể `claude` khi dùng env tài khoản riêng), không đoán từ nhãn. `account_home` phải là home thực của tài khoản chạy phiên; không chuyển tài khoản để né quota. Codex dùng `provider: "codex"`, `account: "gpt"`, home đúng `~/.codex` (phiên trước 0.67.0 có thể là `~/.codex-hand`), `paseo_provider` đúng metadata (thường `codex`), và native thread ID. Bucket quota mặc định `codex`; chỉ đặt `limit_id` khác khi có bucket thực tương ứng. Claude hỗ trợ v1/v2; v1 luôn giữ trần day guard tối đa 8%/ngày, thiếu dữ liệu guard thì chờ.
 
 Sol dùng `adapter: "side"` và thêm `side_name`, `side_uuid` lấy từ metadata side-session; giữ các ID Paseo/native/cwd ở trên. Tên không đủ để xác định phiên: UUID và các ID được kiểm lại trong send lock. Đường này tái dùng action của `side-session send`, gồm preflight, restore, marker history và watchdog; guard cấm role `main` giữ nguyên. Brain dùng adapter `paseo`, không gọi `side-session send` cho main.
 

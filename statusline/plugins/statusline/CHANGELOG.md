@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.2 — 2026-11-16
+
+Tóm tắt: chỉ comment — hybrid-hands 0.67.0 gộp `~/.codex-hand` vào `~/.codex`; `gpt_usage.py` vẫn đọc cả hai thư mục để giữ lịch sử.
+
 ## 0.29.1 — 2026-11-16
 
 Tóm tắt: chỉ tài liệu — hybrid-hands 0.66.0 gỡ hh-ps; README và comment `usage_ledger.py` không còn nhắc cây hh-ps, statusline vẫn dùng thư viện usage `lib/hh_ps` qua `shared_usage.py`.

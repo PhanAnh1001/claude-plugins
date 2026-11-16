@@ -35,7 +35,7 @@ WINDOWS_EXTRA = "windows"  # RunState.extra: both windows, kept separately for t
 QUOTA_MARKERS = ("hit your usage limit", "rate_limit_reached", "usage_limit_reached",
                  "credits_depleted")
 LOGIN_MARKERS = ("not logged in", "login required", "please log in", "codex login")
-DEFAULT_HOME = "~/.codex-hand"
+DEFAULT_HOME = "~/.codex"
 SEATBELT_REASON = "trong sandbox Codex (seatbelt): seatbelt ngoài vẫn giới hạn quyền ghi"
 SEATBELT_READ_ONLY_ERROR = (
     "codex không giữ được read-only bên trong sandbox Codex (CODEX_SANDBOX=seatbelt): "
@@ -62,7 +62,7 @@ def sandbox_mode(spec: RunSpec) -> str:
 
 
 def home_dir(options: dict) -> Path:
-    """The hand's own CODEX_HOME; never the default ~/.codex account."""
+    """CODEX_HOME of the GPT account; default ~/.codex, shared with the user's own Codex (0.67.0)."""
     return Path(os.path.expanduser(str((options or {}).get("home") or DEFAULT_HOME)))
 
 
@@ -125,15 +125,11 @@ class CodexBackend(Backend):
     BLOCKED_ENV = ("OPENAI_API_KEY", "OPENAI_BASE_URL", "CODEX_API_KEY", "OPENAI_ORG_ID",
                    "OPENAI_ORGANIZATION", "OPENAI_PROJECT_ID")
 
-    def _keys(self, options: dict) -> Dict[str, str]:
-        keys = {"model": str(options.get("model", "")),
-                "model_reasoning_effort": str(options.get("effort", "")),
-                "sandbox_mode": str(options.get("sandbox", ""))}
-        return {k: v for k, v in keys.items() if v}
-
     def setup(self, options: dict) -> List[str]:
+        # The home is shared with the user's own Codex: model/effort/sandbox are CLI overrides
+        # per run, so setup only drops a legacy API service_tier and never writes those keys.
         home = _home(options)
-        changed = cc.write_config(home, self._keys(options))
+        changed = cc.write_config(home, {})
         return [f"{'đã ghi' if changed else 'không đổi'}: {home / cc.CONFIG_FILE}",
                 "Đăng nhập gói ChatGPT (tự chạy trong terminal riêng):",
                 f"  {LOGIN_COMMAND.format(home=home)}"]
@@ -165,7 +161,7 @@ class CodexBackend(Backend):
         path = home / cc.CONFIG_FILE
         current = cc.top_level_values(path.read_text(encoding="utf-8") if path.is_file() else "")
         # Sol and hand share CODEX_HOME. Only non-overridden legacy keys block runs.
-        wrong = [k for k in cc.REMOVED_KEYS if k in current]
+        wrong = cc.legacy_keys(current)
         checks.append(Check("cấu hình", not wrong,
                             str(path) if not wrong else f"lệch {wrong}; chạy `hand-ext setup --backend codex`"))
         checks.append(Check(

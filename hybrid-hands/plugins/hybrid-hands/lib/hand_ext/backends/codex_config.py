@@ -17,6 +17,8 @@ API_KEY_AUTH_MODE = "apikey"
 API_KEY_FIELD = "OPENAI_API_KEY"
 # service_tier is an API pricing tier left by the old API-key setup; subscription runs drop it.
 REMOVED_KEYS = ("service_tier",)
+# Values that are not legacy API tiers: the Codex app writes service_tier = "default".
+SAFE_VALUES = {"service_tier": ("default",)}
 TABLE_HEADER_RE = re.compile(r"^\s*\[")
 KEY_RE = re.compile(r'^\s*([A-Za-z0-9_]+)\s*=\s*"?([^"\n]*)"?\s*$')
 
@@ -37,7 +39,7 @@ def merge_top_level(text: str, keys: Dict[str, str], removed: Iterable[str] = RE
     for line in top:
         match = KEY_RE.match(line)
         name = match.group(1) if match else None
-        if name in drop:
+        if name in drop and not _safe(name, match.group(2)):
             continue
         kept.append(_key_line(name, missing.pop(name)) if name in missing else line)
     insert_at = len(kept)
@@ -47,6 +49,15 @@ def merge_top_level(text: str, keys: Dict[str, str], removed: Iterable[str] = RE
     if rest and kept and kept[-1].strip():
         kept.append("\n")
     return "".join(kept + rest)
+
+
+def _safe(name: str, value: str) -> bool:
+    return value in SAFE_VALUES.get(name, ())
+
+
+def legacy_keys(values: Dict[str, str]) -> list:
+    """Top-level keys that still block runs: REMOVED_KEYS present with an unsafe value."""
+    return [k for k in REMOVED_KEYS if k in values and not _safe(k, values[k])]
 
 
 def top_level_values(text: str) -> Dict[str, str]:

@@ -16,7 +16,7 @@ from hand_ext.backends import codex  # noqa: E402
 from hand_ext.config import load_config  # noqa: E402
 from hand_ext.run_cmd import preflight  # noqa: E402
 from hand_ext.backends.codex import quota_from_rate_limits  # noqa: E402
-from hand_ext.backends.codex_config import merge_top_level  # noqa: E402
+from hand_ext.backends.codex_config import legacy_keys, merge_top_level  # noqa: E402
 from hand_ext.backends.base import RunSpec  # noqa: E402
 from hand_ext_case import HandExtTestCase  # noqa: E402
 
@@ -149,12 +149,21 @@ class CodexSetupDoctorTest(HandExtTestCase):
         self.assertIn("đã ghi", out)
         text = cfg.read_text()
         self.assertNotIn("service_tier", text)
-        self.assertIn('model_reasoning_effort = "low"', text)
+        # Shared ~/.codex: setup keeps the user's own model/effort/sandbox (CLI overrides per run).
+        self.assertIn('model_reasoning_effort = "medium"', text)
         self.assertIn("[mcp_servers.x]", text)
         self.assertIn("--device-auth", out)
         _, out2, _ = self.sb.cli("setup", "--backend", "codex")
         self.assertIn("không đổi", out2)
         self.assertEqual(cfg.read_text(), text)
+
+    def test_default_service_tier_is_kept_and_not_blocking(self) -> None:
+        cfg = self.sb.home / "config.toml"
+        cfg.write_text('service_tier = "default"\nmodel = "x"\n')
+        self.assertIn("không đổi", self.sb.cli("setup", "--backend", "codex")[1])
+        self.assertIn('service_tier = "default"', cfg.read_text())
+        self.assertEqual(legacy_keys({"service_tier": "default"}), [])
+        self.assertEqual(legacy_keys({"service_tier": "flex"}), ["service_tier"])
 
     def test_merge_keeps_tables(self) -> None:
         merged = merge_top_level(OLD_CONFIG, {"model": "m"})

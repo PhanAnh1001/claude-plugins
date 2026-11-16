@@ -86,7 +86,7 @@ DEFAULTS = {
         "v2": {"config_dir": "~/.claude-hand"},
     },
     # Label-only registry (optional plan/name per slot); codex still runs from backends.codex.
-    "gpt_accounts": {"v1": {"home": "~/.codex-hand"}},
+    "gpt_accounts": {"v1": {"home": "~/.codex"}},
     "account_label_format": "{provider} {slot} {plan} {name}",
     "timeout_min": 60,
     "max_tokens": None,
@@ -101,7 +101,7 @@ DEFAULTS = {
     "worktree_root": "~/.hybrid-hands/worktrees",
     "worktree_gc": {"auto": WORKTREE_GC_FINISHED},
     "backends": {
-        "codex": {"home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "low",
+        "codex": {"home": "~/.codex", "model": "gpt-6.1-sol", "effort": "low",
                   CODEX_PRICE_KEY: dict(CODEX_DEFAULT_PRICE)},
         "claude": {"config_dir": "~/.claude-hand", "model": "claude-opus-5-5",
                    "effort": "low", "max_turns": 80},
