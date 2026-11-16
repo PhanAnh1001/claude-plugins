@@ -1,6 +1,6 @@
 """Codex hand and Sol usage: ledger cost, pinned rollout tokens, GPT samples.
 
-Only `~/.codex-hand` is read: the ledger records with that exact home name and
+Only `~/.codex` (`~/.codex-hand` before 0.67.0) is read: the ledger records with that exact home name and
 `<home>/sessions/rollout-*.jsonl`. Conversation records are never parsed: the raw
 line header must be a standard `event_msg` envelope whose payload is `token_count`
 before JSON decoding, then both types are checked again. Every path is resolved,
@@ -38,7 +38,8 @@ WINDOW_5H = "5h"
 WINDOW_WEEK = "tuần"
 SOURCE_LEDGER = "codex_usage"
 SOURCE_ROLLOUT = "codex_rollout"
-HAND_HOME_NAME = ".codex-hand"
+HAND_HOME_NAME = ".codex"
+LEDGER_HOME_NAMES = (HAND_HOME_NAME, ".codex-hand")  # ".codex-hand": ledger lines before 0.67.0
 SESSIONS_SUBDIR = "sessions"
 ROLLOUT_GLOB = "rollout-*.jsonl"
 # A rollout envelope is exactly `{timestamp?, ordinal?, type: "event_msg", payload: {...}}`;
@@ -301,7 +302,7 @@ def _ledger(path: Path) -> Tuple[Dict[str, dict], Dict[str, GptWindow]]:
             continue
         if not isinstance(record, dict):
             continue
-        if str(record.get("codex_home") or "") != HAND_HOME_NAME:
+        if str(record.get("codex_home") or "") not in LEDGER_HOME_NAMES:
             continue
         run_id = str(record.get("run_id") or "")
         if run_id:

@@ -74,7 +74,7 @@ Mỗi managed hand có workspace/worktree riêng trong **cùng verified project*
 
 Containment managed worker trên macOS là best-effort có thời hạn: snapshot cây con khoảng 50 ms khi runner poll, trước cancel/reap, và scan cùng user theo exact entry `HYBRID_HANDS_INVOCATION_ID` bằng `KERN_PROCARGS2` (Linux dùng `/proc`). Worker giữ identity PID + OS start time + comm và quan hệ cha; trước mỗi signal phải xác minh lại identity. Cancel gửi TERM rồi KILL có thời hạn tới group còn được sở hữu và các identity cây con/marker, kể cả child đã `setsid` hoặc reparent. Gateway/controller và ancestors được bảo vệ. Chỉ root đã reap, group vắng và không còn process cây con/marker sống mới có evidence `root_group+tracked_tree+env_marker`; lỗi scan, mất authority hoặc process còn sống giữ unknown và reservation, kể cả hoàn tất bình thường. Sau restart không signal numeric PID được khôi phục khi thiếu quyền sở hữu `Popen`. Môi trường chỉ parse trong bộ nhớ, không lưu/log giá trị. Process vừa bỏ marker vừa double-fork giữa hai snapshot vẫn có thể thoát: macOS không có absolute containment như cgroup.
 
-Nhãn tài khoản thống nhất dạng `{provider} {slot} {plan} {name}` (ví dụ `claude v1 Max anhtp`, `gpt v1 Plus anhtp`), đổi bằng `ext_hand.account_label_format` (chỉ 4 placeholder đó). Mỗi `ext_hand.claude_accounts.vN` và `ext_hand.gpt_accounts.vN` (mặc định `v1` home `~/.codex-hand`, chỉ phục vụ nhãn) nhận `plan`/`name` tuỳ chọn; thiếu `name` thì Claude lấy phần trước `@` của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json`, GPT hiện `?`. Nhãn xuất hiện ở `pick` (JSON thêm `account_label`, giữ field cũ). Plan GPT thiếu cấu hình lấy từ `rate_limits.plan_type` của rollout mới nhất.
+Nhãn tài khoản thống nhất dạng `{provider} {slot} {plan} {name}` (ví dụ `claude v1 Max anhtp`, `gpt v1 Plus anhtp`), đổi bằng `ext_hand.account_label_format` (chỉ 4 placeholder đó). Mỗi `ext_hand.claude_accounts.vN` và `ext_hand.gpt_accounts.vN` (mặc định `v1` home `~/.codex`, chỉ phục vụ nhãn) nhận `plan`/`name` tuỳ chọn; thiếu `name` thì Claude lấy phần trước `@` của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json`, GPT hiện `?`. Nhãn xuất hiện ở `pick` (JSON thêm `account_label`, giữ field cũ). Plan GPT thiếu cấu hình lấy từ `rate_limits.plan_type` của rollout mới nhất.
 
 `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
 
@@ -121,7 +121,7 @@ Sau settlement đầy đủ report/hooks, trạng thái `awaiting_review` tự a
 
 [Spec/interface](docs/2026-11-09-hand-paseo-agent-spec.md) và [plan/gate](docs/2026-11-09-hand-paseo-agent-plan.md) giữ trạng thái offline/live/release. Source/fixtures không chứng minh stop/reopen/placement từng backend đã chạy thật; release/install do brain điều phối riêng.
 
-Brain Codex và hand dùng chung `~/.codex-hand`: mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy không override như `service_tier` vẫn bắt buộc.
+Brain Codex, hand và Codex người dùng tự mở dùng chung `~/.codex` (từ 0.67.0; cùng một tài khoản ChatGPT, `~/.codex-hand` chỉ còn giữ lịch sử; hand nhận MCP, plugin, hook và `notify` của `~/.codex`): mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy không override như `service_tier` khác `"default"` vẫn bắt buộc.
 
 ## 1. Cây thư mục
 
@@ -225,7 +225,7 @@ Cấu hình repo `.claude/hybrid-hands.json`:
     "isolation": "worktree",
     "worktree_root": "~/.hybrid-hands/worktrees",
     "backends": {
-      "codex": { "home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "low" },
+      "codex": { "home": "~/.codex", "model": "gpt-6.1-sol", "effort": "low" },
       "claude-v2": { "model": "claude-opus-5-5", "effort": "low", "max_turns": 80 },
       "claude-v1": { "model": "claude-opus-5-5", "effort": "low" }
     }
@@ -275,14 +275,14 @@ Lệnh: `hand-ext profile [set NAME]`, `hand-ext pick --role VAI [--tier N] [--j
 
 | Backend | Gói | Người dùng tự đăng nhập | Theo dõi hạn mức | Rủi ro tính tiền |
 |---|---|---|---|---|
-| `codex` | ChatGPT | `CODEX_HOME=~/.codex-hand codex login --device-auth` | `used_percent`, `resets_at` từ sự kiện của `codex exec --json`; sổ `~/.hybrid-hands/codex_usage.jsonl` giữ riêng cửa sổ 5h/7d và USD~ ước tính | đăng nhập API key thì tính tiền; `doctor` chặn, hand gỡ biến `OPENAI_API_KEY`; model thiếu giá canonical thì USD null, không bịa giá |
+| `codex` | ChatGPT | `codex login --device-auth` | `used_percent`, `resets_at` từ sự kiện của `codex exec --json`; sổ `~/.hybrid-hands/codex_usage.jsonl` giữ riêng cửa sổ 5h/7d và USD~ ước tính | đăng nhập API key thì tính tiền; `doctor` chặn, hand gỡ biến `OPENAI_API_KEY`; model thiếu giá canonical thì USD null, không bịa giá |
 | `claude-v2` | Claude tài khoản thứ hai | `CLAUDE_CONFIG_DIR=~/.claude-hand claude` rồi `/login` | lỗi hết hạn mức trong stream, `hand-ext status` | dùng nhầm tài khoản chính thì ăn hạn mức brain; hook repo vẫn chạy |
 | `claude-v1` | Gói Claude CHÍNH `~/.claude`; `claude-opus-5-5`, effort `low` | đã đăng nhập sẵn, không đăng nhập thêm | guard ngày tuỳ chọn (mặc định tắt); `hand-ext status` | dùng cho việc không sáng tạo sẽ ăn hạn mức brain; từ `max_day_pct`/ngày hoặc không tính được khi guard bật thì thoát 7, ghi yêu cầu vào bàn giao để phiên chính quyết |
 | `gemini` | dự kiến | chưa có | chưa có | Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI |
 
 ### 5.1 Sổ Codex
 
-Mỗi lượt backend `codex` kết thúc ghi đúng một dòng JSON vào `~/.hybrid-hands/codex_usage.jsonl` (mặc định theo `HOME`, hoặc `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` khi đặt; test đổi `HOME` được). Schema `schema=1`: `run_id`, `ended`, `model`, `effort`, `tokens {input,cached_input,output}`, `cost_usd`, `cost_source` (`estimated`/`unknown`), `codex_home` chỉ basename (ví dụ `.codex-hand`), `windows {"5h": {"used_percent","resets_at"} | null, "7d": {...} | null}` phân loại bằng `window_minutes` (300 = 5h, 10080 = tuần), không chỉ cửa sổ lớn nhất; có gói chỉ có primary tuần, cửa sổ không có mẫu là null. Rollout cũ thiếu độ dài mới dùng primary=5h/secondary=tuần. Giá lấy theo model-id từ bảng canonical `config/model-prices.json`; thiếu hoặc bất hợp lệ thì `cost_usd = null`, `cost_source = unknown` (không bịa giá); đủ thì `(input−cached_input)×input + cached_input×cached + output×output` chia 1e6 và `cost_source = estimated`. Không ghi hội thoại, prompt hay absolute path; không dùng tài khoản `~/.codex`. Lỗi ghi sổ chỉ cảnh báo, không làm fail lượt.
+Mỗi lượt backend `codex` kết thúc ghi đúng một dòng JSON vào `~/.hybrid-hands/codex_usage.jsonl` (mặc định theo `HOME`, hoặc `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` khi đặt; test đổi `HOME` được). Schema `schema=1`: `run_id`, `ended`, `model`, `effort`, `tokens {input,cached_input,output}`, `cost_usd`, `cost_source` (`estimated`/`unknown`), `codex_home` chỉ basename (ví dụ `.codex`; trước 0.67.0 là `.codex-hand`), `windows {"5h": {"used_percent","resets_at"} | null, "7d": {...} | null}` phân loại bằng `window_minutes` (300 = 5h, 10080 = tuần), không chỉ cửa sổ lớn nhất; có gói chỉ có primary tuần, cửa sổ không có mẫu là null. Rollout cũ thiếu độ dài mới dùng primary=5h/secondary=tuần. Giá lấy theo model-id từ bảng canonical `config/model-prices.json`; thiếu hoặc bất hợp lệ thì `cost_usd = null`, `cost_source = unknown` (không bịa giá); đủ thì `(input−cached_input)×input + cached_input×cached + output×output` chia 1e6 và `cost_source = estimated`. Không ghi hội thoại, prompt hay absolute path; không dùng tài khoản `~/.codex`. Lỗi ghi sổ chỉ cảnh báo, không làm fail lượt.
 
 ### Dọn worktree và disk guard
 

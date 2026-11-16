@@ -2,6 +2,16 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.67.0 — 2026-11-16
+
+Tóm tắt: **gộp `~/.codex-hand` vào `~/.codex`** (người dùng chốt 16/11/2026). Hai thư mục cùng một tài khoản ChatGPT (cùng gói, cùng mốc reset tuần), nên tách home không thêm hạn mức. Hand Codex, phiên Sol và Codex người dùng tự mở nay dùng chung `~/.codex`; `~/.codex-hand` chỉ còn giữ lịch sử.
+
+- Mặc định `ext_hand.backends.codex.home`, `ext_hand.gpt_accounts.v1.home` và `side_session.codex_home` đổi sang `~/.codex`. Cấu hình repo/global vẫn ghi đè được.
+- Side-session Codex qua Paseo dùng provider `codex` có sẵn (truyền `CODEX_HOME` trong env agent) thay provider tuỳ biến `codex-hand`. Trần nén 272k ghi vào `~/.codex/config.toml`, áp cho mọi phiên Codex (người dùng chốt).
+- `hand-ext setup --backend codex` không ghi model/effort/sandbox vào config nữa (đã override theo lượt), chỉ bỏ `service_tier` legacy. `service_tier = "default"` do app Codex ghi không còn bị coi là legacy, doctor không chặn.
+- Sổ `codex_usage.jsonl` ghi `codex_home` là `.codex`; dòng `.codex-hand` cũ vẫn được đọc.
+- Hand nhận MCP, plugin, hook và `notify` của `~/.codex`; cập nhật skill ext-hand/side-session/paseo, README.
+
 ## 0.66.0 — 2026-11-16
 
 Tóm tắt: **gỡ hh-ps** (người dùng chốt 16/11/2026, vì Paseo đã hiện agent và subagent). Theo dõi phiên/hand qua app/daemon Paseo, `side-session ls/watch`, `hand-ext status/report` và statusline. Thư viện usage `lib/hh_ps/` vẫn giữ tên, phục vụ statusline, limit-watch, guard ngày, cc-switch và hand-ext.

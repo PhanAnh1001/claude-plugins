@@ -64,8 +64,8 @@ DEFAULTS: dict = {
     "watch_interval_s": 30,
     "claude_args": ["--permission-mode", "bypassPermissions", "--no-chrome"],
     "state_dir": "output/llm/side-sessions",
-    "codex_home": "~/.codex-hand",
-    "codex_profile": "",  # empty: use top-level keys of the hand-only CODEX_HOME
+    "codex_home": "~/.codex",
+    "codex_profile": "",  # empty: use top-level keys of CODEX_HOME (~/.codex, shared)
     # Sol's Codex model/effort; `start --model/--effort` overrides them.
     "codex_model": CODEX_MODEL_DEFAULT,
     "codex_effort": CODEX_EFFORT_DEFAULT,
@@ -133,7 +133,7 @@ PASEO_INHERITED_ENVS = ("PASEO_AGENT_ID", "PASEO_WORKSPACE_ID")
 PASEO_CALLER_AGENT_ENV = "PASEO_AGENT_ID"
 # Explicit test/offline escape hatch; normal runs never set it.
 PASEO_DISABLE_ENV = "SIDE_SESSION_NO_PASEO"
-PASEO_PROVIDER = "codex-hand"
+PASEO_PROVIDER = "codex"  # built-in provider; CODEX_HOME is passed in the agent env
 # Paseo provider "claude" plus per-account custom providers "claude-v1", "claude-v2"…
 PASEO_CLAUDE_PROVIDER = "claude"
 PASEO_CLAUDE_ACCOUNT_PROVIDER_PREFIX = "claude-"
@@ -151,7 +151,7 @@ PASEO_PROFILE_UNSUPPORTED = "CODEX_PROFILE_UNSUPPORTED"
 # AGENT_CREATE_FAILED also covers lost replies after mutation, so stays unknown.
 PASEO_CREATE_REJECTED = frozenset({"WORKSPACE_CREATE_FAILED",
                                    "TARGET_CHANGED", "PASEO_CLI_NOT_FOUND", "NODE_NOT_FOUND"})
-# Codex native compaction is a top-level config.toml key in the hand-only CODEX_HOME.
+# Codex native compaction is a top-level config.toml key in CODEX_HOME (~/.codex, shared).
 CODEX_COMPACT_KEY = "model_auto_compact_token_limit"
 # Native `codex app-server` config writer: stdio JSON-RPC, no thread/turn/model listing.
 CODEX_APP_SERVER = "codex"

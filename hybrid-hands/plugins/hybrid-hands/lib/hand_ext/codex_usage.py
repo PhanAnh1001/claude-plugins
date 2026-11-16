@@ -9,7 +9,7 @@ Schema (schema = 1):
   run_id, ended, model, effort,
   tokens {input, cached_input, output},
   cost_usd (number|null), cost_source ("estimated"|"unknown"),
-  codex_home (basename only, e.g. ".codex-hand"),
+  codex_home (basename only, e.g. ".codex"; ".codex-hand" before 0.67.0),
   windows {"5h": {"used_percent", "resets_at"} | null,
            "7d": {"used_percent", "resets_at"} | null}
 

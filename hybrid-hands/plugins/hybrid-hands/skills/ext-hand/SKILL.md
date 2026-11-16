@@ -63,7 +63,7 @@ Quota tài khoản lấy từ cache/sample sẵn có của đúng gói; thiếu 
 
 Metadata mới giữ parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend; meta và ledger của `hand-ext run` thêm `role`, `tier`, `attempt`, `escalated_from`. `CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn đúng cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Codex/Claude và mọi loại agent/backend. Hand nhận brief trực tiếp là executor: làm trong phạm vi được giao, không gọi hand-ext, không mở side-session hay giao tiếp phiên khác.
 
-Codex brain và hand dùng chung `~/.codex-hand`: mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy không override như `service_tier` vẫn bắt buộc.
+Codex brain, hand và Codex người dùng tự mở dùng chung `~/.codex` (từ 0.67.0; cùng một tài khoản ChatGPT, `~/.codex-hand` chỉ còn giữ lịch sử): mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`, nên config riêng của người dùng không bị ghi đè. Hand nhận MCP, plugin, hook và `notify` của `~/.codex`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy như `service_tier` khác `"default"` vẫn bắt buộc.
 
 ## 2. Cài đặt lần đầu (mỗi máy, mỗi backend)
 
@@ -71,7 +71,7 @@ Lệnh chung: `hand-ext setup [--backend B|all] [--cwd D]` ghi cấu hình CLI v
 
 | Backend | Gói | Người dùng tự đăng nhập |
 |---|---|---|
-| `codex` | ChatGPT, thư mục riêng `~/.codex-hand` | `CODEX_HOME=~/.codex-hand codex login --device-auth` |
+| `codex` | ChatGPT, dùng chung `~/.codex` | `codex login --device-auth` |
 | `claude-v2` | Claude tài khoản THỨ HAI, thư mục riêng `~/.claude-hand` | `CLAUDE_CONFIG_DIR=~/.claude-hand claude` rồi `/login` tài khoản thứ hai |
 | `claude-v1` | Gói Claude CHÍNH `~/.claude` | đã đăng nhập sẵn (không đăng nhập thêm) |
 
@@ -97,7 +97,7 @@ Lệnh chung: `hand-ext setup [--backend B|all] [--cwd D]` ghi cấu hình CLI v
 - **`capped` (exit 4, chạm `--max-tokens`):** đọc report xem phần đã xong; lượt tiếp là `run` mới với brief phần còn lại.
 - **`timeout` (exit 6):** đọc report; việc dài thì chia nhỏ hoặc tăng `--timeout-min` có lý do.
 - **Lỗi khác hoặc `doctor` không đạt:** `hybrid-hands:hand` làm dự phòng, báo người dùng kèm output thật.
-- **Sổ Codex:** mỗi lượt backend `codex` kết thúc ghi đúng một dòng JSON vào `~/.hybrid-hands/codex_usage.jsonl` (hoặc `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` khi đặt; test đổi `HOME` được). Schema `schema=1`: `run_id`, `ended`, `model`, `effort`, `tokens {input,cached_input,output}`, `cost_usd`, `cost_source` (`estimated`/`unknown`), `codex_home` chỉ basename (ví dụ `.codex-hand`), `windows {"5h": {"used_percent","resets_at"} | null, "7d": {...} | null}` phân loại bằng `window_minutes` (300 = 5h, 10080 = tuần), không chỉ cửa sổ lớn nhất; có gói chỉ có primary tuần, cửa sổ không có mẫu là null. Rollout cũ thiếu độ dài mới dùng primary=5h/secondary=tuần. Giá lấy từ model-id trong bảng canonical `config/model-prices.json`; thiếu/bất hợp lệ thì `cost_usd=null`, `cost_source=unknown`; đủ thì `(input−cached_input)×input + cached_input×cached + output×output` chia 1e6, `estimated`. Không ghi hội thoại, absolute path hay dùng tài khoản `~/.codex`. Lỗi ghi sổ chỉ cảnh báo, không làm fail lượt.
+- **Sổ Codex:** mỗi lượt backend `codex` kết thúc ghi đúng một dòng JSON vào `~/.hybrid-hands/codex_usage.jsonl` (hoặc `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` khi đặt; test đổi `HOME` được). Schema `schema=1`: `run_id`, `ended`, `model`, `effort`, `tokens {input,cached_input,output}`, `cost_usd`, `cost_source` (`estimated`/`unknown`), `codex_home` chỉ basename (ví dụ `.codex`; dòng trước 0.67.0 là `.codex-hand`), `windows {"5h": {"used_percent","resets_at"} | null, "7d": {...} | null}` phân loại bằng `window_minutes` (300 = 5h, 10080 = tuần), không chỉ cửa sổ lớn nhất; có gói chỉ có primary tuần, cửa sổ không có mẫu là null. Rollout cũ thiếu độ dài mới dùng primary=5h/secondary=tuần. Giá lấy từ model-id trong bảng canonical `config/model-prices.json`; thiếu/bất hợp lệ thì `cost_usd=null`, `cost_source=unknown`; đủ thì `(input−cached_input)×input + cached_input×cached + output×output` chia 1e6, `estimated`. Không ghi hội thoại hay absolute path. Lỗi ghi sổ chỉ cảnh báo, không làm fail lượt.
 
 ## Tên agent và workspace Paseo — 0.36.1
 

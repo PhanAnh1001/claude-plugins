@@ -1,6 +1,6 @@
 """GPT (Codex) cells for the statusline limit table, from the rollouts of ~/.codex and ~/.codex-hand.
 
-Both dirs belong to one ChatGPT account (the Codex hand of hybrid-hands uses ~/.codex-hand), so
+Both dirs belong to one ChatGPT account (hybrid-hands used ~/.codex-hand before 0.67.0, now ~/.codex), so
 they share one quota: their rollouts are merged before scanning; missing dirs are skipped.
 
 5h / 7d %: the newest `token_count.rate_limits` sample (by timestamp) in `sessions/` and
