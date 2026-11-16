@@ -1,4 +1,4 @@
-"""Model prices and USD estimates for `hh-ps`.
+"""Model prices and USD estimates for the shared usage library.
 
 Ported from statusline plugins/statusline/scripts/usage_ledger.py (the USD/MTok
 price table, family fallback, cache multipliers and the usage formula).

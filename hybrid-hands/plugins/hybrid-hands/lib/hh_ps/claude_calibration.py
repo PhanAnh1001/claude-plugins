@@ -383,7 +383,7 @@ def _collect(now, account, home):
 
 
 def _homes():
-    from hh_store.claude_ingest import account_homes
+    from .claude_accounts import account_homes
     return account_homes()
 
 
@@ -439,7 +439,7 @@ def enrich(snapshot, now):
     headers = snapshot.claude_calibration.get(ACCOUNTS)
     if not isinstance(headers, dict):  # pre-account shape: the legacy header is v2
         headers = {LEGACY_ACCOUNT: snapshot.claude_calibration}
-    from hh_store.claude_ingest import account_for_home
+    from .claude_accounts import account_for_home
     from .claude_source import claude_config_dir
     session_rate = _rate_for(headers, account_for_home(claude_config_dir()))
     for session in snapshot.sessions:

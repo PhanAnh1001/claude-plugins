@@ -107,7 +107,6 @@ def build_main_codex_prompt(user_prompt: str, model: str = C.CODEX_MODEL_DEFAULT
     replacements = {
         "{{MODEL}}": model, "{{EFFORT}}": effort,
         "{{HAND_EXT_BIN}}": str(HAND_EXT_BIN), "{{SIDE_SESSION_BIN}}": str(SIDE_BIN),
-        "{{HH_PS_BIN}}": str(root / "bin/hh-ps"),
         "{{EXT_HAND_SKILL}}": str(root / "skills/ext-hand/SKILL.md"),
         "{{SIDE_SESSION_SKILL}}": str(root / "skills/side-session/SKILL.md"),
         "{{HAND_BRIEF}}": (root / "templates/hand-brief.md").read_text(encoding="utf-8"),

@@ -291,8 +291,8 @@ statusline/                               # gốc marketplace (đưa cho marketp
 
 ### Khối hand — bỏ từ 0.24.0
 
-Statusline không còn vẽ cây phiên/subagent/hand-ext và không gọi `hh-ps` khi vẽ.
-Xem cây đó bằng `hh-ps` hoặc pane hybrid-hands.
+Statusline không còn vẽ cây phiên/subagent/hand-ext.
+Xem phiên, subagent và hand trên app Paseo, `side-session ls/watch` hoặc `hand-ext status` của hybrid-hands.
 
 ### Khối dòng phiên — bỏ từ 0.25.0
 

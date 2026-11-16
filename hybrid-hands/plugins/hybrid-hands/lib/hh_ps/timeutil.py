@@ -1,4 +1,4 @@
-"""Time, size and path formatting helpers for `hh-ps`."""
+"""Time, size and path formatting helpers for the shared usage library."""
 from __future__ import annotations
 
 import datetime as dt

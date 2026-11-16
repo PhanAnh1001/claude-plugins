@@ -76,7 +76,7 @@ for _name in list(vars(PaseoTransportTests)):
 del PaseoTransportTests
 
 
-def setUpModule():  # keep hh-store revision bumps out of the real ~/.hybrid-hands
+def setUpModule():  # keep run/side state writes out of the real ~/.hybrid-hands
     import os as _os, tempfile as _tempfile
     from unittest import mock as _mock
     global _STATE_TMP, _STATE_ENV

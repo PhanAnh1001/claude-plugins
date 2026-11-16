@@ -1,4 +1,4 @@
-"""Codex hand and Sol usage for `hh-ps`: ledger cost, pinned rollout tokens, GPT samples.
+"""Codex hand and Sol usage: ledger cost, pinned rollout tokens, GPT samples.
 
 Only `~/.codex-hand` is read: the ledger records with that exact home name and
 `<home>/sessions/rollout-*.jsonl`. Conversation records are never parsed: the raw
@@ -346,8 +346,6 @@ def _rollout_files(home: Path) -> Iterable[Path]:
                 found.append(resolved)
     except OSError:
         return found
-    from hh_store import codex_ingest
-    codex_ingest.forget(codex_ingest.SCOPE_SESSIONS, found)
     return found
 
 

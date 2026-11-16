@@ -143,7 +143,7 @@ def render(hook: str, root: Path, payload: str) -> str:
     brief = (root / "templates/hand-brief.md").read_text(encoding="utf-8").rstrip("\n")
     return ("POLICY hybrid-hands - KHUÔN BRIEF (bắt buộc khi gọi Agent với hybrid-hands:hand và khi viết brief cho hand-ext; điền đủ các mục, ngắn gọn):\n"
             + brief + "\n" + rules + "\n"
-            + f"Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): {root}/bin/hand-ext, {root}/bin/side-session, {root}/bin/hh-ps, {root}/bin/cc-switch"
+            + f"Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): {root}/bin/hand-ext, {root}/bin/side-session, {root}/bin/cc-switch"
             + (f"\n{reminder}" if (reminder := disk_reminder(cwd)) else ""))
 
 

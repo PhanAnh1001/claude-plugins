@@ -17,7 +17,6 @@ from shared_config import load_config, GlobalConfigError, normalize_claude_auto_
 from hand_ext.cli import main
 from hand_ext.config import load_config as load_hand
 from hand_ext.run_cmd import _spec
-from hh_ps.cli import main as ps_main
 from side_session.cli import main as side_main
 
 
@@ -100,7 +99,8 @@ class SharedConfigTest(unittest.TestCase):
                 'path': str(self.root / '.hybrid-hands/config.json'), 'exists': False, 'read': False})
 
     def test_removed_parallel_subagents_key_warns(self):
-        self.global_file.write_text(json.dumps({'parallel_subagents': {'enabled': True, 'account': 'x'}}))
+        self.global_file.write_text(json.dumps({'parallel_subagents': {'enabled': True, 'account': 'x'},
+                                                'ui': {'hh_tree': {'enabled': False}, 'hh_panel': {}}}))
         with contextlib.redirect_stderr(io.StringIO()) as err, \
                 contextlib.redirect_stdout(io.StringIO()) as out:
             self.assertEqual(main(['config', '--json', '--cwd', str(self.root)]), 0)
@@ -109,6 +109,9 @@ class SharedConfigTest(unittest.TestCase):
         self.assertFalse(any(k.startswith('parallel_subagents') for k in payload['sources']))
         self.assertEqual(err.getvalue().count(
             f'khoá parallel_subagents đã gỡ; xoá khỏi {self.global_file}'), 1)
+        for name in ('ui.hh_tree', 'ui.hh_panel'):
+            self.assertIn(f'khoá {name} đã gỡ; xoá khỏi {self.global_file}', err.getvalue())
+        self.assertNotIn('ui', payload['effective'])
 
     def test_invalid_global(self):
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
@@ -120,7 +123,6 @@ class SharedConfigTest(unittest.TestCase):
                 with self.assertRaisesRegex(GlobalConfigError, str(self.global_file)):
                     load_config(self.root)
                 for cli, argv in ((main, ['config', '--json', '--cwd', str(self.root)]),
-                                  (ps_main, ['--once', '--cwd', str(self.root)]),
                                   (side_main, ['ls']), (side_main, ['attach', 'fake'])):
                     with patch('pathlib.Path.cwd', return_value=self.root), contextlib.redirect_stderr(io.StringIO()) as errors:
                         self.assertNotEqual(cli(argv), 0)

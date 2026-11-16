@@ -200,7 +200,7 @@ class StaleUnavailableTests(_Fixture, unittest.TestCase):
         self.assertEqual(self.recover_(apply=True, reason='again').revision, done.revision)
 
 
-def setUpModule():  # keep hh-store revision bumps out of the real ~/.hybrid-hands
+def setUpModule():  # keep run/side state writes out of the real ~/.hybrid-hands
     global _STATE_TMP, _STATE_ENV
     _STATE_TMP = tempfile.TemporaryDirectory()
     _STATE_ENV = patch.dict(os.environ, {"HYBRID_HANDS_STATE_DIR": _STATE_TMP.name})

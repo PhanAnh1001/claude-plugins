@@ -8,7 +8,7 @@
     {
       "name": "hybrid-hands",
       "source": "./plugins/hybrid-hands",
-      "description": "Brain/hand theo profile repo (claude-mono, gpt-mono, hybrid): vai super brain/brain/code/collect/chrome → tài khoản, model, effort; hand-ext pick/run --role, thang 2 bậc thu thập, hand Claude (hybrid-hands:hand), phiên phụ side-session, hh-ps xem cây phiên; policy bơm qua hook."
+      "description": "Brain/hand theo profile repo (claude-mono, gpt-mono, hybrid): vai super brain/brain/code/collect/chrome → tài khoản, model, effort; hand-ext pick/run --role, thang 2 bậc thu thập, hand Claude (hybrid-hands:hand), phiên phụ side-session; policy bơm qua hook."
     }
   ]
 }

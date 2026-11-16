@@ -1,6 +1,5 @@
 """Offline managed lifecycle across the real worker, settlement, projection and CLI."""
 from dataclasses import replace
-from datetime import datetime, timezone
 import io
 import json
 import os
@@ -23,9 +22,6 @@ from hand_ext.paseo_controller import PaseoController, terminal_evidence
 from hand_ext.paseo_gateway import Gateway
 from hand_ext.paseo_transport import PaseoTransport
 from hand_ext.runner import RunOutcome
-from hh_ps import tree
-from hh_ps.models import Session
-from hh_ps.render import render_json
 
 
 class ManagedIntegrationTests(unittest.TestCase):
@@ -102,31 +98,6 @@ class ManagedIntegrationTests(unittest.TestCase):
         self.assertTrue(all(v['state']=='completed' for v in first.settle_keys.values()))
         self.assertEqual((f.repo/'file.txt').read_text(), 'baseline\nepoch1\n')
 
-        # Synthetic rollout aliases must be suppressed by the production native mapper.
-        native = home/'.codex-hand/sessions'; native.mkdir(parents=True)
-        stamp = datetime.now(timezone.utc).isoformat()
-        payload = dict(id='synthetic-runner-root', cwd=inv.isolated_cwd, timestamp=stamp)
-        (native/'rollout-synthetic.jsonl').write_text(json.dumps(dict(type='session_meta', payload=payload))+'\n')
-        def sessions(*args, **kwargs):
-            return [Session(inv.parent_session, 'canonical parent', 'running', str(f.repo),
-                            0, time.time()-60, time.time(), True, True)]
-        def snapshot():
-            # Only source discovery is injected: managed mapping, dedup, pricing,
-            # account enrichment, native scanning and JSON rendering all run normally.
-            with patch.object(tree, 'load_hand_ext_config', return_value=f.cfg), \
-                 patch.object(tree, 'state_root', return_value=f.cfg.machine_state_dir), \
-                 patch.object(tree, 'load_sessions', side_effect=sessions), \
-                 patch('hh_ps.claude_calibration.enrich'):
-                return tree.build_snapshot(f.repo, 3600, False, main_session_id=inv.parent_session)
-        snap = snapshot()
-        self.assertEqual([s.session_id for s in snap.sessions], [inv.parent_session])
-        self.assertEqual(snap.orphan_runs, [])
-        self.assertEqual(len(list(snap.iter_runs())), 1)
-        row = render_json(snap)['sessions'][0]['hand_runs'][0]
-        self.assertEqual(row['execution_key'], _plain(attempt.key))
-        self.assertEqual(row['tokens'], first.outcome['usage'])
-        self.assertEqual(snap.sessions[0].subagents, [])
-        self.assertIsNotNone(snap.sessions[0].hand_runs[0].usage.usd)
         # Completion has multiple sinks; projection must still show parser totals once.
         self.assertEqual(len(json.loads(f.cfg.ledger.read_text())), 1)
         artifacts = {name: Path(first.artifacts['report'][name]).read_bytes()
@@ -169,13 +140,6 @@ class ManagedIntegrationTests(unittest.TestCase):
         entries = json.loads(f.cfg.ledger.read_text())
         self.assertEqual(len(entries), 2)
         self.assertEqual({entry['execution_key']['epoch'] for entry in entries}, {1,2})
-        final = snapshot()
-        self.assertEqual(len(final.sessions), 1)
-        rows = final.sessions[0].hand_runs
-        self.assertEqual(len(rows), 2)
-        self.assertEqual(sum(r.tokens['input'] for r in rows), 300)
-        self.assertEqual({r.execution_key['epoch'] for r in rows}, {1,2})
-        self.assertEqual(final.sessions[0].subagents, [])
         self.assertEqual(len(launches), 2)
         self.assertEqual(sum(r['command']=='create' for r in calls), 1)
         archive = [r for r in calls if r['command']=='archive']

@@ -15,7 +15,7 @@ from .models import Subagent, Usage
 from .pricing import SYNTHETIC_MODEL, price_for, usage_usd
 from .timeutil import to_epoch
 
-# Store scopes (hh-store files.scope / claude_usage_lines.scope).
+# Transcript scopes (kept for scan_file callers).
 SCOPE_TRANSCRIPT = "claude_transcript"
 SCOPE_SUBAGENT = "claude_subagent"
 
@@ -182,10 +182,8 @@ def _scan_legacy(path: Path) -> FileScan:
 
 
 def scan_file(path: Path, scope: str) -> FileScan:
-    """Fold + usage records from the hh-store when available, else the whole file."""
-    from hh_store.claude_ingest import scan_stored
-    stored = scan_stored(path, scope)
-    return stored if stored is not None else _scan_legacy(path)
+    """Fold + usage records read from the whole file (`scope` kept for callers)."""
+    return _scan_legacy(path)
 
 
 class _UsageAccumulator:

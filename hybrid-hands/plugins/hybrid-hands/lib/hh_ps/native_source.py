@@ -64,9 +64,8 @@ def _classify(line):
 
 
 def stored_records(path):
-    """Store-backed classified records, or None when the store is unavailable."""
-    from hh_store import codex_ingest
-    return codex_ingest.records(path, _classify)
+    """Store-backed classified records; the index store was retired, so always None."""
+    return None
 
 
 def _records(path, token_only=False, strict=False):

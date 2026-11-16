@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import unittest
 import tempfile
@@ -12,13 +13,14 @@ PLUGIN = HYBRID_HANDS / "plugins" / "hybrid-hands"
 SESSION_START = PLUGIN / "scripts" / "session-start-policy.sh"
 INJECT = PLUGIN / "scripts" / "inject-policy.sh"
 REPORT = HYBRID_HANDS / "docs" / "2026-11-06-brain-token-cost.md"
+NO_GLOBAL = "/nonexistent/hybrid-hands-global.json"  # hermetic: ignore the machine's global profile
 
 
 class BrainContextPolicyTest(unittest.TestCase):
     def _session_start_context(self, cwd: str | None = None) -> str:
         out = subprocess.run(
             ["bash", str(SESSION_START)],
-            env={"CLAUDE_PLUGIN_ROOT": str(PLUGIN), "PATH": "/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin"},
+            env={"CLAUDE_PLUGIN_ROOT": str(PLUGIN), "HYBRID_HANDS_CONFIG": NO_GLOBAL, "PATH": "/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin"},
             input=json.dumps({"cwd": cwd}) if cwd else "{}",
             capture_output=True,
             text=True,
@@ -49,9 +51,11 @@ class BrainContextPolicyTest(unittest.TestCase):
 
     def test_inject_policy_has_short_form_and_stays_short(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            # Hermetic: no profile in a temp cwd, not the checkout's own .claude/hybrid-hands.json.
+            # Hermetic: no profile in a temp cwd, not the checkout's own .claude/hybrid-hands.json
+            # nor the machine's global config.
+            env = {**os.environ, "HYBRID_HANDS_CONFIG": NO_GLOBAL}
             text = subprocess.run(["bash", str(INJECT)], input=json.dumps({"cwd": directory}),
-                                  capture_output=True, text=True, check=True).stdout
+                                  env=env, capture_output=True, text=True, check=True).stdout
             for marker in ("hand-ext profile set", ".env/token/credential"):
                 self.assertIn(marker, text)
             self.assertLessEqual(len(text), 300)

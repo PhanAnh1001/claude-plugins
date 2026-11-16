@@ -51,49 +51,33 @@ Sol có quyền dữ liệu như Opus; luật không giao secret/dữ liệu kh�
 
 ## Layout và nguồn chuẩn
 
-- `hybrid-hands/README.md`: sử dụng plugin và contract usage panel; `plugins/hybrid-hands/CHANGELOG.md` giữ lịch sử release.
+- `hybrid-hands/README.md`: sử dụng plugin; `plugins/hybrid-hands/CHANGELOG.md` giữ lịch sử release.
 - `hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json`: phiên bản plugin.
-- `hybrid-hands/plugins/hybrid-hands/bin/`: CLI hand-ext, side-session, hh-ps, cc-switch; `lib/hand_ext/`, `lib/side_session/`, `lib/hh_ps/`, `lib/cc_switch/`: implementation tương ứng.
-- `hybrid-hands/plugins/hybrid-hands/skills/`: ext-hand, paseo, side-session; `agents/`, `templates/`, `scripts/`, `hooks/`: policy và launcher.
-- `hybrid-hands/hh-tree-pane/`: cây cạnh terminal; `hybrid-hands/paseo-hh-tree/`: panel agent và sidebar Paseo; `hybrid-hands/tests/`: test Python/fixtures giả.
-- `statusline/`: plugin riêng, chỉ sửa khi brief giao rõ; dùng cùng nguyên tắc UI bỏ giờ bắt đầu.
+- `hybrid-hands/plugins/hybrid-hands/bin/`: CLI hand-ext, side-session, cc-switch; `lib/hand_ext/`, `lib/side_session/`, `lib/cc_switch/`: implementation tương ứng; `lib/hh_ps/`: thư viện usage dùng chung (giá, nguồn usage Claude/GPT, quota) cho statusline, limit-watch, guard ngày, cc-switch.
+- `hybrid-hands/plugins/hybrid-hands/skills/`: ext-hand, paseo, side-session, limit-watch; `agents/`, `templates/`, `scripts/`, `hooks/`: policy và launcher.
+- `hybrid-hands/tests/`: test Python/fixtures giả.
+- `statusline/`: plugin riêng, chỉ sửa khi brief giao rõ; UI bỏ giờ bắt đầu.
+
+Theo dõi phiên/hand (người dùng chốt 16/11/2026 bỏ hh-ps, pane cây và panel Paseo, bản 0.66.0): app/daemon Paseo (agent và subagent), `side-session ls/watch`, `hand-ext status/report`, statusline.
 
 Nguồn giá DUY NHẤT: `hybrid-hands/plugins/hybrid-hands/config/model-prices.json`; env override `HYBRID_HANDS_PRICING_FILE`. Schema `{version:1, verified_at:"2026-11-07", models:{<model-id>:{input,cached,output,cache_write_5m?,cache_write_1h?,source,price_date}}}` (USD/MTok). Mỗi entry giữ date/source; không hardcode bảng thứ hai hay fallback theo model/họ khi model lạ. Cache Claude tính đúng giá cấu hình, tách cache ghi 5m/1h. Nguồn công khai được xác minh ngày 2026-11-07. Các URL và giá đầy đủ ở [file canonical](hybrid-hands/plugins/hybrid-hands/config/model-prices.json), không nhân bản giá vào tài liệu hay code.
 
 Mọi USD~ là ước tính offline subscription, không phải hoá đơn. Quota tài khoản 5h/tuần lấy cache/sample sẵn có, thiếu `?`; không suy token/USD thành quota GPT. Phần riêng hand tuần chỉ hiện khi có nguồn và nhãn riêng.
 
-## Contract dữ liệu và hiển thị 0.30.0
+## Contract dữ liệu usage 0.30.0
 
 Bổ sung cuối dataclass với default để giữ tương thích:
 
 - `Usage.account_plan: str = ""`, `account_5h_pct: Optional[float] = None`, `account_week_pct: Optional[float] = None`.
-- `Subagent.started_at: Optional[float] = None`, `model: str = ""`, `effort: str = ""`; native bổ sung `provider: str = ""`, `status: str = ""`, `exit_code: Optional[int] = None`, `finished_at: Optional[float] = None`.
 - `HandRun.effort: str = ""`, `exit_code: Optional[int] = None`.
-- `Session.model: str = ""`, `effort: str = ""`, `finished_at: Optional[float] = None`; property `ended_at` ưu tiên finished_at.
 
-- `Snapshot.machine_usage: List[dict] = field(default_factory=list)` được bổ sung cuối dataclass.
-
-`lib/hh_ps/tree.py` tạo Snapshot rồi gọi `lib/hh_ps/usage_enrichment.py:enrich_snapshot(snapshot, cfg, now) -> None` trước return. API pricing hiện có giữ tương thích; cập nhật implementation giá ở nguồn canonical, không sinh bảng mặc định khác.
-
-`CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn cha; `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm Sol Codex/Claude và mọi loại agent/backend. Metadata mới ghi parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. Legacy unknown giữ `?` ở UI, null/chuỗi rỗng theo JSON/dataclass; không bịa mốc hay quota.
-
-Native Codex lấy metadata rollout cục bộ trong đường dẫn cố định `~/.codex-hand/sessions` (không dùng override `CODEX_HOME`, giữ cô lập tài khoản), không gọi daemon RPC/API. Gắn cha bằng `session_meta.parent_thread_id` hoặc `session_meta.source.subagent.thread_spawn.parent_thread_id`; đối chiếu `session_meta.id` của pinned Sol rollout để đưa thread cha về sid canonical. Native nằm trong `Session.subagents`, `agent_type=native-codex`, `provider=codex`; JSON xuất status/provider/parent canonical và exit_code nullable cho subagent/hand. Không tạo run/meta/report/token ledger hand-ext. Chỉ lấy token từ nguồn native và tính USD~ theo giá canonical; thiếu token/giá hiện `?`. Không suy completed từ mtime hoặc im lặng. Completed → ✓; failed/errored/cancelled hoặc exit_code khác 0 → ✗ (lỗi ưu tiên); unknown → ?. Native cùng pool tối đa 4 với subagent/hand, cùng số đếm `X✓ Y✗`.
-
-Mỗi dòng session/subagent/hand/side provider mọi backend đủ model, effort, USD~, quota, ended hoặc `đang chạy`, elapsed. Panel agent/sidebar Paseo: running/busy dùng theme accent nếu accent là xanh dương, nếu không dùng màu xanh dương dự phòng bảo đảm tương phản ở giao diện sáng/tối; done dùng statusSuccess (xanh lá); failed/exit khác 0/timeout/killed dùng statusDanger (đỏ); idle/silent dùng statusWarning (vàng); lost/unknown dùng foregroundMuted (xám). Số đếm ✓ xanh lá, ✗ đỏ. Dòng đã kết thúc hiện giờ local HH:MM, thêm dd/mm nếu khác ngày; running không hiện giờ kết thúc. Không hiện giờ bắt đầu. Mỗi dòng hiện USD~ riêng, provider Claude/GPT và usage.week_pct riêng trong tuần; thiếu hiện ?. Không thay phần riêng bằng phần trăm tài khoản hoặc suy quota GPT.
-
-Khối riêng ở đầu panel/sidebar hiện tổng USD~ toàn máy trong tuần của Claude/GPT và phần trăm tài khoản 5h/tuần, thay quota ở dòng root. JSON tree.machine_usage:[{plan,window:"tuần",usd,source}] cung cấp tổng toàn máy, không cộng các dòng cây đang hiển thị. Claude dùng phép tổng hợp tuần cục bộ hiện có. GPT đọc rollout trong đường dẫn cố định ~/.codex-hand/sessions và ~/.codex-hand/archived_sessions, khử trùng theo thread, chỉ cộng token delta được chứa trong cửa sổ tuần hiện tại; thiếu cửa sổ/giá/nguồn giữ unknown. Không cộng trùng ledger và rollout. Riêng gắn native child vào cây vẫn chỉ đọc sessions.
-
-Giữ tối đa 6 phiên phụ, pool chung 4 agent, lựa chọn phiên gần nhất, số đếm phần ẩn và loại nhóm orphan. Addon này chỉ áp dụng panel/sidebar Paseo; hh-tree-pane giữ bố cục, chỉ nhận sửa tương thích native status/exit/unknown ban đầu.
-
-Mỗi cây chính flatten tối đa 6 phiên phụ (running trước, rồi ended/started mới nhất); phần dư gộp số done/error/running/unknown. Chỉ phiên hoạt động gần nhất trong từng cây mở tối đa 4 subagent/hand có cha; các agent khác gộp số, kể cả phiên bị ẩn. Tie giữ thứ tự duyệt cây/agent đầu vào; không ưu tiên is_main. Duration đang chạy tăng theo thời gian, xong cố định theo ended. KHÔNG hiện giờ bắt đầu trong text hh-ps, panel, statusline; meta/JSON vẫn giữ started. `hh-ps --once` chạy một lần; mặc định đủ việc chạy/vừa xong theo since, không fold 3/hide-ended. Cả hai giao diện cây (`hh-tree-pane`, panel agent/sidebar `paseo-hh-tree`) tuyệt đối không hiện nhóm orphan hand-ext; hh-ps text/JSON vẫn giữ orphan.
+API pricing hiện có giữ tương thích; cập nhật implementation giá ở nguồn canonical, không sinh bảng mặc định khác. Metadata hand ghi parent canonical, started, ended, status, exit_code, tokens, effort, duration cùng model/backend. Legacy unknown giữ `?` ở UI, null/chuỗi rỗng theo JSON/dataclass; không bịa mốc hay quota. Native subagent không tạo run/meta/report/token ledger hand-ext.
 
 ### Nguồn usage 0.30.0
 
-GPT machine `USD~` cộng các token delta có timestamp quan sát được trong cửa sổ reset quota tuần hiện tại từ hai đường dẫn cố định `~/.codex-hand/sessions` và `~/.codex-hand/archived_sessions`, khử trùng thread/event, không cộng trùng ledger. Thread chỉ có metadata, chưa có token event không làm tổng observed thành unknown. Không có token event trong cửa sổ thì hiện `?`; token event thiếu baseline/timestamp/model-price hợp lệ, file không đọc được hoặc thiếu cửa sổ hiện tại cũng giữ `?`. Model lạ không fallback; giá duy nhất từ file canonical. Tổng chỉ phản ánh token events cục bộ đo được, không bảo đảm đủ mọi hoạt động tài khoản; đây là ước tính offline subscription, không phải hoá đơn. Riêng gắn native child vào cây vẫn chỉ đọc `sessions`.
-
 GPT phần riêng của session pinned rollout/native child dùng `rate_limits` weekly `used_percent` cuối trừ đầu: cần ít nhất hai sample có timestamp hợp lệ, không giảm, cùng reset và reset đó còn hiện tại. Thiếu điều kiện hoặc qua reset thì `?`. Bổ sung cuối `Usage` với default `week_pct_source: str = ""`; khi đo được, source là `codex_rate_limits_delta`, `week_pct_estimated` là false và nhãn `GPT riêng (đo) N% tuần`. Đây là biến động quota tài khoản trong khoảng phiên, có thể gồm phiên chạy đồng thời, không phải phần sử dụng quy riêng độc quyền cho phiên. Không suy quota từ token/USD.
 
-GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Giữ contract colors/layout/counts/pool và unknown legacy hiện có.
+GPT account có duration tường minh phân loại 5h bằng `window_minutes=300`; sample primary tuần (`10080`) không được đổi nhãn thành 5h. Source account rollout legacy thiếu duration giữ tương thích primary=5h/secondary=tuần theo contract cũ. Riêng phép đo GPT phần riêng mới bắt buộc duration tuần tường minh `window_minutes=10080`. Claude 5h dùng cache/live sẵn có, kiểm freshness và reset hiện tại, chấp nhận reset numeric hoặc ISO; thiếu/hết hạn hiện `?`. Statusline dùng chung helper nguồn usage; phiên bản statusline được quản lý riêng. Model lạ không fallback; giá duy nhất từ file canonical.
 
 ## Contract archive workspace (09/11/2026)
 

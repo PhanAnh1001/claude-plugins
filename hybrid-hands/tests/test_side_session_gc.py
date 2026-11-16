@@ -39,8 +39,7 @@ class GCTest(unittest.TestCase):
         st = state.SessionState(name, name, 'codex', str(path), 'side-' + name, '',
                                 100, 1, status, '', worktree=True, base='main')
         if owned:
-            with patch.object(state, 'bump_revision'):
-                state.save(self.cfg.state_dir, st)
+            state.save(self.cfg.state_dir, st)
         return path, st
     def test_classes_and_cherry_equivalence(self):
         for name in ('A', 'B', 'C', 'D', 'E', 'équiv\n空'):
