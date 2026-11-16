@@ -2,6 +2,16 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.65.0 — 2026-11-16
+
+Tóm tắt: thêm slash command `/hybrid-hands:profile` để xem và đổi profile của repo ngay trong Claude Code.
+
+- Không đối số: in profile, nguồn và bảng vai hiệu lực (`hand-ext profile`).
+- `/hybrid-hands:profile claude-mono|gpt-mono|hybrid`: đặt ngay bằng `hand-ext profile set`, in bảng vai mới.
+- `/hybrid-hands:profile set`: hỏi chọn một trong ba profile qua AskUserQuestion (đánh dấu profile đang dùng); hủy hoặc chọn lại profile cũ thì không ghi.
+- Sau khi đặt nhắc mở phiên mới; ở worktree nhắc rằng file chỉ thuộc worktree đó.
+- Chỉ thêm tài liệu lệnh, không đổi code CLI.
+
 ## 0.64.0 — 2026-11-16
 
 Tóm tắt: thay cơ chế chọn hand theo `ext_hand.order` bằng **profile bắt buộc theo repo** (`claude-mono`, `gpt-mono`, `hybrid`) → vai → tài khoản/model/effort; gỡ hẳn dsh, gemini, `--browser`, sổ Go và cờ `parallel_subagents`. **Phá vỡ tương thích:** repo không có `profile` (kể cả qua global) sẽ bị hook, `hand-ext pick/run` và `side-session start` báo lỗi kèm hướng dẫn `hand-ext profile set <tên>`.
