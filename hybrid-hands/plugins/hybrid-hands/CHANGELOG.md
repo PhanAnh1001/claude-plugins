@@ -2,6 +2,15 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.62.1 — 2026-11-16
+
+Tóm tắt: `side-session gc` không còn giữ worktree chỉ vì một file `side-session-gc.lock` rỗng nằm sót ở gốc worktree.
+
+- `side-session gc`: file `side-session-gc.lock` untracked ở đúng gốc worktree, rỗng, không phải symlink và không ai đang giữ khoá thì không tính là thay đổi; khi gỡ worktree, file này được xoá trước `git worktree remove` (vẫn không `--force`). File cùng tên ở thư mục con vẫn tính là bẩn.
+- Tên khoá gom về hằng `GC_LOCK_NAME`; vị trí khoá không đổi (thư mục git chung của repo).
+- Chưa kiểm chứng: nguồn tạo file khoá sót. Mã plugin 0.55–0.62 đều đặt khoá trong thư mục git chung; chạy thật `side-session gc` và test không sinh file ở gốc. Nghi do lệnh thủ công của agent, chưa xác minh.
+- Social listening: không tìm nguồn riêng cho bản vá này; kế thừa mục 0.62.0.
+
 ## 0.62.0 — 2026-11-16
 
 Tóm tắt: `side-session gc` dọn được worktree của phiên Paseo dùng chung workspace và nêu lý do giữ cụ thể; `stop` thử dọn ngay worktree của phiên; SessionStart nhắc dọn khi đĩa còn ít chỗ; `limit-watch add --self` đăng ký được phiên Paseo dùng config mặc định; policy cho phép phiên brain của repo khác sửa `claude-plugins`.

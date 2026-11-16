@@ -1,6 +1,7 @@
 """Conservative worktree inspection and explicitly requested garbage collection."""
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import stat
@@ -8,7 +9,7 @@ import subprocess
 import time
 import wt_legacy
 
-from hand_ext.locked_json import locked
+from hand_ext.locked_json import LOCK_SUFFIX, locked
 from pathlib import Path
 from typing import Callable
 
@@ -18,6 +19,10 @@ from .config import SideConfig
 ENDED = frozenset({C.STATUS_DONE, C.STATUS_STOPPED, C.STATUS_DEAD,
                    C.STATUS_CAPPED, C.STATUS_ERROR})
 GIT_TIMEOUT = 30
+# Name of the repo-wide GC lock (`locked()` adds LOCK_SUFFIX); it belongs in the git
+# common dir, but stray copies at a worktree root must not make that worktree dirty.
+GC_LOCK_NAME = "side-session-gc"
+STRAY_GC_LOCK = GC_LOCK_NAME + LOCK_SUFFIX
 
 
 def git(repo: Path, *args: str) -> bytes:
@@ -186,19 +191,40 @@ def handoff_mirror(cfg: SideConfig, path: Path, relative: str) -> bool:
     return copy.read_bytes() == original.read_bytes()
 
 
-def dirty_entries(cfg: SideConfig, path: Path) -> list[str]:
+def stray_gc_lock(path: Path, relative: str) -> bool:
+    """An empty, unheld `side-session-gc.lock` at the worktree root (never in a subdirectory)."""
+    lock = path / relative
+    if relative != STRAY_GC_LOCK or lock.is_symlink() or not lock.is_file() or lock.stat().st_size:
+        return False
+    with lock.open("a") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    return True
+
+
+def removable_untracked(cfg: SideConfig, path: Path) -> tuple[list[str], list[str]]:
+    """Split `git status` into (dirty entries, untracked leftovers safe to delete)."""
     raw = git(path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
-    entries = [os.fsdecode(item) for item in raw.split(b"\0") if item]
-    return [item for item in entries
-            if not (item.startswith("?? ") and handoff_mirror(cfg, path, item[3:]))]
+    dirty, leftovers = [], []
+    for item in (os.fsdecode(entry) for entry in raw.split(b"\0") if entry):
+        relative = item[3:]
+        safe = item.startswith("?? ") and (handoff_mirror(cfg, path, relative)
+                                           or stray_gc_lock(path, relative))
+        (leftovers if safe else dirty).append(relative if safe else item)
+    return dirty, leftovers
+
+
+def dirty_entries(cfg: SideConfig, path: Path) -> list[str]:
+    return removable_untracked(cfg, path)[0]
 
 
 def remove_worktree(cfg: SideConfig, path: Path) -> None:
-    """Drop re-verified handoff mirrors only, then a non-forced `git worktree remove`."""
-    raw = git(path, "status", "--porcelain=v1", "-z", "--untracked-files=all")
-    for item in (os.fsdecode(entry) for entry in raw.split(b"\0") if entry):
-        if item.startswith("?? ") and handoff_mirror(cfg, path, item[3:]):
-            (path / item[3:]).unlink()
+    """Drop re-verified handoff mirrors and stray GC locks only, then a non-forced remove."""
+    for relative in removable_untracked(cfg, path)[1]:
+        (path / relative).unlink()
     result = subprocess.run(["git", "-C", str(cfg.repo), "worktree", "remove", "--", str(path)],
                             capture_output=True, text=True, timeout=GIT_TIMEOUT)
     if result.returncode:
@@ -307,7 +333,7 @@ def apply(cfg: SideConfig, *, name: str | None = None,
         if (not name or st.name == name) and st.checkout_owner and not st.checkout_removed_at:
             checkout.remove_done(cfg, st)
     common = common_dir(cfg.repo)
-    with locked(common / "side-session-gc"):
+    with locked(common / GC_LOCK_NAME):
         if fetch:
             git(cfg.repo, "fetch", "origin")
         report = inspect(cfg, name=name, scan=scan)

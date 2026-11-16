@@ -160,6 +160,19 @@ class GCTest(unittest.TestCase):
             self.assertEqual(gc.apply(cfg, name='mirror')['worktrees'][0]['result'], 'removed')
         self.assertFalse(path.exists())
         self.assertEqual((cfg.handoff_dir / 'mirror.done').read_text(), 'ok')
+    def test_gc_lock_outside_worktrees_and_stray_lock_ignored(self):
+        path, _ = self.candidate('stray')
+        (path / gc.STRAY_GC_LOCK).touch()
+        (path / 'sub').mkdir()
+        (path / 'sub' / gc.STRAY_GC_LOCK).touch()
+        with patch.object(gc, 'inspect', side_effect=lambda c, **kw: gc_inspect(c, runtime=lambda *_: True, **kw)):
+            self.assertEqual(gc_inspect(self.cfg, name='stray', runtime=lambda *_: True)['worktrees'][0]['class'], 'C')
+            (path / 'sub' / gc.STRAY_GC_LOCK).unlink()
+            self.assertEqual(gc_inspect(self.cfg, name='stray', runtime=lambda *_: True)['worktrees'][0]['class'], 'A')
+            self.assertEqual(gc.apply(self.cfg, name='stray')['worktrees'][0]['result'], 'removed')
+        self.assertFalse(path.exists())
+        self.assertFalse((self.repo / gc.STRAY_GC_LOCK).exists())
+        self.assertTrue((self.repo / '.git' / gc.STRAY_GC_LOCK).is_file())
     def test_stop_collects_clean_worktree_and_explains_dirty(self):
         from side_session import actions
         with patch.object(gc, 'inspect', side_effect=lambda cfg, **kw: gc_inspect(cfg, runtime=lambda *_: True, **kw)):
