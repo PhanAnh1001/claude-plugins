@@ -1,6 +1,7 @@
-"""side-session v2: Chrome, parent session, day budget, external dsh hands."""
+"""side-session v2: Chrome, parent session, day budget, provider choices."""
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import os
@@ -47,7 +48,8 @@ class SideSessionExtTest(unittest.TestCase):
         (self.tmp / "alive").write_text("")
         self._env = dict(os.environ)
         legacy_config = self.tmp / "global.json"
-        legacy_config.write_text(json.dumps({"side_session": {"transport": "screen"},
+        legacy_config.write_text(json.dumps({"profile": "gpt-mono", "side_session": {"transport": "screen"},
+                                              "ext_hand": {"claude_accounts": {"v1": {"day_guard": True}}},
                                               "main_session": {"transport": "screen"}}))
         os.environ["HYBRID_HANDS_CONFIG"] = str(legacy_config)
         os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ['PATH']}"
@@ -114,7 +116,7 @@ class SideSessionExtTest(unittest.TestCase):
         self.assertNotIn(" --chrome ", f" {out} ")
 
     def test_chrome_rejected_for_other_providers(self) -> None:
-        for provider in ("codex", "dsh"):
+        for provider in ("codex",):
             code, out = self.start("--provider", provider, "--chrome", "--worktree",
                                    "--prompt", RULES, name=provider)
             self.assertEqual(code, 2, provider)
@@ -162,62 +164,10 @@ class SideSessionExtTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(self.state("d2")["status"], "running")
 
-    # ---- external providers --------------------------------------------
-    def test_dsh_needs_worktree_and_rules(self) -> None:
-        code, out = self.start("--provider", "dsh", "--prompt", RULES)
-        self.assertEqual(code, 2)
-        self.assertIn("worktree", out)
-        code, out = self.start("--provider", "dsh", "--worktree", "--prompt", "hello")
-        self.assertEqual(code, 2)
-        self.assertIn("LUẬT BẮT BUỘC", out)
+    def test_removed_dsh_provider_is_an_invalid_choice(self) -> None:
+        with self.assertRaises((SystemExit, argparse.ArgumentError)):
+            self.start("--provider", "dsh", "--worktree", "--prompt", RULES)
         self.assertFalse((self.repo / "output").exists())
-
-    def test_dsh_dry_run_builds_hand_ext_argv(self) -> None:
-        code, out = self.start("--provider", "dsh", "--worktree", "--prompt", RULES,
-                               "--dry-run", name="dsh1")
-        self.assertEqual(code, 0)
-        self.assertIn("hand-ext run --backend dsh", out)
-        self.assertIn("--brief ", out)
-        self.assertIn("dsh1.prompt.md", out)
-        self.assertIn("--label side:dsh1", out)
-        self.assertIn("repo-wt/dsh1", out)
-        self.assertNotIn("--max-tokens", out)
-        self.assertNotIn("--chrome", out)
-        self.assertFalse((self.repo / "output").exists())
-
-    def test_status_line_cmd_resolved_from_repo_for_claude_only(self) -> None:
-        self.configure(status_line_cmd="tools/tap.sh")
-        code, out = self.start("--dry-run", name="sl1")
-        self.assertEqual(code, 0)
-        self.assertIn("--settings", out)
-        self.assertIn(str(self.repo.resolve() / "tools" / "tap.sh"), out)
-        code, out = self.start("--provider", "dsh", "--worktree", "--prompt", RULES,
-                               "--dry-run", name="sl2")
-        self.assertEqual(code, 0)
-        self.assertNotIn("--settings", out)
-
-    def test_dsh_hours_become_hand_ext_timeout(self) -> None:
-        code, out = self.start("--provider", "dsh", "--worktree", "--prompt", RULES,
-                               "--hours", "2", "--dry-run", name="dsh2")
-        self.assertEqual(code, 0)
-        self.assertIn("--timeout-min 120", out)
-        self.assertNotIn("--max-tokens", out)
-
-    def test_dsh_start_writes_prompt_state_and_screen_argv(self) -> None:
-        with mock.patch.object(actions.K, "worktree_cmd", return_value=["true"]):
-            code, _ = self.start("--provider", "dsh", "--worktree", "--prompt", RULES,
-                                 name="x")
-        self.assertEqual(code, 0)
-        st = self.state("x")
-        self.assertEqual(st["provider"], "dsh")
-        self.assertFalse(st["chrome"])
-        self.assertEqual(uuid.UUID(st["uuid"]).version, 4)
-        prompt = self.repo / "output/llm/side-sessions/x.prompt.md"
-        self.assertIn("LUẬT BẮT BUỘC", prompt.read_text())
-        log = self.screen_log()
-        self.assertIn("bin/hand-ext run --backend dsh", log)
-        self.assertIn("--label side:x", log)
-        self.assertIn("--brief " + str(prompt.resolve()), log)
 
     def test_ls_shows_provider_and_chrome(self) -> None:
         self.start("--chrome", name="a")

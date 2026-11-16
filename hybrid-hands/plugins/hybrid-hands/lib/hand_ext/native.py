@@ -100,3 +100,30 @@ def native_selection(cfg: ExtConfig, name: str) -> tuple[bool, str]:
                 return False, f"Claude hand frontmatter {key} mismatch"
     return True, ("native eligible; caller must verify native tool capability and "
                   "select pick model/effort for Codex")
+
+
+# Provider → ext_hand account registry; entries carry config_dir (Claude) or home (Codex).
+ROLE_ACCOUNT_REGISTRY = {"claude": "claude_accounts", "codex": "gpt_accounts"}
+
+
+def role_native(effective: dict, spec: dict, env: Mapping[str, str]) -> tuple[bool, str]:
+    """Native for a profile role cell: same provider and account as the caller, mode not off.
+
+    Unlike ``native_selection`` this does not compare model/effort with agents/hand.md:
+    the caller passes the cell's model/effort to the native subagent itself.
+    """
+    provider = spec["provider"]
+    ext = effective.get("ext_hand") or {}
+    if (ext.get("native") or {}).get(provider, "auto") == "off":
+        return False, f"native.{provider}=off"
+    if _caller(env) != provider:
+        return False, "caller provider unknown, ambiguous or different"
+    registry = ROLE_ACCOUNT_REGISTRY[provider]
+    options = (ext.get(registry) or {}).get(spec["account"]) or {}
+    try:
+        same_account = _same_account(provider, options, env)
+    except (OSError, RuntimeError, ValueError):
+        return False, "caller account path cannot be resolved"
+    if not same_account:
+        return False, "caller account differs from role account"
+    return True, "native eligible; caller must verify native tool capability and pass role model/effort"

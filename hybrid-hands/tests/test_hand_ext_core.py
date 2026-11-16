@@ -1,84 +1,23 @@
-"""hand-ext core: registry, auto fallback, quota state, caps, ledger locking."""
+"""hand-ext core: registry, explicit backend, quota state, caps, ledger locking."""
 from __future__ import annotations
 
 import json
 import os
 import subprocess
 import sys
-import types
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"))
 
 from codex_harness import Sandbox  # noqa: E402
 from hand_ext import ledger  # noqa: E402
 from hand_ext.backends import BackendUnavailable, get_backend  # noqa: E402
-from hand_ext.backends.base import Backend, Check, Status  # noqa: E402
 from hand_ext_case import HandExtTestCase  # noqa: E402
-
-FAKE_MODULE = "hand_ext.backends.stubb"
-
-
-class StubbBackend(Backend):
-    """In-process second backend that always succeeds via `python3 -c`."""
-    name = "stubb"
-
-    def setup(self, options):
-        return ["ok"]
-
-    def doctor(self, options):
-        return [Check("stub", True, "ok")]
-
-    def build_command(self, spec):
-        return [sys.executable, "-c", "print('stub done')"], {}, None
-
-    def parse_line(self, line, state):
-        state.final_text += line
-
-    def finalize(self, spec, state, exit_code, stderr_text):
-        return Status.OK if exit_code == 0 else Status.FAILED
-
-
-def _register_stub() -> None:
-    module = types.ModuleType(FAKE_MODULE)
-    module.StubbBackend = StubbBackend
-    sys.modules[FAKE_MODULE] = module
-
-
-class BrowserCliTest(HandExtTestCase):
-    def setUp(self) -> None:
-        self.sb = Sandbox(order=["codex", "dsh"])
-        self.addCleanup(self.sb.close)
-        path = self.sb.dir / ".claude" / "hybrid-hands.json"
-        config = json.loads(path.read_text(encoding="utf-8"))
-        dsh_home = self.sb.dir / "dsh-home"
-        config["ext_hand"]["backends"]["dsh"] = {
-            "home": str(dsh_home), "key_file": str(dsh_home / "go.key")}
-        path.write_text(json.dumps(config), encoding="utf-8")
-
-    def test_explicit_backend_codex_with_browser_errors(self) -> None:
-        code, out, err = self.sb.cli("run", "--brief", str(self.sb.brief),
-                                     "--backend", "codex", "--browser")
-        self.assertEqual(code, 2, (out, err))
-        self.assertIn("--browser", err)
-        self.assertIn("dsh", err)
-        self.assertEqual(self.sb.ledger(), [])
-
-    def test_auto_with_browser_only_considers_dsh(self) -> None:
-        with mock.patch.dict(os.environ, {"HAND_EXT_DSH_BIN": "/nonexistent/dsh"}):
-            code, out, err = self.sb.cli("run", "--brief", str(self.sb.brief), "--browser")
-        self.assertEqual(code, 7, (out, err))
-        self.assertIn("bỏ qua codex", err)
-        self.assertIn("không hỗ trợ --browser", err)
-        self.assertEqual(self.sb.ledger(), [])
-
 
 class CoreTest(HandExtTestCase):
     def setUp(self) -> None:
-        _register_stub()
-        self.sb = Sandbox(order=["codex", "stubb"])
+        self.sb = Sandbox()
         # `status` reads the shared statusline cache: never point a test at the real ~/.claude.
         os.environ["CLAUDE_HOME"] = str(self.sb.dir / "claude-home")
         self.sb.cli("setup", "--backend", "codex")
@@ -86,8 +25,8 @@ class CoreTest(HandExtTestCase):
     def tearDown(self) -> None:
         self.sb.close()
 
-    def run_auto(self, *extra: str):
-        return self.sb.cli("run", "--brief", str(self.sb.brief), *extra)
+    def run_codex(self, *extra: str):
+        return self.sb.cli("run", "--brief", str(self.sb.brief), "--backend", "codex", *extra)
 
     def test_missing_backend_module(self) -> None:
         with self.assertRaises(BackendUnavailable):
@@ -96,23 +35,19 @@ class CoreTest(HandExtTestCase):
         self.assertEqual(code, 2)
         self.assertIn("chưa có", err)
 
-    def test_auto_falls_back_on_quota_then_skips_exhausted(self) -> None:
-        self.sb.scenario("quota")
-        code, out, _ = self.run_auto()
-        self.assertEqual(code, 0, out)
-        self.assertEqual([e["backend"] for e in self.sb.ledger()], ["codex", "stubb"])
-        self.assertIn("stub done", out)
-        self.assertIn("exhausted_until", self.sb.quota()["codex"])
-        code, _, err = self.run_auto()
-        self.assertEqual(code, 0)
-        self.assertIn("hết hạn mức tới", err)
-        self.assertEqual([e["backend"] for e in self.sb.ledger()][-1], "stubb")
+    def test_run_without_role_or_backend_is_usage_error(self) -> None:
+        for extra in ((), ("--backend", "auto")):
+            code, _, err = self.sb.cli("run", "--brief", str(self.sb.brief), *extra)
+            self.assertEqual(code, 2)
+            self.assertIn("cần --role code|collect|chrome hoặc --backend <tên>", err)
+        self.assertEqual(self.sb.ledger(), [])
 
     def test_explicit_backend_does_not_fall_back(self) -> None:
         self.sb.scenario("quota")
-        code, _, _ = self.sb.cli("run", "--brief", str(self.sb.brief), "--backend", "codex")
+        code, _, err = self.run_codex()
         self.assertEqual(code, 7)
-        self.assertEqual(len(self.sb.ledger()), 1)
+        self.assertEqual([e["backend"] for e in self.sb.ledger()], ["codex"])
+        self.assertIn("không tự chuyển backend", err)
 
     def test_capped_by_tokens(self) -> None:
         self.sb.scenario("cap")
@@ -132,7 +67,7 @@ class CoreTest(HandExtTestCase):
 
     def test_status_and_report(self) -> None:
         self.sb.scenario("ok")
-        self.run_auto("--label", "lab1")
+        self.run_codex("--label", "lab1")
         run_dir = next((self.sb.dir / "output" / "llm" / "hand-ext").iterdir())
         self.assertEqual((run_dir / "brief.md").read_text(encoding="utf-8"),
                          self.sb.brief.read_text(encoding="utf-8"))
@@ -148,7 +83,7 @@ class CoreTest(HandExtTestCase):
 
 class LedgerTest(HandExtTestCase):
     def test_two_processes_append_without_loss(self) -> None:
-        sb = Sandbox(order=["codex"])
+        sb = Sandbox()
         try:
             path = sb.dir / "ledger.json"
             lib = str(Path(ledger.__file__).resolve().parents[1])

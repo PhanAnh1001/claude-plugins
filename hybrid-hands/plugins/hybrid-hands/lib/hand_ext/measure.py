@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .backends import KNOWN_BACKENDS, REMOVED_BACKENDS
+from .backends import KNOWN_BACKENDS
 from .constants import EVENTS_FILE
 
 PATCH_FILE = "changes.patch"
@@ -31,7 +31,7 @@ TEST_DIRS = frozenset({"tests", "test", "__tests__", "spec"})
 DOCS_DIRS = frozenset({"docs"})
 DOCS_SUFFIXES = (".md", ".rst", ".txt")
 TEST_PATTERNS = ("test_*", "*_test.*", "*.spec.*", "*.test.*", "*.bats")
-BACKENDS = frozenset(KNOWN_BACKENDS) | frozenset(REMOVED_BACKENDS)
+BACKENDS = frozenset(KNOWN_BACKENDS)
 
 RUN_NAME_RE = re.compile(r"^(\d{8})-(\d{6})-")
 HUNK_RE = re.compile(r"^@@")

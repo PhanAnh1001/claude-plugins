@@ -40,7 +40,7 @@ class ProviderTests(unittest.TestCase):
             result = self.setup_provider(home)
             self.assertFalse(home.exists())
             self.assertFalse(result['applied'])
-            self.assertEqual(len(result['changes']), 4)
+            self.assertEqual(len(result['changes']), 3)
             home.mkdir()
             config = {'version': 1, 'agents': {'resumePrompt': 'fixture-private-text',
                       'providers': {'hh-hand-codex': {'env': {'FIXTURE': 'fixture-env-value'},

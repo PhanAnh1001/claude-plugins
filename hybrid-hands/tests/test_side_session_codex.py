@@ -82,10 +82,9 @@ class CodexArgvTest(unittest.TestCase):
         prompt = build_codex_prompt("hi", "n", Path("/repo/docs/handoffs/n.md"))
         self.assertIn(str(HAND_EXT_BIN), prompt)
         self.assertNotIn(C.HAND_EXT_PLACEHOLDER, prompt)
-        for required in ("BẮT BUỘC giao code/test/tài liệu L0/L1", "ext_hand.order",
-                         "run --backend auto", "MỖI SOL", "chạy nền", "chờ đủ", "Cùng file", "Exit 8", "Sol chỉ tự viết", "hand-ext thoát lỗi",
-                         "lý do và mã thoát", "Exit 7 khi mọi backend trong order không dùng được",
-                         "chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết"):
+        for required in ("BẮT BUỘC giao code/test/tài liệu L0/L1", "pick --role", "run --role",
+                         "Chờ đủ", "khác file", "Exit 8", "ghi lý do và mã thoát", "Exit 7",
+                         "doctor`, ghi lý do để phiên chính quyết"):
             self.assertIn(required, prompt)
         self.assertNotIn("mặc định dsh", prompt)
         self.assertNotIn("codex effort medium", prompt)
@@ -366,8 +365,12 @@ def setUpModule():  # keep hh-store revision bumps out of the real ~/.hybrid-han
     _STATE_TMP = _tempfile.TemporaryDirectory()
     _STATE_ENV = _mock.patch.dict(_os.environ, {"HYBRID_HANDS_STATE_DIR": _STATE_TMP.name})
     _STATE_ENV.start()
+    from test_side_session_profile import patch_profile
+    global _PROFILE_PATCH
+    _PROFILE_PATCH = patch_profile(actions)
 
 
 def tearDownModule():
     _STATE_ENV.stop()
+    _PROFILE_PATCH.stop()
     _STATE_TMP.cleanup()

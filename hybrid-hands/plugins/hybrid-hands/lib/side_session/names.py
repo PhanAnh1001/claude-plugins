@@ -17,7 +17,7 @@ def title(st: state.SessionState) -> str:
     if (not re.fullmatch(r"[\w-]+", label, re.UNICODE)
             or re.search(r"secret|token|password|credential|api.?key", label, re.I)):
         label = "side"
-    kind = {"codex": "Sol", "dsh": "dsh"}.get(st.provider, "?")
+    kind = "Sol" if st.provider == C.PROVIDER_CODEX else "?"
     if st.provider == C.PROVIDER_CLAUDE:
         account = (st.account if len(st.account) <= ACCOUNT_LIMIT
                    and re.fullmatch(r"v[1-9][0-9]*", st.account) else "?")

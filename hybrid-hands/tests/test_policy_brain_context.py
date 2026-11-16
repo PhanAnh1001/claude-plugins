@@ -49,20 +49,20 @@ class BrainContextPolicyTest(unittest.TestCase):
 
     def test_inject_policy_has_short_form_and_stays_short(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            # Hermetic: normal mode in a temp cwd, not the checkout's own .claude/hybrid-hands.json.
+            # Hermetic: no profile in a temp cwd, not the checkout's own .claude/hybrid-hands.json.
             text = subprocess.run(["bash", str(INJECT)], input=json.dumps({"cwd": directory}),
                                   capture_output=True, text=True, check=True).stdout
-            for marker in ("SessionStart", "AGENTS.md", "ext_hand.order", "không tự tra cứu", ".env/token/credential"):
+            for marker in ("hand-ext profile set", ".env/token/credential"):
                 self.assertIn(marker, text)
             self.assertLessEqual(len(text), 300)
             full = self._session_start_context(directory)
-            self.assertIn("hand-ext pick --json", full)
+            self.assertIn("hand-ext profile set", full)
             self.assertIn("LUẬT NGỮ CẢNH BRAIN", full)
             # A marker/name alone cannot remove policy; exact matching content can.
             agents = Path(directory) / "AGENTS.md"
             agents.write_text("# Hướng dẫn sống cho repo claude-plugins", encoding="utf-8")
             self.assertEqual(full, self._session_start_context(directory))
-            part = next(p for p in full.split("\n\n") if p.startswith("Mặc định `ext_hand.order`"))
+            part = next(p for p in full.split("\n\n") if p.startswith("LUẬT REVIEW:"))
             agents.write_text(part, encoding="utf-8")
             compact = self._session_start_context(directory)
             self.assertNotIn(part, compact)

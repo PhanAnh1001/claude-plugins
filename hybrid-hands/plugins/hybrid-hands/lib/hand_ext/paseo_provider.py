@@ -24,7 +24,7 @@ import subprocess
 import tempfile
 
 PROVIDER_IDS = tuple('hh-hand-' + backend for backend in
-                     ('codex', 'dsh', 'claude-v1', 'claude-v2'))
+                     ('codex', 'claude-v1', 'claude-v2'))
 SCHEMA_PATH = 'node_modules/@getpaseo/server/dist/server/server/persisted-config.js'
 
 

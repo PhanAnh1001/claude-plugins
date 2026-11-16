@@ -27,9 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--prompt")
     g.add_argument("--prompt-file")
     s.add_argument("--main", action="store_true",
-                   help="mở phiên chính: mặc định Codex Sol high trên Paseo; "
-                        "--provider claude mở Claude Opus high trên Paseo "
-                        "(--model claude-fable-5-2 mở Fable 5.2)")
+                   help="mở phiên chính trên Paseo theo vai profile (hybrid: super, mono: brain); "
+                        "cờ --provider/--account/--model/--effort thắng ô vai")
     s.add_argument("--worktree", action="store_true")
     s.add_argument("--new-workspace", action="store_true",
                    help="tạo workspace Paseo riêng thay vì dùng lại workspace của phiên đang chat")
@@ -39,12 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="chủ động vượt chặn dung lượng ổ khi tạo worktree")
     s.add_argument("--base", default=None)
     s.add_argument("--provider", choices=C.PROVIDERS, default=None,
-                   help="codex (mặc định cho start), claude (mặc định cho --resume) hoặc dsh")
+                   help="codex (mặc định cho start) hoặc claude (mặc định cho --resume)")
     s.add_argument("--account", default=None, help="tài khoản Claude v1/v2/v… (mặc định v1; resume giữ state)")
     s.add_argument("--model", default=None,
-                   help="model cho Codex/Claude, hoặc chuyển --model cho hand-ext")
+                   help="model cho Codex/Claude")
     s.add_argument("--effort", default=None,
-                   help="effort cho Codex/Claude, hoặc chuyển --effort cho hand-ext")
+                   help="effort cho Codex/Claude")
     s.add_argument("--max-tokens", type=int)
     s.add_argument("--hours", type=float)
     s.add_argument("--brain", default="", help="brain session name for SendMessage")

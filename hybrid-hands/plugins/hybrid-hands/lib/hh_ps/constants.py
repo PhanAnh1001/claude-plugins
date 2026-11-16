@@ -95,7 +95,7 @@ NO_COLOR_ENV = "NO_COLOR"
 DESCRIPTION_MAX_LEN = 16
 SESSION_NAME_MAX_LEN = 16
 KIND_MAX_LEN = 8
-KIND_ALIASES = {"hybrid-hands:hand": "hand", "opencode": "oc"}
+KIND_ALIASES = {"hybrid-hands:hand": "hand"}
 # Child statuses that print no text: the ✓ mark already says it.
 OK_STATUSES = frozenset({"ok", "finished", "xong"})
 STATUS_ALIASES = {"quota_exhausted": "quota"}

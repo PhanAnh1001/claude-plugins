@@ -1,4 +1,4 @@
-"""Backend interface for hand-ext: one subscription CLI (dsh, codex, claude, gemini).
+"""Backend interface for hand-ext: one subscription CLI (codex, claude).
 
 Conventions:
 - Each backend reads its binary from env `HAND_EXT_<NAME>_BIN` (e.g. HAND_EXT_CODEX_BIN),
@@ -18,17 +18,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 BIN_ENV_TEMPLATE = "HAND_EXT_{name}_BIN"
-# OpenCode Go temporarily refuses prefills under load: 429 with Retry-After 30 s. This is
-# capacity pressure, not the plan limit, so it must not enter quota_state.
-CAPACITY_PATTERN = re.compile(
-    r"prefill_cap_refused|at capacity|retry shortly", re.IGNORECASE)
-CAPACITY_NOTE = ("Go quá tải tạm thời (prefill_cap_refused), không phải hết hạn mức; "
-                 "backend đã tự thử lại theo retryPolicy; chạy lại sau ít phút")
-
-
-def is_capacity_error(text: str) -> bool:
-    """True when the output carries OpenCode Go's transient capacity refusal."""
-    return bool(CAPACITY_PATTERN.search(text or ""))
 
 
 class Status(str, Enum):
@@ -77,7 +66,6 @@ class RunSpec:
     timeout_s: int
     max_tokens: Optional[int]
     options: dict  # section backends.<name> of the config
-    browser: bool = False  # mount the Playwright MCP server (dsh only)
 
 
 @dataclass

@@ -7,6 +7,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/hybrid-han
 from side_session import actions, cli
 from side_session.config import SideConfig
 from hand_ext import disk_guard
+
+def setUpModule():
+    from test_side_session_profile import patch_profile
+    global _PROFILE_PATCH
+    _PROFILE_PATCH = patch_profile(actions)
+
+
+def tearDownModule():
+    _PROFILE_PATCH.stop()
+
 class StartGateTest(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup); self.root = Path(temp.name).resolve()

@@ -385,7 +385,7 @@ class PolicyTextTest(HandExtTestCase):
             self.assertIn("dữ liệu khách hàng", path.read_text(encoding="utf-8"), str(path))
             self.assertIn("hand Claude", path.read_text(encoding="utf-8"), str(path))
         inject = (PLUGIN / "lib" / "policy_mode.py").read_text(encoding="utf-8")  # inject-policy.sh renders NORMAL_PROMPT
-        self.assertIn("xem SessionStart và AGENTS.md", inject)
+        self.assertIn("POLICY: xem SessionStart.", inject)
 
 
 if __name__ == "__main__":

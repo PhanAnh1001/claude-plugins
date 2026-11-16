@@ -103,9 +103,8 @@ class HandRun:
     pid: Optional[int]
     child_pid: Optional[int]
     lost: bool
-    # Weekly Go limit at snapshot time, used for this run's week_pct.
-    week_limit_usd: Optional[float] = None
-    # True when the run cost or the Go weekly source is an estimate.
+    # Legacy field kept for constructor compatibility; no source sets it any more.
+    # True when the run's weekly share is an estimate.
     week_pct_estimated: bool = False
     # Snapshot usage (Codex cost/account samples); renderers fall back to hand_usage.
     usage: Optional[Usage] = None
@@ -122,6 +121,10 @@ class HandRun:
     patch_path: str = ""
     report_path: str = ""
     isolated_cwd: str = ""
+    # hand-ext --role/--tier/--escalated-from; legacy runs keep the defaults.
+    role: str = ""
+    tier: Optional[int] = None
+    escalated_from: str = ""
 
     @property
     def running(self) -> bool:

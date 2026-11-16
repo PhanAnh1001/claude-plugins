@@ -86,28 +86,6 @@ def with_chrome(args: list[str], chrome: bool) -> list[str]:
     return out if wanted in out else [*out, wanted]
 
 
-def ext_argv(provider: str, name: str, prompt_path: Path, workdir: str,
-             hours: float | None = None, model: str | None = None,
-             effort: str | None = None) -> list[str]:
-    """`hand-ext run` argv for an external side session.
-
-    No `--max-tokens`: hand-ext caps on input incl. cache reads, which would stop a long
-    dsh run early; `side-session watch` enforces the cap without cache reads instead.
-    `--hours` becomes hand-ext's `--timeout-min` so long packages are not cut at its default.
-    `--model`/`--effort` are forwarded only when the caller set them explicitly.
-    """
-    argv = [str(HAND_EXT_BIN), "run", "--backend", provider,
-            "--brief", str(prompt_path), "--label", f"{C.EXT_LABEL_PREFIX}{name}",
-            "--cwd", workdir]
-    if hours:
-        argv += ["--timeout-min", str(max(1, round(hours * 60)))]
-    if model:
-        argv += ["--model", model]
-    if effort:
-        argv += ["--effort", effort]
-    return argv
-
-
 def codex_argv(cfg: SideConfig, workdir: str, prompt: str,
                model: str | None = None, effort: str | None = None) -> list[str]:
     """Codex TUI argv: model/effort, full access (no sandbox, no approval prompts)."""
@@ -150,20 +128,33 @@ def build_codex_prompt(user_prompt: str, name: str, handoff: Path) -> str:
     return f"{user_prompt.rstrip()}\n\n{rules.strip()}\n"
 
 
+def role_env(role: str) -> dict[str, str]:
+    """Env marker for the launched session; empty role (legacy state) sets nothing."""
+    return {C.ROLE_ENV: role} if role else {}
+
+
 def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
                   workdir: str, prompt: str, chrome: bool | None = None,
-                  prompt_path: Path | None = None, hours: float | None = None,
                   resume: bool = False, model: str | None = None,
                   effort: str | None = None, account: str = "v1",
                   config_dir: str = "",
-                  claude_auto_compact_window: int | None = None) -> tuple[list[str], dict[str, str]]:
+                  claude_auto_compact_window: int | None = None,
+                  session_role: str = "") -> tuple[list[str], dict[str, str]]:
+    argv, env = _provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
+                               resume, model, effort, account, config_dir,
+                               claude_auto_compact_window)
+    return argv, {**env, **role_env(session_role)}
+
+
+def _provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
+                   workdir: str, prompt: str, chrome: bool | None,
+                   resume: bool, model: str | None,
+                   effort: str | None, account: str,
+                   config_dir: str,
+                   claude_auto_compact_window: int | None) -> tuple[list[str], dict[str, str]]:
     if provider == C.PROVIDER_CODEX:
         return (codex_argv(cfg, workdir, prompt, model, effort),
                 {"CODEX_HOME": str(cfg.codex_home), C.HAND_SCOPE_ENV: uuid})
-    if provider in C.EXTERNAL_PROVIDERS:
-        if prompt_path is None:
-            raise ValueError(f"{provider} cần prompt_path để chạy hand-ext")
-        return ext_argv(provider, name, prompt_path, workdir, hours, model, effort), {}
     argv = with_chrome(cfg.claude_args, chrome_enabled(cfg, chrome))
     if cfg.status_line_cmd:
         line = {"statusLine": {"type": "command", "command": cfg.status_line_cmd}}
@@ -184,18 +175,19 @@ def provider_argv(cfg: SideConfig, provider: str, name: str, uuid: str,
 
 def session_cmd(cfg: SideConfig, provider: str, name: str, uuid: str,
                 workdir: str, prompt: str, chrome: bool | None = None,
-                prompt_path: Path | None = None, hours: float | None = None,
                 resume: bool = False, model: str | None = None,
                 effort: str | None = None, account: str = "v1",
                 config_dir: str = "",
-                  claude_auto_compact_window: int | None = None) -> list[str]:
+                  claude_auto_compact_window: int | None = None,
+                session_role: str = "") -> list[str]:
     argv, env = provider_argv(cfg, provider, name, uuid, workdir, prompt, chrome,
-                              prompt_path, hours, resume, model, effort, account, config_dir,
-                              claude_auto_compact_window)
+                              resume, model, effort, account, config_dir,
+                              claude_auto_compact_window, session_role)
     prelude = ""
     if provider == C.PROVIDER_CODEX:
         prelude = f"{shlex.join(codex_trust.prelude_argv(cfg.codex_home, workdir))} && "
-    unset = (C.CHILD_SESSION_ENV, C.CLAUDE_AUTO_COMPACT_ENV)
+    # ROLE_ENV is unset so a legacy resume never inherits the caller's role.
+    unset = (C.CHILD_SESSION_ENV, C.CLAUDE_AUTO_COMPACT_ENV, C.ROLE_ENV)
     if provider == C.PROVIDER_CLAUDE:
         unset += ("CLAUDE_CONFIG_DIR",)
     return screen.start_cmd(session_screen(name), argv, workdir, env,

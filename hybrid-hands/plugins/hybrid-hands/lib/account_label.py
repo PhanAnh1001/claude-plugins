@@ -131,7 +131,7 @@ def account_choices(cfg: Any, selected_backend: str = "") -> list[dict]:
 
 
 def backend_account_label(backend: str, cfg: Any, *, detected_plan: Optional[str] = None) -> Optional[str]:
-    """Label for a backend name (``claude-vN``, aliases, ``codex``); None for others (dsh)."""
+    """Label for a backend name (``claude-vN``, aliases, ``codex``); None for any other backend."""
     slot = {"claude-main": "v1", "claude": "v2"}.get(backend)
     if slot is None and backend.startswith("claude-v"):
         slot = backend[len("claude-"):]

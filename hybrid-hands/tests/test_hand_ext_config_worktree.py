@@ -14,8 +14,7 @@ sys.path.insert(0, str(ROOT / "plugins" / "hybrid-hands" / "lib"))
 from hand_ext.config import load_config  # noqa: E402
 from hand_ext.constants import CONFIG_SECTION, PROJECT_CONFIG_RELPATH  # noqa: E402
 
-MAIN_CONFIG = {CONFIG_SECTION: {"order": ["codex"],
-                                "backends": {"codex": {"effort": "low"}}}}
+MAIN_CONFIG = {CONFIG_SECTION: {"backends": {"codex": {"effort": "low"}}}}
 
 
 def _git(cwd: Path, *args: str) -> None:
@@ -43,13 +42,12 @@ class WorktreeConfigFallbackTest(unittest.TestCase):
     def test_worktree_reads_main_repo_config(self) -> None:
         self._write_config(self.main, MAIN_CONFIG)
         cfg = load_config(self.worktree)
-        self.assertEqual(cfg.order, ["codex"])
         self.assertEqual(cfg.options("codex")["effort"], "low")
 
     def test_worktree_own_config_wins(self) -> None:
         self._write_config(self.main, MAIN_CONFIG)
-        self._write_config(self.worktree, {CONFIG_SECTION: {"order": ["claude"]}})
-        self.assertEqual(load_config(self.worktree).order, ["claude"])
+        self._write_config(self.worktree, {CONFIG_SECTION: {"backends": {"codex": {"effort": "high"}}}})
+        self.assertEqual(load_config(self.worktree).options("codex")["effort"], "high")
 
 
 if __name__ == "__main__":

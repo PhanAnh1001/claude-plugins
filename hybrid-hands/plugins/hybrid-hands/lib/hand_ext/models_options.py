@@ -31,20 +31,20 @@ def build_options(result, status: dict) -> dict:
         if provider == "claude":
             current += "@" + account
         tiers.append(dict(value=tier, label=TIER_LABELS[tier], current=current))
-    order = status["hand"]["order"]["value"]
-    tiers.append(dict(value="hand", label=TIER_LABELS["hand"], current=", ".join(order)))
+    hand_names = [name for name, row in status["hand"]["backends"].items() if row["supported"]]
+    tiers.append(dict(value="hand", label=TIER_LABELS["hand"], current=", ".join(hand_names)))
     ext = result.effective["ext_hand"]
     accounts = [dict(slot=slot, label=account_label(PROVIDER_CLAUDE, slot, ext),
                      selected=slot == profiles["brain"]["account"])
                 for slot in sorted(ext["claude_accounts"], key=lambda s: int(s[1:]))]
     backends = [dict(value=name, provider="claude" if row.get("account") else name,
                      model=row["model"]["value"], effort=row["effort"]["value"],
-                     account=row.get("account"), in_order=name in order, mode=row["mode"]["value"])
+                     account=row.get("account"), mode=row["mode"]["value"])
                 for name, row in status["hand"]["backends"].items() if row["supported"]]
     return dict(tiers=tiers, providers=providers, profiles=profiles,
                 accounts=accounts, hand_backends=backends,
                 hand_modes={provider: "native" if ext["native"].get(provider) == "auto" else "terminal"
-                            for provider in ("claude", "codex", "dsh")},
+                            for provider in ("claude", "codex")},
                 presets=_presets(profiles, backends, providers))
 
 
@@ -83,9 +83,8 @@ def _presets(profiles: dict, backends: list[dict], providers: dict) -> dict:
         description = " · ".join(f"{row['value']} {row['model']} {row['effort']}" for row in selected)
         rows = [entry("Giữ nguyên", description, [])]
         for row in selected:
-            candidates = (("claude-sonnet-5-5", "low"), ("claude-haiku-5-5", "low")) if claude else (
-                (("gpt-6.1-sol", "medium"), ("gpt-6.1-sol", "high")) if row["provider"] == "codex"
-                else (("deepseek-v4.1-flash", "high"),))
+            candidates = ((("claude-sonnet-5-5", "low"), ("claude-haiku-5-5", "low")) if claude
+                          else (("gpt-6.1-sol", "medium"), ("gpt-6.1-sol", "high")))
             for model, effort in candidates:
                 if (model, effort) == (row["model"], row["effort"]) or not available(row["provider"], model, effort):
                     continue
@@ -103,6 +102,6 @@ def print_options(payload: dict) -> None:
     for row in payload["accounts"]:
         print(f"{'*' if row['selected'] else ' '} {row['slot']}: {row['label']}")
     for row in payload["hand_backends"]:
-        print(f"{'*' if row['in_order'] else ' '} {row['value']}: {row['model']}:{row['effort']} [{row['mode']}]")
+        print(f"  {row['value']}: {row['model']}:{row['effort']} [{row['mode']}]")
     for group, rows in payload["presets"].items():
         print(f"{group} presets: " + " | ".join(row["label"] for row in rows))

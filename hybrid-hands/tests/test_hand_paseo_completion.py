@@ -47,14 +47,13 @@ class CompletionTests(unittest.TestCase):
         self.supervisor = ExecutionSupervisor(self.store, Ops())
         self.admission = AdmissionController(self.store, self.supervisor, lambda *_: True)
         self.service = CompletionService(self.store, self.supervisor, self.admission)
-        self.inv = Invocation('one', parallel.scope_digest(self.source), 'parent', backend='dsh',
-                              model='deepseek-v4.1-flash', effort='off', source_cwd=str(self.source), isolated_cwd=str(self.iso),
+        self.inv = Invocation('one', parallel.scope_digest(self.source), 'parent', backend='codex',
+                              model='gpt-fixture', effort='low', source_cwd=str(self.source), isolated_cwd=str(self.iso),
                               fixed_options=dict(run_dir=str(self.root / 'runs'), sandbox='workspace-write', timeout_s=2, max_tokens=100))
         self.attempt = Attempt('one', 'try', 1, 'request')
         self.admission.admit(self.inv, self.attempt, max_parallel=1)
         self.ctx = isolation.IsolationContext('worktree', self.source, self.iso, self.iso, baseline_tree=self.baseline, base_commit=git('rev-parse', 'HEAD'))
         self.service.bind(self.attempt.key, self.ctx, ledger_path=self.root / 'ledger.json', registry_dir=self.root / 'registry', policy='apply',
-                          go_ledger=self.root / 'go.jsonl', go_summary=self.root / 'go-summary.json', go_monthly_limit=10,
                           quota_path=self.root / 'quota.json', label='fixture-label')
 
     def runner(self, status=Status.OK):
@@ -62,7 +61,7 @@ class CompletionTests(unittest.TestCase):
             self.supervisor.register_writer(self.attempt.key, ProcessIdentity(123456,123456,'fake-owned'), control.owner)
             (self.iso / 'fixture').write_text('changed by fixture\n')
             (self.iso / 'untracked').write_bytes(b'public fixture\x00binary')
-            state = RunState(Usage(10, 2, 4), quota=Quota(5, None), final_text='fixture report', extra={'go_allowance_usd': 0.01})
+            state = RunState(Usage(10, 2, 4), quota=Quota(5, None), final_text='fixture report')
             return RunOutcome(status, 0 if status == Status.OK else 1, state, 0.1, ['prefill_cap_refused'] if status == Status.FAILED else [])
         return run
 
@@ -111,11 +110,9 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual((self.source / 'fixture').read_text(), 'changed by fixture\n')
         self.assertEqual((self.source / 'untracked').read_bytes(), b'public fixture\x00binary')
         self.assertEqual(len(json.loads((self.root / 'ledger.json').read_text())), 1)
-        go = [json.loads(x) for x in (self.root / 'go.jsonl').read_text().splitlines()]
-        self.assertEqual(len(go), 1); self.assertEqual(go[0]['cost_usd'], .01)
         r = self.store.get(self.attempt.key)
         self.assertIsNone(r.reservation)
-        self.assertEqual(len(r.settle_keys), 5)
+        self.assertEqual(len(r.settle_keys), 4)
         self.assertEqual(json.loads(Path(r.artifacts['report']['metadata']).read_text())['quota']['used_percent'], 5)
         reconstructed = reconstruct_context(r.receipt['completion']['context'])
         self.assertEqual(reconstructed, self.ctx)
@@ -192,16 +189,6 @@ class CompletionTests(unittest.TestCase):
         self.assertTrue(recovered.reconcile(self.attempt.key))
         self.assertEqual(len(json.loads((self.root / 'ledger.json').read_text())), 1)
         self.assertEqual(self.applies, [True])
-        # An old summary predating the durable Go row proves nothing.
-        r = self.store.get(self.attempt.key)
-        saved_summary = (self.root / 'go-summary.json').read_text()
-        r.state = 'settling'; r.reservation = {'fixture': True}
-        r.settle_keys['go_ledger']['state'] = 'in_progress'
-        self.store.compare_and_swap(r.key, r.revision, r)
-        (self.root / 'go-summary.json').write_text(json.dumps({'updated_at': int(r.finished_at), 'models': {}}))
-        self.assertFalse(recovered.reconcile(r.key))
-        self.assertIsNotNone(self.store.get(r.key).reservation)
-        (self.root / 'go-summary.json').write_text(saved_summary)
         # Missing apply proof cannot be repaired by rerunning finalize.
         r = self.store.get(self.attempt.key)
         r.state = 'settling'; r.reservation = {'fixture': True}
@@ -227,7 +214,6 @@ class CompletionTests(unittest.TestCase):
             self.assertTrue(self.service.reconcile(self.attempt.key))
         self.assertEqual(self.applies, [False])
         observation = self.store.get(self.attempt.key).receipt['usage_observation']
-        self.assertTrue(observation['capacity_failure'])
         self.assertNotIn('errors', observation)
         self.assertTrue(self.iso.is_dir())
         r = self.store.get(self.attempt.key)

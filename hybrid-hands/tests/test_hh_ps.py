@@ -127,7 +127,8 @@ class HhPsTest(unittest.TestCase):
         self.assertEqual(set(run), {"run_id", "label", "backend", "model", "status",
                                     "state", "tokens", "usage", "started_at", "ended_at",
                                     "duration_seconds", "parent_session", "pid",
-                                    "child_pid", "effort", "exit_code"})
+                                    "child_pid", "effort", "exit_code",
+                                "role", "tier", "escalated_from"})
         self.assertEqual(set(session["usage"]),
                          {"read", "cache_read", "cache_write", "out", "usd",
                           "week_pct", "week_pct_estimated", "usd_estimated",

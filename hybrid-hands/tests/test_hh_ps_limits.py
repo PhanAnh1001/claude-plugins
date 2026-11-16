@@ -3,8 +3,6 @@
 Cross-checked against the statusline plugin itself:
 - `week_split.build_summary` / `session_totals` / `estimate_week`
   (statusline/plugins/statusline/scripts/week_split.py:256, 332, 359)
-- `go_sessions.load_go_week` / `build_groups`
-  (statusline/plugins/statusline/scripts/go_sessions.py:175, 217)
 """
 from __future__ import annotations
 
@@ -25,18 +23,15 @@ sys.path.insert(0, str(TESTS.parent / "plugins" / "hybrid-hands" / "lib"))
 STATUSLINE = TESTS.parent.parent / "statusline" / "plugins" / "statusline" / "scripts"
 sys.path.insert(0, str(STATUSLINE))
 
-import go_sessions  # noqa: E402
 import week_split  # noqa: E402
 
-from hh_ps.limits import collect_limits, load_hand_ext_config  # noqa: E402
+from hh_ps.limits import collect_limits  # noqa: E402
 from hh_ps.models import Session, Snapshot, Usage  # noqa: E402
-from hh_ps.pricing import hand_usage  # noqa: E402
 from hh_ps.render import render_json  # noqa: E402
 from hh_ps.timeutil import iso_at, percent_text  # noqa: E402
 from hh_ps.tree import build_snapshot  # noqa: E402
 from usage_pricing import load_prices
-from hh_ps.week import (STATUSLINE_LEDGER_ENV, claude_pct, read_claude_week,
-                        read_go_week)  # noqa: E402
+from hh_ps.week import STATUSLINE_LEDGER_ENV, claude_pct, read_claude_week  # noqa: E402
 
 NOW = 1_800_000_000.0
 HOUR = 3600.0
@@ -97,53 +92,12 @@ class LimitFixture:
         self.state.mkdir()
         self.claude = self.base / "claude"
         self.claude.mkdir()
-        self.ledger = self.state / "go_usage.jsonl"
 
     def close(self) -> None:
         self.tmp.cleanup()
 
-    def config(self, monthly_limit: Optional[float] = None) -> None:
-        section: Dict[str, Any] = {}
-        if monthly_limit is not None:
-            section["go_usage"] = {"monthly_limit_usd": monthly_limit}
-        write_json(self.project / ".claude" / "hybrid-hands.json",
-                   {"ext_hand": section} if section else {})
-
-    def records(self, entries: List[tuple]) -> None:
-        lines = []
-        for index, entry in enumerate(entries):
-            cost, ended = entry[0], entry[1]
-            source = entry[2] if len(entry) > 2 else "estimated"
-            lines.append(json.dumps({
-                "run_id": f"r{index}", "ended": iso(ended), "backend": "dsh",
-                "model": MODEL, "tokens": {"input": 0, "cached_input": 0, "output": 0},
-                "cost_usd": cost, "cost_source": source, "cwd_basename": "project",
-            }))
-        self.ledger.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-    def go_summary(self, limit: float, percent: float = 0.0,
-                   estimated: bool = False) -> None:
-        write_json(self.state / "go_usage_summary.json", {
-            "schema": 1, "updated_at": int(NOW), "monthly_limit_usd": limit * 2,
-            "models": {MODEL: {
-                "5h": {"used_usd": 0.0, "limit_usd": limit * 0.4, "percent": 0.0,
-                       "estimated": estimated},
-                "7d": {"used_usd": 0.0, "limit_usd": limit, "percent": percent,
-                       "estimated": estimated},
-                "30d": {"used_usd": 0.0, "limit_usd": limit * 2, "percent": 0.0,
-                        "estimated": estimated},
-            }},
-        })
-
-    def go_cache(self, weekly: float, reset: float = RESET,
-                 state: str = "ok", fetched_at: float = NOW) -> None:
-        windows = {}
-        for key, percent in (("rolling", 0.0), ("weekly", weekly), ("monthly", 0.0)):
-            windows[key] = {"percent": percent, "status": "ok", "resets_at": int(reset)}
-        write_json(self.claude / ".statusline-go-usage.json", {
-            "fetched_at": int(fetched_at), "state": state, "last_ok_at": int(fetched_at),
-            "windows": windows,
-        })
+    def config(self) -> None:
+        write_json(self.project / ".claude" / "hybrid-hands.json", {})
 
     def claude_cache(self, week: str = "10.0", week_reset: float = NOW + 2 * DAY,
                      five: str = "12.3", five_reset: float = NOW + HOUR,
@@ -231,69 +185,13 @@ def simple_week(local: float = 6.2, other: float = 3.8, total: float = 10.0,
     }
 
 
-class GoWeekTest(unittest.TestCase):
-    def setUp(self) -> None:
-        self.fx = LimitFixture()
-        self.addCleanup(self.fx.close)
-
-    def test_a_machine_pct_uses_the_statusline_week_window_and_limit(self) -> None:
-        self.fx.config(100)
-        self.fx.go_summary(50.0, percent=16.0)
-        self.fx.go_cache(16.0)
-        # Now-1h is inside reset-7d; now-6.5d is not, so the old sliding week
-        # showed $8.575 / (100*50%) = 17.15% while the statusline excludes it.
-        self.fx.records([(8.0, NOW - HOUR), (0.575, NOW - 6.5 * DAY)])
-        with self.fx.env():
-            statusline_week = go_sessions.load_go_week(self.fx.claude, self.fx.state)
-            assert statusline_week is not None
-            statusline_pct = (sum(run.usd for run in statusline_week.runs)
-                              / statusline_week.limit_usd * 100)
-            hh_week = read_go_week(self.fx.state, self.fx.claude, NOW)
-        row = rows(self.fx.limits(), "Go")["tuần"]
-        self.assertAlmostEqual(statusline_pct, 16.0)
-        self.assertAlmostEqual(row.this_machine_pct, statusline_pct)
-        self.assertAlmostEqual(row.this_machine_pct, hh_week.machine_pct)
-        self.assertAlmostEqual(row.total_pct, 16.0)
-        self.assertAlmostEqual(row.other_pct, 0.0)
-        self.assertNotAlmostEqual(row.this_machine_pct, 17.15)
-
-    def test_b_total_keeps_the_source_precision(self) -> None:
-        self.fx.config(100)
-        self.fx.go_summary(50.0, percent=16.25)
-        self.fx.go_cache(16.25)
-        self.fx.records([])
-        row = rows(self.fx.limits(), "Go")["tuần"]
-        self.assertEqual(row.total_pct, 16.25)
-        self.assertEqual(percent_text(row.total_pct), "16.2%")
-        data = render_json(Snapshot(
-            sessions=[], orphan_runs=[], since_seconds=3600, cwd="", all_projects=False,
-            main_session_id=None, generated_at=NOW, limits=self.fx.limits()))
-        self.assertEqual(data["limits"][0]["total_pct"], 16.25)
-
-    def test_go_expired_weekly_reset_is_zeroed(self) -> None:
-        self.fx.config(100)
-        self.fx.go_summary(50.0, percent=16.0)
-        self.fx.go_cache(16.0, reset=NOW - HOUR, fetched_at=NOW - 2 * HOUR)
-        self.assertNotIn("tuần", rows(self.fx.limits(), "Go"))
-        with self.fx.env():
-            week = read_go_week(self.fx.state, self.fx.claude, NOW)
-        self.assertIsNone(week.total_pct)
-        self.assertEqual(week.source, "ledger")
-
-    def test_go_week_is_the_only_go_row(self) -> None:
-        self.fx.config(100)
-        self.fx.go_summary(50.0, percent=16.0)
-        self.fx.go_cache(16.0)
-        self.assertEqual(list(rows(self.fx.limits(), "Go")), ["tuần"])
-
-
 class ClaudeWeekTest(unittest.TestCase):
     def setUp(self) -> None:
         self.fx = LimitFixture()
         self.addCleanup(self.fx.close)
 
     def test_c_expired_cache_is_not_shown_as_current_and_5h_is_gone(self) -> None:
-        self.fx.config(100)
+        self.fx.config()
         self.fx.claude_cache(week="6.2", week_reset=NOW - HOUR,
                              five="12.3", five_reset=NOW - 2 * HOUR)
         self.fx.claude_split(simple_week(total=6.2, reset=NOW - HOUR))
@@ -308,7 +206,7 @@ class ClaudeWeekTest(unittest.TestCase):
         self.assertIsNone(row.this_machine_pct)
 
     def test_c_expired_five_hour_cache_is_never_rendered(self) -> None:
-        self.fx.config(100)
+        self.fx.config()
         self.fx.claude_cache(week="10.0", week_reset=NOW + 2 * DAY,
                              five="12.3", five_reset=NOW - 30 * DAY)
         self.fx.claude_split(simple_week())
@@ -318,7 +216,7 @@ class ClaudeWeekTest(unittest.TestCase):
         self.assertAlmostEqual(rows(limits, "Claude")["tuần"].total_pct, 10.0)
 
     def test_d_machine_and_other_come_from_the_week_split(self) -> None:
-        self.fx.config(100)
+        self.fx.config()
         self.fx.claude_cache()
         self.fx.claude_split(simple_week())
         row = rows(self.fx.limits(), "Claude")["tuần"]
@@ -423,17 +321,9 @@ class RowUsageTest(unittest.TestCase):
         self.fx = LimitFixture()
         self.addCleanup(self.fx.close)
 
-    def test_hand_go_uses_the_weekly_limit_formula(self) -> None:
-        usage = hand_usage({"input": 1_000_000, "cached_input": 400_000,
-                            "output": 500_000}, "dsh", 50.0, True)
-        self.assertAlmostEqual(usage.usd, 0.7824, places=4)
-        self.assertAlmostEqual(usage.week_pct, 0.7824 / 50.0 * 100)
-        self.assertTrue(usage.week_pct_estimated)
-
-    def test_snapshot_fills_week_pct_for_session_subagent_and_hand(self) -> None:
-        self.fx.config(100)
-        self.fx.go_summary(50.0, percent=16.0)
-        self.fx.go_cache(16.0)
+    def test_snapshot_fills_week_pct_and_prices_a_legacy_dsh_run(self) -> None:
+        # A historical dsh run is an ordinary hand row: canonical price, no weekly share.
+        self.fx.config()
         self.fx.claude_cache()
         self.fx.claude_split(simple_week())
         self.fx.session("main", self.fx.project)
@@ -452,13 +342,13 @@ class RowUsageTest(unittest.TestCase):
         self.assertAlmostEqual(session.usage.usd, 2.0)
         self.assertAlmostEqual(session.usage.week_pct, 2.0 / 12.0)
         run = session.hand_runs[0]
-        self.assertEqual(run.week_limit_usd, 50.0)
         data = render_json(snapshot)
         session_json = next(item for item in data["sessions"]
                             if item["session_id"] == "main")
         self.assertAlmostEqual(session_json["usage"]["week_pct"], 2.0 / 12.0)
         run_json = session_json["hand_runs"][0]["usage"]
-        self.assertAlmostEqual(run_json["week_pct"], 0.7824 / 50.0 * 100)
+        self.assertAlmostEqual(run_json["usd"], 0.7824, places=4)
+        self.assertIsNone(run_json["week_pct"])
 
 
 class ConfigAndJsonTest(unittest.TestCase):
@@ -466,16 +356,8 @@ class ConfigAndJsonTest(unittest.TestCase):
         self.fx = LimitFixture()
         self.addCleanup(self.fx.close)
 
-    def test_configured_limit_is_still_read_for_hand_ext(self) -> None:
-        self.fx.config(250)
-        with self.fx.env():
-            cfg = load_hand_ext_config(self.fx.project)
-        self.assertEqual(cfg.go_monthly_limit_usd, 250.0)
-
     def test_json_has_weekly_limits_and_week_usage(self) -> None:
-        self.fx.config(100)
-        self.fx.go_summary(50.0, percent=16.0)
-        self.fx.go_cache(16.0)
+        self.fx.config()
         self.fx.claude_cache()
         self.fx.claude_split(simple_week())
         limits = self.fx.limits()
@@ -487,7 +369,7 @@ class ConfigAndJsonTest(unittest.TestCase):
                             week_pct=6.2, week_pct_estimated=False))],
             orphan_runs=[], since_seconds=3600, cwd="", all_projects=False,
             main_session_id=None, generated_at=NOW, limits=limits))
-        self.assertEqual([row["window"] for row in data["limits"]], ["tuần", "tuần"])
+        self.assertEqual([row["window"] for row in data["limits"]], ["tuần"])
         self.assertEqual(set(data["limits"][0]),
                          {"plan", "window", "this_machine_pct", "other_pct",
                           "total_pct", "resets_at", "source", "estimated"})

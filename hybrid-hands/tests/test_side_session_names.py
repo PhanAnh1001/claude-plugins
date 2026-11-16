@@ -26,7 +26,7 @@ def session(**over):
 class NamesTests(unittest.TestCase):
     def test_format(self):
         for provider, account, suffix in [('codex', 'v1', 'Sol'), ('claude', 'v2', 'Opus v2'),
-                                          ('claude', 'v12', 'Opus v12'), ('dsh', 'v1', 'dsh')]:
+                                          ('claude', 'v12', 'Opus v12'), ('dsh', 'v1', '?')]:
             with self.subTest(provider=provider, account=account):
                 title = names.title(session(name='x' * 100, provider=provider, account=account))
                 self.assertEqual(len(title), 60)

@@ -934,8 +934,12 @@ def setUpModule():  # keep hh-store revision bumps out of the real ~/.hybrid-han
     _STATE_TMP = _tempfile.TemporaryDirectory()
     _STATE_ENV = _mock.patch.dict(_os.environ, {"HYBRID_HANDS_STATE_DIR": _STATE_TMP.name})
     _STATE_ENV.start()
+    from test_side_session_profile import patch_profile
+    global _PROFILE_PATCH
+    _PROFILE_PATCH = patch_profile(actions)
 
 
 def tearDownModule():
     _STATE_ENV.stop()
+    _PROFILE_PATCH.stop()
     _STATE_TMP.cleanup()

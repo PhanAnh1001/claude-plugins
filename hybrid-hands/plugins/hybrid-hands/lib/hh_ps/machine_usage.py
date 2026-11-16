@@ -8,7 +8,7 @@ import stat
 from pathlib import Path
 
 from hand_ext.codex_usage import price_for
-from hand_ext.go_usage import estimate_cost
+from .pricing import estimate_cost
 from usage_pricing import explicit_options
 
 from .codex import _contained

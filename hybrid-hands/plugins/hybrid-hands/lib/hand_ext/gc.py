@@ -20,7 +20,7 @@ from .constants import CHANGES_PATCH_FILE, HAND_RUNS_SUBDIR
 
 FINISHED = frozenset(('ok', 'failed', 'timeout', 'capped', 'quota', 'not_logged_in',
                       'completed', 'cancelled', 'error'))
-SETTLE_KINDS = ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')
+SETTLE_KINDS = ('finalize', 'report', 'ledger', 'usage_state')
 GIT_OPTIONAL_LOCKS = 'GIT_OPTIONAL_LOCKS'
 COMMIT_SHA = re.compile(r'\A(?:[0-9a-f]{40}|[0-9a-f]{64})\Z')
 # Removable classes: finished may be auto-collected; preserved only by explicit opt-in.

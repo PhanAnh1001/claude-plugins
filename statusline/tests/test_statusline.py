@@ -36,7 +36,6 @@ ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 GO_STATE_ENV = "HYBRID_HANDS_STATE_DIR"
 GO_MODEL = "deepseek-v4.1-flash"
 GO_SUMMARY = "go_usage_summary.json"
-STALE_SECONDS = 5 * 3600
 
 
 def transcript_records(with_skill: bool = True) -> list[dict]:
@@ -146,42 +145,15 @@ class StatuslineTest(unittest.TestCase):
         plain = ANSI_ESCAPE.sub("", self.render(with_rate_limits=False)[2])
         self.assertEqual(plain, "Claude v1 ultra  5h:- | 7d:--")
 
-    def test_go_usage_on_its_own_line_under_claude_with_estimated_marks(self) -> None:
+    def test_leftover_go_summary_is_ignored(self) -> None:
+        # Go/dsh were removed: an old go_usage_summary.json must not add a line or a separator.
         self.write_go_summary(five=12.3, week=31)
         lines = self.render(go_state=self.state_dir)
-        self.assertRegex(ANSI_ESCAPE.sub("", lines[2]), r"^Claude v1 ultra\s+5h:[^|]+ \| 7d:[^|]+$")
-        self.assertEqual(lines[3:-1], SKILL_BLOCK)
-        line = lines[-1]  # Go is the last status-line line, after the skill block
-        plain = ANSI_ESCAPE.sub("", line)
-        self.assertRegex(plain, r"^Go\s+DS 5h ~12\.3%\s+\| tuần ~31\.0%$")
-        self.assertIn(f"{GREEN}12.3%{RESET}", line)
-        self.assertIn(f"{GREEN}31.0%{RESET}", line)
-
-    def test_go_usage_exact_and_fresh_has_no_tilde(self) -> None:
-        self.write_go_summary(five=88, week=12, estimated=False)
-        line = self.render(go_state=self.state_dir)[-1]
-        plain = ANSI_ESCAPE.sub("", line)
-        self.assertRegex(plain, r"^Go\s+DS 5h 88\.0%\s+\| tuần 12\.0%$")
-        self.assertIn(f"{RED}88.0%{RESET}", line)
-        self.assertIn(f"{GREEN}12.0%{RESET}", line)
-
-    def test_go_usage_older_than_five_hours_is_marked_stale(self) -> None:
-        self.write_go_summary(five=12, week=31, estimated=False,
-                              updated_at=int(time.time()) - STALE_SECONDS - 60)
-        plain = ANSI_ESCAPE.sub("", self.render(go_state=self.state_dir)[-1])
-        self.assertRegex(plain, r"^Go\s+DS 5h ~12\.0%\s+\| tuần ~31\.0%$")
-
-    def test_go_usage_missing_file_is_silent(self) -> None:
-        lines = self.render(go_state=self.state_dir)
         self.assertEqual(len(lines), EXPECTED_LINES + len(SKILL_BLOCK))
-        self.assertNotIn("DS ", ANSI_ESCAPE.sub("", "\n".join(lines)))
-
-    def test_go_usage_broken_json_is_silent_and_exits_zero(self) -> None:
-        self.state_dir.mkdir(parents=True)
-        (self.state_dir / GO_SUMMARY).write_text("{broken", encoding="utf-8")
-        lines = self.render(go_state=self.state_dir)
-        self.assertEqual(len(lines), EXPECTED_LINES + len(SKILL_BLOCK))
-        self.assertNotIn("DS ", ANSI_ESCAPE.sub("", "\n".join(lines)))
+        self.assertEqual(lines[3:], SKILL_BLOCK)
+        plain = ANSI_ESCAPE.sub("", "\n".join(lines))
+        self.assertNotIn("Go", plain)
+        self.assertNotIn("  |", plain)
 
 
 if __name__ == "__main__":

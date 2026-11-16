@@ -1,4 +1,4 @@
-"""Render hook policy from one stable body and a repository-scoped mode.
+"""Render hook policy from one stable body and the repository profile role table.
 
 This changes instructions only; it does not admit agents or modify configuration.
 The shell retains jq's SessionStart envelope for byte compatibility.
@@ -11,12 +11,23 @@ import sys
 from pathlib import Path
 
 from shared_config import GlobalConfigError, load_config
-from hand_ext.config import load_config as load_ext_config
+from hand_ext.profiles import ProfileError, profile_table
 from disk_reminder import disk_reminder
 
-MODE_KEY = "parallel_subagents.enabled"
-NORMAL_PROMPT = "POLICY: xem SessionStart và AGENTS.md. Hand theo ext_hand.order (pick trước native); brain không tự tra cứu; cấm hiện .env/token/credential."
 AGENTS_REFERENCE = "Xem AGENTS.md mục Phạm vi và vai trò / Luật dữ liệu chung."
+PROFILES_HELP = ("Ba profile: claude-mono (mọi vai Claude), gpt-mono (mọi vai GPT/Codex, chrome Claude), "
+                 "hybrid (gpt-mono + super brain Claude v2 mở brain Sol bằng side-session).")
+HYBRID = "hybrid"
+ROLE_ENV = "HYBRID_HANDS_ROLE"  # do `side-session start` đặt cho phiên nó mở
+ROLE_SUPER, ROLE_BRAIN = "super", "brain"
+ROLE_NAMES = {ROLE_SUPER: "super brain", ROLE_BRAIN: "brain"}
+MAX_PARALLEL = 4  # pool chung native + hand-ext, giới hạn cứng của plugin
+FAIL_EXITS = "1/4/6"  # hand-ext run thoát mã này = hỏng, được nâng bậc
+NO_ESCALATE_EXITS = "7/8/9"  # hạ tầng/slot/an toàn: không nâng bậc
+DATA_MARK, ACCOUNT_MARK = "   LUẬT DỮ LIỆU:", "## Chọn hand theo tài khoản"
+CONT_MARK, REVIEW_MARK, CONTEXT_MARK = "LUẬT TIẾP VIỆC", "LUẬT REVIEW:", "LUẬT NGỮ CẢNH BRAIN"
+REVIEW_RULE = ("LUẬT REVIEW: Brain review code hand mình giao, đọc git diff --stat trước rồi hunk quyết định đúng sai; "
+               "không giao hand review hand khác. Phát hiện lỗi thì giao lại hand mình đã giao rồi review lại.\n\n")
 
 
 def payload_cwd(payload: str) -> Path:
@@ -31,58 +42,81 @@ def payload_cwd(payload: str) -> Path:
     return Path(cwd)
 
 
-def mode_config(cwd: Path) -> tuple[str, int, str, dict, str]:
-    """Return the enabling repository path and actual cap, or normal policy.
-
-    The shared loader enforces the boolean and source boundary for all consumers.
-    Hook failure is deliberately softer than CLI failure, with no raw exception
-    text (which could echo a supplied configuration value) in stderr.
-    """
+def profile_state(cwd: Path) -> tuple[str, dict, str]:
+    """Return (profile, role table, error); error is a ProfileError message or a config warning."""
     try:
-        result = load_config(cwd)
-        if (result.effective["parallel_subagents"]["enabled"] is True
-                and result.sources.get(MODE_KEY) == "repo"):
-            backend = result.effective["parallel_subagents"]["backend"]
-            options = load_ext_config(known_root=result.root, config_file=Path(result.paths["repo"]["path"])).options(backend)
-            account = result.effective["parallel_subagents"].get(
-                "account", backend[len(CLAUDE_PREFIX):] if backend.startswith(CLAUDE_PREFIX) else "")
-            return result.paths["repo"]["path"], result.effective["ext_hand"]["max_parallel"], backend, options, account
+        cfg = load_config(cwd).effective
+        return cfg.get("profile", ""), profile_table(cfg), ""
+    except ProfileError as exc:
+        return "", {}, str(exc)
     except (GlobalConfigError, OSError, ValueError, TypeError, KeyError):
-        print("warning: hybrid-hands: không đọc được cấu hình policy; dùng policy thường", file=sys.stderr)
-    return "", 0, "", {}, ""
+        print("warning: hybrid-hands: không đọc được cấu hình policy", file=sys.stderr)
+        return "", {}, "Không đọc được cấu hình hybrid-hands; kiểm bằng `hand-ext config --json` rồi `hand-ext profile set <tên>`."
 
 
-CLAUDE_PREFIX = "claude-"
+def session_role(profile: str, table: dict) -> str:
+    """HYBRID_HANDS_ROLE when valid for this profile; else hybrid → super (user-opened), mono → brain."""
+    marker = os.environ.get(ROLE_ENV, "")
+    if marker in ROLE_NAMES and marker in table:
+        return marker
+    return ROLE_SUPER if profile == HYBRID else ROLE_BRAIN
 
 
-def account_rule(account: str, backend: str) -> str:
-    """Native Agent needs brain and hand on the same Claude account."""
-    if not backend.startswith(CLAUDE_PREFIX):
-        return f"Tài khoản brain `{account}`."
-    if backend != CLAUDE_PREFIX + account:
-        return (f"Tài khoản brain `{account}` khác backend subagent `{backend}`: subagent native không chạy; "
-                f"dùng `hand-ext run --backend {backend}`; đề nghị người dùng chốt "
-                f"`hand-ext parallel-subagents --account {account}|{backend[len(CLAUDE_PREFIX):]}`.")
-    return (f"Tài khoản brain `{account}`: nếu phiên brain hiện tại không chạy trên `{account}` (pick trả native false do khác account) "
-            f"thì dùng `hand-ext run --backend claude-{account}` và đề nghị người dùng mở phiên brain mới bằng "
-            f"`side-session start --main --provider claude --account {account}`.")
+def _cell(spec: dict) -> str:
+    owner = "GPT" if spec["provider"] == "codex" else "Claude"
+    return f"{owner} {spec['account']} {spec['model']} {spec['effort']}"
 
 
-def parallel_rules(rules: str, limit: int, backend: str, options: dict, account: str) -> str:
-    """Replace only delegation/review sections; retain shared laws verbatim."""
-    data_rules = rules.split("   LUẬT DỮ LIỆU:", 1)[1].split("## Chọn hand theo tài khoản", 1)[0]
-    continuation = rules.split("LUẬT TIẾP VIỆC", 1)[1].split("LUẬT REVIEW:", 1)[0]
-    brain_context = rules.split("LUẬT NGỮ CẢNH BRAIN", 1)[1]
-    delegation = f"""Thiếu PHẠM VI GHI thì hand coi là CHỈ ĐỌC (fail-closed).
+def role_table_lines(table: dict) -> list[str]:
+    lines = [f"{role}: {_cell(table[role])}" for role in ("super", "brain", "code") if role in table]
+    for role in ("collect", "chrome"):
+        lines.append(f"{role} B1/B2: {_cell(table[role + '.1'])} / {_cell(table[role + '.2'])}")
+    return lines
 
-Brain chia brief thành các gói độc lập khác file và giao subagent theo backend `{backend}` (model `{options.get("model", "")}`, effort `{options.get("effort", options.get("variant", ""))}`) song song tối đa {limit} (ext_hand.max_parallel thực = {limit}, giới hạn 1..4). Tổng native + hand-ext không vượt giới hạn này; cùng file hoặc phụ thuộc phải tuần tự. Đây là luật điều phối; admission thực nằm ngoài mode này. Brain viết tiêu chí trước khi giao và review code hand mình giao; không giao hand review hand khác. Hand executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác. L2/L3 vẫn cần người dùng duyệt.
 
-Luôn chạy `hand-ext pick --json --backend {backend}` trước mỗi lượt giao để biết backend/model/effort/account, native/native_reason và giữ guard v1 ≥8%/ngày (thiếu nguồn cũng chặn). Nếu pick trả `native: true`, backend claude-vN dùng native Agent `hybrid-hands:hand`; backend codex dùng native Codex theo luật ngoại lệ A (fork_turns=none, brief tự chứa, luật dữ liệu nguyên văn). Chỉ native khi đúng account và đủ capability; không tự áp native cho account khác. Nếu native false hoặc thiếu capability thì dùng `hand-ext run --backend {backend}` để wrapper enforce guard và thực thi gói việc đó. Guard chặn hoặc exit 7 thì không spawn, ghi yêu cầu để brain quyết; không tự đổi backend/config/order. Không dùng run như preflight giả rồi spawn writer trùng. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Exit 8 chờ slot; không tự đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; thiếu token/USD~/quota ghi `?`, không suy quota. {account_rule(account, backend)}
+BRAIN_RULES = ("Giao việc (brain): trước mỗi lượt chạy `hand-ext pick --role code|collect|chrome [--tier 1|2] --json`; "
+               "`native` true → subagent native đúng model/effort pick trả (Claude: tool Agent `hybrid-hands:hand` với "
+               "`model` = `agent_model` và `effort`); `native` false → `hand-ext run --role … --tier …`. "
+               f"Song song ≤ {MAX_PARALLEL} khác file; cùng file/phụ thuộc tuần tự. Brain review việc mình giao.\n"
+               "Thang thu thập: gói ít code bắt đầu B1, gói cần viết script bắt đầu B2; B1 hỏng → chạy lại đúng một lần ở B2 "
+               "bằng subagent mới, brief chép phần đã đạt và chỉ giao phần thiếu; B2 hỏng → dừng báo. Hỏng = subagent báo "
+               f"chưa xong, `hand-ext run` thoát {FAIL_EXITS}, hoặc brain kiểm mẫu không đạt. Không nâng khi thoát "
+               f"{NO_ESCALATE_EXITS} hay vi phạm an toàn. Sau mỗi lượt native collect/chrome ghi "
+               "`hand-ext ladder log --role … --tier … --result ok|fail`.\n")
+SUPER_RULE = ("Vai super brain: viết/duyệt spec và plan, mở phiên brain bằng `side-session start`, "
+              "review bàn giao `.done`; không code, không giao subagent code.\n"
+              "Việc code và thu thập dữ liệu giao cho phiên brain; super brain không gọi `hand-ext pick/run`.\n")
+QUOTA_RULE = ("Hết quota: không đổi tài khoản; phiên trong Paseo có limit-watch thì đăng ký checkpoint để chạy tiếp khi "
+              "quota về, không thì ghi checkpoint và dừng báo người dùng.\n")
 
-"""
-    review = "LUẬT REVIEW: Brain review code hand mình giao, đọc git diff --stat trước rồi hunk quyết định đúng sai; không giao hand review hand khác. Phát hiện lỗi thì giao lại hand mình đã giao rồi review lại.\n\n"
-    return (delegation + "   LUẬT DỮ LIỆU:" + data_rules
-            + "LUẬT TIẾP VIỆC" + continuation + review + "LUẬT NGỮ CẢNH BRAIN" + brain_context)
+
+def profile_delegation(profile: str, table: dict) -> str:
+    """Delegation block for exactly one role, generated from the profile's role table."""
+    role = session_role(profile, table)
+    work = SUPER_RULE if role == ROLE_SUPER else BRAIN_RULES
+    return (f"PROFILE {profile} — vai phiên này: {ROLE_NAMES[role]}.\n"
+            + "\n".join(role_table_lines(table)) + "\n"
+            "Thiếu PHẠM VI GHI thì hand coi là CHỈ ĐỌC (fail-closed).\n" + work + QUOTA_RULE + "\n")
+
+
+def profile_rules(rules: str, delegation: str) -> str:
+    """Replace delegation/account/review sections; retain shared laws verbatim."""
+    data_rules = rules.split(DATA_MARK, 1)[1].split(ACCOUNT_MARK, 1)[0]
+    continuation = rules.split(CONT_MARK, 1)[1].split(REVIEW_MARK, 1)[0]
+    brain_context = rules.split(CONTEXT_MARK, 1)[1]
+    return (delegation + DATA_MARK + data_rules + CONT_MARK + continuation
+            + REVIEW_RULE + CONTEXT_MARK + brain_context)
+
+
+def prompt_line(profile: str, error: str, table: dict | None = None) -> str:
+    if error:
+        return f"{error} {PROFILES_HELP} Cấm hiện .env/token/credential."
+    role = ROLE_NAMES[session_role(profile, table or {})]
+    work = ("mở brain bằng `side-session start`, không code, không pick/run"
+            if role == ROLE_NAMES[ROLE_SUPER] else
+            f"pick --role trước mỗi lượt giao; song song ≤ {MAX_PARALLEL} khác file; B1 hỏng → B2 một lần")
+    return (f"PROFILE {profile}, vai {role}. POLICY: xem SessionStart. {work}; "
+            "cấm hiện .env/token/credential.")
 
 
 def shorten_rules(rules: str, cwd: Path) -> str:
@@ -100,21 +134,14 @@ def shorten_rules(rules: str, cwd: Path) -> str:
 
 def render(hook: str, root: Path, payload: str) -> str:
     cwd = payload_cwd(payload)
-    source, limit, backend, options, account = mode_config(cwd)
-    mode_line = f"chế độ parallel_subagents bật bởi {source}\n" if source else ""
+    profile, table, error = profile_state(cwd)
     if hook == "prompt":
-        if not source:
-            return NORMAL_PROMPT
-        return mode_line + (f"POLICY: xem SessionStart. Brain giao subagent backend {backend} khác file song song ≤ {limit}, "
-                            "cùng file/phụ thuộc tuần tự; brain review code hand mình giao. "
-                            f"hand-ext pick --json --backend {backend} trước mỗi lượt giao; guard v1 thiếu nguồn/chặn thì không spawn. "
-                            + account_rule(account, backend) + " Brain không tự tra cứu; cấm hiện .env/token/credential.")
+        return prompt_line(profile, error, table)
+    delegation = f"{error}\n{PROFILES_HELP}\n\n" if error else profile_delegation(profile, table)
     rules = (root / "lib/policy_rules.txt").read_text(encoding="utf-8").rstrip("\n")
-    if source:
-        rules = parallel_rules(rules, limit, backend, options, account)
-    rules = shorten_rules(rules, cwd)
+    rules = shorten_rules(profile_rules(rules, delegation), cwd)
     brief = (root / "templates/hand-brief.md").read_text(encoding="utf-8").rstrip("\n")
-    return (mode_line + "POLICY hybrid-hands - KHUÔN BRIEF (bắt buộc khi gọi Agent với hybrid-hands:hand và khi viết brief cho hand-ext; điền đủ các mục, ngắn gọn):\n"
+    return ("POLICY hybrid-hands - KHUÔN BRIEF (bắt buộc khi gọi Agent với hybrid-hands:hand và khi viết brief cho hand-ext; điền đủ các mục, ngắn gọn):\n"
             + brief + "\n" + rules + "\n"
             + f"Lệnh của plugin (nếu không có trong PATH thì gọi bằng đường dẫn tuyệt đối): {root}/bin/hand-ext, {root}/bin/side-session, {root}/bin/hh-ps, {root}/bin/cc-switch"
             + (f"\n{reminder}" if (reminder := disk_reminder(cwd)) else ""))

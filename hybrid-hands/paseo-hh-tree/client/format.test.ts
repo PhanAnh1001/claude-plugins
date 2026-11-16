@@ -37,21 +37,21 @@ test("limit split keeps one decimal and marks unknowns", () => {
 test("limit line shows machine, other, total and reset", () => {
   const now = new Date(2026, 10, 6, 14, 5, 0).getTime();
   const line = limitLine({
-    plan: "Go",
+    plan: "Claude",
     window: "tuần",
     this_machine_pct: 12.34,
     other_pct: 4.46,
     total_pct: 16.8,
     resets_at: new Date(2026, 10, 6, 14, 0, 0).toISOString(),
-    source: "go_live+ledger",
+    source: "statusline_cache",
   }, now);
-  assert.equal(line, "Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00");
+  assert.equal(line, "Claude tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00");
 });
 
 test("missing total prints ? for other and total", () => {
   const now = new Date(2026, 10, 6, 14, 5, 0).getTime();
   const line = limitLine({
-    plan: "Go",
+    plan: "Claude",
     window: "tuần",
     this_machine_pct: 20,
     other_pct: null,
@@ -59,7 +59,7 @@ test("missing total prints ? for other and total", () => {
     resets_at: null,
     source: "ledger",
   }, now);
-  assert.equal(line, "Go tuần   máy này 20.0% · máy khác ? · tổng ?");
+  assert.equal(line, "Claude tuần   máy này 20.0% · máy khác ? · tổng ?");
 });
 
 test("estimated week split carries the statusline tilde", () => {

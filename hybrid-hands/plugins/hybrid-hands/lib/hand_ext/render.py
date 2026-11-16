@@ -25,13 +25,12 @@ def doctor_table(rows: Iterable[Tuple[str, List[Check]]]) -> str:
 
 
 def run_summary(entry: Dict[str, Any], seconds: float, report_path: Optional[str],
-                report_text: str, errors: List[str], go_line: Optional[str] = None,
+                report_text: str, errors: List[str],
                 extra_lines: Optional[List[str]] = None) -> str:
     tok = entry.get("tokens", {})
     quota = entry.get("quota", {})
-    quota_line = go_line or (
-        f"hạn mức: used_percent={quota.get('used_percent')} "
-        f"resets_at={quota.get('resets_at')}")
+    quota_line = (f"hạn mức: used_percent={quota.get('used_percent')} "
+                  f"resets_at={quota.get('resets_at')}")
     lines = [
         f"backend: {entry['backend']}  model: {entry['model']}  status: {entry['status']}",
         "token: " + ", ".join(f"{k}={tok.get(k, 0)}" for k in TOKEN_KEYS),

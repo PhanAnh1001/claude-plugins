@@ -13,7 +13,7 @@ Schema (schema = 1):
   windows {"5h": {"used_percent", "resets_at"} | null,
            "7d": {"used_percent", "resets_at"} | null}
 
-The file lives beside the Go ledger: `~/.hybrid-hands/codex_usage.jsonl`, or
+The file lives in the machine state dir: `~/.hybrid-hands/codex_usage.jsonl`, or
 `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` when that variable is set (tests).
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ from usage_pricing import token_price, explicit_options
 
 from .backends import codex
 from .constants import CODEX_PRICE_KEY, CODEX_USAGE_LEDGER_NAME
-from .go_usage import COST_ESTIMATED, COST_UNKNOWN, _number, estimate_cost
+from .usage_cost import COST_ESTIMATED, COST_UNKNOWN, estimate_cost, number as _number
 from .locked_json import locked
 
 SCHEMA_VERSION = 1

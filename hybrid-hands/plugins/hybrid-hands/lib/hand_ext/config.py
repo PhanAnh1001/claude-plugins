@@ -7,14 +7,13 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from .parallel import validate_limit
 from .constants import (
-    CONFIG_SECTION, DEFAULTS, WORKTREE_GC_FINISHED, WORKTREE_GC_MODES, GO_USAGE_DEFAULT_DIR, GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD,
-    GO_USAGE_LEDGER_NAME, GO_USAGE_LIVE_DEFAULT, GO_USAGE_LIVE_KEY, GO_USAGE_SECTION,
-    GO_USAGE_STATE_DIR_ENV, ISOLATIONS, PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH,
-    WORKTREES_DIRNAME, MAX_PARALLEL,
+    CONFIG_SECTION, DEFAULTS, WORKTREE_GC_FINISHED, WORKTREE_GC_MODES, STATE_DIR_DEFAULT,
+    STATE_DIR_ENV, ISOLATIONS, PLUGIN_PLACEHOLDER, PROJECT_CONFIG_RELPATH,
+    WORKTREES_DIRNAME, MAX_PARALLEL, RETIRED_BACKENDS,
 )
 
 PLUGIN_DIR = Path(__file__).resolve().parents[2]
@@ -25,7 +24,6 @@ LABEL_KEYS = ("plan", "name")
 @dataclass
 class ExtConfig:
     root: Path
-    order: List[str]
     timeout_min: float
     max_tokens: Optional[int]
     sandbox: str
@@ -36,10 +34,6 @@ class ExtConfig:
     isolation: str
     isolation_explicit: bool
     backends: Dict[str, Dict[str, Any]]
-    go_usage_ledger: Path
-    go_usage_summary: Path
-    go_monthly_limit_usd: float
-    go_usage_live: bool
     machine_state_dir: Path
     max_parallel: int = MAX_PARALLEL
 
@@ -144,27 +138,8 @@ def merge_backends(base: Dict[str, Dict[str, Any]],
 
 
 def _state_dir() -> Path:
-    raw = os.environ.get(GO_USAGE_STATE_DIR_ENV) or GO_USAGE_DEFAULT_DIR
+    raw = os.environ.get(STATE_DIR_ENV) or STATE_DIR_DEFAULT
     return Path(os.path.expanduser(raw))
-
-
-def _go_usage(root: Path, section: Dict[str, Any]) -> tuple[Path, Path, float, bool]:
-    """Ledger and summary beside each other; `HYBRID_HANDS_STATE_DIR` only sets the default."""
-    configured = section.get("ledger")
-    ledger = (_resolve(root, str(configured)) if configured
-              else _state_dir() / GO_USAGE_LEDGER_NAME)
-    summary = ledger.with_name(ledger.stem + "_summary.json")
-    limit = section.get("monthly_limit_usd", GO_USAGE_DEFAULT_MONTHLY_LIMIT_USD)
-    try:
-        limit_usd = float(limit)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("go_usage.monthly_limit_usd phải là số") from exc
-    if limit_usd <= 0:
-        raise ValueError("go_usage.monthly_limit_usd phải lớn hơn 0")
-    live = section.get(GO_USAGE_LIVE_KEY, GO_USAGE_LIVE_DEFAULT)
-    if not isinstance(live, bool):
-        raise ValueError(f"go_usage.{GO_USAGE_LIVE_KEY} phải là true hoặc false")
-    return ledger, summary, limit_usd, live
 
 
 def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None,
@@ -178,10 +153,8 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
     isolation_explicit = result.sources.get("ext_hand.isolation") != "plugin"
     worktree_root_raw = (section.get("worktree_root")
                          if result.sources.get("ext_hand.worktree_root") in ("global", "repo") else None)
-    go_section = section.pop(GO_USAGE_SECTION, {}) or {}
-    if not isinstance(go_section, dict):
-        raise ValueError(f"{CONFIG_SECTION}.{GO_USAGE_SECTION} phải là object")
-    effective_backends = section.pop("backends", {})
+    effective_backends = {name: opts for name, opts in section.pop("backends", {}).items()
+                          if name not in RETIRED_BACKENDS}
     overrides = {name: {key: value for key, value in opts.items()
                         if result.sources.get(f"ext_hand.backends.{name}.{key}") != "plugin"}
                  for name, opts in effective_backends.items()}
@@ -207,7 +180,7 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         if not isinstance(resolved.get("config_dir"), str) or not resolved["config_dir"]:
             raise ValueError(f"claude_accounts.{account}.config_dir phải là đường dẫn")
         accounts[account] = {key: resolved[key] for key in ("config_dir", "max_day_pct", "day_guard",
-                                                           "day_guard_off_date") + LABEL_KEYS
+                                                           "day_guard_off_date", "day_guard_days") + LABEL_KEYS
                              if key in resolved}
         backends[canonical] = {key: _expand(value) for key, value in resolved.items()
                                if key not in LABEL_KEYS}
@@ -218,7 +191,6 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
     for name, options in backends.items():
         path_keys = ("config_dir",) if name.startswith("claude") else {
             "codex": ("home",),
-            "dsh": ("home", "key_file", "browser_dir"),
         }.get(name, ())
         for key in path_keys:
             value = options.get(key)
@@ -249,7 +221,6 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         if value:
             paseo[key] = str(_resolve(root, value))
     merged.update(section)
-    go_ledger, go_summary, go_limit, go_live = _go_usage(root, go_section)
     max_parallel = validate_limit(merged["max_parallel"])
     max_tokens = merged["max_tokens"]
     isolation = str(merged["isolation"])
@@ -258,7 +229,7 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
     worktree_root = (_resolve(root, str(worktree_root_raw)) if worktree_root_raw
                      else _state_dir() / WORKTREES_DIRNAME)
     return ExtConfig(
-        root=root, order=[str(n) for n in merged["order"]],
+        root=root,
         timeout_min=float(merged["timeout_min"]),
         max_tokens=int(max_tokens) if max_tokens is not None else None,
         sandbox=str(merged["sandbox"]),
@@ -268,9 +239,6 @@ def load_config(cwd: Optional[Path] = None, *, known_root: Optional[Path] = None
         worktree_root=worktree_root.resolve(),
         isolation=isolation, isolation_explicit=isolation_explicit,
         backends=backends,
-        go_usage_ledger=go_ledger, go_usage_summary=go_summary,
-        go_monthly_limit_usd=go_limit,
-        go_usage_live=go_live,
         machine_state_dir=_state_dir(),
         max_parallel=max_parallel, claude_accounts=accounts, mode=mode, paseo=paseo, native=native,
         gpt_accounts=gpt_accounts, account_label_format=label_fmt,

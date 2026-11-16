@@ -6,8 +6,6 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from hand_ext.constants import GO_USAGE_BACKENDS
-
 from .claude_source import claude_config_dir, load_sessions, short_session_id
 from .codex import CodexData, load_codex, pinned_rollouts
 from .constants import (
@@ -19,8 +17,7 @@ from .models import HandRun, Session, Snapshot
 from .registry_source import SessionMeta, load_hand_runs, load_ps_config, state_root
 from .repos import RepoState, SideMap, project_root
 from .timeutil import to_epoch
-from .week import (ClaudeWeek, GoWeek, apply_claude_week, read_claude_week,
-                   read_go_week)
+from .week import ClaudeWeek, apply_claude_week, read_claude_week
 
 
 def _cap_for(session, meta: Dict[str, SessionMeta],
@@ -187,34 +184,13 @@ def _label_target(run: HandRun,
     return session
 
 
-def _run_in_week(run: HandRun, week: Optional[GoWeek]) -> bool:
-    if week is None:
-        return False
-    return run.ended_at is None or run.ended_at >= week.window_start
-
-
-def _apply_run_week(run: HandRun, week: Optional[GoWeek]) -> None:
-    if run.backend not in GO_USAGE_BACKENDS:
-        run.week_limit_usd = None
-        run.week_pct_estimated = False
-        return
-    run.week_limit_usd = (week.limit_usd
-                          if week is not None and _run_in_week(run, week)
-                          else None)
-    run.week_pct_estimated = bool(week and week.total_estimated)
-
-
-def _apply_weeks(sessions: List[Session], claude_week: Optional[ClaudeWeek],
-                 go_week: Optional[GoWeek]) -> None:
+def _apply_weeks(sessions: List[Session], claude_week: Optional[ClaudeWeek]) -> None:
     for session in sessions:
-        # Claude's weekly share only belongs to Claude rows; Codex gets GPT samples
-        # and Go hand runs get their own weekly formula.
+        # Claude's weekly share only belongs to Claude rows; Codex gets GPT samples.
         if session.provider == PROVIDER_CLAUDE:
             session.usage = apply_claude_week(session.usage, claude_week)
         for agent in session.subagents:
             agent.usage = apply_claude_week(agent.usage, claude_week)
-        for run in session.hand_runs:
-            _apply_run_week(run, go_week)
 
 
 def _rollout_metadata(session: Session, path: Path) -> None:
@@ -285,14 +261,12 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     cwd = Path(cwd)
     moment = time.time() if now is None else float(now)
     cutoff = moment - since_seconds
-    # The hand-ext config owns the repo root and the Go limit; read it once and reuse
+    # The hand-ext config owns the repo root; read it once and reuse
     # its root instead of running git --show-toplevel a second time.
     cfg = load_hand_ext_config(cwd)
     root = cfg.root if cfg is not None else project_root(cwd)
     home = claude_config_dir()
     claude_week = read_claude_week(home, moment)
-    go_week = read_go_week(cfg.machine_state_dir if cfg is not None else state_root(),
-                           home, moment)
     since = claude_week.window_start if claude_week is not None else None
     main_session_id = main_session_id or os.environ.get(PARENT_SESSION_ENV) or None
     repos = RepoState()
@@ -330,9 +304,7 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
     for session in sessions:
         session.hand_runs.sort(key=_run_sort_key)
     orphans.sort(key=_run_sort_key)
-    _apply_weeks(sessions, claude_week, go_week)
-    for run in orphans:
-        _apply_run_week(run, go_week)
+    _apply_weeks(sessions, claude_week)
     codex = load_codex(cfg, moment)
     _apply_codex(sessions, orphans, codex, pinned, moment)
     from .native_source import attach_native
@@ -342,7 +314,7 @@ def build_snapshot(cwd: Path, since_seconds: int, all_projects: bool,
                     cwd=str(cwd), all_projects=all_projects,
                     main_session_id=main_session_id, generated_at=moment,
                     limits=collect_limits(root, moment, cfg=cfg,
-                                          claude_week=claude_week, go_week=go_week,
+                                          claude_week=claude_week,
                                           codex_windows=codex.account))
 
     from .machine_usage import machine_usage

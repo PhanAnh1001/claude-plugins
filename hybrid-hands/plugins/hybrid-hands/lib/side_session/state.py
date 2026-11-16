@@ -61,6 +61,8 @@ class SessionState:
     checkout_removed_at: float | None = None
     checkout_reason: str = ""
     checkout_backup: str = ""
+    # Vai profile lúc start ("super"/"brain"); "" = state cũ, không đặt HYBRID_HANDS_ROLE.
+    session_role: str = ""
 
 
 def _from_dict(raw: dict) -> "SessionState":

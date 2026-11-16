@@ -6,7 +6,6 @@ import json
 import io
 from functools import lru_cache
 import os
-import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,8 +50,9 @@ FILE_SOURCES = ("global", "repo")
 REGISTRY_SECTIONS = ("ext_hand.backends", "ext_hand.claude_accounts", "ext_hand.gpt_accounts")
 # Sections which are always objects. Their own leaves are replaceable, so an explicit
 # ``price_per_mtok: null`` or ``monthly_limit_usd`` stays allowed.
-OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.go_usage", "ext_hand.paseo",
-                                      "paseo.claude_providers")
+OBJECT_SECTIONS = REGISTRY_SECTIONS + ("ext_hand.paseo", "paseo.claude_providers")
+# Top-level keys holding a scalar (profile name); validated by hand_ext.profiles on use.
+SCALAR_TOP_LEVEL_KEYS = ("profile",)
 
 
 @dataclass
@@ -100,12 +100,10 @@ def _object_section(prefix: str) -> bool:
 
 def _validate(value: Any, path: Path, prefix: str = "") -> None:
     """Check object shape and the main Claude compact window in each source."""
-    if prefix == "parallel_subagents.account":
-        if not isinstance(value, str) or not re.fullmatch(r"v[1-9][0-9]*", value):
-            raise ValueError(f"{path}: parallel_subagents.account phải là vN")
-        return
     if prefix == MAIN_CLAUDE_AUTO_COMPACT_KEY:
         normalize_claude_auto_compact_window(value)
+        return
+    if prefix in SCALAR_TOP_LEVEL_KEYS:
         return
     if _object_section(prefix):
         if not isinstance(value, dict):
@@ -124,33 +122,35 @@ def backends_from(result: ConfigResult, backend: str) -> dict:
     return copy.deepcopy(merged.get(backend) or {})
 
 
-def _normalize_parallel_policy(data: dict, source: str, path: Path, *, stream=None) -> None:
-    """Fail closed before validation/merge, including raw sections consumers reuse.
+# Removed 16/11/2026: parallel subagents are the default of every profile; the dsh backend,
+# its Go usage ledger and the automatic backend order went with the role profiles.
+REMOVED_SECTIONS = ("parallel_subagents", "ext_hand.order", "ext_hand.backends.dsh",
+                    "ext_hand.backends.gemini", "ext_hand.go_usage")
+REMOVED_WARNING = "warning: khoá {name} đã gỡ; xoá khỏi {path}"
+# Removed-key warnings already printed by this process: one CLI loads config several times.
+_EMITTED_REMOVED: set[str] = set()
 
-    Keep the selected file's provenance even when its value is rejected. Never
-    include the supplied value in a warning: configuration may contain secrets.
-    """
-    if not isinstance(data, dict) or "parallel_subagents" not in data:
-        return
-    section = data["parallel_subagents"]
-    if not isinstance(section, dict):
-        print(f"warning: {path}: parallel_subagents phải là object; dùng disabled", file=stream if stream is not None else sys.stderr)
-        data["parallel_subagents"] = {"enabled": False}
-        return
-    if "backend" in section:
-        if not isinstance(section["backend"], str):
-            print(f"warning: {path}: parallel_subagents.backend phải là string; dùng claude-v1", file=stream if stream is not None else sys.stderr)
-            section["backend"] = "claude-v1"
-        else:
-            section["backend"] = canonical_backend(section["backend"])
-    if "enabled" not in section:
-        return
-    if type(section["enabled"]) is not bool:
-        print(f"warning: {path}: parallel_subagents.enabled phải là bool; dùng disabled", file=stream if stream is not None else sys.stderr)
-        section["enabled"] = False
-    elif source == "global" and section["enabled"]:
-        print(f"warning: {path}: parallel_subagents.enabled chỉ bật từ repo; bỏ qua global", file=stream if stream is not None else sys.stderr)
-        section["enabled"] = False
+
+def _write_warnings(text: str) -> None:
+    """Forward cached warnings; removed-key lines are printed once per process."""
+    for line in text.splitlines(keepends=True):
+        if line.startswith(REMOVED_WARNING.partition("{")[0]):
+            if line in _EMITTED_REMOVED:
+                continue
+            _EMITTED_REMOVED.add(line)
+        sys.stderr.write(line)
+
+
+def _drop_removed_sections(data: dict, path: Path, *, stream) -> None:
+    """Ignore retired (dotted, possibly nested) keys in old files; warn once per key and file."""
+    for name in REMOVED_SECTIONS:
+        *parents, leaf = name.split(".")
+        node = data
+        for part in parents:
+            node = node.get(part) if isinstance(node, dict) else None
+        if isinstance(node, dict) and leaf in node:
+            del node[leaf]
+            print(REMOVED_WARNING.format(name=name, path=path), file=stream)
 
 
 # UI toggles under ``ui.<name>.enabled``; both global and repo may set true/false.
@@ -185,24 +185,6 @@ def canonical_backend(value: str) -> str:
     return {"claude-main": "claude-v1", "claude": "claude-v2"}.get(value, value)
 
 
-def parallel_backend(value: Any, ext_hand: dict) -> str:
-    """Validate against the effective registry without echoing user input."""
-    if not isinstance(value, str):
-        raise ValueError("parallel_subagents.backend phải là tên backend hợp lệ")
-    name = canonical_backend(value)
-    names = set(ext_hand["backends"]) | {f"claude-{account}" for account in ext_hand["claude_accounts"]}
-    if name not in names:
-        raise ValueError("parallel_subagents.backend không tồn tại trong cấu hình hiệu lực")
-    return name
-
-
-def brain_account(value: Any, ext_hand: dict) -> str:
-    """Validate a Claude account name without echoing user input."""
-    if not isinstance(value, str) or value not in ext_hand["claude_accounts"]:
-        raise ValueError("--account không tồn tại trong ext_hand.claude_accounts hiệu lực")
-    return value
-
-
 def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
                 config_file: Path | None = None) -> ConfigResult:
     """Resolve files from the current repo, retaining main-worktree fallback.
@@ -223,7 +205,7 @@ def load_config(cwd: Path | None = None, *, known_root: Path | None = None,
     result, warnings = _load_config_cached(root, global_path.resolve(), repo_path.resolve(),
                                            file_stamp(global_path), file_stamp(repo_path))
     if warnings:
-        sys.stderr.write(warnings)
+        _write_warnings(warnings)
     # Callers historically mutate these dictionaries; never expose cached state.
     return copy.deepcopy(result)
 
@@ -255,7 +237,7 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
     from hand_ext.constants import DEFAULTS as HAND_DEFAULTS
     from side_session.constants import DEFAULTS as SIDE_DEFAULTS
 
-    defaults = {"parallel_subagents": {"enabled": False, "backend": "claude-v1"}, "ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
+    defaults = {"ext_hand": HAND_DEFAULTS, "side_session": SIDE_DEFAULTS,
                 "main_session": {"provider": "codex", "codex_model": "gpt-6.1-sol",
                                  "codex_effort": "high", "claude_model": "claude-opus-5-5",
                                  "claude_effort": "high", "claude_account": "v1",
@@ -271,7 +253,7 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            _normalize_parallel_policy(data, source, path, stream=warnings)
+            _drop_removed_sections(data, path, stream=warnings)
             _normalize_ui(data, path, stream=warnings)
             _validate(data, path)
             _merge(effective, data, sources, source)
@@ -282,12 +264,6 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
             if source == "global":
                 raise GlobalConfigError(error) from exc
             raise ValueError(error) from exc
-    try:
-        effective["parallel_subagents"]["backend"] = parallel_backend(
-            effective["parallel_subagents"]["backend"], effective["ext_hand"])
-    except ValueError:
-        print("warning: parallel_subagents.backend không hợp lệ; dùng claude-v1", file=warnings)
-        effective["parallel_subagents"]["backend"] = "claude-v1"
     # Validate limits after merging, even for consumers which only need side state.
     from hand_ext.parallel import validate_limit
     from side_session.constants import MAX_PARALLEL as SIDE_MAX

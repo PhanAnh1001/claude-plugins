@@ -32,12 +32,15 @@ class SharedConfigTest(unittest.TestCase):
         self.addCleanup(env.stop)
 
     def test_precedence(self):
-        self.global_file.write_text(json.dumps({'ext_hand': {'order': ['codex'], 'mode': 'auto',
+        self.global_file.write_text(json.dumps({'ext_hand': {'order': ['codex'], 'go_usage': {}, 'mode': 'auto',
             'paseo': {'package_root': 'package', 'state_root': 'state', 'target': {'host': 'fake'}}, 'backends': {
             'codex': {'effort': 'medium', 'home': 'codex', 'extra': {'a': 1, 'b': 2}, 'empty': {}},
             'claude': {'config_dir': 'claude'},
             'dsh': {'home': 'dsh', 'key_file': 'key', 'browser_dir': 'browser'}}}}))
-        self.assertEqual(load_hand(self.root).options('codex')['effort'], 'medium')
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(load_hand(self.root).options('codex')['effort'], 'medium')
+        for key in ('ext_hand.order', 'ext_hand.backends.dsh', 'ext_hand.go_usage'):
+            self.assertIn(f'khoá {key} đã gỡ; xoá khỏi {self.global_file}', err.getvalue())
         self.assertEqual(load_config(self.root).sources['ext_hand.backends.codex.empty'], 'global')
         repo = self.root / '.claude/hybrid-hands.json'
         repo.parent.mkdir()
@@ -51,9 +54,9 @@ class SharedConfigTest(unittest.TestCase):
                           'empty': {'child': {}}, 'price_per_mtok': None})
         result = load_config(self.root)
         self.assertIsNone(result.effective['ext_hand']['backends']['codex']['price_per_mtok'])
-        self.assertEqual(explicit_options(load_hand(self.root), 'dsh'),
-                         {'home': 'dsh', 'key_file': 'key', 'browser_dir': 'browser'})
-        self.assertEqual(result.effective['ext_hand']['order'], ['dsh'])
+        self.assertEqual(explicit_options(load_hand(self.root), 'dsh'), {})
+        self.assertNotIn('order', result.effective['ext_hand'])
+        self.assertNotIn('dsh', result.effective['ext_hand']['backends'])
         self.assertEqual(result.effective['ext_hand']['backends']['codex']['extra'], {'a': 1, 'b': 2})
         self.assertEqual(result.sources['ext_hand.backends.codex.extra.b'], 'global')
         self.assertEqual(result.sources['ext_hand.backends.codex.effort'], 'repo')
@@ -61,8 +64,7 @@ class SharedConfigTest(unittest.TestCase):
         self.assertEqual(result.sources['ext_hand.backends.codex.empty.child'], 'repo')
         cfg = load_hand(self.root)
         for name, key, relative in [('codex', 'home', 'codex'), ('claude', 'config_dir', 'claude'),
-                                    ('claude-v2', 'config_dir', 'claude'), ('dsh', 'home', 'dsh'),
-                                    ('dsh', 'key_file', 'key'), ('dsh', 'browser_dir', 'browser')]:
+                                    ('claude-v2', 'config_dir', 'claude')]:
             self.assertEqual(cfg.options(name)[key], str(self.root / relative))
         self.assertEqual(cfg.options('codex')['effort'], 'high')
         self.assertEqual(cfg.mode, 'paseo-required')
@@ -72,7 +74,7 @@ class SharedConfigTest(unittest.TestCase):
         self.assertEqual(result.sources['ext_hand.paseo.package_root'], 'global')
         self.assertEqual(result.sources['ext_hand.paseo.state_root'], 'repo')
         with patch('hand_ext.paseo_controller.cmd_managed_run', return_value=0) as managed:
-            self.assertEqual(main(['run', '--brief', 'fake', '--cwd', str(self.root), '--mode', 'auto']), 0)
+            self.assertEqual(main(['run', '--brief', 'fake', '--backend', 'codex', '--cwd', str(self.root), '--mode', 'auto']), 0)
         self.assertEqual(managed.call_args.kwargs['mode'], 'auto')
         args = argparse.Namespace(model=None, effort='low', timeout_min=None, max_tokens=None, sandbox=None)
         spec = _spec(cfg, args, type('Backend', (), {'name': 'codex'})(), '', self.root, 'test')
@@ -97,11 +99,22 @@ class SharedConfigTest(unittest.TestCase):
             self.assertEqual(load_config(self.root).paths['global'], {
                 'path': str(self.root / '.hybrid-hands/config.json'), 'exists': False, 'read': False})
 
+    def test_removed_parallel_subagents_key_warns(self):
+        self.global_file.write_text(json.dumps({'parallel_subagents': {'enabled': True, 'account': 'x'}}))
+        with contextlib.redirect_stderr(io.StringIO()) as err, \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(main(['config', '--json', '--cwd', str(self.root)]), 0)
+        payload = json.loads(out.getvalue())
+        self.assertNotIn('parallel_subagents', payload['effective'])
+        self.assertFalse(any(k.startswith('parallel_subagents') for k in payload['sources']))
+        self.assertEqual(err.getvalue().count(
+            f'khoá parallel_subagents đã gỡ; xoá khỏi {self.global_file}'), 1)
+
     def test_invalid_global(self):
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
         for raw in ('{', '[]', '{"ext_hand": []}', '{"ext_hand":{"backends":{"codex":[]}}}',
-                    '{"side_session":[]}', '{"hh_ps":[]}', '{"ext_hand":{"go_usage":[]}}',
-                    '{"ext_hand":{"backends":{"gemini":[]}}}', '{"ext_hand":{"claude_accounts":[]}}', '{"ext_hand":{"paseo":[]}}'):
+                    '{"side_session":[]}', '{"hh_ps":[]}',
+                    '{"ext_hand":{"backends":{"claude-v2":[]}}}', '{"ext_hand":{"claude_accounts":[]}}', '{"ext_hand":{"paseo":[]}}'):
             with self.subTest(raw=raw):
                 self.global_file.write_text(raw)
                 with self.assertRaisesRegex(GlobalConfigError, str(self.global_file)):

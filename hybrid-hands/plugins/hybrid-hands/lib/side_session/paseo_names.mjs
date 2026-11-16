@@ -33,7 +33,7 @@ export async function nameSession(client, request) {
     agentNamed: false, workspaceNamed: false};
   try {
     if (typeof request.title !== "string" || [...request.title].length > TITLE_LIMIT
-        || !/^[\p{L}\p{N}_-]+ · (Sol|Opus (v[1-9][0-9]*|\?)|dsh|\?) phụ$/u.test(request.title)) {
+        || !/^[\p{L}\p{N}_-]+ · (Sol|Opus (v[1-9][0-9]*|\?)|\?) phụ$/u.test(request.title)) {
       return {...result, warning: "NAME_TITLE_INVALID"};
     }
     const owners = request.workspaceOwners;

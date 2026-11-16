@@ -131,7 +131,7 @@ class ManagedCliTests(unittest.TestCase):
             brief = self.f.root/'admission.md'; brief.write_text('synthetic brief')
             out = io.StringIO()
             with patch.object(cli, '_cfg', return_value=self.f.cfg), patch('sys.stderr', out), patch('hand_ext.paseo_controller.transport_from_config'), patch.object(PaseoController, 'preflight', return_value={}), patch.object(PaseoController, 'dispatch', side_effect=error):
-                self.assertEqual(cli.main(['run', '--cwd', str(self.f.repo), '--brief', str(brief), '--mode', 'paseo-required']), 8)
+                self.assertEqual(cli.main(['run', '--cwd', str(self.f.repo), '--brief', str(brief), '--mode', 'paseo-required', '--backend', 'codex']), 8)
             self.assertIn(error.kind, out.getvalue())
 
     def test_guards_unknown_unreviewed_unquiescent_and_stale(self):

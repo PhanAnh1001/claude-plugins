@@ -42,7 +42,7 @@ test("con và cháu được lồng đúng, giữ thứ tự anh em", () => {
   const first = session("first-id", {
     parent_session: "main-id",
     side_name: "first",
-    provider: "dsh",
+    provider: "claude",
   });
   const second = session("second-id", {
     parent_session: "main-id",
@@ -84,7 +84,7 @@ test("phiên có cha không khớp phiên nào thì vào orphanSides", () => {
   const lost = session("lost-id", {
     parent_session: "missing-id",
     side_name: "lost",
-    provider: "dsh",
+    provider: "claude",
   });
 
   const result = nestSessions([lost, known]);

@@ -45,17 +45,17 @@ class ParallelTest(unittest.TestCase):
             self.stack.enter_context(parallel.reserve_slot(self.root, 4))
         err = io.StringIO()
         with mock.patch.object(run_cmd, '_cmd_run') as backend, redirect_stderr(err):
-            self.assertEqual(run_cmd.cmd_run(cfg, argparse.Namespace()), 8)
+            self.assertEqual(run_cmd.cmd_run(cfg, argparse.Namespace(backend='codex')), 8)
         backend.assert_not_called()
         self.assertIn('đã đủ 4', err.getvalue())
 
     def test_release_success_error_death_and_concurrent_acquire(self):
         cfg = argparse.Namespace(root=self.root, max_parallel=1)
         with mock.patch.object(run_cmd, '_cmd_run', return_value=0):
-            self.assertEqual(run_cmd.cmd_run(cfg, argparse.Namespace()), 0)
+            self.assertEqual(run_cmd.cmd_run(cfg, argparse.Namespace(backend='codex')), 0)
         with mock.patch.object(run_cmd, '_cmd_run', side_effect=RuntimeError('fake backend')):
             with self.assertRaises(RuntimeError):
-                run_cmd.cmd_run(cfg, argparse.Namespace())
+                run_cmd.cmd_run(cfg, argparse.Namespace(backend='codex'))
         with parallel.reserve_slot(self.root, 1):
             pass
         env = dict(os.environ, PYTHONPATH=str(LIB))

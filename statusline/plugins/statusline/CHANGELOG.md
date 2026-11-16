@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.29.0 — 2026-11-16
+
+Tóm tắt: gỡ dòng `Go` (OpenCode Go/DeepSeek) khỏi thanh trạng thái, đi cùng việc hybrid-hands 0.64.0 gỡ backend dsh và sổ Go.
+
+- Xoá `go-segments.sh`, `go-usage-fetch.sh`, `go_sessions.py` và biến `STATUSLINE_GO_LIVE`; không còn gọi API usage của OpenCode.
+- `week_split.py` không còn cộng lượt Go; `group_total` chuyển vào file này. Các dòng Claude v1/v2, GPT, tách máy và skill giữ nguyên.
+- File cũ `go_usage_summary.json`, `.statusline-go-usage.json` còn trên máy bị bỏ qua, không lỗi.
+- Test: 131 ca, 1 ca đỏ có sẵn trên `main` (`test_cached_five_with_future_reset_is_shown_stale` dùng mốc reset cố định đã qua).
+
 ## 0.28.0 — 2026-11-13
 
 Tóm tắt: ô `Fable` tự làm mới mỗi 5 phút, không cần mở `/usage`; % dùng máy tính đủ Claude Fable 5.2 theo giá riêng.

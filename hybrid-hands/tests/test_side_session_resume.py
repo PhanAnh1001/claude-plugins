@@ -52,7 +52,8 @@ class _Base(unittest.TestCase):
         self.machine = self.tmp / "machine"
         self._env = dict(os.environ)
         legacy_config = self.tmp / "global.json"
-        legacy_config.write_text(json.dumps({"side_session": {"transport": "screen"},
+        legacy_config.write_text(json.dumps({"profile": "gpt-mono", "side_session": {"transport": "screen"},
+                                              "ext_hand": {"claude_accounts": {"v1": {"day_guard": True}}},
                                               "main_session": {"transport": "screen"}}))
         os.environ["HYBRID_HANDS_CONFIG"] = str(legacy_config)
         os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ['PATH']}"
@@ -151,7 +152,7 @@ class TokenFileTest(_Base):
         self.transcript({"dir": st.dir, "uuid": st.uuid})
         self.assertEqual(actions.count_tokens(load_config(self.repo), st), 1615)
 
-    def test_token_file_does_not_change_codex_or_external_providers(self) -> None:
+    def test_token_file_does_not_change_codex_tokens(self) -> None:
         self.configure(token_file="runs/{uuid}.tokens")
         cfg = load_config(self.repo)
         codex = SimpleNamespace(provider=C.PROVIDER_CODEX, uuid="c-1", dir=str(self.repo),
@@ -160,13 +161,6 @@ class TokenFileTest(_Base):
         with mock.patch.object(actions.tokens, "codex_rollout", return_value=Path("/x")), \
                 mock.patch.object(actions.tokens, "codex_tokens", return_value=42):
             self.assertEqual(actions.count_tokens(cfg, codex), 42)
-        for provider in C.EXTERNAL_PROVIDERS:
-            st = SimpleNamespace(provider=provider, uuid="e-1", dir=str(self.repo), started=0.0)
-            run = object()
-            with mock.patch.object(actions.external, "run_for", return_value=run), \
-                    mock.patch.object(actions.external, "tokens_used", return_value=7) as used:
-                self.assertEqual(actions.count_tokens(cfg, st), 7)
-                used.assert_called_once_with(run)
 
     def test_config_wrong_type_raises_value_error(self) -> None:
         self.configure(token_file=123)

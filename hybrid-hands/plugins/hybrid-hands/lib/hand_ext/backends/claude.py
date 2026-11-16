@@ -251,8 +251,11 @@ class ClaudeMainBackend(ClaudeBackend):
 
     def day_block_reason(self, options: dict) -> Optional[str]:
         """None when the machine is under the day cap, else the reason the run must stop."""
-        if not day_budget.guard_enabled(options):
-            return None
+        try:
+            if not day_budget.guard_enabled(options):
+                return None
+        except day_budget.DayGuardConfigError as exc:
+            return f"lỗi cấu hình guard ngày: {exc}; ghi yêu cầu vào bàn giao để Opus quyết"
         try:
             use = day_budget.assess(options)
         except day_budget.BudgetUnavailable as exc:

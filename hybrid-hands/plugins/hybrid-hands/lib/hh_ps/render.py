@@ -28,7 +28,7 @@ def _usage_json(usage: Optional[Usage]) -> Optional[Dict[str, object]]:
         "week_pct": usage.week_pct,
         "week_pct_estimated": usage.week_pct_estimated,
     }
-    # Codex-only keys stay absent on Claude/Go rows, whose JSON shape is unchanged.
+    # Codex-only keys stay absent on Claude rows, whose JSON shape is unchanged.
     if usage.week_pct_source:
         data["week_pct_source"] = usage.week_pct_source
     if usage.usd_estimated:
@@ -64,6 +64,9 @@ def _hand_run_json(run: HandRun, now: float) -> Dict[str, object]:
         "effort": getattr(run, "effort", ""),
         "status": run.status,
         "exit_code": run.exit_code,
+        "role": run.role,
+        "tier": run.tier,
+        "escalated_from": run.escalated_from,
         "state": run.state,
         "tokens": dict(run.tokens),
         "usage": _usage_json(usage),

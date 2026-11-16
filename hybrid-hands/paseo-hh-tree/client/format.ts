@@ -93,7 +93,7 @@ export function isShownLimit(limit: TreeLimit): boolean {
   );
 }
 
-/** `Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
+/** `Claude tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
 export function limitLine(limit: TreeLimit, now: number): string {
   const reset = resetText(limit.resets_at, now);
   const mark = limit.estimated === true;
