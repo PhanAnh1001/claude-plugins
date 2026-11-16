@@ -98,7 +98,7 @@ def remove_done(cfg, st: state.SessionState) -> None:
     if not st.worktree or st.status != C.STATUS_DONE or st.checkout_removed_at:
         return
     try:
-        with locked(gc.common_dir(cfg.repo) / "side-session-gc"):
+        with locked(gc.common_dir(cfg.repo) / gc.GC_LOCK_NAME):
             identity, files = _inspect(cfg, st)
             signature = _output_signature(Path(st.dir))
             output = Path(st.dir) / "output/llm"
@@ -128,7 +128,7 @@ def restore(cfg, st: state.SessionState) -> bool:
     if not st.checkout_removed_at:
         return True
     try:
-        with locked(gc.common_dir(cfg.repo) / "side-session-gc"):
+        with locked(gc.common_dir(cfg.repo) / gc.GC_LOCK_NAME):
             path = _owned(cfg, st)
             if path.exists():
                 raise ValueError("checkout path already exists; reconcile before retry")
