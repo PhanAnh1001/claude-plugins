@@ -123,9 +123,12 @@ def backends_from(result: ConfigResult, backend: str) -> dict:
 
 
 # Removed 16/11/2026: parallel subagents are the default of every profile; the dsh backend,
-# its Go usage ledger and the automatic backend order went with the role profiles.
+# its Go usage ledger and the automatic backend order went with the role profiles; the
+# session-tree UIs (ui.hh_tree, ui.hh_panel) went too since Paseo shows agents itself.
 REMOVED_SECTIONS = ("parallel_subagents", "ext_hand.order", "ext_hand.backends.dsh",
-                    "ext_hand.backends.gemini", "ext_hand.go_usage")
+                    "ext_hand.backends.gemini", "ext_hand.go_usage", "ui.hh_tree", "ui.hh_panel")
+# Parent sections that only held retired keys: dropped silently once they become empty.
+RETIRED_PARENTS = ("ui",)
 REMOVED_WARNING = "warning: khoá {name} đã gỡ; xoá khỏi {path}"
 # Removed-key warnings already printed by this process: one CLI loads config several times.
 _EMITTED_REMOVED: set[str] = set()
@@ -151,34 +154,9 @@ def _drop_removed_sections(data: dict, path: Path, *, stream) -> None:
         if isinstance(node, dict) and leaf in node:
             del node[leaf]
             print(REMOVED_WARNING.format(name=name, path=path), file=stream)
-
-
-# UI toggles under ``ui.<name>.enabled``; both global and repo may set true/false.
-UI_SECTION = "ui"
-UI_COMPONENTS = ("hh_tree", "hh_panel")
-UI_ENABLED_KEY = "enabled"
-
-
-def _normalize_ui(data: dict, path: Path, *, stream) -> None:
-    """Drop invalid ui toggles (keeping the default true); warnings never echo values."""
-    if not isinstance(data, dict) or UI_SECTION not in data:
-        return
-    section = data[UI_SECTION]
-    if not isinstance(section, dict):
-        print(f"warning: {path}: {UI_SECTION} phải là object; bỏ qua", file=stream)
-        del data[UI_SECTION]
-        return
-    for name in UI_COMPONENTS:
-        component = section.get(name)
-        if name not in section:
-            continue
-        if not isinstance(component, dict):
-            print(f"warning: {path}: {UI_SECTION}.{name} phải là object; bỏ qua", file=stream)
-            del section[name]
-        elif UI_ENABLED_KEY in component and type(component[UI_ENABLED_KEY]) is not bool:
-            print(f"warning: {path}: {UI_SECTION}.{name}.{UI_ENABLED_KEY} phải là bool; dùng true",
-                  file=stream)
-            del component[UI_ENABLED_KEY]
+    for name in RETIRED_PARENTS:
+        if isinstance(data, dict) and data.get(name) == {}:
+            del data[name]
 
 
 def canonical_backend(value: str) -> str:
@@ -243,8 +221,7 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
                                  "claude_effort": "high", "claude_account": "v1",
                                  "transport": "paseo",
                                  "claude_auto_compact_window": DEFAULT_MAIN_CLAUDE_AUTO_COMPACT_WINDOW},
-                "paseo": {"claude_providers": {"v1": "claude"}},
-                UI_SECTION: {name: {UI_ENABLED_KEY: True} for name in UI_COMPONENTS}}
+                "paseo": {"claude_providers": {"v1": "claude"}}}
     effective, sources, paths, sections = {}, {}, {}, []
     _merge(effective, defaults, sources, "plugin")
     for source, path in zip(FILE_SOURCES, (global_path.resolve(), repo_path.resolve())):
@@ -254,7 +231,6 @@ def _build_config(root: Path, global_path: Path, repo_path: Path,
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             _drop_removed_sections(data, path, stream=warnings)
-            _normalize_ui(data, path, stream=warnings)
             _validate(data, path)
             _merge(effective, data, sources, source)
             info["read"] = True

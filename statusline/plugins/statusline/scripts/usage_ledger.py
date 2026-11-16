@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable, Optional
 
-# hh-ps loads this file by absolute path, without the scripts directory on sys.path.
+# hybrid-hands lib/hh_ps and hand_ext load this file by absolute path, without the scripts directory on sys.path.
 _prices_spec = importlib.util.spec_from_file_location(
     "_statusline_shared_prices", Path(__file__).with_name("shared_prices.py"))
 if _prices_spec is None or _prices_spec.loader is None:

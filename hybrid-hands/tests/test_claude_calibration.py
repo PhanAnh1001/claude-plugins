@@ -339,17 +339,3 @@ class CalibrationTests(unittest.TestCase):
             c.collect(1001)
             c.collect(1002)
             self.assertEqual(quota.call_count, 1)
-
-    def test_tree_calibration_clock_after_scan_and_explicit_time(self):
-        sys.path.insert(0, str(Path(__file__).resolve().parent/'fixtures'/'hh_ps'))
-        from fixture import HhFixture, NOW
-        from hh_ps.tree import build_snapshot
-        fx = HhFixture()
-        self.addCleanup(fx.close)
-        with fx.env(), patch('hh_ps.tree.time.time', side_effect=[NOW, NOW+4]), patch.object(c, 'enrich') as enrich:
-            snapshot = build_snapshot(fx.project, 3600, False)
-            self.assertEqual(snapshot.generated_at, NOW)
-            self.assertEqual(enrich.call_args.args[1], NOW+4)
-        with fx.env(), patch('hh_ps.tree.time.time', side_effect=AssertionError('explicit time must stay deterministic')), patch.object(c, 'enrich') as enrich:
-            build_snapshot(fx.project, 3600, False, now=NOW)
-            self.assertEqual(enrich.call_args.args[1], NOW)

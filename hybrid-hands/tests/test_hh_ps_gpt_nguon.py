@@ -13,13 +13,9 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'))
 from hh_ps.codex import CodexData, _rate_limit_windows, _usage
 from hh_ps.native_source import _read
-from hh_ps.machine_usage import _gpt_usd
-from hh_ps.render import _usage_json
-from hh_ps.compact import usage_cells
 from hh_ps.usage_enrichment import _five_hour, enrich_snapshot
 from hh_ps.models import Usage
 from hand_ext.codex_usage import price_for
-from hh_ps.pricing import estimate_cost
 
 NOW = 1800000000
 
@@ -57,15 +53,14 @@ class GptSourcesTest(unittest.TestCase):
                     child=_read(path,NOW)[2]
                     self.assertEqual(child.usage.week_pct,expected)
                     if expected is not None:
-                        self.assertEqual(_usage_json(usage)['week_pct_source'],'codex_rate_limits_delta')
+                        self.assertEqual(usage.week_pct_source,'codex_rate_limits_delta')
                         self.assertFalse(usage.week_pct_estimated)
-                        self.assertIn('riêng (đo)',str(usage_cells(usage)))
                         snapshot=SimpleNamespace(sessions=[SimpleNamespace(provider='codex',usage=usage,model='gpt-6.1-sol',subagents=[])],limits=[],iter_runs=lambda:[])
                         with patch('hh_ps.usage_enrichment._claude_five',return_value=None):
                             enrich_snapshot(snapshot,None,NOW)
                         self.assertEqual(snapshot.sessions[0].usage.week_pct,expected)
                     else:
-                        self.assertNotIn('week_pct_source',_usage_json(usage))
+                        self.assertFalse(usage.week_pct_source)
             write(path,[meta,event(NOW-30),event(NOW-20,12,NOW+2000),event(NOW-10,15)])
             source._rollouts.clear()
             self.assertIsNone(source.rollout_usage(str(path),NOW).week_pct)
@@ -79,39 +74,6 @@ class GptSourcesTest(unittest.TestCase):
             self.assertEqual(legacy_usage.gpt_week_pct,15)
             self.assertIsNone(legacy_usage.week_pct)
             self.assertIsNone(_read(path,NOW)[2].usage.week_pct)
-
-    def test_b_observed_machine_deltas_dedup_empty_and_unknown(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            home=Path(tmp); root=home/'sessions'; root.mkdir(); archive=home/'archived_sessions';archive.mkdir()
-            meta={'type':'session_meta','payload':{'id':'thread','model':'gpt-6.1-sol','timestamp':iso(NOW-1000)}}
-            rows=[meta,event(NOW-200,count=100),event(NOW-50,count=150)]
-            write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
-            write(root/'rollout-empty.jsonl',[{'type':'session_meta','payload':{'id':'empty','timestamp':iso(NOW-10)}}])
-            source=SimpleNamespace(home=home)
-            expected=estimate_cost({'input':50,'cached_input':0,'output':50},price_for({},'gpt-6.1-sol'))
-            self.assertAlmostEqual(_gpt_usd(source,None,NOW-100,NOW),expected)
-            rows[0]['payload']['model']='unknown-model'
-            write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
-            self.assertIsNone(_gpt_usd(source,None,NOW-100,NOW))
-            self.assertIsNone(_gpt_usd(source,None,NOW-10,NOW))
-            rows=[meta,event(NOW-50,count=150)]
-            write(root/'rollout-one.jsonl',rows);write(archive/'rollout-copy.jsonl',rows)
-            self.assertIsNone(_gpt_usd(source,None,NOW-100,NOW))
-
-    def test_b2_store_cache_reuses_unchanged_and_follows_append(self):
-        from hh_ps import machine_usage as mu
-        with tempfile.TemporaryDirectory() as tmp:
-            home=Path(tmp); root=home/'sessions'; root.mkdir(); source=SimpleNamespace(home=home)
-            meta={'type':'session_meta','payload':{'id':'t','model':'gpt-6.1-sol','timestamp':iso(NOW-1000)}}
-            rows=[meta,event(NOW-200,count=100),event(NOW-50,count=150)]; write(root/'rollout-a.jsonl',rows)
-            first=_gpt_usd(source,None,NOW-100,NOW); _store_runtime._reset_for_tests()
-            with patch.object(mu,'_records',side_effect=AssertionError('reloaded') if _store_runtime.enabled() else mu._records):
-                self.assertEqual(_gpt_usd(source,None,NOW-100,NOW),first)
-            write(root/'rollout-a.jsonl',rows+[event(NOW-10,count=400)])
-            cached=_gpt_usd(source,None,NOW-100,NOW)
-            with patch.dict(os.environ,{'HYBRID_HANDS_STORE':'off'}):
-                self.assertEqual(cached,_gpt_usd(source,None,NOW-100,NOW))
-            self.assertGreater(cached,first)
 
     def test_c_real_five_hour_samples_only(self):
         for duration,pct,at,reset,expected in [(300,12,NOW-10,NOW+1000,12),
@@ -141,28 +103,6 @@ class GptSourcesTest(unittest.TestCase):
             enrich_snapshot(snapshot,None,NOW)
             self.assertEqual(session.usage.account_5h_pct,23)
             self.assertEqual(snapshot.limits[0].source,'claude_5h_cache')
-
-
-# Store isolation: rollout readers must never write the real ~/.hybrid-hands/state.
-import os as _os, shutil as _shutil, tempfile as _tempfile
-from hh_store import runtime as _store_runtime
-_STORE_PATCH = {}
-
-
-def setUpModule():
-    _STORE_PATCH["dir"] = _tempfile.mkdtemp()
-    _STORE_PATCH["old"] = _os.environ.get("HYBRID_HANDS_STATE_DIR")
-    _os.environ["HYBRID_HANDS_STATE_DIR"] = _STORE_PATCH["dir"]
-    _store_runtime._reset_for_tests()
-
-
-def tearDownModule():
-    _store_runtime._reset_for_tests()
-    if _STORE_PATCH["old"] is None:
-        _os.environ.pop("HYBRID_HANDS_STATE_DIR", None)
-    else:
-        _os.environ["HYBRID_HANDS_STATE_DIR"] = _STORE_PATCH["old"]
-    _shutil.rmtree(_STORE_PATCH["dir"], ignore_errors=True)
 
 
 if __name__ == '__main__': unittest.main()

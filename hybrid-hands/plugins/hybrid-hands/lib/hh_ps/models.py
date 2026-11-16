@@ -1,4 +1,4 @@
-"""Value objects shared by the hh-ps sources and renderers."""
+"""Value objects shared by the usage sources (statusline, limit-watch, hand-ext)."""
 from __future__ import annotations
 
 import time

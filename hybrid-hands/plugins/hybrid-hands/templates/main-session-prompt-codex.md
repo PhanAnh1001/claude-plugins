@@ -30,7 +30,6 @@ Hết quota: không đổi tài khoản; phiên trong Paseo có limit-watch thì
 
 - hand-ext: `{{HAND_EXT_BIN}}`
 - side-session: `{{SIDE_SESSION_BIN}}`
-- hh-ps: `{{HH_PS_BIN}}`
 - Đọc skill ext-hand: `{{EXT_HAND_SKILL}}`
 - Đọc skill side-session: `{{SIDE_SESSION_SKILL}}`
 

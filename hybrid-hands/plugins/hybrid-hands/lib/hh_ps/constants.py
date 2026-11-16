@@ -1,4 +1,4 @@
-"""Named defaults and fixed strings for `hh-ps` (single source of truth)."""
+"""Named defaults and fixed strings for the shared usage library (single source of truth)."""
 from __future__ import annotations
 
 SCHEMA_VERSION = 1
@@ -63,7 +63,7 @@ RUN_STATE_LOST = "lost"
 RUN_LOST_TEXT = "mất"
 ORPHAN_HEADING = "hand ngoài không rõ phiên gọi"
 
-# Row marks shared with hh-tree-pane (hooks/tree.ts keeps the same glyphs).
+# Row marks.
 HERE_MARK = "▶"
 LIVE_DOT = "●"
 ENDED_DOT = "○"
@@ -101,8 +101,7 @@ OK_STATUSES = frozenset({"ok", "finished", "xong"})
 STATUS_ALIASES = {"quota_exhausted": "quota"}
 ELLIPSIS = "…"
 # Finished or failed children listed under each session (newest end first);
-# the rest fold into one `+N xong · M lỗi` line. hh-tree-pane (hooks/tree.ts)
-# keeps the same number. `--full` lists every child.
+# the rest fold into one `+N xong · M lỗi` line. `--full` lists every child.
 RECENT_FINISHED_SHOWN = 3
 FULL_FLAG = "--full"
 SUMMARY_OK_TEXT = "xong"

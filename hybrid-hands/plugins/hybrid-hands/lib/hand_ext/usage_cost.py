@@ -1,4 +1,4 @@
-"""Token-cost helpers shared by the Codex ledger and hh-ps (USD~ estimates, never bills).
+"""Token-cost helpers shared by the Codex ledger and statusline (USD~ estimates, never bills).
 
 Prices come only from config/model-prices.json through `usage_pricing.token_price`; an
 unknown model has no price and the cost stays unknown (no family fallback).

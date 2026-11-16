@@ -1,7 +1,7 @@
 """Codex usage ledger: one JSON line per finished codex turn.
 
 The ChatGPT plan can expose 5-hour and weekly windows, identified by window_minutes. Each line
-keeps those windows separately (never only the fullest one) so `hh-ps`/statusline can show
+keeps those windows separately (never only the fullest one) so statusline can show
 both. Token costs are estimates from `backends.codex.price_per_mtok`; without a complete
 price the line has `cost_usd: null` and `cost_source: "unknown"` instead of inventing one.
 

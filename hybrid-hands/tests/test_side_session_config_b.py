@@ -77,7 +77,7 @@ class ConfigBTest(unittest.TestCase):
     def test_main_template_absolute_tools_and_brief(self):
         rendered = commands.build_main_codex_prompt('fixture', 'actual-model', 'medium')
         root = commands.SIDE_BIN.parent.parent
-        for path in ('bin/hand-ext', 'bin/side-session', 'bin/hh-ps', 'skills/ext-hand/SKILL.md', 'skills/side-session/SKILL.md'):
+        for path in ('bin/hand-ext', 'bin/side-session', 'skills/ext-hand/SKILL.md', 'skills/side-session/SKILL.md'):
             self.assertIn(str(root/path), rendered)
         self.assertIn((root/'templates/hand-brief.md').read_text(), rendered)
         self.assertIn('PHIÊN CHÍNH Codex do người dùng mở (actual-model medium)', rendered)

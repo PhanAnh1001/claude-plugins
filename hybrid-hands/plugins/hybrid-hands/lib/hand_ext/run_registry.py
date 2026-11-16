@@ -1,7 +1,7 @@
 """Machine-wide registry of `hand-ext run` attempts: one JSON file per run.
 
 The file lives under `<HYBRID_HANDS_STATE_DIR>/runs/<run_id>.json` (default
-`~/.hybrid-hands/runs/`) so `hh-ps` can show a run while it is still in flight, including the
+`~/.hybrid-hands/runs/`) so status tools can see a run while it is still in flight, including the
 Claude session that invoked it. Writes are atomic and best-effort: a logging failure warns and
 never breaks the run. Finished entries older than seven days are pruned on the next write.
 """
@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Union
 
-from hh_store import bump_revision
 
 from .backends.base import Usage
 from .constants import (
@@ -174,8 +173,6 @@ class RunRegistry:
             except OSError as exc:
                 print(f"{RUN_REGISTRY_WARNING}: {exc}", file=sys.stderr)
                 success = False
-        if success:
-            bump_revision()  # signal hh-ps/pane that run state changed; never raises
         self._last_write = self.clock()
         return success
 

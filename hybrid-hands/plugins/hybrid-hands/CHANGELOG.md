@@ -2,6 +2,17 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.66.0 — 2026-11-16
+
+Tóm tắt: **gỡ hh-ps** (người dùng chốt 16/11/2026, vì Paseo đã hiện agent và subagent). Theo dõi phiên/hand qua app/daemon Paseo, `side-session ls/watch`, `hand-ext status/report` và statusline. Thư viện usage `lib/hh_ps/` vẫn giữ tên, phục vụ statusline, limit-watch, guard ngày, cc-switch và hand-ext.
+
+- Gỡ CLI `hh-ps`, pane cây cạnh terminal `hh-tree-pane`, panel/sidebar Paseo `paseo-hh-tree`.
+- Gỡ kho chỉ mục `hh-store`/`hh-indexer`, hook ghi chỉ mục (Stop, SubagentStop, SessionEnd, một mục SessionStart) và tín hiệu `bump_revision`. Transcript Claude và rollout Codex nay luôn đọc thẳng từ file.
+- Gỡ các module chỉ phục vụ cây trong `lib/hh_ps/`: cli, tree, render, text_render, compact, table, textwidth, selection, visibility, repos, limits, machine_usage (tổng USD~ GPT tuần toàn máy). `account_homes`/`account_for_home` chuyển sang `lib/hh_ps/claude_accounts.py`.
+- Cấu hình `ui.hh_tree`, `ui.hh_panel` thành khoá đã gỡ, chỉ còn cảnh báo; nhánh `ui` rỗng bị bỏ im lặng.
+- Policy, template phiên và tài liệu (AGENTS.md, README, skill) bỏ mọi tham chiếu hh-ps và hợp đồng hiển thị cây.
+- Chưa kiểm chứng: thời gian đọc file trực tiếp (không còn cache SQLite) khi lịch sử transcript lớn.
+
 ## 0.65.0 — 2026-11-16
 
 Tóm tắt: thêm slash command `/hybrid-hands:profile` để xem và đổi profile của repo ngay trong Claude Code.

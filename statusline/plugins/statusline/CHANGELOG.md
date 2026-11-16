@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.1 — 2026-11-16
+
+Tóm tắt: chỉ tài liệu — hybrid-hands 0.66.0 gỡ hh-ps; README và comment `usage_ledger.py` không còn nhắc cây hh-ps, statusline vẫn dùng thư viện usage `lib/hh_ps` qua `shared_usage.py`.
+
 ## 0.29.0 — 2026-11-16
 
 Tóm tắt: gỡ dòng `Go` (OpenCode Go/DeepSeek) khỏi thanh trạng thái, đi cùng việc hybrid-hands 0.64.0 gỡ backend dsh và sổ Go.

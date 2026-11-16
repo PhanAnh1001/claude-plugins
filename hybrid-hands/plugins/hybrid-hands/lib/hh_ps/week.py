@@ -1,11 +1,11 @@
-"""Weekly plan windows for `hh-ps`, using the statusline plugin's formulas.
+"""Weekly plan windows for the shared usage library, using the statusline plugin's formulas.
 
 Ported from statusline plugins/statusline/scripts/week_split.py (Claude: calibrate,
 ``local = local_usd / usd_per_pct``, ``other = total - local``, the 0.1 estimate clamped
 to ``[p, p + 0.9]``).
 
 Only the weekly window is exposed: the 5-hour and monthly windows are intentionally
-absent from `hh-ps` and both tree panels.
+absent here.
 """
 from __future__ import annotations
 
