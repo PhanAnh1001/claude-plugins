@@ -210,6 +210,16 @@ Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN
 
 `--brain MODEL:EFFORT[@vN]` và `--side MODEL:EFFORT[@vN]` không cần provider, suy từ capability model; dạng cũ `PROVIDER:MODEL[:EFFORT][@vN]` vẫn dùng được. Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `--hand-mode native|terminal` áp cho provider của các `--hand` cùng lệnh, ghi `ext_hand.native.<claude|codex>` thành `auto` hoặc `off`; DeepSeek luôn terminal, `dsh` + `native` lỗi exit 2. `unset brain|side|hand` gỡ override cả tầng (`unset hand` gỡ cả `ext_hand.native.*`), giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) để chỉ xem, không hỏi hay ghi; `/hybrid-hands:models set` mở wizard tích tầng → provider → account → model → effort + chế độ Hand qua tối đa năm lần AskUserQuestion nối tiếp. Có đúng ba ô Brain chính, Phiên phụ, Hand; tầng Hand chỉ có một tab để chọn một backend mỗi lần; các lựa chọn được giữ qua từng màn hình. Account chỉ hỏi khi chọn Claude; account hoặc model chỉ có một lựa chọn thì tự dùng. Danh sách lấy từ `providers`, `profiles`, `accounts`, `hand_backends`, `hand_modes` của `hand-ext models options --json`, không dùng presets; model vượt bốn lựa chọn có thể nhập qua Other nhưng phải thuộc danh sách JSON. Màn hình Effort hỏi chung thêm Chế độ cho Hand Claude/GPT: Native subagent (cùng tài khoản và đủ capability) hoặc Terminal hand (luôn qua `hand-ext run`), đánh dấu “(đang dùng)” theo `hand_modes.<provider>`; DeepSeek bỏ câu này. Lệnh ghi thêm `--hand-mode` theo lựa chọn. Hủy, thiếu câu trả lời hay giá trị ngoài danh sách thì không ghi. Cuối wizard gộp thành đúng một lệnh `models set`, ghi atomic một lần; lựa chọn là xác nhận, không thêm dry-run hay hỏi lại. Không tích tầng nào thì không đổi cấu hình; slash command với đối số khác chuyển nguyên cho CLI. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
 
+### Tắt giao diện cây: `ui.hh_tree` / `ui.hh_panel` — 0.63.0
+
+`ui.hh_tree.enabled` (pane `hh-tree-pane` trong Claude Code) và `ui.hh_panel.enabled` (panel agent và màn hình Cây phiên của plugin Paseo `hh-tree`) mặc định `true`, chỉ nhận bool JSON thật; sai kiểu bị bỏ qua kèm warning. Khác `parallel_subagents`, global `false` có hiệu lực: đặt trong `~/.hybrid-hands/config.json` để tắt ở mọi repo, repo `.claude/hybrid-hands.json` ghi đè được (`true` bật lại cho riêng repo đó).
+
+```json
+{ "ui": { "hh_tree": { "enabled": false }, "hh_panel": { "enabled": false } } }
+```
+
+Khi tắt, pane không mở và không poll (`/hh-tree` báo đang tắt kèm nguồn); panel/màn hình Paseo không chạy `hh-ps`, chỉ hiện một dòng thông báo. Nút sidebar Paseo vẫn còn vì API plugin không cho ẩn có điều kiện; hook kế thừa provider khi tạo agent của plugin Paseo vẫn chạy. Đọc config lỗi thì fail-open (vẫn hiện). Pane áp dụng ở phiên Claude mới; panel nhận trong vòng khoảng 30 giây. `hand-ext config --json` hiện giá trị và nguồn.
+
 ### Mode parallel-subagents
 
 Mode dùng riêng `parallel_subagents.{enabled,backend,account}`, tách biệt với config model ba tầng dù ghi cùng file repo.

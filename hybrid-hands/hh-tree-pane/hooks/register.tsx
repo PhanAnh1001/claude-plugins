@@ -10,6 +10,8 @@ import {
   MIN_REFRESH_MS, refreshDelay, RefreshGate, REVISION_POLL_MS, revisionKey, RevisionWatch, TOUCH_INTERVAL_MS,
 } from './refresh'
 import type { HhPs } from './tree'
+import { disabledMessage, parseUiToggle, UI_ENABLED_FALLBACK } from './ui-config'
+import type { UiToggle } from './ui-config'
 
 const PANE = 'hh-tree'
 // Resolve only executable paths; never read installed-plugin/auth metadata.
@@ -33,6 +35,18 @@ store = Path(command).resolve().parent / "hh-store" if command else None
 if store and os.access(store, os.X_OK):
     os.execv(str(store), [str(store), "touch"])
 `
+// `hand-ext config --json` beside the hh-ps in use (cwd = session cwd); prints {"enabled","source"}.
+const UI_CONFIG_SHIM = `${FIND_HH_PS}
+import json, subprocess
+hand_ext = Path(command).resolve().parent / "hand-ext" if command else None
+if not hand_ext or not os.access(hand_ext, os.X_OK):
+    sys.exit(1)
+cfg = json.loads(subprocess.run([str(hand_ext), "config", "--json"], capture_output=True, text=True,
+                                timeout=8, check=True).stdout)
+enabled = cfg.get("effective", {}).get("ui", {}).get("hh_tree", {}).get("enabled", True)
+print(json.dumps({"enabled": enabled, "source": cfg.get("sources", {}).get("ui.hh_tree.enabled", "")}))
+`
+const UI_CONFIG_TIMEOUT_MS = 10000
 const SINCE = '3h'
 const SCHEDULER_TICK_MS = 1000
 const TOUCH_TIMEOUT_MS = 5000
@@ -100,6 +114,16 @@ let lastPollAt = 0
 let lastTouchAt = 0
 const watch = new RevisionWatch()
 let gate: RefreshGate | undefined
+let ui: UiToggle = UI_ENABLED_FALLBACK
+
+async function loadUiToggle($: EngineInterface): Promise<UiToggle> {
+  try {
+    const r = await $.process.run(['python3', '-c', UI_CONFIG_SHIM], { timeoutMs: UI_CONFIG_TIMEOUT_MS })
+    return parseUiToggle(r.stdout, r.exitCode)
+  } catch {
+    return UI_ENABLED_FALLBACK
+  }
+}
 
 /** Fallback for watchPaths: stat the revision file each tick and touch hh-store, only while shown. */
 async function pollRevision($: EngineInterface, now: number): Promise<void> {
@@ -119,6 +143,8 @@ const COLOR: Partial<Record<Tone, string>> = { main: 'cyan', busy: 'green', idle
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({ name: 'hh-tree', description: 'Mở pane cây hh-ps (phiên brain → subagent → hand ngoài)' })
+    ui = await loadUiToggle($)
+    if (!ui.enabled) return next(e)
     void $.ui.open({ id: PANE, title: 'hh-ps' })
     revisionFile = await revisionPath($)
     gate = new RefreshGate(() => refresh($, true))
@@ -135,12 +161,13 @@ export const register: Register = on => {
   // Event path: watchPaths is registered only at SessionStart; the stat poll covers it if it never fires.
   on('classic.SessionStart', async ($, e, next) => {
     const result = await next(e)
+    if (!ui.enabled) return result
     const path = revisionFile ?? await revisionPath($)
     return path ? { ...result, watchPaths: [...(result?.watchPaths ?? []), path] } : result
   })
 
   on('classic.FileChanged', async ($, e, next) => {
-    if (revisionFile && e.file_path === revisionFile) {
+    if (ui.enabled && revisionFile && e.file_path === revisionFile) {
       // Feed the same baseline the poll uses, so one change costs one hh-ps run.
       const stat = await $.fs.stat(revisionFile).catch(() => undefined)
       if (watch.changed(revisionKey(stat))) gate?.request(Date.now())
@@ -149,6 +176,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'hh-tree' }, async $ => {
+    if (!ui.enabled) return { text: disabledMessage(ui.source) }
     const opened = await $.ui.open({ id: PANE, title: 'hh-ps' })
     void refresh($)
     return {

@@ -2,6 +2,14 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.63.0 — 2026-11-16
+
+Tóm tắt: thêm cấu hình `ui.hh_tree.enabled` và `ui.hh_panel.enabled` (mặc định `true`) để tắt pane `hh-tree-pane` và panel Paseo `hh-tree` theo global hoặc từng repo.
+
+- Cấu hình: khoá `ui.*.enabled` merge plugin → global → repo như các khoá khác; global `false` có hiệu lực, repo ghi đè được; sai kiểu bị bỏ qua kèm warning không in giá trị.
+- `hh-tree-pane`: khi tắt không mở pane, không poll/touch hh-store; `/hh-tree` báo đang tắt kèm nguồn. Đọc config lỗi thì fail-open.
+- `paseo-hh-tree`: khi tắt, panel agent và màn hình Cây phiên không chạy `hh-ps`, hiện một dòng thông báo và thử lại thưa; nút sidebar và hook kế thừa provider giữ nguyên.
+
 ## 0.62.1 — 2026-11-16
 
 Tóm tắt: `side-session gc` không còn giữ worktree chỉ vì một file `side-session-gc.lock` rỗng nằm sót ở gốc worktree.
