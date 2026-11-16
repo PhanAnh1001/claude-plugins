@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-16 · commit `8147e96`
+Cập nhật 2026-11-16 · commit `93edca1`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-16 · commit `8147e96`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 296 commit.
+- **Hoạt động 14 ngày:** 299 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-296 commit.
+299 commit.
 
-- 2026-11-15 8147e96 Merge branch 'fix/limit-watch-paseo-closed'
-- 2026-11-15 c3e3949 fix(hybrid-hands): limit-watch paseo stays armed across Paseo restart (0.61.2)
-- 2026-11-15 d905330 docs(status): tự cập nhật trang tình hình
-- 2026-11-15 7bdfe17 docs(status): tự cập nhật trang tình hình
-- 2026-11-15 b9ba466 Merge branch 'side/fix-limit-watch-valueerror'
+- 2026-11-16 93edca1 Merge branch 'feat/ui-disable-config'
+- 2026-11-16 f17a16d feat(hybrid-hands): cấu hình ui.hh_tree/ui.hh_panel để tắt pane và panel cây phiên theo global/repo (0.63.0)
+- 2026-11-16 15903ec Merge branch 'fix/gc-lock-location'
+- 2026-11-16 07b1ef8 fix(hybrid-hands): gc bỏ qua file side-session-gc.lock rỗng sót ở gốc worktree (0.62.1)
+- 2026-11-16 a92a94d Merge branch 'fix/gc-limit-watch'
