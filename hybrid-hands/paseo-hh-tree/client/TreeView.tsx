@@ -18,6 +18,8 @@ const LEGACY_REFRESH_MS = 30_000;
 const SAFETY_REFRESH_MS = MAX_REFRESH_MS;
 // While the revision RPC fails, retry it so a reloaded server switches back automatically.
 const REVISION_RETRY_MS = 60_000;
+// Panel disabled by ui.hh_panel.enabled=false: skip revision polling, re-check config rarely.
+const DISABLED_RECHECK_MS = 5 * 60_000;
 
 interface TreeViewProps {
   agentId?: string;
@@ -32,8 +34,10 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
   const getRevision = useRpc(revisionRpc);
   const gate = useRef(createRevisionGate()).current;
   // react-query skips interval refetches while the app is hidden (refetchIntervalInBackground=false).
+  const [disabled, setDisabled] = useState(false);
   const revision = useQuery({
     queryKey: ["hh-tree-revision"],
+    enabled: !disabled,
     queryFn: () => getRevision({}),
     refetchInterval: (q) => (q.state.status === "error" ? REVISION_RETRY_MS : REVISION_POLL_MS),
     retry: false,
@@ -41,8 +45,12 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
   const query = useQuery<TreeResult>({
     queryKey: ["hh-tree", agentId ?? "all", all],
     queryFn: () => getTree({ agentId, all }),
-    refetchInterval: revision.isError ? LEGACY_REFRESH_MS : SAFETY_REFRESH_MS,
+    refetchInterval: disabled ? DISABLED_RECHECK_MS : revision.isError ? LEGACY_REFRESH_MS : SAFETY_REFRESH_MS,
   });
+  const nowDisabled = query.data?.ok === false && query.data.disabled === true;
+  useEffect(() => {
+    setDisabled(nowDisabled);
+  }, [nowDisabled]);
   const refetchTree = query.refetch;
   useEffect(() => {
     if (revision.data && gate(revision.data.revision)) void refetchTree();
@@ -61,6 +69,13 @@ export function TreeView({ agentId, all = false, theme, layout }: TreeViewProps)
     return (
       <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
         <Text style={warningStyle}>Không tải được cây phiên.</Text>
+      </View>
+    );
+  }
+  if (!query.data.ok && query.data.disabled) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.surface0 }}>
+        <Text style={{ ...warningStyle, color: theme.colors.foregroundMuted }}>{query.data.error}</Text>
       </View>
     );
   }

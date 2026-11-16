@@ -164,7 +164,8 @@ export const treeSchema = z
 
 const treeOutput = z.union([
   z.object({ ok: z.literal(true), tree: treeSchema }),
-  z.object({ ok: z.literal(false), error: z.string() }),
+  // `disabled` marks ui.hh_panel.enabled=false; older clients just show `error`.
+  z.object({ ok: z.literal(false), error: z.string(), disabled: z.literal(true).optional() }),
 ]);
 
 export const treeRpc = defineRpc({

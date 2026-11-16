@@ -41,6 +41,10 @@ Kiểm chứng SDK đã cài `@getpaseo/plugin` 0.15.0: `dist/client/contracts.d
 
 Brain cập nhật bản hybrid-hands 0.31.3 bằng công cụ cài đặt chính thức cho mọi repo đã dùng plugin, kiểm tra version/path được nạp. Cài lại addon từ checkout đã cập nhật bằng `paseo plugin install <đường dẫn tuyệt đối tới paseo-hh-tree>`, sau đó `paseo plugin reload hh-tree`. Tải lại app nếu phiên đang mở chưa nhận code mới; mở panel agent và nút Cây phiên để kiểm chứng. Các bước này chưa được executor chạy. Không archive phiên chính.
 
+## Tắt bằng cấu hình
+
+Đặt `ui.hh_panel.enabled=false` trong cấu hình hybrid-hands (plugin → global `~/.hybrid-hands/config.json` → repo `.claude/hybrid-hands.json`) để tắt. Server đọc khoá qua `hand-ext config --json [--cwd <cwd agent>]` (lệnh `hand-ext` cạnh `hh-ps`), cache 30 giây theo cwd; khi tắt, `hh-tree.get` trả `{ok:false, disabled:true, error}` mà không chạy `hh-ps`. Panel agent và màn hình Cây phiên chỉ hiện một dòng chữ mờ, ngừng poll revision và kiểm lại mỗi 5 phút. Lỗi, timeout, thiếu lệnh hay JSON không hợp lệ đều giữ bật (fail-open). Nút sidebar vẫn hiện vì API chỉ đăng ký tĩnh; hook `agent.create.before` không bị ảnh hưởng.
+
 ## Cài đặt
 
 Cần Paseo 0.15.0 trở lên và Python 3 để chạy `hh-ps`.

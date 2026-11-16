@@ -5,6 +5,13 @@ import type { HhTreeSettingsSchema } from "../shared/settings";
 import { treeRpc, type TreeResult } from "../shared/tree";
 import { findAgentSession } from "./agent-record";
 import { findHhPs, HH_PS_MISSING_ERROR, runHhPs } from "./hh-ps";
+import { createPanelConfigReader, gateTree, HAND_EXT_TIMEOUT_MS } from "./ui-config";
+import { execCommand } from "@getpaseo/plugin/server";
+
+const readPanelConfig = createPanelConfigReader(async (command, args, cwd) => {
+  const { stdout } = await execCommand(command, args, { cwd, env: process.env, timeout: HAND_EXT_TIMEOUT_MS });
+  return stdout;
+});
 
 import { createCachedLoader } from "./cache";
 import { revisionRpc } from "../shared/revision";
@@ -30,11 +37,12 @@ async function loadTree(
     return { ok: false, error: HH_PS_MISSING_ERROR };
   }
   const agent = input.agentId ? await findAgentSession(input.agentId) : null;
-  return runHhPs(command, {
-    cwd: agent?.cwd ?? undefined,
+  const cwd = agent?.cwd ?? undefined;
+  return gateTree(await readPanelConfig(command, cwd), () => runHhPs(command, {
+    cwd,
     sessionId: agent?.sessionId ?? undefined,
     all: input.all === true,
-  });
+  }));
 }
 
 /** Each handler shares executions and adaptive cache entries across its clients. */
