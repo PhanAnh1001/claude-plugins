@@ -206,28 +206,3 @@ class AutoAndPreservedGCTest(unittest.TestCase):
         (probe / 'new').write_text('fixture change')
         gc.run_gc(self.cfg, apply=True, include_preserved=True)
         self.assertFalse(probe.exists())
-
-
-class FailedRunReleaseTest(AutoAndPreservedGCTest):
-    """Failed isolated run: worktree removed only when changes.patch provably saves it."""
-
-    def attempt(self, run_id, *, dirty=False, drift=False, keep=False):
-        from hand_ext import run_cmd
-        path = self.run_worktree(run_id, change='new')
-        run_dir = self.tmp / 'runs' / run_id
-        (run_dir / 'changes.patch').write_bytes(gc._current_patch(path, self.git('rev-parse', 'HEAD')))
-        if drift:
-            (path / 'new').write_text('drifted')
-        ctx = gc.isolation.IsolationContext('worktree', self.root, path, worktree=path,
-                                            worktree_root=self.cfg.worktree_root,
-                                            base_commit=self.git('rev-parse', 'HEAD'), dirty=dirty)
-        result = SimpleNamespace(ctx=ctx, run_dir=run_dir, kept=True, cleanup_note='',
-                                 apply_result=gc.isolation.ApplyResult())
-        run_cmd._release_final(result, SimpleNamespace(keep_worktree=keep))
-        self.assertTrue((run_dir / 'changes.patch').is_file())
-        return path.exists(), result.kept
-
-    def test_release_only_when_patch_matches(self):
-        self.assertEqual(self.attempt('saved'), (False, False))
-        for kwargs in (dict(drift=True), dict(dirty=True), dict(keep=True)):
-            self.assertEqual(self.attempt(next(iter(kwargs)), **kwargs), (True, True), kwargs)

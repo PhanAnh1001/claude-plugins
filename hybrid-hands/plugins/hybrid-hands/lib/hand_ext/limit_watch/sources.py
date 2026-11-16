@@ -190,6 +190,8 @@ def day_guard(target, now):
         options = dict(cfg.options('claude-v1'), config_dir=target['account_home'])
         # Never weaken the configured 8% ceiling for a continuation.
         options['max_day_pct'] = min(float(options.get('max_day_pct', 8)), 8)
+        if not day_budget.guard_enabled(options, now):
+            return True
         return not day_budget.assess(options, now).blocked
     except Exception:
         return False

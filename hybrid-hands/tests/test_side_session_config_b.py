@@ -20,7 +20,7 @@ class ConfigBTest(unittest.TestCase):
         self.stack = ExitStack(); self.addCleanup(self.stack.close)
         self.stack.enter_context(patch.dict(os.environ, HOME=str(self.root), HYBRID_HANDS_CONFIG=str(self.root/'global.json')))
         self.stack.enter_context(patch('side_session.config.git_toplevel', return_value=self.root))
-        (self.root/'global.json').write_text(json.dumps({'main_session': {'codex_model': 'main-model', 'codex_effort': 'medium'}, 'side_session': {'codex_model': 'side-model'}}))
+        (self.root/'global.json').write_text(json.dumps({'profile': 'gpt-mono', 'main_session': {'codex_model': 'main-model', 'codex_effort': 'medium'}, 'side_session': {'codex_model': 'side-model'}}))
         self.cfg = load_config(self.root)
     def run_start(self, *flags):
         args = build_parser().parse_args(['start', '--name', 'fixture', *flags])
@@ -29,7 +29,7 @@ class ConfigBTest(unittest.TestCase):
         return result, out.getvalue()
     def test_main_config_and_cli(self):
         with patch.object(paseo, '_call', side_effect=AssertionError('dry run daemon call')):
-            for flags, model, effort in (([], 'main-model', 'medium'), (['--model', 'override', '--effort', 'high'], 'override', 'high')):
+            for flags, model, effort in (([], 'gpt-6.1-sol', 'high'), (['--model', 'override', '--effort', 'high'], 'override', 'high')):
                 result, out = self.run_start('--main', '--dry-run', *flags)
                 self.assertEqual(result, 0); self.assertIn(f'model={model} effort={effort}', out)
                 self.assertNotIn('side-model', out)
@@ -39,17 +39,18 @@ class ConfigBTest(unittest.TestCase):
         for section in ('side_session', 'main_session'):
             config[section].update(provider='claude', claude_account='v2', claude_model='configured-model', claude_effort='medium')
         config['side_session']['budget_check_cmd'] = ['fixture-guard']
+        config['profile'] = 'claude-mono'
         (self.root/'global.json').write_text(json.dumps(config))
         self.cfg = load_config(self.root)
         with patch.object(paseo, '_call', side_effect=AssertionError('dry run daemon call')), patch.object(actions, '_uses_day_guard', return_value=False) as guard:
             for main in ([], ['--main']):
-                for override, account, model, effort in (([], 'v2', 'configured-model', 'medium'), (['--provider', 'claude', '--account', 'v1', '--model', 'cli-model', '--effort', 'high'], 'v1', 'cli-model', 'high')):
+                for override, account, model, effort in ((['--provider', 'claude'], 'v1', 'claude-opus-5-5', 'high'), (['--provider', 'claude', '--account', 'v1', '--model', 'cli-model', '--effort', 'high'], 'v1', 'cli-model', 'high')):
                     result, out = self.run_start(*main, '--prompt', 'fixture', '--dry-run', *override)
                     self.assertEqual(result, 0); guard.assert_called_with(self.cfg, 'claude', account)
                     self.assertIn(f'model={model} effort={effort}', out)
                     self.assertEqual('CLAUDE_CONFIG_DIR' in out, account == 'v2')
                     self.assertEqual('accountProvider' in out, account == 'v2')
-        (self.root/'global.json').write_text('{}'); self.cfg = load_config(self.root)
+        (self.root/'global.json').write_text(json.dumps({'profile': 'claude-mono'})); self.cfg = load_config(self.root)
         with patch.object(paseo, '_call', side_effect=AssertionError('dry run daemon call')):
             result, out = self.run_start('--provider', 'claude', '--account', 'v2', '--prompt', 'fixture', '--dry-run')
         self.assertEqual(result, 0); self.assertIn('"provider": "claude"', out)
@@ -65,7 +66,7 @@ class ConfigBTest(unittest.TestCase):
             paseo.start_agent(workdir=str(self.root), name='fixture', model='m', effort='high', initial_prompt='fixture', codex_home=self.cfg.codex_home, target_key='fixture', hand_scope='scope', project_root=str(self.root), provider='claude', account='v1', claude_config_dir=str(self.root/'.claude'))
         self.assertNotIn('CLAUDE_CONFIG_DIR', call.call_args.args[1]['env'])
         self.assertNotIn('accountProvider', call.call_args.args[1])
-        with patch.object(paseo, 'cli_package_root', return_value=self.root), patch.object(paseo, 'disabled', return_value=False), patch.object(paseo, 'ready', return_value={'targetKey': 'fixture'}), patch.object(paseo, 'start_agent', side_effect=paseo.PaseoError('AGENT_CREATE_FAILED')), patch.object(paseo.codex_trust, 'ensure_codex_compact_limit') as compact, patch.object(actions.subprocess, 'run') as screen:
+        with patch.object(paseo, 'cli_package_root', return_value=self.root), patch.object(paseo, 'disabled', return_value=False), patch.object(paseo, 'ready', return_value={'targetKey': 'fixture'}), patch.object(paseo, 'start_agent', side_effect=paseo.PaseoError('AGENT_CREATE_FAILED')), patch.object(paseo.codex_trust, 'ensure_codex_compact_limit') as compact, patch('hand_ext.config._config_path', return_value=None), patch.object(actions.subprocess, 'run') as screen:
             result, out = self.run_start('--provider', 'claude', '--account', 'v2', '--prompt', 'fixture')
         self.assertEqual(result, 1); self.assertIn('không fallback screen', out)
         compact.assert_not_called(); screen.assert_not_called()
@@ -79,7 +80,7 @@ class ConfigBTest(unittest.TestCase):
         for path in ('bin/hand-ext', 'bin/side-session', 'bin/hh-ps', 'skills/ext-hand/SKILL.md', 'skills/side-session/SKILL.md'):
             self.assertIn(str(root/path), rendered)
         self.assertIn((root/'templates/hand-brief.md').read_text(), rendered)
-        self.assertIn('Codex actual-model medium', rendered)
+        self.assertIn('PHIÊN CHÍNH Codex do người dùng mở (actual-model medium)', rendered)
 
     def test_main_claude_compact_launch_and_display(self):
         from dataclasses import replace

@@ -126,7 +126,8 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
                 claude_config_dir: str = "", mode_id: str = "",
                 claude_options: dict | None = None,
                 claude_auto_compact_window: int | None = None,
-                caller_agent_id: str = "", account: str = "") -> dict:
+                caller_agent_id: str = "", account: str = "",
+                session_role: str = "") -> dict:
     """Create a directory workspace and the selected provider in one bridge call."""
     provider_options = {
         "approval_policy": C.CODEX_APPROVAL,
@@ -143,6 +144,7 @@ def start_agent(*, workdir: str, name: str, model: str, effort: str,
         provider_options = claude_options or {}
         claude_only = {"modeId": mode_id or None}
         claude_only.update(selection)
+    env.update(K.role_env(session_role))
     return _call("start", {
         "source": {"kind": "directory", "path": workdir},
         "projectRoot": project_root,
@@ -429,6 +431,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
         env[C.HAND_SCOPE_ENV] = st.uuid
         if st.claude_auto_compact_window is not None:
             env[C.CLAUDE_AUTO_COMPACT_ENV] = str(st.claude_auto_compact_window)
+        env.update(K.role_env(st.session_role))
         options = process_options(cfg, st.chrome) if st.provider == C.PROVIDER_CLAUDE else {}
         # Dry-run never probes the daemon: show the account provider tried first.
         print(json.dumps({"provider": "claude" if st.provider == C.PROVIDER_CLAUDE
@@ -475,7 +478,7 @@ def start_session(cfg: SideConfig, a, st: state.SessionState, workdir: str,
             codex_home=cfg.codex_home, hand_scope=st.uuid,
             project_root=str(cfg.repo),
             target_key=st.paseo_target,
-            caller_agent_id=_caller_agent_id(a, st),
+            caller_agent_id=_caller_agent_id(a, st), session_role=st.session_role,
             **({"provider": st.provider, "claude_config_dir": st.claude_config_dir,
                 "account": st.account,
                 "claude_auto_compact_window": st.claude_auto_compact_window,

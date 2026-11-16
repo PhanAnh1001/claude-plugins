@@ -25,7 +25,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 from hand_ext.codex_usage import price_for
 from usage_pricing import explicit_options
 from hand_ext.constants import CODEX_USAGE_LEDGER_NAME, DEFAULTS
-from hand_ext.go_usage import estimate_cost
+from .pricing import estimate_cost
 from side_session.state import load_all as load_side_states
 
 from .constants import STATE_DIR_DEFAULT, STATE_DIR_ENV

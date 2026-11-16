@@ -21,7 +21,6 @@ SID = "abcdef12-3456"
 SESSIONS = {SID: {"usd": 1.0, "total_usd": 11.0, "pct": 0.8}}
 NAME = "luxian-statusline"
 EXPECTED = "7d:12.2% (T6 2.1% · T7 5.4% · CN 0.0%)\x1f7d:2.8%\x1f$13.74/1%"
-GO_MODEL = "deepseek-v4.1-flash"
 
 
 class WeekSplitShellTest(unittest.TestCase):
@@ -126,14 +125,7 @@ class WeekSplitShellTest(unittest.TestCase):
             time.sleep(0.1)
         self.assertEqual(json.loads(summary.read_text())["total"], 15)
 
-    def test_statusline_places_line_after_claude_and_before_go(self) -> None:
-        state = self.home / "go-state"
-        state.mkdir()
-        (state / "go_usage_summary.json").write_text(json.dumps({
-            "updated_at": int(time.time()),
-            "models": {GO_MODEL: {"5h": {"percent": 1, "estimated": False},
-                                  "7d": {"percent": 2, "estimated": False}}},
-        }))
+    def test_statusline_places_lines_after_claude(self) -> None:
         self.write_summary()
         payload = json.dumps({
             "workspace": {"current_dir": str(self.home)}, "model": {"display_name": "Opus"},
@@ -142,7 +134,7 @@ class WeekSplitShellTest(unittest.TestCase):
                 "five_hour": {"used_percentage": 5, "resets_at": RESET_EPOCH},
                 "seven_day": {"used_percentage": 15, "resets_at": RESET_EPOCH}},
         })
-        env = clean_env(HOME=str(self.home), HYBRID_HANDS_STATE_DIR=str(state))
+        env = clean_env(HOME=str(self.home))
         result = run_bash(STATUSLINE, [], env, stdin=payload, cwd=self.home)
         self.assertEqual(result.returncode, 0, result.stderr)
         lines = ANSI_ESCAPE.sub("", result.stdout).split("\n")
@@ -150,8 +142,8 @@ class WeekSplitShellTest(unittest.TestCase):
                          r"^Claude v1 ultra\s+5h:5% \(reset .+\) \| 7d:15% \(reset .+ · \$13\.74/1%\)$")
         self.assertRegex(lines[3], r"^· máy này\s+\| 7d:12\.2% \(T6 2\.1% · T7 5\.4% · CN 0\.0%\)$")
         self.assertRegex(lines[4], r"^· máy khác\s+\| 7d:2\.8%$")
-        self.assertRegex(lines[-1], r"^Go\s+DS 5h 1\.0%\s+\| tuần 2\.0%$")
-        self.assertEqual({line.index("|") for line in lines[2:5] + lines[-1:]},
+        self.assertEqual(len(lines), 5, lines)
+        self.assertEqual({line.index("|") for line in lines[2:5]},
                          {len(lines[2].split("|")[0])})
 
 

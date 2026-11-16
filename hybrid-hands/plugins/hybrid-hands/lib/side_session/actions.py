@@ -13,7 +13,8 @@ from pathlib import Path
 from . import budget
 from . import commands as K
 from . import constants as C
-from . import external, gc, paseo, screen, state, tokens, checkout
+from . import gc, paseo, screen, state, tokens, checkout
+from . import profile_defaults
 from hand_ext.day_budget import guard_enabled
 from hand_ext.disk_guard import check_disk, DiskGuardBlocked, EXIT_DISK_GUARD
 from .config import SideConfig, claude_account
@@ -48,15 +49,6 @@ def _validate_start(a, full_prompt: str) -> int:
         print(f"side-session: --chrome chỉ dùng cho provider claude, không dùng được với "
               f"{a.provider}")
         return C.EXIT_USAGE
-    if a.provider in C.EXTERNAL_PROVIDERS:
-        if not a.worktree:
-            print(f"side-session: provider {a.provider} là hand ngoài, chỉ làm trong worktree: "
-                  "thêm --worktree")
-            return C.EXIT_USAGE
-        if C.PROMPT_RULES_MARKER not in full_prompt:
-            print(f"side-session: prompt provider {a.provider} phải có mục "
-                  f"'{C.PROMPT_RULES_MARKER}' (chép nguyên văn luật cấm)")
-            return C.EXIT_USAGE
     return 0
 
 
@@ -97,20 +89,14 @@ def _preflight(cfg: SideConfig, a) -> int | None:
 
 
 def _launch(cfg: SideConfig, a, st: state.SessionState, cmds: list[list[str]], *,
-            dry_run_kind: str, done_message: str, prompt_file: Path | None = None,
-            prompt_text: str = "") -> int:
+            dry_run_kind: str, done_message: str) -> int:
     if a.dry_run:
         print(f"# dry-run: {dry_run_kind} {st.name} uuid={st.uuid} provider={st.provider} "
               f"chrome={'yes' if st.chrome else 'no'} max_tokens={st.max_tokens} dir={st.dir}")
-        if prompt_file is not None:
-            print(f"# prompt: {prompt_file}")
         print(f"# state: {state.state_path(cfg.state_dir, st.name)}  handoff: {st.handoff}")
         for cmd in cmds:
             print(shlex.join(cmd))
         return 0
-    if prompt_file is not None:
-        cfg.state_dir.mkdir(parents=True, exist_ok=True)
-        prompt_file.write_text(prompt_text, encoding="utf-8")
     launch_cmds = cmds if st.role == "main" else cmds[:-1]
     for cmd in launch_cmds:
         if subprocess.run(cmd).returncode != 0:
@@ -155,8 +141,20 @@ def _worktree_preflight(cfg: SideConfig, a) -> int | None:
 def start(cfg: SideConfig, a) -> int:
     is_main = getattr(a, "main", False)
     settings = cfg.main_session if is_main else vars(cfg)
-    a.provider = a.provider or (C.PROVIDER_CLAUDE if a.resume else
-                                settings.get("provider", C.PROVIDER_CODEX))
+    if a.resume:
+        a.provider = a.provider or C.PROVIDER_CLAUDE
+    else:
+        try:
+            picked = profile_defaults.resolve(cfg.repo, is_main, {
+                "provider": a.provider, "account": getattr(a, "account", None),
+                "model": a.model, "effort": a.effort})
+        except profile_defaults.ProfileError as exc:
+            print(f"side-session: {exc}")
+            return C.EXIT_USAGE
+        a.provider, a.model, a.effort = picked["provider"], picked["model"], picked["effort"]
+        a.session_role = picked["role"]
+        if picked["account"]:
+            a.account = picked["account"]
     if a.provider not in C.PROVIDERS:
         print("side-session: provider cấu hình không hợp lệ")
         return C.EXIT_USAGE
@@ -170,11 +168,10 @@ def start(cfg: SideConfig, a) -> int:
     if not is_main and a.prompt is None and a.prompt_file is None:
         print("side-session: start cần --prompt hoặc --prompt-file")
         return C.EXIT_USAGE
-    if a.provider not in C.EXTERNAL_PROVIDERS:
-        a.model = a.model or settings.get(f"{a.provider}_model", C.CODEX_MODEL_DEFAULT
-                                         if a.provider == C.PROVIDER_CODEX else C.CLAUDE_MODEL_DEFAULT)
-        a.effort = a.effort or settings.get(f"{a.provider}_effort", C.CODEX_EFFORT_DEFAULT
-                                           if a.provider == C.PROVIDER_CODEX else C.CLAUDE_EFFORT_DEFAULT)
+    a.model = a.model or settings.get(f"{a.provider}_model", C.CODEX_MODEL_DEFAULT
+                                     if a.provider == C.PROVIDER_CODEX else C.CLAUDE_MODEL_DEFAULT)
+    a.effort = a.effort or settings.get(f"{a.provider}_effort", C.CODEX_EFFORT_DEFAULT
+                                       if a.provider == C.PROVIDER_CODEX else C.CLAUDE_EFFORT_DEFAULT)
     account = getattr(a, "account", None) or settings.get("claude_account", "v1")
     a.transport = settings.get("transport", C.TRANSPORT_PASEO)
     if a.provider == C.PROVIDER_CLAUDE and a.transport not in (C.TRANSPORT_PASEO, C.TRANSPORT_SCREEN):
@@ -202,7 +199,7 @@ def start(cfg: SideConfig, a) -> int:
         try:
             full_prompt = build_prompt(
                 prompt_text or C.MAIN_DEFAULT_PROMPT, name, handoff, a.brain or "",
-                external=a.provider in C.EXTERNAL_PROVIDERS, account=account, main=is_main,
+                account=account, main=is_main,
                 model=a.model or "", effort=a.effort or "")
         except ValueError as exc:
             print(exc)
@@ -228,8 +225,6 @@ def start(cfg: SideConfig, a) -> int:
     workdir = str(cfg.worktree_root / name) if a.worktree else str(cfg.repo)
     max_tokens = K.max_tokens_for(cfg, a.max_tokens, a.hours)
     chrome = K.chrome_enabled(cfg, a.chrome)
-    is_external = a.provider in C.EXTERNAL_PROVIDERS
-    prompt_file = cfg.state_dir / f"{name}{C.PROMPT_FILE_SUFFIX}" if is_external else None
     # Sandbox writable roots must exist before any provider opens its screen.
     # Keep dry-run free of filesystem changes.
     if not a.dry_run and not is_main:
@@ -243,7 +238,8 @@ def start(cfg: SideConfig, a) -> int:
         budget_exempt=bool(a.budget_exempt), role="main" if is_main else "",
         account=account, claude_config_dir=config_dir,
         model=a.model or (C.CLAUDE_MODEL_DEFAULT if a.provider == C.PROVIDER_CLAUDE else ""),
-        effort=a.effort or (C.CLAUDE_EFFORT_DEFAULT if a.provider == C.PROVIDER_CLAUDE else ""))
+        effort=a.effort or (C.CLAUDE_EFFORT_DEFAULT if a.provider == C.PROVIDER_CLAUDE else ""),
+        session_role=getattr(a, "session_role", ""))
     if is_main and st.provider == C.PROVIDER_CLAUDE:
         from shared_config import (DEFAULT_MAIN_CLAUDE_AUTO_COMPACT_WINDOW,
                                    normalize_claude_auto_compact_window)
@@ -268,12 +264,13 @@ def start(cfg: SideConfig, a) -> int:
                 return 1
             checkout.created(cfg, st)
     cmds.append(K.session_cmd(cfg, a.provider, name, sid, workdir, full_prompt, chrome,
-                              prompt_file, a.hours, model=a.model, effort=a.effort,
+                              model=a.model, effort=a.effort,
                               account=account, config_dir=config_dir,
-                              claude_auto_compact_window=st.claude_auto_compact_window))
+                              claude_auto_compact_window=st.claude_auto_compact_window,
+                              session_role=st.session_role))
     if not is_main:
         cmds.append(K.watch_cmd(cfg, name))
-    return _launch(cfg, a, st, cmds, prompt_file=prompt_file, prompt_text=full_prompt,
+    return _launch(cfg, a, st, cmds,
                    dry_run_kind="session",
                    done_message=f"started {name} (screen -r {K.session_screen(name)}), "
                                 f"uuid {sid}, " + (
@@ -371,11 +368,11 @@ def resume(cfg: SideConfig, a) -> int:
         parent_session=os.environ.get(C.PARENT_SESSION_ENV) or old.parent_session,
         chrome=chrome, budget_exempt=bool(a.budget_exempt), tokens_used=0,
         account=old.account, claude_config_dir=config_dir,
-        model=a.model or old.model, effort=a.effort or old.effort)
+        model=a.model or old.model, effort=a.effort or old.effort, session_role=old.session_role)
     cmds = [
         K.session_cmd(cfg, C.PROVIDER_CLAUDE, a.name, old.uuid, old.dir, prompt, chrome,
                       resume=True, model=st.model or None, effort=st.effort or None,
-                      account=st.account, config_dir=config_dir),
+                      account=st.account, config_dir=config_dir, session_role=st.session_role),
         K.watch_cmd(cfg, a.name),
     ]
     return _launch(cfg, a, st, cmds, dry_run_kind="resume",
@@ -431,9 +428,6 @@ def count_tokens(cfg: SideConfig, st: state.SessionState) -> int:
         return 0
     if st.provider == C.PROVIDER_CLAUDE and cfg.token_file:
         return tokens.token_file_tokens(cfg.token_file, native or st.uuid)
-    if st.provider in C.EXTERNAL_PROVIDERS:
-        run = external.run_for(st)
-        return external.tokens_used(run) if run is not None else 0
     if st.provider == C.PROVIDER_CODEX:
         return tokens.codex_tokens(_rollout_path(cfg, st))
     config_dir = (getattr(st, "claude_config_dir", "")
@@ -698,17 +692,6 @@ def _collect_stopped_worktree(cfg: SideConfig, st: state.SessionState) -> None:
           f"{C.BRANCH_PREFIX}{st.name}")
 
 
-def _finish_external(cfg: SideConfig, st: state.SessionState, run) -> bool:
-    st.tokens_used = external.tokens_used(run)
-    external.copy_report(run, Path(st.handoff))
-    st.status = external.final_status(run)
-    state.save(cfg.state_dir, st)
-    if st.status == C.STATUS_DONE:
-        checkout.remove_done(cfg, st)
-    print(f"{st.name}: {st.status} ({st.tokens_used}/{st.max_tokens} tokens)")
-    return False
-
-
 def _budget_daystop(cfg: SideConfig, st: state.SessionState) -> bool:
     if not cfg.budget_check_cmd or not _uses_day_guard(cfg, st.provider, st.account):
         return False
@@ -730,18 +713,6 @@ def _budget_daystop(cfg: SideConfig, st: state.SessionState) -> bool:
         stop_session(cfg, st, C.STATUS_DAYSTOP, stop_watch=False)
     print(f"{st.name}: daystop (budget_check_cmd mã {C.BUDGET_DAYSTOP_CODE})")
     return True
-
-
-def _external_tick(cfg: SideConfig, st: state.SessionState, run) -> bool:
-    if run is None:
-        if not screen.is_alive(st.screen):
-            st.status = C.STATUS_DEAD
-            state.save(cfg.state_dir, st)
-            return False
-        state.save(cfg.state_dir, st)
-        return True
-    st.tokens_used = external.tokens_used(run)
-    return _after_token_check(cfg, st)
 
 
 def _after_token_check(cfg: SideConfig, st: state.SessionState) -> bool:
@@ -892,15 +863,10 @@ def watch_tick(cfg: SideConfig, name: str) -> bool:
         checkout.remove_done(cfg, st)
         print(f"{st.name}: done")
         return False
-    run = external.run_for(st) if st.provider in C.EXTERNAL_PROVIDERS else None
-    if run is not None and not run.running:
-        return _finish_external(cfg, st, run)
     if _budget_daystop(cfg, st):
         return False
     if st.transport == C.TRANSPORT_PASEO:
         return _paseo_tick(cfg, st)
-    if st.provider in C.EXTERNAL_PROVIDERS:
-        return _external_tick(cfg, st, run)
     st.tokens_used = count_tokens(cfg, st)
     return _after_token_check(cfg, st)
 

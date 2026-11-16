@@ -24,7 +24,7 @@ const usageSchema = z
   .nullable()
   .optional();
 
-// Top-of-panel limit rows from `hh-ps --json` (Claude/Go weekly, GPT 5h + weekly).
+// Top-of-panel limit rows from `hh-ps --json` (Claude weekly, GPT 5h + weekly).
 const limitSchema = z
   .object({
     plan: z.string(),

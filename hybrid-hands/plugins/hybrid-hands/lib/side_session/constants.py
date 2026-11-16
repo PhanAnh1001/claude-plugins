@@ -27,6 +27,8 @@ SUMMARY_HEADING = "## Tóm tắt"
 CODEX_AUTO_COMPACT_TOKEN_LIMIT = 272_000
 CLAUDE_AUTO_COMPACT_ENV = "CLAUDE_CODE_AUTO_COMPACT_WINDOW"
 HAND_SCOPE_ENV = "HYBRID_HANDS_HAND_SCOPE"
+# Vai profile của phiên (super/brain) để hook policy in đúng một vai; rỗng = không đặt.
+ROLE_ENV = "HYBRID_HANDS_ROLE"
 CODEX_MODEL_DEFAULT = "gpt-6.1-sol"
 CODEX_EFFORT_DEFAULT = "high"
 # Sol runs unconfined with no approval prompts (user decision 07/11): the screen path uses
@@ -79,10 +81,7 @@ DEFAULTS: dict = {
 
 PROVIDER_CLAUDE = "claude"
 PROVIDER_CODEX = "codex"
-PROVIDER_DSH = "dsh"
-PROVIDERS = (PROVIDER_CLAUDE, PROVIDER_CODEX, PROVIDER_DSH)
-# Providers run as an external hand through `hand-ext run` (no Claude transcript).
-EXTERNAL_PROVIDERS = (PROVIDER_DSH,)
+PROVIDERS = (PROVIDER_CLAUDE, PROVIDER_CODEX)
 
 SCREEN_PREFIX = "side-"
 WATCH_SUFFIX = "-watch"
@@ -115,7 +114,6 @@ CHILD_SESSION_ENV = "CLAUDE_CODE_CHILD_SESSION"
 
 CHROME_FLAG = "--chrome"
 NO_CHROME_FLAG = "--no-chrome"
-PROMPT_RULES_MARKER = "LUẬT BẮT BUỘC"
 
 # Paseo transport (installed CLI 0.15.0; internal client/daemon-target modules).
 TRANSPORT_SCREEN = "screen"
@@ -163,13 +161,6 @@ CODEX_CONFIG_RPC_TIMEOUT_S = 15
 CODEX_CONFIG_RPC_EXIT_S = 5
 CODEX_CONFIG_RPC_KILL_S = 2
 
-# External-hand contract: label side:<name>, prompt file and report in the hand-ext run dir.
-EXT_LABEL_PREFIX = "side:"
-# hand-ext sanitises ':' to '-', so the registry may hold this form instead.
-EXT_LABEL_SANITIZED_PREFIX = "side-"
-PROMPT_FILE_SUFFIX = ".prompt.md"
-EXT_REPORT_FILE = "report.md"
-HAND_RUN_STATUS_OK = "ok"
 
 CLAUDE_PROJECTS_DIR = "~/.claude/projects"
 # Env override for the projects dir (tests point it at a fixture tree).

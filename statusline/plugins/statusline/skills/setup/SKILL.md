@@ -37,13 +37,9 @@ description: Set up, check or remove the statusline plugin as Claude Code's stat
    ```
 
    The first shows `bash "$HOME/.claude/statusline-command.sh"`; the second prints three or more lines.
-   Line 4, under Claude's limits, shows the live OpenCode Go windows (`Go 5h:... | wk:... | mo:...`) once a fetch has
-   filled `$CLAUDE_HOME/.statusline-go-usage.json`; until then it falls back to the estimated
-   `DS 5h ~12% · tuần ~31%` segment from `~/.hybrid-hands/go_usage_summary.json` (written by
-   `hand-ext`, never by this plugin). The first render only starts the fetch in the background.
    When the hand-ext Codex ledger
    `${HYBRID_HANDS_STATE_DIR:-$HOME/.hybrid-hands}/codex_usage.jsonl` has a schema-1 `.codex-hand`
-   sample ended within 24 hours, a `GPT` row follows `Go` with the newest 5h/7d percentages and
+   sample ended within 24 hours, a `GPT` row ends the limit table with the newest 5h/7d percentages and
    today's estimated USD (`hôm nay ~$...`); otherwise there is no GPT row.
    If it prints `statusline plugin not found`, the plugin is not in `installed_plugins.json`:
    install it with `claude plugin install statusline@statusline-local`.
@@ -61,20 +57,8 @@ Same order with `--uninstall`: `--uninstall --dry-run`, then `--uninstall`. It r
 
 - `CLAUDE_HOME` overrides the config dir (default `$HOME/.claude`); only set it when the user
   runs Claude Code with a non-default config dir.
-- The live `Go` line (line 4) reads the OpenCode Go usage API
-  (`GET https://opencode.ai/zen/go/v1/usage`), the same source as Paseo's
-  `opencode-go-usage-source` plugin. `scripts/go-usage-fetch.sh` reads the `opencode-go` key from
-  `${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json`, passes it to `curl` on stdin (never
-  in argv), and writes `$CLAUDE_HOME/.statusline-go-usage.json` atomically with mode 600. The key
-  is only read: it is never printed, logged or written to the cache. The statusline never waits
-  for the network; it refreshes the cache in the background at most every 5 minutes (60-second
-  lock). `STATUSLINE_GO_LIVE=0` disables the network path.
-- A failed fetch keeps the last good windows (marked `~`) for up to 6 hours; without them
-  (no fetch yet, rejected key, or an older outage) the optional `DS ...` tail reads
-  `~/.hybrid-hands/go_usage_summary.json` (or `$HYBRID_HANDS_STATE_DIR`); the statusline never
-  calls `hand-ext`. A missing or broken file is silent, so this needs no setup step.
-- The `GPT` row is read-only too: `scripts/gpt_usage.py` reads Codex rollouts in `~/.codex` and `~/.codex-hand` and never
+- The `GPT` row is read-only: `scripts/gpt_usage.py` reads Codex rollouts in `~/.codex` and `~/.codex-hand` and never
   writes it, calls the network or needs a setup step. Missing, broken or older-than-24h data hides
   the row; an expired reset hides only that percentage.
-- Requirements: `jq` (rendering and live cache), `curl` (live Go fetch), `python3` >= 3.9 (skill
+- Requirements: `jq` (rendering), `python3` >= 3.9 (skill
   segment; JSON fallback when `jq` is missing during setup).

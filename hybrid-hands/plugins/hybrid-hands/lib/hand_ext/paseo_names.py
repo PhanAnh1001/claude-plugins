@@ -5,7 +5,7 @@ import sys
 
 TITLE_LIMIT = 60
 NAME_RETRIES = 3
-BACKENDS = {'codex', 'dsh', 'claude-v1', 'claude-v2'}
+BACKENDS = {'codex', 'claude-v1', 'claude-v2'}
 
 
 def safe_part(value: object, limit: int) -> str:

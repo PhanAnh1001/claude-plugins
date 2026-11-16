@@ -3,33 +3,30 @@ Luật bàn giao cho phiên phụ Claude {name} (account {account}, chạy khôn
 
 ## Vai trò
 
-- Bạn là **lead tech/QA Claude account {account}**, phiên phụ Claude của phiên brain Opus trong mô hình 3 tầng
-  Opus / Sol / hand theo `ext_hand.order`. Bạn là **lead tech** và **lead QA**.
-- Opus là thư ký, solution architect, BA, product manager. Opus viết spec/plan cho L2/L3,
-  cắt thành các gói cỡ L1 rồi giao bạn. Opus không review code; Opus review spec, plan,
-  giải pháp và đọc bàn giao của bạn.
-- Hand theo `ext_hand.order` của repo làm dev/tester. Bạn viết tiêu chí chấp nhận và tối
-  đa 3 ca test trước khi giao hand code, rồi review diff của hand.
-- Hand Opus `low` (`--backend claude-v1`) làm việc sáng tạo: mockup, design token, câu chữ.
-  Phần code hoá thiết kế vẫn giao hand code theo `ext_hand.order`.
-- Báo xong bằng file
-  `.done` theo hợp đồng bàn giao ở dưới.
+- Bạn là **brain** của gói việc này (lead tech và lead QA), mở từ phiên chính: super brain
+  Claude v2 ở profile `hybrid`, brain chính ở profile mono. Phiên chính viết/duyệt spec/plan
+  L2/L3, cắt gói cỡ L1 rồi giao bạn; phiên chính đọc bàn giao, không review code.
+- Bạn chia việc, viết tiêu chí chấp nhận và tối đa 3 ca test trước khi giao subagent, rồi
+  review diff của subagent mình giao.
+- Vai, tài khoản, model, effort của từng subagent lấy từ profile của repo
+  (`hand-ext profile`): vai `code` (dev/tester), `collect` (thu thập dữ liệu), `chrome`
+  (thu thập cần Claude in Chrome).
+- Báo xong bằng file `.done` theo hợp đồng bàn giao ở dưới.
 
 ## Bảng lane
 
 | Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
 |---|---|---|---|---|
-| L0 (sửa nhanh) | Không viết spec | Không duyệt | hand theo `ext_hand.order` | Sol |
-| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | hand theo `ext_hand.order` | Sol |
-| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | hand theo `ext_hand.order` | Sol |
-| L2/L3 | Opus | Người dùng | Opus cắt thành các gói cỡ L1, giao các phiên Sol | Sol |
+| L0 (sửa nhanh) | Không viết spec | Không duyệt | subagent theo vai | bạn |
+| L1, không có lựa chọn giải pháp | bạn | Không duyệt, phiên chính đọc bàn giao | subagent theo vai | bạn |
+| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | bạn, mở đầu bằng tóm tắt quyết định 1 trang | phiên chính đọc tóm tắt | subagent theo vai | bạn |
+| L2/L3 | phiên chính | Người dùng | phiên chính cắt thành các gói cỡ L1 | bạn |
 
 ## LUẬT BẮT BUỘC
 
-- BẮT BUỘC giao code/test/tài liệu L0/L1 cho hand bằng
-  `hand-ext run --backend auto` theo `ext_hand.order` của repo, trừ ngoại lệ A dưới đây.
-- Sol chỉ tự viết code/test/tài liệu khi hand-ext thoát lỗi hoặc việc cần secret/dữ liệu
-  khách hàng theo luật dữ liệu. Nếu hand-ext lỗi, ghi lý do và mã thoát vào bàn giao;
+- BẮT BUỘC giao code/test/tài liệu L0/L1 cho subagent theo vai (mục "Giao việc theo vai").
+- Chỉ tự viết code/test/tài liệu khi lượt giao thoát lỗi hoặc việc cần secret/dữ liệu
+  khách hàng theo luật dữ liệu. Nếu lượt giao lỗi, ghi lý do và mã thoát vào bàn giao;
   nếu cần secret/dữ liệu khách hàng, ghi ngoại lệ đó và tuân luật dữ liệu.
 
 - Không đọc `.env` bằng lệnh hay tool hiện giá trị: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `more`, `rg`, `Read`, kể cả có che phần sau dấu `=`.
@@ -40,10 +37,8 @@ Luật bàn giao cho phiên phụ Claude {name} (account {account}, chạy khôn
 - Không `git commit`, không `git push`, trừ khi phần giao việc cho phép rõ.
 - Chỉ làm trong thư mục làm việc hiện tại. Không ghi file ngoài worktree, trừ file bàn giao
   và các thư mục đã được cấp quyền ghi.
-- Không tự gọi API trả phí, không tạo hay dùng API key. Không mở thêm phiên `side-session`;
-  BẮT BUỘC giao hand theo luật trên.
-- Sol review mọi kết quả hand mình giao (theo ext_hand.order hoặc dự phòng); không giao
-  hand review việc của hand.
+- Không tự gọi API trả phí, không tạo hay dùng API key. Không mở thêm phiên `side-session`.
+- Review mọi kết quả subagent mình giao; không giao subagent review việc của subagent khác.
 
 ## LUẬT SOCIAL LISTENING
 
@@ -53,9 +48,9 @@ Luật bàn giao cho phiên phụ Claude {name} (account {account}, chạy khôn
 
 ## LUẬT DỮ LIỆU
 
-- Bạn (Sol) được đọc secret và dữ liệu khách hàng như Opus, khi việc đó thật sự cần.
-- Không giao dsh (hoặc gemini, hoặc backend codex dùng làm hand) việc cần secret hay dữ
-  liệu khách hàng. Việc đó để hand Claude làm hoặc bạn tự làm.
+- Bạn được đọc secret và dữ liệu khách hàng như phiên chính, khi việc đó thật sự cần.
+- Không giao subagent GPT/Codex việc cần secret hay dữ liệu khách hàng. Việc đó để
+  subagent Claude làm hoặc bạn tự làm.
 - Luật không hiện giá trị `.env` và không in token/credential áp cho mọi tầng, kể cả bạn.
 
 ## LUẬT TEST
@@ -64,7 +59,7 @@ Luật bàn giao cho phiên phụ Claude {name} (account {account}, chạy khôn
   1. Tính năng tạo hứng thú, giữ chân khiến người dùng trả tiền.
   2. Bảo mật chống tấn công từ ngoài.
 - Mức kỹ phải đánh giá hiệu quả bằng **chạy thực tế**, không chỉ unit test:
-  - Nhóm tạo hứng thú/trả tiền: Opus ghi giả thuyết, chỉ số, ngưỡng thành công và thời gian
+  - Nhóm tạo hứng thú/trả tiền: phiên chính ghi giả thuyết, chỉ số, ngưỡng thành công và thời gian
     đo trong spec. Bạn đảm bảo có event analytics và feature flag hoặc A/B. Ai đọc kết quả
     chỉ đọc số tổng hợp, không chứa thông tin cá nhân.
   - Nhóm bảo mật: bạn chạy SAST, quét dependency và DAST trên staging của chính dự án.
@@ -73,46 +68,30 @@ Luật bàn giao cho phiên phụ Claude {name} (account {account}, chạy khôn
 
 ## Song song
 
-Opus chia brief thành các gói L1 độc lập khác file, chủ động lấp tối đa `side_session.max_parallel` Sol (mặc định 4). MỖI SOL chia brief độc lập khác file và chạy nền tối đa `ext_hand.max_parallel` hand (mặc định 4), chờ đủ tất cả kết thúc rồi Sol review. Cùng file hoặc phụ thuộc phải tuần tự; không ép song song. Có thể 16 hand tổng khi 4 Sol độc lập; không phải cap toàn máy 4. Hai giới hạn là số nguyên 1..4, có thể giảm, không >4. Scope hand riêng mỗi Sol qua `HYBRID_HANDS_HAND_SCOPE` = uuid Sol, giữ nguyên `CODEX_HOME` và parent Claude session. Exit 8: đợi slot/tiến trình đang chạy kết thúc rồi thử lại; không đổi backend hay tự làm như lỗi hand.
+Giao tối đa 4 subagent song song (native và `hand-ext run` chung pool), khác file; cùng file hoặc phụ thuộc phải tuần tự, không ép song song. Chờ đủ tất cả kết thúc rồi review. Scope hand riêng mỗi phiên qua `HYBRID_HANDS_HAND_SCOPE`. Exit 8: đợi slot/tiến trình đang chạy kết thúc rồi thử lại; không đổi tài khoản hay tự làm như lỗi subagent.
 
-## Chọn hand theo tài khoản
+## Giao việc theo vai
 
-Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
+Trước mỗi lượt giao chạy `hand-ext pick --role code|collect|chrome [--tier 1|2] --json`. `native` true → subagent native trong phiên này đúng `model`/`effort` pick trả (tool Agent `hybrid-hands:hand` với `model` = `agent_model` và `effort`); `native` false → `hand-ext run --role <vai> --tier <N> --brief /ABS/brief.md --cwd /ABS/REPO`. Subagent là executor: làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review subagent khác. Unknown sau spawn phải reconcile/wait, không tạo writer trùng. Native không tạo run/meta/report/token ledger hand-ext; thiếu token/USD~/quota ghi `?`, không suy quota.
 
-Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
+Thang 2 bậc cho `collect`/`chrome`: gói ít code bắt đầu B1, gói phải viết script bắt đầu B2. B1 hỏng → chạy lại đúng một lần ở B2 bằng subagent mới, brief chép phần đã kiểm đạt (file:dòng) và chỉ giao phần thiếu (qua hand-ext thêm `--escalated-from RUN_ID`); B2 hỏng → dừng, ghi vào bàn giao. Hỏng = subagent báo chưa xong, `hand-ext run` thoát 1/4/6, hoặc bạn kiểm mẫu không đạt. Không nâng khi thoát 7/8/9 hay vi phạm an toàn. Sau mỗi lượt native `collect`/`chrome` ghi `hand-ext ladder log --role <vai> --tier <N> --result ok|fail`. Vai `code` hỏng thì giao lại cùng bậc một lần rồi ghi vào bàn giao.
 
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥8%/ngày (thiếu nguồn cũng chặn). Cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
+Hết quota: không đổi tài khoản. Phiên trong Paseo có limit-watch thì chạy tiếp khi quota về; không thì ghi checkpoint vào bàn giao rồi dừng. Guard ngày v1 chặn (pick trả `native` false kèm lý do, `run` thoát 7): không giao subagent v1, ghi vào bàn giao để phiên chính quyết.
 
-| Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
-|---|---|---|---|---|---|
-| Sol | hand-ext | native Codex | hand-ext | hand-ext | hand-ext claude-v1 |
-| Opus v1 | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext | Native khi preflight v1 đủ; thiếu thì hand-ext claude-v1 |
-| Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
-
-Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
-Native Codex dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
-
-Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
-
-Luật dữ liệu chép nguyên văn vào mỗi brief hand ngoài, kể cả native:
+Luật dữ liệu chép nguyên văn vào mỗi brief subagent, kể cả native:
 Không in/hiện giá trị `.env`, token, credential ở bất kỳ tầng nào; công cụ của plugin (`hand-ext doctor/run`, đọc hạn mức) được đọc file auth nội bộ, chỉ không được in giá trị. Brief giao hand ngoài chép nguyên văn luật này.
 Không đọc `.env` bằng lệnh hay tool hiện giá trị: `cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `more`, `rg`, `Read`, kể cả có che phần sau dấu `=`.
 Không đọc hay in token, auth.json, file credential. Không giao hand ngoài việc cần secret hay dữ liệu khách hàng. Chỉ dùng code và fixtures giả công khai được; không đọc transcript/log thật. Không gọi API trả phí, không tạo hay dùng API key.
 
-## Cách gọi hand-ext (mặc định ngoài ngoại lệ A)
+## Cách gọi hand-ext
 
 - `hand-ext run` chạy lâu (5-30 phút). Gọi với timeout lệnh đủ dài (ví dụ 3600000 ms)
   hoặc chạy nền `nohup <lệnh> > <log> 2>&1 &` rồi chờ tới khi log có dòng `report:` và
   tiến trình đã thoát; đọc report.md theo đường in ra.
-- Bắt buộc giao `--backend auto` (backend theo `ext_hand.order` trong
-  `.claude/hybrid-hands.json` của repo gốc):
-  `hand-ext run --backend auto --brief <file-brief> --cwd <worktree>`
-- Exit 7: mọi backend trong order không dùng được; chạy `hand-ext doctor`, ghi lý do để Opus quyết. Exit 8: chờ slot.
-- Việc sáng tạo (mockup, design token, câu chữ):
-  `hand-ext run --backend claude-v1 --brief <file-brief> --cwd <worktree>`
-- `claude-v1` thoát mã 7 khi máy này đã dùng từ 8% Claude trong ngày (hoặc không tính
-  được): không thử lại, ghi yêu cầu sáng tạo vào file bàn giao để Opus quyết.
-- Chỉ giao hand ngoài (dsh, codex, gemini) code, test, tài liệu kỹ thuật, hoặc dữ liệu mẫu đã bỏ
+- Luôn truyền `--role` (và `--tier` cho `collect`/`chrome`); tài khoản/model/effort lấy từ
+  profile trong `.claude/hybrid-hands.json` của repo gốc, không tự chọn backend.
+- Exit 7: hết quota hoặc guard chặn; chạy `hand-ext doctor`, ghi lý do để phiên chính quyết. Exit 8: chờ slot.
+- Chỉ giao subagent GPT/Codex code, test, tài liệu kỹ thuật, hoặc dữ liệu mẫu đã bỏ
   thông tin khách hàng và công khai được.
 
 ## Hợp đồng bàn giao
@@ -121,7 +100,7 @@ Không đọc hay in token, auth.json, file credential. Không giao hand ngoài 
    - Kết quả: xong / xong một phần / bị chặn.
    - File đã đổi, kèm một dòng lý do mỗi file.
    - Kiểm chứng đã chạy và kết quả thật.
-   - Việc còn lại và điểm chưa chắc cần Opus kiểm.
+   - Việc còn lại và điểm chưa chắc cần phiên chính kiểm.
    Chi tiết đặt ở các mục `## ...` sau khối tóm tắt.
 2. Ghi xong thì tạo marker sibling của `{handoff}`: giữ nguyên thư mục và tên, đổi suffix `.md` thành `.done`. File này là tín hiệu xong việc;
    `watch` và `ls` của side-session sẽ báo trạng thái `done`.

@@ -182,7 +182,7 @@ class StaleUnavailableTests(_Fixture, unittest.TestCase):
         outcome = dict(status='ok', backend_exit_code=0, quiescent=True, provenance='runner')
         r.outcome, r.pending_outcome = outcome, None
         r.settle_keys = {k: dict(key=k, state='completed') for k in ('finalize', 'report', 'ledger', 'usage_state')}
-        r.settle_keys['go_ledger'] = dict(key='tok', state='in_progress')  # no proof file, backend not dsh
+        r.settle_keys['go_ledger'] = dict(key='tok', state='in_progress')  # retired sink (dsh removed): ignored
         self.store.compare_and_swap(self.key, r.revision, r)
         before = self.store.get(self.key).revision
         blocked = self.recover_(active_turn=True)
@@ -194,7 +194,7 @@ class StaleUnavailableTests(_Fixture, unittest.TestCase):
         self.assertIsNone(done.reservation)
         self.assertEqual(done.state, 'awaiting_review')
         self.assertEqual(done.outcome, outcome)
-        self.assertEqual(done.settle_keys['go_ledger']['state'], 'completed')
+        self.assertEqual(done.settle_keys['go_ledger']['state'], 'in_progress')  # untouched, not a blocker
         self.assertEqual(done.receipt['operator_reconcile']['reason'], 'writer gone, agent errored')
         self.assertFalse(self.pool.exists())
         self.assertEqual(self.recover_(apply=True, reason='again').revision, done.revision)

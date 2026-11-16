@@ -1,4 +1,4 @@
-"""`hh-ps` usage: dedupe/price transcripts, Go hand estimates, USD and limit-% columns."""
+"""`hh-ps` usage: dedupe/price transcripts, hand token usage, USD and limit-% columns."""
 from __future__ import annotations
 
 __import__("os").environ["HYBRID_HANDS_ACCOUNT_LABEL_OFFLINE"] = "1"  # never read real account files
@@ -161,28 +161,13 @@ class ClaudePriceTest(unittest.TestCase):
 
 
 class HandUsageTest(unittest.TestCase):
-    def test_go_backend_subtracts_cached_input_and_prices(self) -> None:
-        usage = hand_usage({"input": 1_000_000, "cached_input": 400_000,
-                            "output": 500_000}, "dsh")
+    def test_hand_tokens_split_cached_input_and_leave_usd_to_enrichment(self) -> None:
+        usage = hand_usage({"input": 1000, "cached_input": 200, "output": 10})
         self.assertEqual((usage.read, usage.cache_read, usage.cache_write, usage.out),
-                         (600_000, 400_000, None, 500_000))
-        self.assertAlmostEqual(usage.usd, 0.7824, places=4)
-
-    def test_go_backend_week_percent_uses_the_weekly_limit(self) -> None:
-        usage = hand_usage({"input": 1_000_000, "cached_input": 400_000,
-                            "output": 500_000}, "dsh", 50.0)
-        self.assertAlmostEqual(usage.week_pct, 0.7824 / 50.0 * 100, places=4)
-        self.assertIsNone(hand_usage({"input": 1, "output": 1}, "dsh").week_pct)
-
-    def test_other_backend_has_tokens_but_no_usd(self) -> None:
-        usage = hand_usage({"input": 1000, "cached_input": 200, "output": 10}, "codex")
-        self.assertEqual(usage.read, 800)
-        self.assertEqual(usage.cache_read, 200)
+                         (800, 200, None, 10))
         self.assertIsNone(usage.usd)
         self.assertIsNone(usage.week_pct)
-
-    def test_missing_tokens_give_no_usage(self) -> None:
-        self.assertIsNone(hand_usage({}, "dsh"))
+        self.assertIsNone(hand_usage({}))
 
 
 def _session(sid: str, name: str | None = None, *, live: bool = True,
@@ -207,9 +192,9 @@ def _main_session() -> Session:
         "a1", "hybrid-hands:hand", "việc con", True, False, 2000, 60.0,
         NOW - 60, Usage(read=500, cache_read=600, cache_write=0, out=7, usd=0.02)))
     main.hand_runs.append(HandRun(
-        "r1", "lượt hand", "dsh", "deepseek", "ok", "main",
+        "r1", "lượt hand", "codex", "gpt-6.1-sol", "ok", "main",
         {"input": 1_000_000, "cached_input": 400_000, "output": 500_000},
-        NOW - 3000, NOW - 120, 1, None, False, week_limit_usd=50.0))
+        NOW - 3000, NOW - 120, 1, None, False))
     return main
 
 

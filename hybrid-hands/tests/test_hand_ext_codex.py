@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "fixtures" / "hand_ext"
 from codex_harness import SECRET, Sandbox  # noqa: E402
 from hand_ext.backends import codex  # noqa: E402
 from hand_ext.config import load_config  # noqa: E402
-from hand_ext.run_cmd import candidates  # noqa: E402
+from hand_ext.run_cmd import preflight  # noqa: E402
 from hand_ext.backends.codex import quota_from_rate_limits  # noqa: E402
 from hand_ext.backends.codex_config import merge_top_level  # noqa: E402
 from hand_ext.backends.base import RunSpec  # noqa: E402
@@ -26,7 +26,7 @@ OLD_CONFIG = ('model = "gpt-6.1-sol"\nservice_tier = "flex"\nmodel_reasoning_eff
 
 class CodexRunTest(HandExtTestCase):
     def setUp(self) -> None:
-        self.sb = Sandbox(order=["codex"])
+        self.sb = Sandbox()
 
     def tearDown(self) -> None:
         self.sb.close()
@@ -135,7 +135,7 @@ class CodexRunTest(HandExtTestCase):
 
 class CodexSetupDoctorTest(HandExtTestCase):
     def setUp(self) -> None:
-        self.sb = Sandbox(order=["codex"])
+        self.sb = Sandbox()
 
     def tearDown(self) -> None:
         self.sb.close()
@@ -180,7 +180,7 @@ class CodexSetupDoctorTest(HandExtTestCase):
                     with self.subTest(auth_mode=mode), mock.patch.object(codex.cc, "auth_mode", return_value=mode):
                         checks = backend.doctor(cfg.options("codex"))
                         self.assertEqual(all(c.ok or not c.required for c in checks), mode == "chatgpt")
-                        self.assertEqual([b.name for b in candidates(cfg, "auto")], ["codex"] if mode else [])
+                        self.assertEqual(preflight(cfg, "codex")[0] is not None, bool(mode))
                         self.assertTrue(any(not c.required and "override" in c.detail for c in checks))
                 spec = RunSpec("", self.sb.dir, self.sb.dir, "hand-model", "low", "workspace-write", 1, None, cfg.options("codex"))
                 with mock.patch.dict(os.environ, {codex.OUTER_SANDBOX_ENV: ""}):

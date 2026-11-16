@@ -21,12 +21,11 @@ class NativePickTest(HandExtTestCase):
         with mock.patch.dict("os.environ", {
                 "HOME": str(root), "HYBRID_HANDS_CONFIG": str(global_config),
                 "CLAUDECODE": "1", "CLAUDE_CONFIG_DIR": str(root / ".claude")}, clear=True), \
-                mock.patch("hand_ext.cli.auto_preflight", return_value=[
-                    (object(), "claude-v1", "")]):
+                mock.patch("hand_ext.cli.preflight", return_value=(object(), "")):
             cfg = load_config(known_root=root, config_file=root / "absent.json")
             output = io.StringIO()
             with redirect_stdout(output):
-                self.assertEqual(cmd_pick(cfg, Namespace(json=True)), 0)
+                self.assertEqual(cmd_pick(cfg, Namespace(json=True, backend="claude-v1")), 0)
             return json.loads(output.getvalue())
 
     def test_global_native_claude_off(self) -> None:
@@ -42,14 +41,11 @@ class NativePickTest(HandExtTestCase):
         self.assertIs(result["native"], False)
         self.assertIn("effort", result["native_reason"])
 
-    def test_explicit_backend_ignores_order_without_fallback(self):
+    def test_explicit_backend_blocked_without_fallback(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.dict("os.environ", {"HYBRID_HANDS_CONFIG": str(Path(tmp) / "absent.json")}):
             cfg = load_config(known_root=Path(tmp), config_file=Path(tmp) / "repo.json")
-            cfg.order = ["codex", "claude-v1"]
-            def preflight(selected):
-                self.assertEqual(selected.order, ["claude-v1"])
-                return [(None, "claude-v1", "guard blocked")]
-            with mock.patch("hand_ext.cli.auto_preflight", side_effect=preflight), redirect_stdout(io.StringIO()) as out:
-                self.assertEqual(cmd_pick(cfg, Namespace(json=True, backend="claude-v1")), 7)
+            with mock.patch("hand_ext.cli.preflight", return_value=(None, "guard blocked")) as checked, \
+                    redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(cmd_pick(cfg, Namespace(json=True, backend="claude-main")), 7)
+            checked.assert_called_once_with(cfg, "claude-v1")
             self.assertEqual(json.loads(out.getvalue())["skipped"], [{"backend":"claude-v1", "reason":"guard blocked"}])
-            self.assertEqual(cfg.order, ["codex", "claude-v1"])

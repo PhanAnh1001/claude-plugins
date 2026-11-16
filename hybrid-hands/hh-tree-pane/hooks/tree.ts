@@ -160,7 +160,7 @@ export const percentText = (pct: number | null | undefined, estimated = false) =
 const limitPercent = (pct: number | null | undefined, estimated = false) => (
   pct == null || !Number.isFinite(pct) ? UNKNOWN_PERCENT : percentText(pct, estimated))
 
-/** `Go tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
+/** `Claude tuần   máy này 12.3% · máy khác 4.5% · tổng 16.8% · reset 14:00` */
 export const limitLine = (l: Limit, now: number) => {
   const reset = endedText(l.resets_at, now)
   const mark = l.estimated === true

@@ -9,6 +9,13 @@
       "source": "https://developers.openai.com/api/docs/pricing",
       "price_date": "2026-11-07"
     },
+    "gpt-6.1-terra": {
+      "input": 1,
+      "cached": 0.05,
+      "output": 5,
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "price_date": "2026-11-16"
+    },
     "claude-opus-5-5": {
       "input": 4,
       "cached": 0.2,

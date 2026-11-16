@@ -67,7 +67,7 @@ class PaseoTransportTests(unittest.TestCase):
             r.reservation=None
             r.outcome={'quiescent':True,'backend_exit_code':0}
             r.settle_keys={k:{'key':k,'state':'completed'} for k in
-                ('finalize','report','ledger','go_ledger','usage_state')}
+                ('finalize','report','ledger','usage_state')}
         self.store.compare_and_swap(self.key,r.revision,r)
     def placement(self):
         project=self.transport.verify_parent('parent')

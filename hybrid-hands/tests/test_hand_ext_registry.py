@@ -158,7 +158,7 @@ class RegistryFileTest(HandExtTestCase):
 
 class RegistryRunIntegrationTest(HandExtTestCase):
     def setUp(self) -> None:
-        self.sb = Sandbox(order=["codex"])
+        self.sb = Sandbox()
         self.addCleanup(self.sb.close)
         self.state = self.sb.dir / "machine-state"
         patcher = mock.patch.dict(os.environ, {

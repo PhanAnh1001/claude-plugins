@@ -1,22 +1,55 @@
 # hybrid-hands
 
-Tóm tắt: phối hợp phiên chính, phiên phụ và hand theo tài khoản; cấu hình dùng chung toàn máy, có thể ghi đè ở repo và CLI.
+## Tóm tắt
 
-## Phiên chính Sol trên Paseo
+- **Mục đích:** plugin Claude Code điều phối brain/subagent theo **profile của repo → vai → model/effort**. Mỗi repo chọn một profile (`claude-mono`, `gpt-mono`, `hybrid`); profile quyết định model, effort và tài khoản cho từng vai (super brain, brain, `code`, `collect`, `chrome`).
+- **Cách dùng:** đặt profile một lần sau khi người dùng chốt (`hand-ext profile set <tên>`); brain chạy `hand-ext pick --role <vai> --json` trước mỗi lượt giao, `native` true → subagent native, false → `hand-ext run --role <vai> --tier <N>`.
+- **Thang 2 bậc:** vai thu thập dữ liệu (`collect`, `chrome`) bắt đầu ở B1, lỗi thì lên B2; ghi kết quả bằng `hand-ext ladder log`, xem tỉ lệ bằng `hand-ext ladder stats`.
+- **Hết quota:** không đổi tài khoản, không chuyển API; chờ reset hoặc báo phiên chính. Guard ngày cho tài khoản Claude v1 là tuỳ chọn, mặc định tắt.
+- **Thành phần:** `hand-ext` (pick/run/ladder/profile/doctor), agent `hybrid-hands:hand`, `side-session` (phiên brain và super brain, hợp đồng bàn giao `.done`), `hh-ps` (cây phiên), `cc-switch`, skill `ext-hand`/`side-session`/`paseo`/`limit-watch`, hook SessionStart (khuôn brief, luật vai, luật dữ liệu) và UserPromptSubmit (bản ngắn).
+- **Luật dữ liệu:** brain được đọc secret và dữ liệu khách hàng; luật hand ngoài (codex dùng làm hand) cấm giao việc phải đọc hoặc gửi secret hay dữ liệu khách hàng, việc đó dùng hand Claude. Không hiện giá trị `.env` áp cho mọi tầng.
+- **Luật test tối thiểu:** brain ghi mức test trong KIỂM CHỨNG của brief; mặc định hand chỉ viết test tối thiểu (1 test đường chính + tối đa 1-2 case biên/lỗi). Mức "kỹ" chỉ gồm ĐÚNG 2 nhóm: tính năng giữ chân/chi tiêu và bảo mật chống tấn công từ ngoài.
+- **Cách ly worktree:** `hand-ext run` mặc định chạy hand trong git worktree sạch, lưu `changes.patch` rồi áp về cwd gốc; xem mục 5.3.
+- **Việc cần làm lần đầu:** cài plugin (mục 2), `hand-ext profile set <tên>`, `hand-ext setup`, người dùng tự đăng nhập từng backend (mục 5), rồi `hand-ext doctor`.
 
-Mở brain Sol Codex (mặc định `gpt-6.1-sol`, effort high) tại repo chính bằng `side-session start --main --name sol-main [--prompt ...]`, rồi xem và trao đổi trên điện thoại qua Paseo. Cần daemon Paseo; không dùng `--worktree`. Bỏ prompt để Sol đọc luật repo và chờ việc; `--effort` ghi đè mặc định. Phiên chính không có handoff/watchdog và không chiếm slot phiên phụ; marker hay idle không tự archive phiên chính. Chỉ người dùng tự archive trên Paseo; dùng `side-session ls` để xem, `side-session stop sol-main` để interrupt, giữ phiên và lịch sử. `--dry-run` chỉ in kế hoạch, không gọi daemon.
+## Profile và vai
 
+Khoá `profile` đặt ở repo `.claude/hybrid-hands.json` (hoặc global). Thiếu khoá thì `pick --role`, `run --role` và `side-session start` báo lỗi kèm gợi ý `hand-ext profile set <tên>`; không tự chọn profile.
 
+| Vai | `claude-mono` | `gpt-mono` | `hybrid` |
+|---|---|---|---|
+| Super brain (phiên chính) | không có | không có | Claude v2 `claude-opus-5-5` high |
+| Brain | Claude v1 `claude-opus-5-5` high | GPT `gpt-6.1-sol` high | GPT `gpt-6.1-sol` high |
+| `code` | Claude v1 `claude-opus-5-5` low | GPT `gpt-6.1-sol` low | GPT `gpt-6.1-sol` low |
+| `collect` B1 / B2 | Claude `claude-sonnet-5-5` low / medium | GPT `gpt-6.1-terra` low / low | GPT `gpt-6.1-terra` low / low |
+| `chrome` B1 / B2 | Claude `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium |
 
-Opus chia brief thành các gói L1 độc lập khác file, chủ động lấp tối đa `side_session.max_parallel` Sol (mặc định 4). MỖI SOL chia brief độc lập khác file và chạy nền tối đa `ext_hand.max_parallel` hand (mặc định 4), chờ đủ tất cả kết thúc rồi Sol review. Cùng file hoặc phụ thuộc phải tuần tự; không ép song song. Có thể 16 hand tổng khi 4 Sol độc lập; không phải cap toàn máy 4. `side_session.max_parallel` là số nguyên 1..6, mặc định 4; `ext_hand.max_parallel` vẫn là số nguyên 1..4, mặc định 4. Thứ tự scope: `HYBRID_HANDS_HAND_SCOPE` → `CODEX_THREAD_ID` → `CLAUDE_CODE_SESSION_ID` → repo root. Scope hand riêng mỗi Sol qua `HYBRID_HANDS_HAND_SCOPE` = uuid Sol, giữ nguyên `CODEX_HOME` và parent Claude session. Exit 8: đợi slot/tiến trình đang chạy kết thúc rồi thử lại; không đổi backend hay tự làm như lỗi hand.
+Nguồn mặc định là `lib/hand_ext/profiles.py`; ghi đè từng ô bằng `profiles.<profile>.<vai>` (vai có bậc dùng `profiles.<profile>.collect.1`, `…chrome.2`), mỗi ô gồm `provider`, `account`, `model`, `effort`. Model phải có giá trong bảng canonical (mục 6).
 
-Sol **BẮT BUỘC giao code/test/tài liệu L0/L1** bằng `hand-ext run --backend auto` theo `ext_hand.order` của repo. Sol chỉ tự viết khi hand-ext thoát lỗi (ghi lý do và mã thoát vào bàn giao) hoặc việc cần secret/dữ liệu khách hàng theo luật dữ liệu. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do để Opus quyết. Exit 8: chờ slot.
+```sh
+hand-ext profile                     # profile hiện tại và bảng vai hiệu lực
+hand-ext profile set hybrid          # chỉ chạy sau khi người dùng chốt
+hand-ext pick --role code --json
+hand-ext pick --role collect --tier 2 --json
+hand-ext run --role collect --tier 2 --escalated-from 1 --brief /ABS/brief.md --cwd /ABS/REPO
+hand-ext ladder log --role collect --tier 1 --result fail
+hand-ext ladder stats --json
+```
+
+- **Pick:** JSON có `profile`, `role`, `tier`, `provider`, `account`, `model`, `effort`, `backend`, `agent_model`, `native`, `native_reason`, `guard_blocked`. Cùng account và đủ capability thì `native` true: brain spawn subagent native đúng model/effort; còn lại dùng `run --role`. Guard chặn thì exit 7.
+- **Run:** `--role/--tier` lấy backend/model/effort từ ô vai; `--escalated-from` chỉ đi với `--tier 2`. Meta lượt chạy thêm `role`, `tier`, `attempt`, `escalated_from`.
+- **Thang 2 bậc:** chỉ `collect` và `chrome` có bậc; `code` một bậc. Lỗi ở B1 thì giao lại ở B2 kèm `--escalated-from 1`; B2 vẫn lỗi thì ghi bàn giao để phiên chính quyết.
+- **Super brain:** chỉ profile `hybrid`, mở bằng `side-session start --main`; viết/duyệt spec, plan, mở phiên brain, review bàn giao; không code, không gọi `pick/run`.
+- **Hết quota:** không đổi tài khoản hay backend để né hạn mức; chờ reset (xem skill `limit-watch`) hoặc báo phiên chính.
+- **Guard ngày v1:** tuỳ chọn trên `ext_hand.claude_accounts.v1`: `day_guard` (mặc định `false`), `max_day_pct` (mặc định 8), `day_guard_days` (danh sách `mon`..`sun`), `day_guard_off_date` (`YYYY-MM-DD`, tắt trong ngày đó). Khi bật, lượt native/hand trên Claude v1 bị chặn khi máy đã dùng từ `max_day_pct` hạn mức tuần trong ngày hoặc không tính được.
+- **Song song:** mỗi brain tối đa `ext_hand.max_parallel` (1..4) subagent, native và hand-ext chung pool; cùng file hoặc phụ thuộc phải tuần tự. Phiên chính lấp tối đa `side_session.max_parallel` (1..6, mặc định 4) phiên brain. Scope hand riêng mỗi phiên qua `HYBRID_HANDS_HAND_SCOPE`. Exit 8: đợi slot.
+- **Lane:** L0/L1 brain viết spec (nếu cần), giao subagent theo vai, review code; L2/L3 phiên chính viết spec/plan, người dùng duyệt, cắt thành gói cỡ L1 giao các phiên brain.
 
 ## Tên agent và workspace Paseo — 0.36.1
 
-Tên agent và workspace của phiên phụ có dạng `<tên> · <loại> phụ`: ví dụ `qa · Sol phụ` (Codex), `qa · Opus v1 phụ`, `qa · Opus v2 phụ` (Claude theo account) hoặc `qa · dsh phụ`. Main và workspace shared giữ title hiện có.
+Tên agent và workspace của phiên phụ có dạng `<tên> · <loại> phụ`: ví dụ `qa · Sol phụ` (Codex), `qa · Opus v1 phụ`, `qa · Opus v2 phụ` (Claude theo account). Main và workspace shared giữ title hiện có.
 
-Managed agent và workspace có dạng `<tên cha> › hand <backend> · <label>`, ví dụ `qa › hand codex · docs`. Cha được xác minh là main dùng `chính`, cha chưa xác định dùng `?` (ví dụ `? › hand dsh · docs`); không suy main từ cwd hay tên. Tên tối đa 60 ký tự; cắt label để giữ tiền tố cha và backend. Không đưa path, nội dung brief hay secret vào tên.
+Managed agent và workspace có dạng `<tên cha> › hand <backend> · <label>`, ví dụ `qa › hand codex · docs`. Cha được xác minh là main dùng `chính`, cha chưa xác định dùng `?` (ví dụ `? › hand codex · docs`); không suy main từ cwd hay tên. Tên tối đa 60 ký tự; cắt label để giữ tiền tố cha và backend. Không đưa path, nội dung brief hay secret vào tên.
 
 Naming áp dụng khi create, `side-session send` và managed followup; lặp lại cùng tên là idempotent, không tạo agent/workspace mới. Dùng API public Paseo 0.15.0: `createAgent` nhận `title`, đổi tên agent bằng `client.updateAgent(agentId, {name: title})` (đọc lại ở `.title`), đổi tên workspace bằng `client.setWorkspaceTitle(workspaceId, title)` (trả `{title}`). Workspace create chưa có title option nên đặt tên sau create. Hai method đổi tên không nằm trong required capabilities preflight: naming là best effort, lỗi chỉ cảnh báo, không chặn lifecycle; `ls`/`watch` retry hữu hạn, không chờ vô hạn hay tạo writer trùng.
 
@@ -31,37 +64,19 @@ hand-ext managed names --cwd /ABS/REPO --apply
 
 `side-session tidy --names [--name NAME] [--apply]` chỉ sửa tên side-session do plugin sở hữu; bỏ `--name` để xét các phiên trong phạm vi state. `hand-ext managed names --cwd /ABS [--apply]` là thao tác tương đương cho managed hand. Dry-run không ghi; apply chỉ đổi tên agent/workspace plugin-owned được xác minh, chặn main, shared, foreign và workspace có member chưa rõ ownership. Không suy ownership từ title/cwd. Cả hai lặp an toàn và không archive. `side-session tidy` không có `--names` vẫn giữ contract archive hiện có; naming không đổi review gate, restore/send, IDs, history, worktree hay artifacts.
 
-## Chọn hand theo tài khoản
+## Hand Paseo opt-in
 
-### Hand Paseo opt-in: ưu tiên trước ngoại lệ native
-
-`shell` vẫn là mode mặc định. Chỉ repo được operator bật `ext_hand.mode=auto` hoặc `paseo-required` mới dùng managed hand; không tự sửa config hay bật ở repo khác. Bảng native bên dưới chỉ áp dụng đường cũ. Khi mode opt-in và daemon/provider/capability sẵn sàng, **intent mới vốn giao native Sol low** phải chạy `hand-ext run --backend auto --mode paseo-required --brief /ABS/brief.md --cwd /ABS/REPO`, không spawn native trực tiếp. Native đang tồn tại giữ nguyên, không migrate. Vẫn chạy `hand-ext pick --json` trước; dispatcher giữ order, account/model/effort, quota/day guards và pool chung `ext_hand.max_parallel` (1..4), không ép backend codex vì intent ban đầu là Sol low.
+`shell` vẫn là mode mặc định. Chỉ repo được operator bật `ext_hand.mode=auto` hoặc `paseo-required` mới dùng managed hand; không tự sửa config hay bật ở repo khác. Khi mode opt-in và daemon/provider/capability sẵn sàng, intent mới vốn giao native phải chạy `hand-ext run --role <vai> --tier <N> --mode paseo-required --brief /ABS/brief.md --cwd /ABS/REPO`, không spawn native trực tiếp. Native đang tồn tại giữ nguyên, không migrate. Vẫn chạy `hand-ext pick --role <vai> --json` trước; dispatcher giữ ô vai (account/model/effort), quota/guard ngày và pool chung `ext_hand.max_parallel` (1..4).
 
 Thiếu daemon/provider/capability **trước dispatch**: `auto` quay đường shell cũ, `paseo-required` báo lỗi, không silent fallback. Parent/project/target không xác minh được thì chặn. Sau create/send hoặc ACK không rõ, reconcile exact invocation/attempt/epoch, giữ reservation; không tạo shell/native writer thứ hai.
 
-Mỗi managed hand có workspace/worktree riêng trong **cùng verified project** với parent, caller gắn parent canonical và tab/track của parent; không hứa sidebar native lồng child. Theo quyết định 09/11/2026 (thay Q4), khi execution đã settled đầy đủ report/hooks thì chuyển `awaiting_review`, tự archive **exact child** và workspace riêng của child; không cần review để archive, không archive parent. Membership chỉ theo public `agent.workspaceId`, không theo cwd vì nhiều workspace local có thể cùng checkout. Chỉ archive workspace do plugin tạo, kể cả private LOCAL, khi mọi member cùng workspaceId đã archived (known closed child của plugin phải archive trước), không có `main_session`/role `main` hay agent không do plugin tạo. Giữ workspace local shared/main/unknown; không suy ownership từ tên hoặc cwd, không gom theo cwd hay di chuyển/xoá thư mục. Plugin worktree giữ nguyên quy tắc hiện có; archive local không xoá checkout, Paseo chỉ có thể xoá worktree do Paseo sở hữu. Lỗi visibility giữ lifecycle/data để retry, không tạo writer trùng. `managed archive` idempotent. Sol vẫn phải đọc diff/report và `review-approve` trước followup. Followup restore workspace rồi mở lại cùng exact child (giữ agent/workspace IDs) với brief tự chứa, epoch/request key và baseline mới; không phải CLI context resume, không tạo child trùng. Thiếu cwd/worktree thì chặn. Giữ history, report, patch, worktree và mọi thư mục/artifact; không cleanup. Archive chỉ đổi khả năng hiển thị ở sidebar Paseo, không đổi các dòng done của hh-ps/panel. Một managed execution là một hand trong pool, không tạo side-session root; token từ parser/ledger chuẩn, ACP chỉ projection, thiếu usage/quota giữ `?`.
+Mỗi managed hand có workspace/worktree riêng trong **cùng verified project** với parent, caller gắn parent canonical và tab/track của parent; không hứa sidebar native lồng child. Theo quyết định 09/11/2026 (thay Q4), khi execution đã settled đầy đủ report/hooks thì chuyển `awaiting_review`, tự archive **exact child** và workspace riêng của child; không cần review để archive, không archive parent. Membership chỉ theo public `agent.workspaceId`, không theo cwd vì nhiều workspace local có thể cùng checkout. Chỉ archive workspace do plugin tạo, kể cả private LOCAL, khi mọi member cùng workspaceId đã archived (known closed child của plugin phải archive trước), không có `main_session`/role `main` hay agent không do plugin tạo. Giữ workspace local shared/main/unknown; không suy ownership từ tên hoặc cwd, không gom theo cwd hay di chuyển/xoá thư mục. Plugin worktree giữ nguyên quy tắc hiện có; archive local không xoá checkout, Paseo chỉ có thể xoá worktree do Paseo sở hữu. Lỗi visibility giữ lifecycle/data để retry, không tạo writer trùng. `managed archive` idempotent. Brain vẫn phải đọc diff/report và `review-approve` trước followup. Followup restore workspace rồi mở lại cùng exact child (giữ agent/workspace IDs) với brief tự chứa, epoch/request key và baseline mới; không phải CLI context resume, không tạo child trùng. Thiếu cwd/worktree thì chặn. Giữ history, report, patch, worktree và mọi thư mục/artifact; không cleanup. Archive chỉ đổi khả năng hiển thị ở sidebar Paseo, không đổi các dòng done của hh-ps/panel. Một managed execution là một hand trong pool, không tạo side-session root; token từ parser/ledger chuẩn, ACP chỉ projection, thiếu usage/quota giữ `?`.
 
 Containment managed worker trên macOS là best-effort có thời hạn: snapshot cây con khoảng 50 ms khi runner poll, trước cancel/reap, và scan cùng user theo exact entry `HYBRID_HANDS_INVOCATION_ID` bằng `KERN_PROCARGS2` (Linux dùng `/proc`). Worker giữ identity PID + OS start time + comm và quan hệ cha; trước mỗi signal phải xác minh lại identity. Cancel gửi TERM rồi KILL có thời hạn tới group còn được sở hữu và các identity cây con/marker, kể cả child đã `setsid` hoặc reparent. Gateway/controller và ancestors được bảo vệ. Chỉ root đã reap, group vắng và không còn process cây con/marker sống mới có evidence `root_group+tracked_tree+env_marker`; lỗi scan, mất authority hoặc process còn sống giữ unknown và reservation, kể cả hoàn tất bình thường. Sau restart không signal numeric PID được khôi phục khi thiếu quyền sở hữu `Popen`. Môi trường chỉ parse trong bộ nhớ, không lưu/log giá trị. Process vừa bỏ marker vừa double-fork giữa hai snapshot vẫn có thể thoát: macOS không có absolute containment như cgroup.
 
-Phiên chính mặc định Opus 5.5 high v1; có thể mở Opus high v2/v… hoặc Sol 6.1 high. Phiên phụ mặc định Sol 6.1 high, có thể là Opus 5.5 high đúng tài khoản v1/v2/v… . Đổi model/account: mở phiên mới từ bàn giao, không dùng `/model` giữa phiên.
+Nhãn tài khoản thống nhất dạng `{provider} {slot} {plan} {name}` (ví dụ `claude v1 Max anhtp`, `gpt v1 Plus anhtp`), đổi bằng `ext_hand.account_label_format` (chỉ 4 placeholder đó). Mỗi `ext_hand.claude_accounts.vN` và `ext_hand.gpt_accounts.vN` (mặc định `v1` home `~/.codex-hand`, chỉ phục vụ nhãn) nhận `plan`/`name` tuỳ chọn; thiếu `name` thì Claude lấy phần trước `@` của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json`, GPT hiện `?`. Nhãn xuất hiện ở `pick` và hh-ps (JSON thêm `account_label`, giữ field cũ). Plan GPT thiếu cấu hình lấy từ `rate_limits.plan_type` của rollout mới nhất.
 
-Mặc định `ext_hand.order`: dsh (`deepseek-v4.1-flash`, effort `off`, thinking disabled) → codex (`gpt-6.1-sol`, low) → claude-v1 (Opus 5.5 low) → claude-v2 (Opus 5.5 low). `claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`.
-
-Nhãn tài khoản thống nhất dạng `{provider} {slot} {plan} {name}` (ví dụ `claude v1 Max anhtp`, `gpt v1 Plus anhtp`), đổi bằng `ext_hand.account_label_format` (chỉ 4 placeholder đó). Mỗi `ext_hand.claude_accounts.vN` và `ext_hand.gpt_accounts.vN` (mặc định `v1` home `~/.codex-hand`, chỉ phục vụ nhãn) nhận `plan`/`name` tuỳ chọn; thiếu `name` thì Claude lấy phần trước `@` của `oauthAccount.emailAddress` trong `<config_dir>/.claude.json`, GPT hiện `?`. Nhãn xuất hiện ở `parallel-subagents` status, `pick` và hh-ps (JSON thêm `account_label`, giữ field cũ). Plan GPT thiếu cấu hình lấy từ `rate_limits.plan_type` của rollout mới nhất. `hand-ext parallel-subagents accounts [--json]` liệt kê tài khoản đánh số; `on` không cờ trên terminal hỏi chọn, slash command hỏi bằng AskUserQuestion.
-
-Luôn chạy `hand-ext pick --json` trước để biết backend/model/effort/account, `native`/`native_reason` và lý do bỏ qua, kể cả trước native v1 để giữ chặn ≥8%/ngày (thiếu nguồn cũng chặn). Ở đường cũ, cùng account và tools chọn đúng model/effort mới native; khác account hoặc thiếu capability dùng `hand-ext run --backend auto`. Không tự áp native cho account khác.
-
-| Phiên phụ | dsh | codex low | claude-v1 low | claude-v2 low | UI v1 low |
-|---|---|---|---|---|---|
-| Sol | hand-ext | native Codex (đường cũ; opt-in xem trên) | hand-ext | hand-ext | hand-ext claude-v1 |
-| Opus v1 | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext | Native khi preflight v1 đủ; thiếu thì hand-ext claude-v1 |
-| Opus v2 | hand-ext | hand-ext | hand-ext | Agent hybrid-hands:hand | hand-ext claude-v1 |
-
-Sáng tạo UI mặc định claude-v1 low. Native v1 chỉ khi `hand-ext pick --json` thực trả `claude-v1`, model `claude-opus-5-5`, effort `low`, đúng account và đủ capability. Pick trả dsh/codex chưa chứng minh guard v1 đã qua: dùng `hand-ext run --backend claude-v1` để wrapper enforce guard, không sửa config/order hoặc suy guard pass. Guard chặn thì không spawn native v1; ghi yêu cầu để Opus quyết. Công việc theo order tiếp tục backend pick chọn.
-Native Codex đường cũ dùng `fork_turns=none`, brief tự chứa, luật dữ liệu nguyên văn; executor làm trực tiếp, không hand-ext/side-session/subagent/recursion/giao tiếp phiên khác/review hand khác. Tổng native + hand-ext ≤ `ext_hand.max_parallel` (1..4); cùng file/phụ thuộc tuần tự. Unknown sau spawn phải reconcile/wait, không tạo duplicate writer. Không bật parallel-subagents, không đổi slots/config. Completed giữ tab/history, không archive parent. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
-
-Review thấy lỗi: giao lại cùng backend đúng một lần; lần thứ hai vẫn hỏng chuyển backend kế tiếp theo order dsh → codex → claude-v1 → claude-v2. Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do vào bàn giao để Opus quyết; không tự đổi effort. Exit 8: đợi slot, không đổi backend/tự làm.
-
+`claude_accounts` lấy từ mặc định plugin → global `~/.hybrid-hands/config.json` → repo; v1=`~/.claude`, v2=`~/.claude-hand`, thêm v… bằng cấu hình. `claude-main` và `claude` chỉ là alias tương thích lần lượt của `claude-v1` và `claude-v2`. Native không tạo run/meta/report/token ledger hand-ext; usage qua runtime/Paseo, thiếu token/USD~/quota ghi `?`, không suy quota.
 
 ## Vận hành managed hand Paseo
 
@@ -74,9 +89,9 @@ paseo daemon reload --home /ABS/DAEMON_HOME
 hand-ext provider status --cwd /ABS/REPO
 ```
 
-Setup mặc định dry-run, chỉ đề xuất `hh-hand-codex`, `hh-hand-dsh`, `hh-hand-claude-v1`, `hh-hand-claude-v2` (`extends: acp`, entry `bin/hand-paseo-acp`); apply giữ providers/khóa khác và backup private trước atomic write theo official schema. Config đã ghi không chứng minh runtime đã nạp. Paseo 0.15.0 hỗ trợ public `daemon reload`: operator kiểm `appliedPaths`, `restartRequiredPaths`, `overrideControlledPaths`, rồi status phải xác nhận catalog provider khả dụng. Không cần mặc định restart chỉ để thêm providers; không hứa auto-watch. Reload có thể áp mọi thay đổi reloadable đang chờ, nên operator kiểm delta trước. Đây là kết luận source, chưa kiểm live.
+Setup mặc định dry-run, chỉ đề xuất `hh-hand-codex`, `hh-hand-claude-v1`, `hh-hand-claude-v2` (`extends: acp`, entry `bin/hand-paseo-acp`); apply giữ providers/khóa khác và backup private trước atomic write theo official schema. Config đã ghi không chứng minh runtime đã nạp. Paseo 0.15.0 hỗ trợ public `daemon reload`: operator kiểm `appliedPaths`, `restartRequiredPaths`, `overrideControlledPaths`, rồi status phải xác nhận catalog provider khả dụng. Không cần mặc định restart chỉ để thêm providers; không hứa auto-watch. Reload có thể áp mọi thay đổi reloadable đang chờ, nên operator kiểm delta trước. Đây là kết luận source, chưa kiểm live.
 
-Sau dispatch, lấy exact key từ output hoặc `managed ls`; `EPOCH` là số nguyên >=1. Khi settled đủ report/hooks, hand chuyển `awaiting_review` và tự archive child/workspace riêng theo contract managed ở trên. Sol vẫn đọc report/diff và kiểm completion/quiescence trước `review-approve`, rồi mới followup. `managed archive` chỉ cần khi retry visibility, có tính idempotent và không đợi review. Các lệnh lifecycle chỉ chấp nhận latest exact epoch và terminal evidence:
+Sau dispatch, lấy exact key từ output hoặc `managed ls`; `EPOCH` là số nguyên >=1. Khi settled đủ report/hooks, hand chuyển `awaiting_review` và tự archive child/workspace riêng theo contract managed ở trên. Brain vẫn đọc report/diff và kiểm completion/quiescence trước `review-approve`, rồi mới followup. `managed archive` chỉ cần khi retry visibility, có tính idempotent và không đợi review. Các lệnh lifecycle chỉ chấp nhận latest exact epoch và terminal evidence:
 
 ```sh
 hand-ext managed ls --cwd /ABS/REPO
@@ -102,45 +117,11 @@ Attestation giữ `quiescence.confirmed=false`, ghi `details.attested=true`, met
 
 AdmissionConflict/AdmissionFull trước reservation/dispatch ghi terminal `not_admitted`, exit 8 với kind và holding execution key (không có key nếu slot shell giữ pool); hh-ps hiển thị lỗi kết thúc. Intent legacy chưa từng admission cũng có thể dùng cùng lệnh attestation để ghi `not_admitted`, chỉ khi record và pool đều không có reservation cho exact key, không process/owner/writer/placement/dispatch/start/artifact hay receipt lạ. Durable reservation được ghi trước CAS không phải bằng chứng chưa admission. Dry-run không ghi; apply lặp lại giữ nguyên bytes.
 
-
 Sau settlement đầy đủ report/hooks, trạng thái `awaiting_review` tự archive exact child và workspace riêng; archive idempotent, không cần review. Followup vẫn bắt buộc `review-approve`, restore workspace rồi dùng key epoch hiện tại để cấp epoch/request key và baseline mới trên cùng child; thiếu cwd/worktree thì chặn. Không dùng `paseo send` trực tiếp cho managed task, không hứa backend resume. Khi ACK/outcome/settlement chưa rõ, giữ key/reservation để reconcile; không chạy lại run tạo invocation mới. Không cleanup worktree hay `output/llm/`.
 
 [Spec/interface](docs/2026-11-09-hand-paseo-agent-spec.md) và [plan/gate](docs/2026-11-09-hand-paseo-agent-plan.md) giữ trạng thái offline/live/release. Source/fixtures không chứng minh stop/reopen/placement từng backend đã chạy thật; release/install do brain điều phối riêng.
 
-Codex Sol và hand dùng chung `~/.codex-hand`: mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy không override như `service_tier` vẫn bắt buộc.
-
-## Tóm tắt
-
-- **Mục đích:** plugin Claude Code điều phối brain/hand lai theo 3 tầng Opus / Sol / dsh, bật theo từng dự án thay cho `parallel-subagents`: Opus (brain) chạy trên gói Claude chính; Sol là phiên phụ Codex trên tài khoản ChatGPT riêng; việc code/test/tài liệu L0/L1 bắt buộc giao hand theo `ext_hand.order` trên gói subscription thứ hai để giữ hạn mức gói chính.
-- **Thành phần:**
-  - hand ngoài: lệnh `hand-ext` (order mặc định dsh → codex → claude-v1 → claude-v2; gemini chỉ gọi tường minh; sổ token `output/llm/hand_usage.json`, sổ USD~ Go toàn máy `~/.hybrid-hands/go_usage.jsonl` và sổ Codex `~/.hybrid-hands/codex_usage.jsonl`, lệnh `hand-ext usage`), skill `ext-hand`;
-  - hand Claude: agent `hybrid-hands:hand` (gói chính) cho việc cần tool riêng của Claude Code, lệnh trả phí của dự án, hoặc sau khi `hand-ext` thoát 7 và đã đọc lý do từ `hand-ext doctor`;
-  - phiên phụ: lệnh `side-session` (mặc định mở phiên Sol Codex `gpt-6.1-sol` effort high, có ngữ cảnh brain riêng cho gói việc dài; hợp đồng bàn giao `.done`), skill `side-session`; lệnh `hh-ps` xem cây phiên Claude → subagent → lượt hand ngoài; lệnh `cc-switch` chuyển một phiên Claude qua lại giữa terminal và Paseo mà không để transcript rẽ nhánh; skill `paseo` theo dõi từ điện thoại;
-  - hook SessionStart (khuôn brief, luật chọn hand, luật hạn mức) và UserPromptSubmit (bản ngắn).
-- **Luật hạn mức:** không dùng/tạo API key, không chuyển API khi hết quota; báo backend, token, quota/reset và USD~ sau lượt (thiếu ghi `?`). Exit 7 khi mọi backend trong order không dùng được: chạy `hand-ext doctor`, ghi lý do để Opus quyết. Exit 8: chờ slot.
-- **Luật dữ liệu:** phiên phụ Sol được đọc secret và dữ liệu khách hàng như Opus; luật dưới áp cho hand ngoài (dsh, gemini, codex dùng làm hand): không giao hand ngoài việc phải đọc hoặc gửi secret (`.env`, token, mật khẩu, URL DB có mật khẩu) hay dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân); việc đó dùng hand Claude. Được giao code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được. Không hiện giá trị `.env` áp cho mọi tầng.
-- **Luật test tối thiểu:** brain ghi mức test trong KIỂM CHỨNG của brief; mặc định hand chỉ viết test tối thiểu đủ chứng minh thay đổi đúng (1 test đường chính + tối đa 1-2 case biên/lỗi quan trọng, ưu tiên thêm assert vào test sẵn có). Mức "kỹ" chỉ gồm ĐÚNG 2 nhóm: (1) tính năng tạo hứng thú, giữ chân khiến người dùng trả tiền; (2) bảo mật chống tấn công từ ngoài. Hai nhóm này test đủ nhánh/biên/lỗi và kiểm chứng thực tế bằng luồng thật; nhóm (1) đo bằng event analytics + feature flag/A-B, chỉ đọc số tổng hợp không có thông tin cá nhân, nhóm (2) chạy SAST, quét dependency, DAST staging.
-- **Cách ly worktree:** `hand-ext run` mặc định chạy hand trong git worktree sạch (chỉ file tracked + thay đổi chưa commit/untracked không bị ignore; `.env` bị ignore không có trong workspace), lưu `changes.patch` rồi áp về cwd gốc; xem mục 5.3.
-- **Bật theo dự án:** cài ở scope project trong thư mục dự án, tắt `parallel-subagents` ở scope project (xem mục 3).
-- **Việc cần làm lần đầu:** `hand-ext setup`, người dùng tự đăng nhập từng backend (mục 5), rồi `hand-ext doctor`.
-
-## Ba tầng Opus / Sol / dsh
-
-| Tầng | Vai trò |
-|---|---|
-| Opus (brain, gói Claude chính) | Thư ký, solution architect, BA, product manager; phân lane, viết spec/plan L2/L3, duyệt tóm tắt, đọc bàn giao, không đọc diff task đã giao Sol |
-| Sol (phiên phụ Codex `gpt-6.1-sol` effort high, tài khoản ChatGPT riêng, `CODEX_HOME` `~/.codex-hand`) | Lead tech, lead QA, quyền ngang Opus; viết spec L1, review code mọi hand mình giao, gọi `hand-ext run --backend auto` theo `ext_hand.order` |
-| dsh (gói OpenCode Go) | Dev, tester |
-| Hand Opus `low` (`hybrid-hands:hand`) | Việc sáng tạo: UI design, mockup, design token, câu chữ; phần code hoá giao hand theo `ext_hand.order` |
-
-| Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
-|---|---|---|---|---|
-| L0 (sửa nhanh) | Không viết spec | Không duyệt | hand theo `ext_hand.order` | Sol |
-| L1, không có lựa chọn giải pháp | Sol | Không duyệt, Opus đọc bàn giao | hand theo `ext_hand.order` | Sol |
-| L1 có lựa chọn giải pháp, hoặc thuộc mức kỹ | Sol, mở đầu bằng tóm tắt quyết định 1 trang | Opus đọc tóm tắt | hand theo `ext_hand.order` | Sol |
-| L2/L3 | Opus | Người dùng | Opus cắt thành các gói cỡ L1, giao các phiên Sol | Sol |
-
-Opus gom nhiều việc L0 vào một phiên Sol (mỗi task một phiên), mở bằng `side-session start --provider codex`, chờ `<handoff_dir>/<tên>.done` bằng Monitor rồi đọc `side-session handoff`. L2/L3 do Opus viết spec/plan, người dùng duyệt, Opus cắt thành gói cỡ L1 giao các phiên Sol (tối đa `max_parallel`). Việc sáng tạo giao `hybrid-hands:hand`; trong phiên Sol gọi `hand-ext run --backend claude-v1` (thoát 7 khi máy đã dùng ≥8% hạn mức tuần Claude trong ngày hoặc không tính được, khi đó ghi yêu cầu vào bàn giao để Opus quyết).
+Brain Codex và hand dùng chung `~/.codex-hand`: mỗi lượt hand override `model` bằng `-m`, `model_reasoning_effort` bằng `-c`, `sandbox_mode` bằng `-s`. Doctor không chặn nếu ba khóa thiếu/lệch và không ghi config; kiểm tra cài đặt, đăng nhập gói và khóa legacy không override như `service_tier` vẫn bắt buộc.
 
 ## 1. Cây thư mục
 
@@ -154,12 +135,12 @@ hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
     ├── bin/hand-ext, bin/side-session, bin/hh-ps, bin/cc-switch  # vào PATH của tool Bash khi plugin bật
-    ├── lib/hand_ext/ (backends/: codex | claude | dsh; day_budget.py, isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
+    ├── lib/hand_ext/ (backends/: codex | claude; profiles.py, ladder.py, day_budget.py, isolation.py), lib/side_session/, lib/hh_ps/, lib/cc_switch/
     ├── commands/to-paseo.md, commands/to-term.md  # slash command chuyển phiên hai chiều
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
     ├── skills/ext-hand/, skills/side-session/, skills/paseo/
-    └── templates/hand-brief.md, ext-hand-preamble.md, dsh-hand.yml, side-session-prompt.md, side-session-prompt-codex.md
+    └── templates/hand-brief.md, ext-hand-preamble.md, side-session-prompt.md, side-session-prompt-codex.md
 ```
 
 ## 2. Cài đặt
@@ -174,20 +155,9 @@ claude plugin validate <thư-mục-repo>/hybrid-hands
 
 `bin/` của plugin nằm trong PATH của tool Bash khi plugin bật; hook SessionStart vẫn in đường dẫn tuyệt đối tới `bin/` để brain gọi được nếu PATH thiếu.
 
-## 3. Chuyển qua lại với parallel-subagents
+## 3. Plugin parallel-subagents cũ
 
-Trong thư mục dự án:
-
-```sh
-# dùng hybrid-hands cho dự án này
-claude plugin disable parallel-subagents@parallel-subagents-local --scope project
-claude plugin enable hybrid-hands@hybrid-hands-local --scope project
-# quay lại parallel-subagents
-claude plugin disable hybrid-hands@hybrid-hands-local --scope project
-claude plugin enable parallel-subagents@parallel-subagents-local --scope project
-```
-
-Hai plugin không nên bật cùng lúc (hai policy brain/hand chồng nhau). Cơ sở: `enabledPlugins` đặt được ở mọi file settings ([settings reference](https://code.claude.com/docs/en/settings-reference.md#enabledplugins), 11/2026) và khoá cùng tên ở scope cao hơn ghi đè scope thấp hơn, thứ tự managed > dòng lệnh > project local > project > user ([settings precedence](https://code.claude.com/docs/en/settings.md#settings-precedence), 11/2026). Scope project ghi vào `.claude/settings.json` (commit, áp cho cả nhóm); muốn chỉ áp cho máy mình thì dùng `--scope local`.
+Plugin `parallel-subagents` cũ luôn tắt ở mọi repo; hybrid-hands thay thế hoàn toàn, không bật hai plugin cùng lúc (hai policy brain/hand chồng nhau). Scope project ghi vào `.claude/settings.json`; muốn chỉ áp cho máy mình thì dùng `--scope local`.
 
 ## 4. Cấu hình global và dự án
 
@@ -195,24 +165,26 @@ Cấu hình ưu tiên: mặc định plugin → global `~/.hybrid-hands/config.j
 
 ### Model ba tầng theo repo — 0.48.0
 
-`hand-ext models` xem model/effort/account và nguồn cấu hình của brain, phiên phụ và hand qua `main_session.*`, `side_session.*`, `ext_hand.order/backends/native`. Config này tách biệt với mode parallel-subagents: các lệnh xem/set/options không đọc `parallel_subagents.*` và không in cảnh báo về mode đó. Chỉ dùng `set`/`unset` khi người dùng chốt thay đổi cụ thể; ghi atomic vào cùng file repo đã resolve như `parallel-subagents`, kể cả fallback main worktree, không tạo config riêng cho worktree.
+`hand-ext models` xem model/effort/account và nguồn cấu hình của brain, phiên phụ và hand qua `main_session.*`, `side_session.*`, `ext_hand.backends/native`. Chỉ dùng `set`/`unset` khi người dùng chốt thay đổi cụ thể; ghi atomic vào cùng file repo đã resolve, kể cả fallback main worktree, không tạo config riêng cho worktree.
+
+Lệnh này chưa theo ô vai của profile; model của brain và subagent theo vai lấy từ [Profile và vai](#profile-và-vai).
 
 ```sh
 hand-ext models --json
 hand-ext models options --json
 hand-ext models set --tier brain --model claude-opus-5-5 --effort high --account v2
 hand-ext models set --brain claude-opus-5-5:high@v1 --side gpt-6.1-sol:high --dry-run
-hand-ext models set --hand codex=gpt-6.1-sol:low --hand-mode native --hand-order dsh,codex,claude-v1,claude-v2
+hand-ext models set --hand codex=gpt-6.1-sol:low --hand-mode native
 hand-ext models unset hand --dry-run
 ```
 
-Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN]` suy provider từ capability của model và không dùng chung với `--brain`, `--side`, `--hand`, `--hand-order`. Codex chuẩn hoá effort `max` thành `xhigh`. Account chỉ áp cho Claude; GPT/DeepSeek bỏ qua và cảnh báo. Brain/side Claude không truyền account thì giữ account hiện tại; Hand Claude bắt buộc chọn account hợp lệ để xác định backend `claude-vN` (GPT dùng `codex`, DeepSeek dùng `dsh`). Alias Codex `max` → `xhigh` áp dụng cho cả cờ phẳng và `--brain`/`--side`/`--hand`.
+Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN]` suy provider từ capability của model và không dùng chung với `--brain`, `--side`, `--hand`. Codex chuẩn hoá effort `max` thành `xhigh`. Account chỉ áp cho Claude; GPT bỏ qua và cảnh báo. Brain/side Claude không truyền account thì giữ account hiện tại; Hand Claude bắt buộc chọn account hợp lệ để xác định backend `claude-vN` (GPT dùng `codex`). Alias Codex `max` → `xhigh` áp dụng cho cả cờ phẳng và `--brain`/`--side`/`--hand`.
 
-`--brain MODEL:EFFORT[@vN]` và `--side MODEL:EFFORT[@vN]` không cần provider, suy từ capability model; dạng cũ `PROVIDER:MODEL[:EFFORT][@vN]` vẫn dùng được. Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `--hand-mode native|terminal` áp cho provider của các `--hand` cùng lệnh, ghi `ext_hand.native.<claude|codex>` thành `auto` hoặc `off`; DeepSeek luôn terminal, `dsh` + `native` lỗi exit 2. `unset brain|side|hand` gỡ override cả tầng (`unset hand` gỡ cả `ext_hand.native.*`), giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) để chỉ xem, không hỏi hay ghi; `/hybrid-hands:models set` mở wizard tích tầng → provider → account → model → effort + chế độ Hand qua tối đa năm lần AskUserQuestion nối tiếp. Có đúng ba ô Brain chính, Phiên phụ, Hand; tầng Hand chỉ có một tab để chọn một backend mỗi lần; các lựa chọn được giữ qua từng màn hình. Account chỉ hỏi khi chọn Claude; account hoặc model chỉ có một lựa chọn thì tự dùng. Danh sách lấy từ `providers`, `profiles`, `accounts`, `hand_backends`, `hand_modes` của `hand-ext models options --json`, không dùng presets; model vượt bốn lựa chọn có thể nhập qua Other nhưng phải thuộc danh sách JSON. Màn hình Effort hỏi chung thêm Chế độ cho Hand Claude/GPT: Native subagent (cùng tài khoản và đủ capability) hoặc Terminal hand (luôn qua `hand-ext run`), đánh dấu “(đang dùng)” theo `hand_modes.<provider>`; DeepSeek bỏ câu này. Lệnh ghi thêm `--hand-mode` theo lựa chọn. Hủy, thiếu câu trả lời hay giá trị ngoài danh sách thì không ghi. Cuối wizard gộp thành đúng một lệnh `models set`, ghi atomic một lần; lựa chọn là xác nhận, không thêm dry-run hay hỏi lại. Không tích tầng nào thì không đổi cấu hình; slash command với đối số khác chuyển nguyên cho CLI. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
+`--brain MODEL:EFFORT[@vN]` và `--side MODEL:EFFORT[@vN]` không cần provider, suy từ capability model; dạng cũ `PROVIDER:MODEL[:EFFORT][@vN]` vẫn dùng được. Brain/side chỉ nhận `claude|codex`, `@vN` chỉ Claude; model cần có giá canonical và capability provider. `--hand-mode native|terminal` áp cho provider của các `--hand` cùng lệnh, ghi `ext_hand.native.<claude|codex>` thành `auto` hoặc `off`. `unset brain|side|hand` gỡ override cả tầng (`unset hand` gỡ cả `ext_hand.native.*`), giữ cấu hình khác và trở về nguồn kế thừa. Các lệnh hỗ trợ `--cwd PATH`, `--json`; set/unset có `--dry-run`. Trong Claude Code dùng [`/hybrid-hands:models`](plugins/hybrid-hands/commands/models.md) để chỉ xem, không hỏi hay ghi; `/hybrid-hands:models set` mở wizard tích tầng → provider → account → model → effort + chế độ Hand qua tối đa năm lần AskUserQuestion nối tiếp. Có đúng ba ô Brain chính, Phiên phụ, Hand; tầng Hand chỉ có một tab để chọn một backend mỗi lần; các lựa chọn được giữ qua từng màn hình. Account chỉ hỏi khi chọn Claude; account hoặc model chỉ có một lựa chọn thì tự dùng. Danh sách lấy từ `providers`, `profiles`, `accounts`, `hand_backends`, `hand_modes` của `hand-ext models options --json`, không dùng presets; model vượt bốn lựa chọn có thể nhập qua Other nhưng phải thuộc danh sách JSON. Màn hình Effort hỏi chung thêm Chế độ cho Hand Claude/GPT: Native subagent (cùng tài khoản và đủ capability) hoặc Terminal hand (luôn qua `hand-ext run`), đánh dấu “(đang dùng)” theo `hand_modes.<provider>`. Lệnh ghi thêm `--hand-mode` theo lựa chọn. Hủy, thiếu câu trả lời hay giá trị ngoài danh sách thì không ghi. Cuối wizard gộp thành đúng một lệnh `models set`, ghi atomic một lần; lựa chọn là xác nhận, không thêm dry-run hay hỏi lại. Không tích tầng nào thì không đổi cấu hình; slash command với đối số khác chuyển nguyên cho CLI. Ghi thành công: mở phiên mới để áp dụng; phiên đang chạy giữ model/account hiện tại. Mặc định brain trong code vẫn là Codex Sol high.
 
 ### Tắt giao diện cây: `ui.hh_tree` / `ui.hh_panel` — 0.63.0
 
-`ui.hh_tree.enabled` (pane `hh-tree-pane` trong Claude Code) và `ui.hh_panel.enabled` (panel agent và màn hình Cây phiên của plugin Paseo `hh-tree`) mặc định `true`, chỉ nhận bool JSON thật; sai kiểu bị bỏ qua kèm warning. Khác `parallel_subagents`, global `false` có hiệu lực: đặt trong `~/.hybrid-hands/config.json` để tắt ở mọi repo, repo `.claude/hybrid-hands.json` ghi đè được (`true` bật lại cho riêng repo đó).
+`ui.hh_tree.enabled` (pane `hh-tree-pane` trong Claude Code) và `ui.hh_panel.enabled` (panel agent và màn hình Cây phiên của plugin Paseo `hh-tree`) mặc định `true`, chỉ nhận bool JSON thật; sai kiểu bị bỏ qua kèm warning. Global `false` có hiệu lực: đặt trong `~/.hybrid-hands/config.json` để tắt ở mọi repo, repo `.claude/hybrid-hands.json` ghi đè được (`true` bật lại cho riêng repo đó).
 
 ```json
 { "ui": { "hh_tree": { "enabled": false }, "hh_panel": { "enabled": false } } }
@@ -220,33 +192,13 @@ Cờ phẳng `--tier brain|side|hand --model MODEL --effort EFFORT [--account vN
 
 Khi tắt, pane không mở và không poll (`/hh-tree` báo đang tắt kèm nguồn); panel/màn hình Paseo không chạy `hh-ps`, chỉ hiện một dòng thông báo. Nút sidebar Paseo vẫn còn vì API plugin không cho ẩn có điều kiện; hook kế thừa provider khi tạo agent của plugin Paseo vẫn chạy. Đọc config lỗi thì fail-open (vẫn hiện). Pane áp dụng ở phiên Claude mới; panel nhận trong vòng khoảng 30 giây. `hand-ext config --json` hiện giá trị và nguồn.
 
-### Mode parallel-subagents
+### Phiên chính, phiên phụ và native
 
-Mode dùng riêng `parallel_subagents.{enabled,backend,account}`, tách biệt với config model ba tầng dù ghi cùng file repo.
-
-`parallel_subagents.enabled` mặc định `false`, chỉ chấp nhận bool JSON thật (`true`/`false`); sai kiểu về `false` và warning stderr. `true` chỉ hiệu lực khi provenance là repo `.claude/hybrid-hands.json` (kể cả fallback config main worktree); global `true` bị bỏ qua kèm warning, consumer chỉ thấy `false`. `hand-ext config --json` giữ nguồn và đường dẫn config. Hook gặp config lỗi sẽ warning không hiện giá trị, dùng policy thường và exit 0; CLI giữ cách báo lỗi cấu hình hiện có.
-
-Chỉ thay đổi mode sau khi người dùng chốt cho repo đó; brain/hand không tự bật. Plugin `parallel-subagents` cũ luôn tắt. Trong Claude Code dùng `/hybrid-hands:parallel-subagents on|off`; trong terminal/Codex dùng `hand-ext parallel-subagents on|off`. `parallel` là alias cũ tương thích. Dùng lệnh thay vì sửa JSON thủ công:
-
-```bash
-hand-ext parallel-subagents                         # trạng thái, nguồn và file
-hand-ext parallel-subagents --json                  # chỉ trạng thái dạng JSON
-hand-ext parallel-subagents on --cwd /duong/dan/repo
-hand-ext parallel-subagents off --cwd /duong/dan/repo
-```
-
-Lệnh on/off giữ các key khác, ghi bool vào config repo và in đường dẫn đã ghi. Trong linked worktree chưa có config riêng, nếu loader dùng config main checkout thì lệnh ghi đúng file fallback đó (ảnh hưởng các worktree dùng chung file). Chưa có file thì tạo `.claude/hybrid-hands.json` tại repo hiện tại. JSON lỗi hoặc section không phải object bị từ chối, giữ nguyên file. Luôn **mở phiên mới để hook nạp luật**; luật đã nạp trong phiên cũ vẫn còn hiệu lực.
-
-`parallel_subagents.backend` mặc định `"claude-v1"`, nhận string từ global hoặc repo; alias `claude-main`/`claude` thành `claude-v1`/`claude-v2`. Sai kiểu hoặc backend không tồn tại trong cấu hình hiệu lực thì warning không hiện giá trị và dùng `claude-v1`; `hand-ext config --json` giữ nguồn key. Dùng `hand-ext parallel-subagents on --backend claude-v2` (slash command cũng nhận `--backend`); backend sai exit 2, không ghi. Status text/JSON hiện backend, model, effort và nguồn backend; model/effort lấy từ `ext_hand` hiện có. `hand-ext parallel-subagents on --account v2` ghi cùng lúc `parallel_subagents.account = "v2"` và backend `claude-v2`; `--backend codex` chỉ ghi backend, giữ nguyên account. `accounts --json` chọn `selected` theo account của mode (hoặc backend khi provider là GPT). Status và hook gọi tài khoản này là “tài khoản brain” của mode; policy lấy `parallel_subagents.account`, thiếu thì suy từ backend `claude-vN`, không đọc `main_session.claude_account` và không cảnh báo lệch khi account khớp backend. Repo cũ thiếu account tiếp tục suy từ backend; giữ nguyên `main_session.claude_account` cũ cho tầng brain của models, không tự migrate hay xoá khóa.
-
-Mode bật giao subagent theo backend đã chọn, tối đa `ext_hand.max_parallel` thực (1..4); cùng file/phụ thuộc tuần tự, brain review code hand mình giao. Trước mỗi lượt giao chạy `hand-ext pick --json --backend NAME`: chỉ preflight backend đó, giữ guard v1 ≥8%/ngày và không fallback theo order. `native: true` dùng Agent `hybrid-hands:hand` cho Claude hoặc native Codex theo ngoại lệ A, đúng account/capability; còn lại dùng `hand-ext run --backend NAME` cho gói việc. Guard chặn hoặc exit 7 thì không spawn, ghi yêu cầu để brain quyết, không tự đổi backend/config.
-
-`main_session` áp cho `side-session start --main`: `provider` mặc định `codex`, `codex_model`/`codex_effort` mặc định `gpt-6.1-sol`/`high`, `claude_model`/`claude_effort`/`claude_account` mặc định `claude-opus-5-5`/`high`/`v1`. `side_session` có các key tương ứng, gồm `provider`, `codex_model`, `codex_effort` và các key `claude_*`. Cờ `--provider`, `--model`, `--effort`, `--account` ghi đè cấu hình; `--resume` mặc định provider Claude và giữ account của state. `main_session` không áp cho phiên người dùng tự mở bằng `claude`.
+`main_session` áp cho `side-session start --main` khi ô vai của profile không quyết định (cờ CLI thắng, rồi ô vai, rồi các key dưới đây): `provider` mặc định `codex`, `codex_model`/`codex_effort` mặc định `gpt-6.1-sol`/`high`, `claude_model`/`claude_effort`/`claude_account` mặc định `claude-opus-5-5`/`high`/`v1`. `side_session` có các key tương ứng, gồm `provider`, `codex_model`, `codex_effort` và các key `claude_*`. Cờ `--provider`, `--model`, `--effort`, `--account` ghi đè cấu hình; `--resume` mặc định provider Claude và giữ account của state. `main_session` không áp cho phiên người dùng tự mở bằng `claude`.
 
 `main_session.claude_auto_compact_window` mặc định `272000` cho mọi account Claude (`v1`, `v2`, …). Giá trị hợp lệ là số nguyên `100000..1000000` (kể cả hai biên); `null` hoặc chuỗi chính xác `"auto"` bỏ override. Boolean, chuỗi số và các kiểu/giá trị khác báo lỗi cấu hình kèm đường dẫn nguồn. Key và provenance có trong `hand-ext config --json`, theo thứ tự plugin → global → repo; không sửa settings Claude.
 
 `side-session start --main --provider claude` với mọi account, qua Paseo hoặc screen, truyền `CLAUDE_CODE_AUTO_COMPACT_WINDOW` khi có window; `null`/`"auto"` không truyền override. `side-session ls` hiển thị cap theo window đã áp dụng và được lưu lúc khởi chạy main, kèm `(tự nén)`, không theo cấu hình thay đổi sau đó. Main cũ chưa lưu window đã áp dụng giữ cách hiển thị trước đây; cần mở main MỚI để nhận env/window mới, không sửa settings hay restart/dừng main đang chạy. Phiên phụ và hand giữ hành vi hiện có; backend hand Claude lọc biến compact kế thừa từ môi trường phiên chính.
-
 
 Cả hai mục có `transport` cho Claude: mặc định `paseo`, chọn `screen` tường minh trong cấu hình (không có cờ `--transport`). Paseo lỗi thì báo lỗi, không tự lùi về screen. Phiên Claude qua Paseo nhận `CLAUDE_CONFIG_DIR` theo account. Template Sol chính nhận model/effort thực tế, đường dẫn tuyệt đối tới bin/skill và khuôn brief.
 
@@ -265,14 +217,13 @@ Ví dụ global ngắn (các key còn lại giữ mặc định):
 
 Cấu hình repo `.claude/hybrid-hands.json`:
 
-
 ```json
 {
+  "profile": "hybrid",
   "ext_hand": {
     "max_parallel": 4,
-    "order": ["dsh", "codex", "claude-v1", "claude-v2"],
     "claude_accounts": {
-      "v1": { "config_dir": "~/.claude", "max_day_pct": 5 },
+      "v1": { "config_dir": "~/.claude", "day_guard": true, "max_day_pct": 5, "day_guard_days": ["mon", "tue", "wed", "thu", "fri"] },
       "v2": { "config_dir": "~/.claude-hand" }
     },
     "timeout_min": 60,
@@ -283,16 +234,10 @@ Cấu hình repo `.claude/hybrid-hands.json`:
     "runs_dir": "output/llm/hand-ext",
     "isolation": "worktree",
     "worktree_root": "~/.hybrid-hands/worktrees",
-    "go_usage": {
-      "ledger": "~/.hybrid-hands/go_usage.jsonl",
-      "monthly_limit_usd": 100
-    },
     "backends": {
       "codex": { "home": "~/.codex-hand", "model": "gpt-6.1-sol", "effort": "low" },
       "claude-v2": { "model": "claude-opus-5-5", "effort": "low", "max_turns": 80 },
-      "claude-v1": { "model": "claude-opus-5-5", "effort": "low" },
-      "dsh": { "home": "~/.dsh-hand", "key_file": "~/.dsh-hand/go.key", "browser_dir": "~/.dsh-hand/browser", "model": "deepseek-v4.1-flash", "effort": "off", "base_url": "https://opencode.ai/inference/go/openai/v1", "capacity_wait_min_lines": 30, "capacity_wait_seconds": 180 },
-      "gemini": { "home": "~/.gemini-hand", "model": "gemini-4-carbon" }
+      "claude-v1": { "model": "claude-opus-5-5", "effort": "low" }
     }
   },
   "side_session": {
@@ -307,11 +252,11 @@ Cấu hình repo `.claude/hybrid-hands.json`:
 }
 ```
 
-Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=` chỉ là miễn trần ngày, trần token vẫn hiện); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. Order mặc định dsh → codex → claude-v1 → claude-v2; gemini chỉ gọi tường minh. `claude-v1` trỏ gói chính `~/.claude`, mặc định `claude-opus-5-5`/`low`, mặc định cho sáng tạo và chặn khi máy đã dùng từ `max_day_pct` (mặc định 8%) hạn mức tuần Claude trong ngày. Công tắc `claude_accounts.<vN>.day_guard` (mặc định `true`) tắt hẳn guard khi đặt `false`; `day_guard_off_date: "YYYY-MM-DD"` chỉ tắt trong ngày đó theo giờ máy, ví dụ global `{"ext_hand": {"claude_accounts": {"v1": {"day_guard_off_date": "2026-11-12"}}}}`. Giá trị sai kiểu giữ guard bật. Sổ Go nằm ngoài repo (mặc định `~/.hybrid-hands/go_usage.jsonl`, bản tóm tắt cạnh đó); đổi bằng `go_usage.ledger`, còn biến `HYBRID_HANDS_STATE_DIR` đổi thư mục mặc định (dùng cho test). Sổ Codex nằm cạnh sổ Go (mặc định `~/.hybrid-hands/codex_usage.jsonl`, cũng theo `HYBRID_HANDS_STATE_DIR`; xem mục 5.2). `backends.dsh.capacity_wait_min_lines` (mặc định 30) và `capacity_wait_seconds` (mặc định 180; 0 để test) điều khiển dự phòng 429. Đơn giá dùng bảng canonical `config/model-prices.json` (mục 6); không cấu hình bảng giá backend thứ hai.
+Tên khoá chuẩn theo `lib/hand_ext/constants.py` (mặc định), `lib/side_session/` và `lib/hh_ps/`; thiếu file thì dùng các giá trị mặc định trên. `ps.session_meta_globs` (mặc định rỗng) là danh sách glob tương đối repo trỏ tới file `<TÊN>.meta` của launcher riêng (dạng `key=value`: `uuid=`, `cap_usd=` là trần token, `started=`, `screen_pid=`, `exempt=` chỉ là miễn trần ngày, trần token vẫn hiện); `hh-ps` dùng để hiện trần token và tỉ lệ. `<PL>` được thay bằng thư mục plugin. `claude-v1` trỏ gói chính `~/.claude`. Guard ngày xem [Profile và vai](#profile-và-vai); giá trị sai kiểu giữ cấu hình an toàn. Sổ Codex nằm ngoài repo (mặc định `~/.hybrid-hands/codex_usage.jsonl`, đổi thư mục bằng `HYBRID_HANDS_STATE_DIR`, dùng cho test; xem mục 5.1). Đơn giá dùng bảng canonical `config/model-prices.json` (mục 6); không cấu hình bảng giá backend thứ hai.
 
 `ext_hand.isolation` nhận `worktree` (mặc định khi cwd là git repo) hoặc `none`; cờ `--isolation` ghi đè cho một lượt. `ext_hand.worktree_root` là thư mục chứa worktree tạm, mặc định `~/.hybrid-hands/worktrees` (nếu không khai báo thì đi theo `HYBRID_HANDS_STATE_DIR`); đường dẫn tương đối tính từ git toplevel. Không nên đặt `worktree_root` trong repo trừ khi thư mục đó bị ignore. Cwd không phải git repo mà isolation là mặc định thì lượt chạy rơi về `none` kèm cảnh báo trong report; nếu `worktree` được yêu cầu tường minh (config hoặc cờ) mà không tạo được worktree sạch thì `run` thoát 2, không âm thầm chạy trong repo gốc.
 
-### 4.1 Phiên phụ: Sol Codex, Chrome, phiên cha, trần ngày, hand ngoài
+### 4.1 Phiên phụ: phiên brain, Chrome, phiên cha, trần ngày
 
 Theo quyết định 09/11/2026 (thay Q4), side-session qua Paseo ở mọi provider ghi report/handoff rồi `.done`: archive exact child, sau đó archive workspace theo ownership/membership sau; không archive parent. Membership chỉ theo public `agent.workspaceId`, không theo cwd vì nhiều workspace local có thể cùng checkout. Chỉ archive workspace do plugin tạo, kể cả private LOCAL, khi mọi member cùng workspaceId đã archived (known closed child của plugin phải archive trước), không có `main_session`/role `main` hay agent không do plugin tạo. Giữ workspace local shared/main/unknown; không suy ownership từ tên hoặc cwd, không gom theo cwd hay di chuyển/xoá thư mục. Plugin worktree giữ nguyên quy tắc hiện có; archive local không xoá checkout, Paseo chỉ có thể xoá worktree do Paseo sở hữu. Cảnh báo archive workspace không chặn trạng thái `done`; `ls`/`watch` retry có giới hạn. Giữ handoff, state, history, worktree, patch và report, không cleanup. Archive chỉ ẩn ở sidebar Paseo; các dòng done của hh-ps/panel giữ nguyên.
 
@@ -319,10 +264,10 @@ Giao lại bằng `side-session send --name NAME --prompt-file /ABS/FILE` cho m�
 
 `side-session tidy [--name NAME] [--apply]`: mặc định dry-run, chỉ liệt kê eligible/blocked và exact IDs dự kiến. Ví dụ `side-session tidy --name NAME` để xem, `side-session tidy --name NAME --apply` để áp dụng. `--apply` idempotent, chỉ archive workspace có ownership từ plugin side state, rỗng/đã archive hết member hoặc có known closed plugin child được archive trước; chặn main, agent không do plugin tạo và member active. `--name` giới hạn cleanup; giữ thư mục local và artifacts.
 
-`side-session start` mặc định `--provider codex`: mở phiên Sol trên Codex với `--dangerously-bypass-approvals-and-sandbox` (không sandbox, không hỏi phê duyệt, toàn quyền ghi và mạng); `--model`/`--effort` mặc định `side_session.codex_model`/`codex_effort` (`gpt-6.1-sol`/`high`). `--resume` vẫn mặc định `claude`. Phiên Sol ghi `<handoff_dir>/<tên>.md` rồi tạo `<handoff_dir>/<tên>.done`; `ls`/`watch` báo `done`, Opus chờ file `.done` bằng Monitor. Các cờ khác:
+`side-session start` lấy provider/model/effort/account mặc định từ ô vai brain của profile (super brain khi `--main` ở profile `hybrid`); cờ CLI thắng. Provider `codex` chạy với `--dangerously-bypass-approvals-and-sandbox` (không sandbox, không hỏi phê duyệt, toàn quyền ghi và mạng). `--resume` vẫn mặc định `claude`. Phiên brain ghi `<handoff_dir>/<tên>.md` rồi tạo `<handoff_dir>/<tên>.done`; `ls`/`watch` báo `done`, phiên chính chờ file `.done` bằng Monitor. Các cờ khác:
 - `--chrome` / `--no-chrome`: mặc định theo `claude_args` (mặc định `--no-chrome`). `--chrome` thay mọi `--no-chrome` trong argv claude bằng `--chrome` và ghi `chrome` vào state; chỉ dùng với provider `claude`, provider khác in lỗi và thoát 2.
-- `--account v1|v2|v…`: account Claude từ defaults plugin + repo (mặc định v1); `--main --provider claude --account v2` mở main Opus v2. Đổi model/account mở phiên mới từ bàn giao.
-- `--provider claude|dsh`: `claude` mở phiên Claude Code (ListAgents/SendMessage); `dsh` chạy hand ngoài trong screen bằng `hand-ext run --backend dsh --brief <state_dir>/<tên>.prompt.md --label side:<tên> --cwd <worktree> [--timeout-min <giờ×60>] [--model M] [--effort E]`; không truyền `--max-tokens` vì hand-ext tính cả token đọc cache, trần do `watch` canh (không tính cached). Bắt buộc `--worktree` (thiếu thoát 2); prompt sau khi ghép template phải có mục `LUẬT BẮT BUỘC` (thiếu thoát 2). `watch`/`ls` đọc token của lượt `hand-ext` nhãn `side:<tên>` bắt đầu từ `state.started` (vào + ra, không tính cached); khi lượt kết thúc, chép `report.md` thành `<handoff_dir>/<tên>.md` nếu chưa có và đặt `stopped` (ok) hoặc `dead` (lỗi).
+- `--account v1|v2|v…`: account Claude từ defaults plugin + repo (mặc định v1); `--main --provider claude --account v2` mở main Claude v2. Đổi model/account mở phiên mới từ bàn giao.
+- `--provider claude|codex`: `claude` mở phiên Claude Code (ListAgents/SendMessage); `codex` mở phiên Codex qua Paseo hoặc screen.
 - `--budget-exempt` / `--force-budget`: bỏ qua trần ngày ở lần `start` này; `--budget-exempt` ghi `budget_exempt=True` và cũng miễn mã 20 khi `watch`, còn `--force-budget` chỉ bỏ qua một lần.
 - Mọi phiên ghi `parent_session` = `CLAUDE_CODE_SESSION_ID` của phiên gọi; môi trường phiên con bỏ `CLAUDE_CODE_CHILD_SESSION`.
 
@@ -330,52 +275,24 @@ Giao lại bằng `side-session send --name NAME --prompt-file /ABS/FILE` cho m�
 
 Với phiên phụ `codex`, argv có `-c model_auto_compact_token_limit=272000`: Codex tự nén context, `watch` không dừng `capped` theo tổng token tiêu. `TOKENS/CAP` hiển thị `last_token_usage` cuối (input gồm cached + output) trên 272000, không có dấu ` !`; tổng token cộng dồn chỉ để báo cáo.
 
-`side_session.codex_model`/`codex_effort` (mặc định `gpt-6.1-sol`/`high`) là model/effort cho provider `codex` (Sol) và được chuyển tiếp cho hand-ext khi có `--model`/`--effort`; `--model`/`--effort` của `start` đè cho một lượt.
+`side_session.codex_model`/`codex_effort` (mặc định `gpt-6.1-sol`/`high`) là model/effort cho provider `codex` khi profile không đặt ô vai; `--model`/`--effort` của `start` đè cho một lượt.
 
 `side_session.status_line_cmd` (mặc định `""` = status line mặc định) là lệnh status line cho phiên phụ provider `claude`, đường dẫn tương đối tính từ repo; `start` truyền `--settings {"statusLine":{"type":"command","command":<đường dẫn tuyệt đối>}}`, ví dụ để phiên phụ ghi số liệu cho lệnh trần ngày.
 
 ## 5. Backend của hand ngoài
 
-Lệnh: `hand-ext pick [--json]`, `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--backend B|auto] [--browser] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext usage [--json]`, `hand-ext report`, `hand-ext measure --runs <dir> [--runs <dir>...] [--backend B] [--since D]`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. `--browser` chỉ dùng với backend `dsh`: `--backend auto --browser` chỉ xét `dsh`, còn `--backend` khác `dsh` kèm `--browser` thoát 2. Backend `opencode` đã gỡ ở 0.19.0: `order` cũ còn tên này thì `run --backend auto` bỏ qua kèm dòng `bỏ qua opencode: backend 'opencode' không hỗ trợ (đã gỡ, dùng dsh)`, còn `--backend opencode` thoát 2. `claude-v1` nằm trong `order`, mặc định cho sáng tạo. Với `--backend auto`, dsh 429 quá tải được xử lý theo ngưỡng patch/`capacity_wait_*` (mục 5.2), không ghi quota; patch lớn giữ backend, patch nhỏ chạy lại theo phần order còn lại. Mỗi lượt codex ghi sổ `codex_usage.jsonl` (mục 5.2).
+Lệnh: `hand-ext profile [set NAME]`, `hand-ext pick --role VAI [--tier N] [--json]`, `hand-ext ladder log|stats`, `hand-ext setup|doctor [--backend B|all] [--cwd D]`, `hand-ext run --brief F|- [--role VAI --tier N [--escalated-from 1]] [--backend B] [--label L] [--cwd D] [--model M] [--effort E] [--timeout-min M] [--max-tokens N] [--sandbox S] [--isolation worktree|none] [--no-apply] [--keep-worktree]`, `hand-ext status`, `hand-ext report`, `hand-ext measure --runs <dir> [--runs <dir>...] [--backend B] [--since D]`. Mã thoát: 0 ok, 1 failed, 2 sai cách dùng hoặc không tạo được worktree khi `isolation=worktree` được yêu cầu, 4 capped, 6 timeout, 7 mọi backend hết hạn mức hoặc chưa đăng nhập. Mỗi lượt codex ghi sổ `codex_usage.jsonl` (mục 5.1).
 
 | Backend | Gói | Người dùng tự đăng nhập | Theo dõi hạn mức | Rủi ro tính tiền |
 |---|---|---|---|---|
 | `codex` | ChatGPT | `CODEX_HOME=~/.codex-hand codex login --device-auth` | `used_percent`, `resets_at` từ sự kiện của `codex exec --json`; sổ `~/.hybrid-hands/codex_usage.jsonl` giữ riêng cửa sổ 5h/7d và USD~ ước tính | đăng nhập API key thì tính tiền; `doctor` chặn, hand gỡ biến `OPENAI_API_KEY`; model thiếu giá canonical thì USD null, không bịa giá |
 | `claude-v2` | Claude tài khoản thứ hai | `CLAUDE_CONFIG_DIR=~/.claude-hand claude` rồi `/login` | lỗi hết hạn mức trong stream, `hand-ext status` | dùng nhầm tài khoản chính thì ăn hạn mức brain; hook repo vẫn chạy |
-| `claude-v1` | Gói Claude CHÍNH `~/.claude`; `claude-opus-5-5`, effort `low`; mặc định cho sáng tạo | đã đăng nhập sẵn, không đăng nhập thêm | % tuần Claude máy này đã dùng trong ngày so với `max_day_pct`; `hand-ext status` | dùng cho việc không sáng tạo sẽ ăn hạn mức brain; từ 8%/ngày hoặc không tính được thì thoát 7, ghi yêu cầu vào bàn giao để Opus quyết |
-| `dsh` | OpenCode Go qua DeepSeek Harness (`dsh --profile headless`, DeepSeek V4.1 Flash, effort `off`, thinking disabled); tuỳ chọn `--browser` qua Playwright MCP cô lập | cài `npm install -g @deepseek-ai/dsh@latest`; người dùng tự chép API key Go từ OpenCode Console vào `~/.dsh-hand/go.key` (một dòng) rồi `chmod 600 ~/.dsh-hand/go.key`; cài trình duyệt theo mục 5.1 nếu dùng `--browser` | lỗi `QUOTA`/`RATE_LIMIT` trong sự kiện `turn_end`, `hand-ext status`; USD~ ước tính trong sổ Go toàn máy (mục 5.2); 429 quá tải có nhánh riêng, không ghi quota | Extra Usage bật hoặc Console còn credit thì tính tiền khi hết hạn mức: phải TẮT Extra Usage, để credit 0; metadata models.dev ghi 0910 nhưng OpenCode báo Go đã phục vụ 1017 dưới cùng id; dsh luôn đọc `<cwd>/.env` nên hand khởi chạy dsh từ `~/.dsh-hand/launch` và trỏ workspace sang repo bằng patch `templates/dsh-hand.yml`; không được tạo `~/.dsh-hand/.env`; dsh bản developer preview, `doctor` chỉ đạt với bản đã đọc mã nguồn (0.2.1-rc.5) |
+| `claude-v1` | Gói Claude CHÍNH `~/.claude`; `claude-opus-5-5`, effort `low` | đã đăng nhập sẵn, không đăng nhập thêm | guard ngày tuỳ chọn (mặc định tắt); `hand-ext status` | dùng cho việc không sáng tạo sẽ ăn hạn mức brain; từ `max_day_pct`/ngày hoặc không tính được khi guard bật thì thoát 7, ghi yêu cầu vào bàn giao để phiên chính quyết |
 | `gemini` | dự kiến | chưa có | chưa có | Gemini 4 Carbon chưa mở cho gói nào (chỉ Fairwind Program, 28/10/2026); gói AI Pro/Ultra đã chuyển sang Antigravity CLI |
 
-### 5.1 Trình duyệt cho `dsh` (`--browser`)
+### 5.1 Sổ Codex
 
-`--browser` mặc định tắt. Khi bật, `hand-ext` ghi thêm một patch riêng cho lượt chạy tại `<runs_dir>/<run_id>/browser.patch.json` và truyền nó bằng `--patch` sau patch chung; file `~/.dsh-hand/hand.patch.yml` không bị sửa. Patch này thêm MCP server stdio `@deepseek-ai/dsh-mcp-client` tên `playwright`, chạy `node <browser_dir>/node_modules/@playwright/mcp/cli.js --headless --isolated --browser chromium --blocked-origins "<5 origin TikTok>" --output-dir <runs_dir>/<run_id>/browser`; env của server chỉ có `PLAYWRIGHT_BROWSERS_PATH=<browser_dir>/ms-playwright` (dsh tự lọc biến dạng key/token và `DSH_*`, nên key Go không sang tiến trình MCP).
-
-Cài một lần (thư mục mặc định `~/.dsh-hand/browser`, đổi bằng `backends.dsh.browser_dir`):
-
-```sh
-npm install --prefix ~/.dsh-hand/browser @playwright/mcp@0.0.83
-PLAYWRIGHT_BROWSERS_PATH=~/.dsh-hand/browser/ms-playwright \
-  ~/.dsh-hand/browser/node_modules/.bin/playwright install chromium
-```
-
-`hand-ext doctor --backend dsh` có dòng `browser` báo thiếu `cli.js`/`ms-playwright` nhưng không làm doctor fail vì trình duyệt là tuỳ chọn.
-
-Giới hạn: chỉ duyệt trang công khai; không đăng nhập, không tạo tài khoản, không điền form, không mua, không vượt captcha; không mở TikTok; không tải hay chạy file tải về. `--blocked-origins` chặn request tới 5 origin TikTok nhưng tài liệu Playwright ghi rõ nó không phải ranh giới bảo mật và không chặn redirect, nên luật trong prompt mới là lớp chính. `--isolated` giữ profile trình duyệt trong bộ nhớ; thư mục `<run>/browser` chỉ chứa output (ảnh, snapshot) của lượt chạy.
-
-### 5.2 Mức đã dùng gói OpenCode Go
-
-OpenCode Go tính hạn mức bằng USD theo tháng cho từng model: cửa sổ 5 giờ dùng 20% hạn mức tháng, tuần 50%, tháng 100%. DeepSeek V4.1 Flash có hạn mức tháng **$100**; giá peak dùng cho ước tính bảo thủ lấy từ bảng canonical (mục 6). Nguồn: <https://opencode.ai/docs/go/> (đọc 04/11/2026; nguyên văn "Usage limits are defined as monthly dollar amounts." và "5-hour — 20% of the monthly limit; weekly — 50%; and monthly — 100%."). Go Plus dùng cùng bảng giá với hạn mức tháng $200, đổi bằng `go_usage.monthly_limit_usd`.
-
-Mỗi lượt `dsh` ghi một dòng (bản ghi cũ của backend `opencode` đã gỡ ở 0.19.0 vẫn được tính) vào sổ toàn máy `~/.hybrid-hands/go_usage.jsonl` (không theo repo, vì hạn mức theo tài khoản): `run_id`, `ended`, `backend`, `model`, `tokens`, `cost_usd`, `cost_source` (`exact`/`estimated`/`unknown`), `cwd_basename` (chỉ tên thư mục, không đường dẫn tuyệt đối). Bản tóm tắt `go_usage_summary.json` cạnh sổ được ghi lại sau mỗi lượt và bởi `hand-ext usage [--json]`; mỗi model có ba cửa sổ trượt 5 giờ / 7 ngày / 30 ngày với `used_usd`, `limit_usd`, `percent`, `estimated`, cộng `updated_at`.
-
-USD~ hiển thị là ước tính offline `(input − cached_input) × giá input + cached_input × giá cached + output × giá output`, chia 1 triệu, theo model trong bảng canonical. DeepSeek dùng giá peak như ước tính bảo thủ, không phải hoá đơn hay quota thật. Model thiếu giá thì `cost_usd = null`, `cost_source = unknown`; giá trị `exact` trong sổ legacy không biến USD~ panel thành hoá đơn.
-
-**Sổ Codex:** mỗi lượt backend `codex` kết thúc ghi đúng một dòng JSON vào `~/.hybrid-hands/codex_usage.jsonl` (mặc định theo `HOME`, hoặc `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` khi đặt; test đổi `HOME` được). Schema `schema=1`: `run_id`, `ended`, `model`, `effort`, `tokens {input,cached_input,output}`, `cost_usd`, `cost_source` (`estimated`/`unknown`), `codex_home` chỉ basename (ví dụ `.codex-hand`), `windows {"5h": {"used_percent","resets_at"} | null, "7d": {...} | null}` phân loại bằng `window_minutes` (300 = 5h, 10080 = tuần), không chỉ cửa sổ lớn nhất; có gói chỉ có primary tuần, cửa sổ không có mẫu là null. Rollout cũ thiếu độ dài mới dùng primary=5h/secondary=tuần. Giá lấy theo model-id từ bảng canonical `config/model-prices.json`; thiếu hoặc bất hợp lệ thì `cost_usd = null`, `cost_source = unknown` (không bịa giá); đủ thì `(input−cached_input)×input + cached_input×cached + output×output` chia 1e6 và `cost_source = estimated`. Không ghi hội thoại, prompt hay absolute path; không dùng tài khoản `~/.codex`. Lỗi ghi sổ chỉ cảnh báo, không làm fail lượt.
-
-**Dự phòng 429 quá tải (chỉ `--backend auto` với dsh):** nhận diện bằng `is_capacity_error`/`CAPACITY_PATTERN` (không phải quota thật). Hand-ext đếm patch do hand tạo tính từ baseline isolation (không tính thay đổi có sẵn của người dùng), tổng dòng thêm+xoá, gồm file mới và staged. Nếu ≥ `backends.dsh.capacity_wait_min_lines` (mặc định 30): giữ đúng worktree, chờ `backends.dsh.capacity_wait_seconds` (mặc định 180; 0 trong test), chạy tiếp dsh với prompt thêm "đã có patch, làm tiếp", tối đa 2 lần chạy tiếp (tổng 3). Vẫn 429: `failed`, giữ `changes.patch` và worktree, không áp patch dở về source, không chuyển codex dù số dòng giảm. Patch dưới ngưỡng (kể cả rỗng): bỏ patch dsh trong worktree, không áp source, chạy lại brief gốc qua các backend còn lại sau dsh trong `cfg.order`, preflight lần lượt; giữ CLI overrides `--model`/`--effort` theo run. Không gọi backend ngoài order; hết backend dùng được thì exit 7. `--browser` không fallback backend khác: `failed`, giữ worktree và patch, ghi lý do. Lỗi đếm patch hoặc `isolation=none`: fail-closed, giữ dữ liệu, không reset source. Khi đã giữ patch lớn, mọi lượt chạy tiếp không thành công cũng giữ worktree/patch, không áp source hoặc chuyển codex; quota thật vẫn được ghi. `--backend dsh` tường minh và quota thật giữ hành vi cũ; mỗi lần chạy lại vẫn ghi registry, ledger và sổ Go/Codex riêng.
-
-Cửa sổ của Go **có thể không trượt**: OpenCode chưa công bố mốc reset, nên số của `hand-ext usage`, `hand-ext status` và statusline chỉ là ước tính để biết đang ở đâu; **OpenCode Console là nguồn chuẩn**. `hand-ext status` in thêm bảng Go khi đã có tóm tắt; khối cuối mỗi `run` in `hạn mức: ~x% 5h, ~y% tuần (ước tính)`.
-
+Mỗi lượt backend `codex` kết thúc ghi đúng một dòng JSON vào `~/.hybrid-hands/codex_usage.jsonl` (mặc định theo `HOME`, hoặc `$HYBRID_HANDS_STATE_DIR/codex_usage.jsonl` khi đặt; test đổi `HOME` được). Schema `schema=1`: `run_id`, `ended`, `model`, `effort`, `tokens {input,cached_input,output}`, `cost_usd`, `cost_source` (`estimated`/`unknown`), `codex_home` chỉ basename (ví dụ `.codex-hand`), `windows {"5h": {"used_percent","resets_at"} | null, "7d": {...} | null}` phân loại bằng `window_minutes` (300 = 5h, 10080 = tuần), không chỉ cửa sổ lớn nhất; có gói chỉ có primary tuần, cửa sổ không có mẫu là null. Rollout cũ thiếu độ dài mới dùng primary=5h/secondary=tuần. Giá lấy theo model-id từ bảng canonical `config/model-prices.json`; thiếu hoặc bất hợp lệ thì `cost_usd = null`, `cost_source = unknown` (không bịa giá); đủ thì `(input−cached_input)×input + cached_input×cached + output×output` chia 1e6 và `cost_source = estimated`. Không ghi hội thoại, prompt hay absolute path; không dùng tài khoản `~/.codex`. Lỗi ghi sổ chỉ cảnh báo, không làm fail lượt.
 
 ### Dọn worktree và disk guard
 
@@ -397,7 +314,7 @@ Disk guard kiểm ổ chứa worktree root: `disk_guard.warn_gb=20`, `block_gb=5
 
 `hand-ext gc [--cwd /ABS/REPO] [--json] [--apply]` cũng mặc định dry-run, chỉ dùng metadata ownership/registry/completion. Đường exact apply xoá worktree sạch đã kết thúc, recheck dưới khoá, không force; running hoặc managed execution chưa settled đều giữ. Dirty/unknown có thể được xét riêng theo lớp legacy bên dưới. Detached HEAD đã dịch khỏi base ghi nhận cũng giữ. Journal ở `<machine_state_dir>/worktree-gc.jsonl`; artifacts ngoài worktree được giữ.
 
-Sparse P4 **chưa có trong release này**: S0 đã được Sol review FAIL vì `isolation.prepare` làm mất excluded tracked paths trong baseline. `worktree_sparse_exclude` (thiết kế mặc định `[]`) và `--no-sparse` chỉ là thiết kế bị chặn, chưa dùng được. Hai pattern live-tiktok-games đã được duyệt ngày 10/11/2026; Opus chỉ cấu hình sau khi S0 đạt, không thử sparse trên repo thật trong gói hiện tại.
+Sparse P4 **chưa có trong release này**: S0 đã được review FAIL vì `isolation.prepare` làm mất excluded tracked paths trong baseline. `worktree_sparse_exclude` (thiết kế mặc định `[]`) và `--no-sparse` chỉ là thiết kế bị chặn, chưa dùng được. Hai pattern live-tiktok-games đã được duyệt ngày 10/11/2026; phiên chính chỉ cấu hình sau khi S0 đạt, không thử sparse trên repo thật trong gói hiện tại.
 
 ### Worktree sparse (tuỳ chọn)
 
@@ -409,11 +326,11 @@ Cả hai GC có lớp `legacy-recoverable`: worktree đã đăng ký, không ph�
 
 ### 5.3 Cách ly worktree (mặc định)
 
-Vì hook của Claude Code không chạy trong dsh/codex/gemini, hàng rào chắc nhất là secret không tồn tại trong thư mục hand làm việc. Khi `isolation=worktree` (mặc định nếu cwd là git repo), `hand-ext run`:
+Vì hook của Claude Code không chạy trong codex, hàng rào chắc nhất là secret không tồn tại trong thư mục hand làm việc. Khi `isolation=worktree` (mặc định nếu cwd là git repo), `hand-ext run`:
 
 1. Tạo worktree detached tại `HEAD` dưới `worktree_root` (mặc định `~/.hybrid-hands/worktrees/<repo>-<run-id>`), ngoài repo.
 2. Chép trạng thái làm việc: áp `git diff HEAD --binary` của file tracked rồi chép các file untracked **không bị ignore** (`git ls-files --others --exclude-standard`). File bị ignore như `.env`, `*.demo.env` không bao giờ được chép, nên không có trong workspace. Lớp chặn thứ hai: untracked có basename giống secret (`.env`, `*.env`, `*.pem`, `*.key`, `id_rsa*`, `.netrc`, `.npmrc`, `.pypirc`; trừ `.env.example`/`.env.sample`/`.env.template`/`*.env.example`) bị bỏ qua dù repo quên ignore, và symlink untracked chỉ được chép khi là đường dẫn tương đối, đích resolve nằm trong repo và không giống secret; tên bị bỏ được ghi vào report.
-3. Chạy backend với cwd/worktree (dsh nhận worktree qua `HAND_EXT_DSH_WORKSPACE`).
+3. Chạy backend với cwd/worktree.
 4. Sau run, chụp trạng thái worktree bằng một git index riêng, ghi diff nhị phân vào `<runs_dir>/<run-id>/changes.patch`, rồi áp về cwd gốc bằng `git apply --check` + `git apply`. Xung đột thì không ghi đè thay đổi người dùng: report ghi `xung đột` kèm danh sách file, patch vẫn nằm trong thư mục lượt chạy. Patch rỗng thì bỏ qua áp.
 5. Dọn worktree (`git worktree remove --force` + `git worktree prune`) kể cả khi timeout/lỗi; patch vẫn được lưu. `--keep-worktree` giữ worktree để kiểm tra; `--no-apply` chỉ lưu patch, không áp.
 
@@ -423,7 +340,7 @@ Cờ `--isolation none` tắt cách ly cho một lượt (chỉ dùng khi biết
 
 Từ 0.22.0, mỗi thư mục `<runs_dir>/<run_id>/` có thêm `brief.md` (brief nhận vào, kể cả khi đọc từ stdin), `prompt.md` (prompt đầy đủ gửi backend), `meta.json` (`base_commit`, `dirty`, `dirty_files`, `plugin_version`, `backend`, `model`, `label`) và `changes.base.patch` khi repo nguồn có thay đổi chưa commit; `events.jsonl` có thêm `ts` ISO 8601 để tính thời gian từng lệnh. Lượt cũ thiếu meta hoặc `ts` vẫn đếm được dòng; cột thời gian lệnh test để `-`, `plugin_version` là `unknown`.
 
-`hand-ext measure --runs <dir> [--runs <dir>...] [--backend dsh] [--since YYYY-MM-DD]` đọc các thư mục lượt (nhận cả `runs_dir` lẫn một thư mục lượt), đếm dòng thêm test/code/docs từ `changes.patch`: Test nếu nằm trong `tests/`, `test/`, `__tests__/`, `spec/` hoặc tên dạng `test_*`, `*_test.*`, `*.spec.*`, `*.test.*`, `*.bats`; Docs nếu là `.md`, `.rst`, `.txt` hoặc nằm trong `docs/`; còn lại là Code (ưu tiên Test trước Docs). Lệnh test nhận `pytest`, `unittest`, `bats`, `npm test`, `npx vitest`, `go test`, `cargo test`; thời gian một lệnh là `ts` của `tool_result` trừ `ts` của `tool_call` cùng id. Kết quả in bảng theo lượt (tên, version, backend, dòng test/code/docs, % test/(test+code), số lệnh test, tổng giây lệnh test, giây lượt) rồi gộp theo `plugin_version` (tổng dòng, % test, trung bình/trung vị dòng test). `--backend` lọc theo `meta.json`, thiếu meta thì suy ra từ hậu tố tên lượt; `--since` lọc theo ngày bắt đầu của lượt.
+`hand-ext measure --runs <dir> [--runs <dir>...] [--backend codex] [--since YYYY-MM-DD]` đọc các thư mục lượt (nhận cả `runs_dir` lẫn một thư mục lượt), đếm dòng thêm test/code/docs từ `changes.patch`: Test nếu nằm trong `tests/`, `test/`, `__tests__/`, `spec/` hoặc tên dạng `test_*`, `*_test.*`, `*.spec.*`, `*.test.*`, `*.bats`; Docs nếu là `.md`, `.rst`, `.txt` hoặc nằm trong `docs/`; còn lại là Code (ưu tiên Test trước Docs). Lệnh test nhận `pytest`, `unittest`, `bats`, `npm test`, `npx vitest`, `go test`, `cargo test`; thời gian một lệnh là `ts` của `tool_result` trừ `ts` của `tool_call` cùng id. Kết quả in bảng theo lượt (tên, version, backend, dòng test/code/docs, % test/(test+code), số lệnh test, tổng giây lệnh test, giây lượt) rồi gộp theo `plugin_version` (tổng dòng, % test, trung bình/trung vị dòng test). `--backend` lọc theo `meta.json`, thiếu meta thì suy ra từ hậu tố tên lượt; `--since` lọc theo ngày bắt đầu của lượt.
 
 ## 6. Theo dõi phiên và hand: `hh-ps`
 
@@ -437,9 +354,9 @@ Mỗi dòng session/subagent/hand/side provider có model, effort, `USD~`, hạn
 
 Nguồn giá duy nhất là [`plugins/hybrid-hands/config/model-prices.json`](plugins/hybrid-hands/config/model-prices.json), có thể thay bằng `HYBRID_HANDS_PRICING_FILE`. Schema: `{version:1, verified_at:"2026-11-07", models:{<model-id>:{input,cached,output,cache_write_5m?,cache_write_1h?,source,price_date}}}`; đơn vị USD/MTok. Mỗi entry giữ URL nguồn và ngày giá. Model chưa biết không fallback sang model khác hay họ Opus/Sonnet/Haiku; file override thiếu/hỏng không dùng một bảng giá dự phòng.
 
-Mọi `USD~` là ước tính offline từ token trên gói subscription, không phải hoá đơn. Claude tính cache đọc/ghi theo đúng giá cấu hình, tách cache ghi 5m/1h, không giả định cache đọc bằng một tỉ lệ input cố định. Nguồn công khai được xác minh ngày 2026-11-07; URL nguồn và giá chỉ lưu trong file canonical ở trên. Giá DeepSeek V4.1 Flash peak dùng như ước tính bảo thủ. Không duy trì bảng giá thứ hai trong cấu hình backend hay code.
+Mọi `USD~` là ước tính offline từ token trên gói subscription, không phải hoá đơn. Claude tính cache đọc/ghi theo đúng giá cấu hình, tách cache ghi 5m/1h, không giả định cache đọc bằng một tỉ lệ input cố định. Nguồn công khai được xác minh ngày 2026-11-07; URL nguồn và giá chỉ lưu trong file canonical ở trên. Không duy trì bảng giá thứ hai trong cấu hình backend hay code.
 
-Phần trăm **tài khoản** 5h/tuần lấy từ cache/sample sẵn có của đúng gói Claude/GPT/Go; thiếu nguồn hiện `?`. Không suy token hoặc USD thành quota GPT. Phần **riêng hand tuần** chỉ thêm khi có nguồn tính được và có nhãn riêng, không trộn với phần trăm tài khoản. Cache/sample hết kỳ reset không được trình bày như số hiện tại. Khối hạn mức giữ nguồn và giờ reset khi có; số ước tính được đánh dấu `~`.
+Phần trăm **tài khoản** 5h/tuần lấy từ cache/sample sẵn có của đúng gói Claude/GPT; thiếu nguồn hiện `?`. Không suy token hoặc USD thành quota GPT. Phần **riêng hand tuần** chỉ thêm khi có nguồn tính được và có nhãn riêng, không trộn với phần trăm tài khoản. Cache/sample hết kỳ reset không được trình bày như số hiện tại. Khối hạn mức giữ nguồn và giờ reset khi có; số ước tính được đánh dấu `~`.
 
 Sổ usage của statusline dùng version 4 và fingerprint để nhận biết dữ liệu cần tính lại. USD~ Claude vẫn là ước tính offline, không phải chi phí chính xác hay hoá đơn.
 
@@ -473,16 +390,15 @@ Daemon `hh-indexer` giữ kho luôn mới giữa các lần chạy hh-ps. Nó th
 
 `hh-ps` đọc metadata phiên, usage transcript và registry trên máy; không in nội dung hội thoại/prompt hay credential, không gọi mạng để tính USD. Snapshot JSON giữ `sessions[]` (có `subagents[]`, `hand_runs[]`), `orphan_runs[]`, `limits[]`, `totals`, `generated_at`, `since_seconds`, thông tin lọc project và phiên chính. `usage` giữ token/USD, phần tuần riêng và `account_plan`, `account_5h_pct`, `account_week_pct`; trường thiếu dùng null hoặc chuỗi rỗng theo model dữ liệu.
 
-Từ 0.29.0, native Codex child được đọc từ metadata rollout cục bộ trong đường dẫn cố định `~/.codex-hand/sessions` (không dùng override `CODEX_HOME`, giữ cô lập tài khoản), không gọi daemon RPC/API. `session_meta.parent_thread_id` hoặc `session_meta.source.subagent.thread_spawn.parent_thread_id` xác định thread cha; `session_meta.id` của pinned Sol rollout đối chiếu thread đó về sid canonical. Child nằm trong `sessions[].subagents[]` với `agent_type=native-codex`, `provider=codex`, status, parent canonical, `ended_at` và `exit_code` nullable; dataclass giữ `finished_at` optional. JSON của hand cũng giữ `exit_code` nullable. Các field mới được thêm cuối dataclass với default để giữ tương thích. Không suy completed từ mtime hay im lặng.
+Từ 0.29.0, native Codex child được đọc từ metadata rollout cục bộ trong đường dẫn cố định `~/.codex-hand/sessions` (không dùng override `CODEX_HOME`, giữ cô lập tài khoản), không gọi daemon RPC/API. `session_meta.parent_thread_id` hoặc `session_meta.source.subagent.thread_spawn.parent_thread_id` xác định thread cha; `session_meta.id` của pinned rollout phiên brain Codex đối chiếu thread đó về sid canonical. Child nằm trong `sessions[].subagents[]` với `agent_type=native-codex`, `provider=codex`, status, parent canonical, `ended_at` và `exit_code` nullable; dataclass giữ `finished_at` optional. JSON của hand cũng giữ `exit_code` nullable. Các field mới được thêm cuối dataclass với default để giữ tương thích. Không suy completed từ mtime hay im lặng.
 
 Token chỉ lấy từ nguồn native, USD~ dùng giá canonical; thiếu token hoặc giá hiện `?`, không suy quota. Native không có run/meta/report/token ledger hand-ext. Nguồn đọc không lấy nội dung chat, prompt hay credential.
 
-`CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn hand vào đúng cha. `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Sol Codex/Claude/dsh và mọi loại agent/backend. Metadata mới lưu parent canonical, `started`, `ended`, `status`, `exit_code`, `tokens`, `effort`, `duration` cùng backend/model. Legacy thiếu dữ liệu giữ unknown. Contract dataclass và bước enrichment được ghi tại [AGENTS.md](../AGENTS.md); `tree.py` tạo Snapshot rồi gọi `enrich_snapshot(snapshot, cfg, now)` trước khi return.
+`CODEX_THREAD_ID`/`PASEO_AGENT_ID` được đối chiếu thành sid canonical để gắn hand vào đúng cha. `HYBRID_HANDS_HAND_SCOPE` chỉ giới hạn số hand đồng thời, không phải ID cha. Cây bao gồm phiên Codex/Claude và mọi loại agent/backend. Metadata mới lưu parent canonical, `started`, `ended`, `status`, `exit_code`, `tokens`, `effort`, `duration` cùng backend/model. Legacy thiếu dữ liệu giữ unknown. Contract dataclass và bước enrichment được ghi tại [AGENTS.md](../AGENTS.md); `tree.py` tạo Snapshot rồi gọi `enrich_snapshot(snapshot, cfg, now)` trước khi return.
 
 ## 7. Chuyển phiên giữa terminal và Paseo: `cc-switch`
 
 `cc-switch paseo` tra `paseo.claude_providers` theo account phiên hiện tại khi `paseo import`; mặc định `{"v1":"claude"}`. Thiếu ánh xạ thì dừng trước khi đóng TUI. Muốn chuyển phiên v2, người dùng tự khai báo provider Claude v2 trong `~/.paseo/config.json` với env `CLAUDE_CONFIG_DIR=~/.claude-hand`, rồi đặt `paseo.claude_providers.v2` bằng tên provider đó trong global hoặc repo. Ánh xạ không tự tạo provider Paseo.
-
 
 `cc-switch term [--agent ID|--session SID] [--dry-run] [-- <đối số thêm cho claude>]` lấy agent Paseo provider `claude` của project hiện tại (hoặc chọn theo id/tiền tố/session), chờ `paseo wait` nếu agent đang chạy, từ chối nếu đã có TUI `claude` sống cùng session, rồi `chdir` vào cwd agent và `exec claude --resume <sid> [--model <model>]`. Sau đó đừng gửi tin cho agent từ Paseo cho tới khi chuyển lại.
 
@@ -546,7 +462,7 @@ Không selector tương đương `--all`; `--account` chỉ nhận Claude đích
 không nhận nguồn; hai selector loại trừ nhau. `--all` còn báo Codex hand blocked.
 Nguồn Claude mặc định v1, đích từ `ext_hand.claude_accounts`, không quét home.
 
-Gói này **chưa được apply home thật**. Sol chỉ thực hiện status/sync DRY-RUN để
+Gói này **chưa được apply home thật**. Brain chỉ thực hiện status/sync DRY-RUN để
 người dùng duyệt manifest và ownership floor cụ thể. Không suy rằng code tồn tại
 là runtime đã nạp hoặc test thật đã pass. Xem [quyết định](../docs/work-in-progress/dong-bo-tai-khoan/spec.md),
 [tiến độ](../docs/work-in-progress/dong-bo-tai-khoan/plan.md) và

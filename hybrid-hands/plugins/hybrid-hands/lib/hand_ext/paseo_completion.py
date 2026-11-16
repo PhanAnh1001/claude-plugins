@@ -14,7 +14,8 @@ import subprocess
 import sys
 import threading
 
-from . import isolation, go_usage, codex_usage, quota_state
+from . import isolation, codex_usage, quota_state
+from .usage_cost import read_jsonl
 from .backends.base import Quota
 from .execution_state import StateConflict, as_key, _plain, atomic_json
 from .execution_admission import Reservation
@@ -52,13 +53,16 @@ def _text(path, text):
         if os.path.exists(tmp): os.unlink(tmp)
 
 
+# Settlement sinks of a managed run. Legacy records may also carry 'go_ledger' (retired with dsh,
+# 16/11/2026); recovery ignores sinks outside this tuple.
+SETTLE_SINKS = ('finalize', 'report', 'ledger', 'usage_state')
+
 class CompletionService:
     def __init__(self, store, supervisor, admission):
         self.store, self.supervisor, self.admission = store, supervisor, admission
         self.worker = None
 
     def bind(self, key, ctx, *, ledger_path, registry_dir, policy='no_apply',
-             go_ledger=None, go_summary=None, go_monthly_limit=0,
              codex_ledger=None, quota_path=None, label='', keep_worktree=False):
         """Persist prepared context and sink paths before dispatch.
 
@@ -74,9 +78,6 @@ class CompletionService:
             raise ValueError('prepared context identity mismatch')
         config = dict(version=1, keep_worktree=bool(keep_worktree), context=serialize_context(ctx), policy=policy, label=str(label),
                       ledger=str(Path(ledger_path).resolve()), registry=str(Path(registry_dir).resolve()),
-                      go_ledger=str(Path(go_ledger).resolve()) if go_ledger else None,
-                      go_summary=str(Path(go_summary).resolve()) if go_summary else None,
-                      go_monthly_limit=go_monthly_limit,
                       codex_ledger=str(Path(codex_ledger).resolve()) if codex_ledger else None,
                       quota_path=str(Path(quota_path).resolve()) if quota_path else None)
         if r.receipt and r.receipt.get('completion'):
@@ -88,7 +89,7 @@ class CompletionService:
 
     def attach(self, worker):
         self.worker = worker
-        worker.hooks = {kind: self._hook(kind) for kind in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')}
+        worker.hooks = {kind: self._hook(kind) for kind in SETTLE_SINKS}
         worker.settlement_callback = self.release
         return self
 
@@ -175,25 +176,6 @@ class CompletionService:
             if not matches: write_atomic(path, entries + [entry])
         return dict(path=str(path), key=token)
 
-    def _go_ledger(self, r, c, token, run_dir):
-        if r.invocation.backend != 'dsh': return dict(not_applicable=True)
-        if not c['go_ledger'] or not c['go_summary']: raise StateConflict('Go sink binding required')
-        entry = self._entry(r, token)
-        cost, source = go_usage.resolve_cost(entry['tokens'] or {}, r.receipt.get('usage_observation', {}).get('go_allowance_usd'), go_usage.price_for({}, entry['model']))
-        if entry['tokens'] is None: cost, source = None, go_usage.COST_UNKNOWN
-        item = go_usage.build_record(entry['run_id'], entry['ended'], entry['backend'], entry['model'], entry['tokens'] or {}, cost, source, entry['cwd'])
-        item.update(execution_key=_plain(r.key), idempotency_key=token)
-        path = Path(c['go_ledger']); path.parent.mkdir(parents=True, exist_ok=True)
-        with locked(path):
-            records = go_usage._read_records_unlocked(path)
-            matches = [x for x in records if x.get('execution_key') == _plain(r.key)]
-            if matches and matches != [item]: raise StateConflict('Go sink mismatch')
-            if not matches:
-                records.append(item)
-                _text(path, ''.join(json.dumps(x) + '\n' for x in records))
-            go_usage.write_summary(Path(c['go_summary']), go_usage.summarize(records, c['go_monthly_limit'], r.finished_at))
-        return dict(path=str(path), summary=c['go_summary'], key=token)
-
     def _usage_state(self, r, c, token, run_dir):
         observation = r.receipt.get('usage_observation', {})
         refs = {}
@@ -225,7 +207,7 @@ class CompletionService:
             item.update(execution_key=_plain(r.key), idempotency_key=token)
             path = Path(c['codex_ledger']); path.parent.mkdir(parents=True, exist_ok=True)
             with locked(path):
-                records = go_usage._read_records_unlocked(path)
+                records = read_jsonl(path)
                 matches = [x for x in records if x.get('execution_key') == _plain(r.key)]
                 if matches and matches != [item]: raise StateConflict('Codex sink mismatch')
                 if not matches: _text(path, ''.join(json.dumps(x) + '\n' for x in records + [item]))
@@ -234,7 +216,7 @@ class CompletionService:
 
     def reconcile(self, key):
         """Read-only sink recovery. An unproved in_progress sink holds the slot."""
-        for kind in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state'):
+        for kind in SETTLE_SINKS:
             r = self.store.get(key)
             marker = r.settle_keys.get(kind)
             if not marker or marker['state'] == 'completed': continue
@@ -258,18 +240,6 @@ class CompletionService:
                 entries = read_json(Path(c['ledger']), [])
                 if [x for x in entries if x.get('execution_key') == _plain(r.key)] != [self._entry(r, token)]: return None
                 return dict(path=c['ledger'], key=token)
-            if kind == 'go_ledger' and r.invocation.backend != 'dsh':
-                # Mirrors _go_ledger: no side effect exists outside dsh, so nothing to prove.
-                return dict(not_applicable=True)
-            if kind == 'go_ledger' and r.invocation.backend == 'dsh':
-                records = go_usage._read_records_unlocked(Path(c['go_ledger']))
-                matches = [x for x in records if x.get('execution_key') == _plain(r.key)]
-                if len(matches) != 1 or matches[0].get('idempotency_key') != token: return None
-                summary = json.loads(Path(c['go_summary']).read_text())
-                timestamp = summary.get('updated_at')
-                if type(timestamp) not in (int, float): return None
-                if summary != go_usage.summarize(records, c['go_monthly_limit'], timestamp): return None
-                return dict(path=c['go_ledger'], summary=c['go_summary'], key=token)
             if kind == 'report':
                 run_dir = Path(r.receipt['worker_run_dir'])
                 metadata = json.loads((run_dir / 'meta.json').read_text())
@@ -294,10 +264,10 @@ class CompletionService:
             self._after_release(key)
             return True
         if not r.outcome or not r.outcome.get('quiescent'): return False
-        if any(r.settle_keys.get(k, {}).get('state') != 'completed' for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')): return False
+        if any(r.settle_keys.get(k, {}).get('state') != 'completed' for k in SETTLE_SINKS): return False
         if not r.reservation: return False
         for kind, marker in r.settle_keys.items():
-            if kind in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state') and self._recover_refs(r, kind, marker['key']) is None: return False
+            if kind in SETTLE_SINKS and self._recover_refs(r, kind, marker['key']) is None: return False
         self.admission.release(Reservation.from_dict(r.reservation), outcome=r.outcome, artifacts_settled=True)
         self._after_release(key)
         return True
@@ -319,7 +289,7 @@ class CompletionService:
         from .worktree_lifecycle import remove_preserved, record
         r = self.store.get(key)
         if any(r.settle_keys.get(k, {}).get('state') != 'completed'
-               for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')):
+               for k in SETTLE_SINKS):
             return
         refs = r.artifacts['report']
         metadata_path = Path(refs['metadata'])

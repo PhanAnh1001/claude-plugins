@@ -39,7 +39,7 @@ def test_view(tmp_path, monkeypatch, capsys):
     assert [row["value"] for row in options["tiers"]] == ["brain", "side", "hand"]
     assert "claude-sonnet-5-5" in options["providers"]["claude"]["models"]
     assert options["providers"]["claude"]["models"][:2] == ["claude-opus-5-5", "claude-fable-5-2"]
-    assert [row["value"] for row in options["hand_backends"] if row["in_order"]] == data["hand"]["order"]["value"]
+    assert "dsh" not in [row["value"] for row in options["hand_backends"]] and "order" not in data["hand"]
     assert set(options["presets"]) == {"brain", "side", "hand_claude", "hand_other"}
     assert all(rows[0]["args"] == [] and len(rows) <= 4 for rows in options["presets"].values())
     assert path.read_bytes() == original
@@ -62,7 +62,7 @@ def test_set_and_validation(tmp_path, monkeypatch, capsys):
     assert diff["side_session.codex_effort"][1] == "xhigh"
     assert diff["ext_hand.native.claude"][1] == "off"
     assert main(prefix + ["--hand", "dsh=deepseek-v4.1-flash:high", "--hand-mode", "native", "--dry-run"]) == 2
-    assert "dsh không có native subagent" in capsys.readouterr().err
+    capsys.readouterr()
     assert diff["ext_hand.backends.claude-v2.model"][1] == "claude-haiku-5-5"
     assert main(prefix + ["--brain", "claude-fable-5-2:high@v2", "--dry-run"]) == 0
     fable = json.loads(capsys.readouterr().out)["diff"]
@@ -95,7 +95,6 @@ def test_unset_hand(tmp_path, monkeypatch, capsys):
     repo, path = fixture(tmp_path, monkeypatch)
     raw = json.loads(path.read_text())
     ext = raw["ext_hand"]
-    ext["order"] = ["codex"]
     ext["native"] = {"claude": "off", "codex": "auto"}
     ext["backends"]["codex"].update(model="bad", effort="bad")
     ext["claude_accounts"]["v1"].update(model="bad", effort="bad")
@@ -108,7 +107,6 @@ def test_unset_hand(tmp_path, monkeypatch, capsys):
     assert json.loads(path.read_text()) == raw
     assert main(["models", "unset", "hand", "--cwd", str(repo), "--json"]) == 0
     ext = json.loads(path.read_text())["ext_hand"]
-    assert "order" not in ext
     assert ext["backends"]["codex"] == {"home": "fake-home"}
     assert ext["backends"]["claude-main"] == {"max_day_pct": 5}
     assert ext["claude_accounts"]["v1"] == {"config_dir": "fake-dir", "max_day_pct": 5}

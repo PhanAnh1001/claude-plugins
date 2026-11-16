@@ -2,6 +2,29 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.64.0 — 2026-11-16
+
+Tóm tắt: thay cơ chế chọn hand theo `ext_hand.order` bằng **profile bắt buộc theo repo** (`claude-mono`, `gpt-mono`, `hybrid`) → vai → tài khoản/model/effort; gỡ hẳn dsh, gemini, `--browser`, sổ Go và cờ `parallel_subagents`. **Phá vỡ tương thích:** repo không có `profile` (kể cả qua global) sẽ bị hook, `hand-ext pick/run` và `side-session start` báo lỗi kèm hướng dẫn `hand-ext profile set <tên>`.
+
+- Profile và vai:
+  - Khoá `profile` (plugin → global → repo) và ghi đè từng ô ở `profiles.<tên>.<vai>`. Bảng mặc định: `claude-mono` mọi vai Claude v1 (brain/code Opus 5.5 high/low, collect/chrome Sonnet 5.5 low/medium); `gpt-mono` brain/code `gpt-6.1-sol` high/low, collect B1 = B2 `gpt-6.1-terra` low, chrome Claude v2 Sonnet 5.5 low/medium; `hybrid` = `gpt-mono` + super brain Claude v2 Opus 5.5 high.
+  - Lệnh mới `hand-ext profile [set <tên>]`; `hand-ext pick --role code|collect|chrome [--tier 1|2] --json` trả tài khoản/model/effort/`agent_model`/`native`; `hand-ext run --role … --tier … [--escalated-from RUN_ID]` ghi `role/tier/attempt/escalated_from/effort` vào meta và ledger.
+  - Native quyết định theo tài khoản phiên gọi và ô vai, không còn so frontmatter `agents/hand.md`.
+  - `side-session start` (kể cả `--main`) lấy provider/account/model/effort mặc định từ vai `super`/`brain`; cờ CLI vẫn thắng. Phiên mở bằng side-session nhận biến `HYBRID_HANDS_ROLE`; hook policy in đúng một vai (super brain hoặc brain).
+- Thang 2 bậc cho thu thập: policy và template mô tả B1 → B2 đúng một lần; lệnh mới `hand-ext ladder log|stats` (JSONL `~/.hybrid-hands/ladder.jsonl`) cho lượt native; hh-ps hiện nhãn `collect B2↑` và JSON thêm `role/tier/escalated_from`.
+- Guard ngày v1: mặc định tắt; bật bằng `ext_hand.claude_accounts.<acc>.day_guard=true`, `max_day_pct`, khoá mới `day_guard_days` (ví dụ `["sat","sun"]`). limit-watch tôn trọng guard tắt.
+- Giá: thêm `gpt-6.1-terra` vào `config/model-prices.json` (nguồn OpenAI, ngày 2026-11-16) và `MODEL_CAPABILITIES`; giữ entry `deepseek-v4.1-flash` để lượt cũ vẫn có USD~.
+- Gỡ bỏ:
+  - Backend dsh (DeepSeek Harness/OpenCode Go) và gemini, provider Paseo `hh-hand-dsh`, `side-session --provider dsh`, nhãn "dsh phụ", template `dsh-hand.yml`, `ext-hand-browser-rules.md`.
+  - Cờ `--browser`, sổ Go (`go_usage.py`, `go_live.py`, `capacity.py`, lệnh `hand-ext usage`), dòng hạn mức Go trong hh-ps, trường `HandRun.week_limit_usd`.
+  - `ext_hand.order`, `--backend auto` và tự chuyển backend khi QUOTA/NOT_LOGGED_IN: mã thoát 7 nay nghĩa là tài khoản/backend được chọn không dùng được.
+  - Cờ, lệnh và slash command `parallel-subagents`: song song ≤ 4 là mặc định của mọi profile.
+  - File cấu hình cũ còn `parallel_subagents`, `ext_hand.order`, `ext_hand.backends.dsh|gemini`, `ext_hand.go_usage` vẫn nạp được, in một cảnh báo mỗi khoá. Bản ghi managed cũ còn sink `go_ledger` không chặn `managed recover`.
+- Tài liệu: viết lại `AGENTS.md` (bảng vai thay "Ngoại lệ A"), README (mục "Profile và vai"), policy hook, template phiên chính/phụ Claude và Codex, skill ext-hand/side-session/paseo/limit-watch.
+- Chưa kiểm chứng: subagent Codex native nhận đúng model/effort theo vai; vai `chrome` chạy Claude in Chrome trên v2; super brain v2 trên Paseo từ điện thoại kèm limit-watch; `hand-ext models` vẫn theo ba tầng cũ, chưa theo vai.
+- Test: bộ unittest `hybrid-hands/tests` 507 ca, còn 1 ca đỏ có sẵn trên `main` (`test_disk_guard.test_cli_and_prepare_preflight`, `Config` thiếu `machine_state_dir`).
+- Social listening: không tìm nguồn riêng; thiết kế dựa trên nhu cầu người dùng chốt 16/11/2026.
+
 ## 0.63.0 — 2026-11-16
 
 Tóm tắt: thêm cấu hình `ui.hh_tree.enabled` và `ui.hh_panel.enabled` (mặc định `true`) để tắt pane `hh-tree-pane` và panel Paseo `hh-tree` theo global hoặc từng repo.

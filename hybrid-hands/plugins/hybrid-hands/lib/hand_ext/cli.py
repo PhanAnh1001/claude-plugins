@@ -1,19 +1,17 @@
-"""hand-ext command line: setup, doctor, run, status, usage, report, measure."""
+"""hand-ext command line: setup, doctor, run, pick, status, report, measure."""
 from __future__ import annotations
 
 import argparse
 from dataclasses import replace
 import json
-import os
 import sys
-import time
 from pathlib import Path
 from typing import List, Optional
 
 from account_label import backend_account_label
 from shared_config import GlobalConfigError, load_config as load_shared
 
-from . import go_live, go_usage, measure, quota_state, render, report
+from . import measure, quota_state, render, report
 from .backends import BackendUnavailable, KNOWN_BACKENDS, get_backend
 from .backends.base import Check
 from .config import ExtConfig, load_config
@@ -21,10 +19,10 @@ from .native import native_selection
 from .disk_guard import DiskGuardBlocked, EXIT_DISK_GUARD
 from .isolation import IsolationError
 from .constants import (
-    ALL_BACKENDS, AUTO_BACKEND, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_OK, EXIT_USAGE, GO_LIVE_MISSING, ISOLATIONS,
-    SANDBOXES,
+    ALL_BACKENDS, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_OK, EXIT_USAGE, ISOLATIONS, SANDBOXES,
 )
-from .run_cmd import auto_preflight, backend_ready, cmd_run, last_run, with_sandbox
+from .run_cmd import (backend_ready, cmd_run, last_run, missing_backend, preflight,
+                      with_sandbox)
 
 
 def _execution_key(value):
@@ -56,13 +54,6 @@ def _parser() -> argparse.ArgumentParser:
     inspect = sub.add_parser("config", help="in cấu hình hiệu lực và nguồn (chỉ đọc)")
     inspect.add_argument("--json", action="store_true")
     inspect.add_argument("--cwd")
-    parallel = sub.add_parser("parallel-subagents", aliases=["parallel"],
-                              help="xem hoặc bật/tắt policy parallel của repo (parallel: alias cũ)")
-    parallel.add_argument("action", nargs="?", choices=("on", "off", "accounts"))
-    parallel.add_argument("--backend")
-    parallel.add_argument("--account", help="tài khoản Claude vN dùng chung cho brain và subagent")
-    parallel.add_argument("--cwd")
-    parallel.add_argument("--json", action="store_true")
     provider = sub.add_parser("provider", help="cấu hình ACP provider bằng schema Paseo chính thức")
     provider_sub = provider.add_subparsers(dest="provider_cmd", required=True)
     provider_setup = provider_sub.add_parser("setup")
@@ -100,14 +91,19 @@ def _parser() -> argparse.ArgumentParser:
     gc.add_argument("--apply", action="store_true")
     gc.add_argument("--include-preserved", action="store_true",
                     help="với --apply: xoá cả worktree dirty khớp changes.patch")
-    pick = sub.add_parser("pick", help="chọn backend auto (chỉ đọc)")
+    pick = sub.add_parser("pick", help="chọn backend theo --role hoặc --backend (chỉ đọc)")
     pick.add_argument("--json", action="store_true")
     pick.add_argument("--backend")
     pick.add_argument("--cwd")
+    from .profile_cmd import add_pick_flags, register as register_profile
+    add_pick_flags(pick)
+    register_profile(sub)
+    from .ladder import add_parser as add_ladder_parser
+    add_ladder_parser(sub)
     r = sub.add_parser("run", help="chạy một brief")
     r.add_argument("--ignore-disk-guard", action="store_true")
     r.add_argument("--brief", required=True, help="file brief hoặc - cho stdin")
-    r.add_argument("--backend", default=AUTO_BACKEND)
+    r.add_argument("--backend", help="backend tường minh khi không dùng --role")
     r.add_argument("--mode", choices=("shell", "auto", "paseo-required"))
     for flag in ("--label", "--cwd", "--model", "--effort"):
         r.add_argument(flag)
@@ -120,12 +116,9 @@ def _parser() -> argparse.ArgumentParser:
                    help="chỉ lưu changes.patch, không áp về thư mục gốc")
     r.add_argument("--keep-worktree", action="store_true",
                    help="giữ worktree sau khi chạy để kiểm tra")
-    r.add_argument("--browser", action="store_true",
-                   help="bật Playwright MCP cô lập cho backend dsh (chỉ trang công khai)")
+    add_pick_flags(r)
+    r.add_argument("--escalated-from", help="run_id bậc 1 được nâng lên (chỉ với --tier 2)")
     sub.add_parser("status", help="sẵn sàng, hạn mức, lượt gần nhất").add_argument("--cwd")
-    use = sub.add_parser("usage", help="mức đã dùng gói OpenCode Go (5h/7d/30d)")
-    use.add_argument("--json", action="store_true", help="in JSON của bản tóm tắt")
-    use.add_argument("--cwd")
     rep = sub.add_parser("report", help="tổng lượt và token")
     for flag in ("--since", "--backend", "--label", "--cwd"):
         rep.add_argument(flag)
@@ -137,6 +130,10 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
+# Compatibility aliases of claude-v1/claude-v2; status lists each account once.
+COMPAT_ALIASES = ("claude-main", "claude")
+
+
 def _cfg(args: argparse.Namespace) -> ExtConfig:
     cwd = getattr(args, "cwd", None)
     return load_config(Path(cwd) if cwd else None)
@@ -144,36 +141,43 @@ def _cfg(args: argparse.Namespace) -> ExtConfig:
 
 def _names(cfg: ExtConfig, choice: str) -> List[str]:
     if choice == ALL_BACKENDS:
-        return list(dict.fromkeys(cfg.order + list(cfg.backends) + list(KNOWN_BACKENDS)))
+        return list(dict.fromkeys(list(cfg.backends) + list(KNOWN_BACKENDS)))
     return [choice]
 
 
 def cmd_pick(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    if getattr(args, "role", None):
+        from .profile_cmd import pick_role
+        return pick_role(cfg, args)
+    if getattr(args, "tier", None) is not None:
+        print("pick: --tier cần --role", file=sys.stderr)
+        return EXIT_USAGE
+    choice = getattr(args, "backend", None)
+    if missing_backend(args):
+        print(f"pick: {missing_backend(args)}", file=sys.stderr)
+        return EXIT_USAGE
     result = {"backend": None, "model": None, "effort": None, "account": None, "account_label": None, "skipped": [],
               "native": False, "native_reason": "no backend available"}
-    choice = getattr(args, "backend", None)
-    if choice is not None:
-        from shared_config import canonical_backend
-        cfg = replace(cfg, order=[canonical_backend(choice)])
-    for backend, name, reason in auto_preflight(cfg):
-        if backend is None:
-            result["skipped"].append({"backend": name, "reason": reason})
-            continue
+    from shared_config import canonical_backend
+    name = canonical_backend(choice)
+    backend, reason = preflight(cfg, name)
+    if backend is None:
+        result["skipped"].append({"backend": name, "reason": reason})
+    else:
         options = cfg.options(name)
-        account = {"codex": "gpt", "claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
+        account = {"codex": "gpt"}.get(name, name)
         result.update(backend=name, model=options.get("model", ""),
                       effort=options.get("effort", options.get("variant", "")), account=account,
                       account_label=backend_account_label(name, cfg))
-        native, reason = native_selection(cfg, name)
-        result.update(native=native, native_reason=reason)
-        break
+        native, native_reason = native_selection(cfg, name)
+        result.update(native=native, native_reason=native_reason)
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
         for skipped in result["skipped"]:
             print(f"bỏ qua {skipped['backend']}: {skipped['reason']}")
         print(f"{result['backend']} model={result['model']} effort={result['effort']} account={result.get('account_label') or result['account']}"
-              if result["backend"] else "Không backend nào dùng được.")
+              if result["backend"] else f"{name} không dùng được.")
     return EXIT_OK if result["backend"] else EXIT_ALL_UNAVAILABLE
 
 
@@ -202,7 +206,9 @@ def cmd_doctor(cfg: ExtConfig, args: argparse.Namespace) -> int:
 
 def cmd_status(cfg: ExtConfig, args: argparse.Namespace) -> int:
     print("| backend | sẵn sàng | hết hạn mức tới | lượt gần nhất |\n|---|---|---|---|")
-    for name in cfg.order:
+    for name in _names(cfg, ALL_BACKENDS):
+        if name in COMPAT_ALIASES:
+            continue
         try:
             ok = render.mark(backend_ready(get_backend(name), cfg))
         except BackendUnavailable:
@@ -211,28 +217,6 @@ def cmd_status(cfg: ExtConfig, args: argparse.Namespace) -> int:
         last = last_run(cfg, name)
         shown = f"{last['started']} {last['status']}" if last else "-"
         print(f"| {name} | {ok} | {quota_state.iso(until) if until else '-'} | {shown} |")
-    summary = go_usage.read_summary(cfg.go_usage_summary)
-    now = time.time()
-    live = go_live.read_live(go_live.cache_path(go_live.claude_home(os.environ)), now)
-    if live is not None:
-        print()
-        print(go_live.live_line(live, now))
-    if summary and summary.get("models"):
-        print()
-        print(go_usage.format_text(summary))
-    return EXIT_OK
-
-
-def cmd_usage(cfg: ExtConfig, args: argparse.Namespace) -> int:
-    live = go_live.refresh_and_read(cfg.go_usage_live, os.environ)
-    now = time.time()
-    summary = go_usage.refresh(cfg)
-    if args.json:
-        print(json.dumps({**summary, "live": live}, ensure_ascii=False, indent=2))
-    else:
-        print(go_live.live_line(live, now) if live is not None else GO_LIVE_MISSING)
-        print()
-        print(go_usage.format_text(summary))
     return EXIT_OK
 
 
@@ -384,7 +368,7 @@ def cmd_managed(cfg: ExtConfig, args: argparse.Namespace) -> int:
 
 
 COMMANDS = {"managed": cmd_managed, "provider": cmd_provider, "pick": cmd_pick, "setup": cmd_setup, "doctor": cmd_doctor, "run": cmd_run,
-            "status": cmd_status, "usage": cmd_usage, "report": cmd_report,
+            "status": cmd_status, "report": cmd_report,
             "measure": cmd_measure}
 
 
@@ -415,9 +399,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.cmd == "models":
             from .models_cmd import command
             return command(args)
-        if args.cmd in ("parallel-subagents", "parallel"):
-            from .parallel_cmd import command
+        if args.cmd == "profile":
+            from .profile_cmd import command
             return command(args)
+        if args.cmd == "ladder":
+            from .ladder import run as run_ladder
+            return run_ladder(args)
         if args.cmd == "config":
             result = load_shared(Path(args.cwd) if args.cwd else None)
             _cfg(args)

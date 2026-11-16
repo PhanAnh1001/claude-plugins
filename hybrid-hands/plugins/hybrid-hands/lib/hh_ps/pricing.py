@@ -1,4 +1,4 @@
-"""Claude model prices, USD estimates and Go hand estimates for `hh-ps`.
+"""Model prices and USD estimates for `hh-ps`.
 
 Ported from statusline plugins/statusline/scripts/usage_ledger.py (the USD/MTok
 price table, family fallback, cache multipliers and the usage formula).
@@ -8,15 +8,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from hand_ext.constants import GO_USAGE_BACKENDS
-from hand_ext.go_usage import estimate_cost, price_for as go_price_for
 
 from .models import Usage
 from usage_pricing import model_price, load_prices
 
 PER_TOKENS = 1_000_000
 SYNTHETIC_MODEL = "<synthetic>"
-PERCENT = 100.0
+# Hand token buckets in a `{input, cached_input, output}` price row (USD/MTok).
+TOKEN_KEYS = ("input", "cached_input", "output")
+# Same rounding the hand-ext ledgers used, so historical rows stay comparable.
+USD_DECIMALS = 6
 
 
 @dataclass(frozen=True)
@@ -85,24 +86,23 @@ def _token_count(value: Any) -> int:
         return 0
 
 
-def hand_usage(tokens: Dict[str, Any], backend: str,
-               week_limit_usd: Optional[float] = None,
-               estimated: bool = False) -> Optional[Usage]:
-    """Usage of an external hand run: its registry totals plus the Go estimate.
+def estimate_cost(tokens: Dict[str, Any], price: Optional[Dict[str, float]]) -> Optional[float]:
+    """USD for hand tokens: uncached input + cached input + output, each at its own price."""
+    if not price or any(key not in price for key in TOKEN_KEYS):
+        return None
+    total_input = _token_count(tokens.get("input"))
+    cached = _token_count(tokens.get("cached_input"))
+    output = _token_count(tokens.get("output"))
+    cost = (max(0, total_input - cached) * price["input"] + cached * price["cached_input"]
+            + output * price["output"]) / PER_TOKENS
+    return round(cost, USD_DECIMALS)
 
-    ``week_pct`` is the statusline's Go session formula: ``usd / week.limit_usd * 100``.
-    """
+
+def hand_usage(tokens: Dict[str, Any]) -> Optional[Usage]:
+    """Token counts of an external hand run; USD is priced later by the enrichment pass."""
     if not tokens:
         return None
     total_input = _token_count(tokens.get("input"))
     cached = _token_count(tokens.get("cached_input"))
-    usd = week_pct = None
-    if backend in GO_USAGE_BACKENDS:
-        usd = estimate_cost({"input": total_input, "cached_input": cached,
-                             "output": _token_count(tokens.get("output"))},
-                            go_price_for(None))
-    if usd is not None and week_limit_usd and week_limit_usd > 0:
-        week_pct = usd / week_limit_usd * PERCENT
     return Usage(read=max(0, total_input - cached), cache_read=cached,
-                 cache_write=None, out=_token_count(tokens.get("output")), usd=usd,
-                 week_pct=week_pct, week_pct_estimated=estimated and week_pct is not None)
+                 cache_write=None, out=_token_count(tokens.get("output")), usd=None)

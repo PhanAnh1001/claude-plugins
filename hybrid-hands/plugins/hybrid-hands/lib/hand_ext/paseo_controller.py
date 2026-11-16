@@ -70,7 +70,7 @@ class FreshPolicy:
         return load_config(Path(invocation.source_cwd)).max_parallel
 
     def __call__(self, invocation, attempt):
-        from .run_cmd import auto_preflight, with_sandbox
+        from .run_cmd import preflight, with_sandbox
         try:
             record = self.store.get(attempt.key)
             binding = (record.receipt or {}).get('controller')
@@ -85,8 +85,6 @@ class FreshPolicy:
                 return False
             if invocation.account_alias != account_for(invocation.backend):
                 return False
-            if invocation.backend not in [canonical_backend(n) for n in cfg.order]:
-                return False
             options = with_sandbox(cfg, binding['backend'])
             expected = _plain(invocation.fixed_options)
             if (invocation.model != str(options.get('model', '')) or
@@ -94,10 +92,10 @@ class FreshPolicy:
                 expected.get('options') != options or
                 expected.get('sandbox') != cfg.sandbox):
                 return False
+            if expected.get('browser'):
+                return False  # legacy browser executions are no longer supported
             # Only the already selected backend is tested: no backend/account retarget.
-            pinned = replace(cfg, order=[binding['backend']])
-            ready = next(auto_preflight(pinned, browser=expected.get('browser', False)), None)
-            if not ready or ready[0] is None:
+            if preflight(cfg, binding['backend'])[0] is None:
                 return False
             if attempt.epoch > 1:
                 previous = [r for r in records_for(self.store, invocation.invocation_id)
@@ -106,13 +104,7 @@ class FreshPolicy:
                     return False
                 prior = previous[-1]
                 reviewed = (prior.artifacts.get('review') or {}).get('approved') is True
-                capacity_retry = binding.get('capacity_continuation', 0)
-                from .constants import DSH_CAPACITY_MAX_CONTINUATIONS
-                automatic_capacity = (invocation.backend == 'dsh' and
-                    type(capacity_retry) is int and 1 <= capacity_retry <= DSH_CAPACITY_MAX_CONTINUATIONS and
-                    capacity_retry == (prior.receipt.get('controller', {}).get('capacity_continuation', 0) + 1) and
-                    prior.receipt.get('usage_observation', {}).get('capacity_failure') is True)
-                if not terminal_evidence(prior) or not (reviewed or automatic_capacity):
+                if not terminal_evidence(prior) or not reviewed:
                     return False
             return True
         except (OSError, ValueError, TypeError, KeyError, StateConflict):
@@ -187,8 +179,6 @@ def valid_completion_binding(record):
         if any(not isinstance(config.get(k), str) or not Path(config[k]).is_absolute()
                for k in ('ledger', 'registry')):
             return False
-        if invocation.backend == 'dsh' and any(not config.get(k) for k in ('go_ledger', 'go_summary')):
-            return False
         return isolation._git(['cat-file', '-e', ctx.baseline_tree + '^{tree}'], ctx.worktree, ok=False).returncode == 0
     except (OSError, ValueError, TypeError, KeyError):
         return False
@@ -202,7 +192,7 @@ def terminal_evidence(record):
             and (q.get('confirmed') is True or attested(record)) and bool(q.get('evidence'))
             and record.reservation is None
             and all(record.settle_keys.get(k, {}).get('state') == 'completed'
-                    for k in ('finalize', 'report', 'ledger', 'go_ledger', 'usage_state')))
+                    for k in ('finalize', 'report', 'ledger', 'usage_state')))
 
 
 def lifecycle_diagnostic(store, key, operation):
@@ -332,30 +322,6 @@ class PaseoController:
                                                         expected_revision=r.revision)
         return True
 
-    def continue_capacity(self, key, brief):
-        """Existing DSH capacity policy: keep the accumulated isolated patch."""
-        with lifecycle_lock(self.store):
-            from .constants import DSH_CAPACITY_MAX_CONTINUATIONS
-            old = self.store.get(key)
-            if records_for(self.store, old.invocation.invocation_id)[-1].key != key:
-                raise StateConflict('capacity continuation requires latest exact execution')
-            count = old.receipt.get('controller', {}).get('capacity_continuation', 0)
-            if (old.invocation.backend != 'dsh' or not terminal_evidence(old) or
-                old.receipt.get('usage_observation', {}).get('capacity_failure') is not True or
-                count >= DSH_CAPACITY_MAX_CONTINUATIONS):
-                raise StateConflict('capacity continuation not authorized')
-            self._restore(old, capacity=True)
-            attempt = replace(old.attempt, attempt_id=str(uuid.uuid4()), epoch=old.attempt.epoch + 1,
-                              request_key=str(uuid.uuid4()), run_id=None, thread_id=None)
-            record = self.store.create_intent(old.invocation, attempt)
-            record.receipt = {'controller': dict(old.receipt['controller'], capacity_continuation=count + 1),
-                              'completion': dict(old.receipt['completion'])}
-            self.store.compare_and_swap(record.key, record.revision, record)
-            brief = pin_prompt(self.store, self.store.get(attempt.key), brief)
-            self.admission.admit(old.invocation, attempt, max_parallel=self.cfg.max_parallel)
-        parent = self.transport.verify_parent(old.invocation.parent_paseo_agent_id)
-        return self.dispatch(old.invocation, attempt, brief, parent)
-
     def approve_review(self, key):
         with lifecycle_lock(self.store):
             record = self.store.get(key)
@@ -376,9 +342,9 @@ class PaseoController:
             raise ExecutionUnresolved('ARCHIVE_UNRESOLVED')
         return record
 
-    def _restore(self, old, *, capacity=False, registry_run_id=None):
+    def _restore(self, old, *, registry_run_id=None):
         # Restore before creating an epoch: failure leaves the reviewed latest key
-        # retryable and cannot reserve capacity or create another writer.
+        # retryable and cannot reserve a slot or create another writer.
         try:
             from .paseo_completion import reconstruct_context
             ctx = reconstruct_context(old.receipt['completion']['context'])
@@ -402,7 +368,7 @@ class PaseoController:
                     if patch.strip():
                         isolation._git(['apply', '--check', '--binary', '-'], ctx.worktree, input_data=patch)
                         isolation._git(['apply', '--binary', '-'], ctx.worktree, input_data=patch)
-            result = self.transport.reopen_child(old.key, **({'capacity': True} if capacity else {}))
+            result = self.transport.reopen_child(old.key)
             if not result.get('ok') or result.get('state') != 'reopened':
                 raise TransportError('REOPEN_UNRESOLVED')
         except (TransportError, StateConflict) as exc:
@@ -476,17 +442,13 @@ def _completion_service(store, supervisor, admission):
 
 def cmd_managed_run(cfg, args, *, mode):
     from .run_cmd import (_cmd_shell_run, _resolve_parent_session, _new_run_id,
-                          auto_preflight, safe_label, with_sandbox)
+                          preflight, safe_label, with_sandbox)
     from .prompt import read_brief, build_prompt
     if mode not in MODES:
         raise ValueError('invalid execution mode')
-    browser = bool(getattr(args, 'browser', False))
-    from .run_cmd import validate_browser
-    validate_browser(args.backend, browser)
-    selected_cfg = cfg if args.backend == 'auto' else replace(cfg, order=[args.backend])
-    selected = next((b for b, _, _ in auto_preflight(selected_cfg, browser=browser)
-                     if b is not None), None)
+    selected, reason = preflight(cfg, args.backend)
     if selected is None:
+        print(f'hand-ext: {args.backend}: {reason}', file=sys.stderr)
         return EXIT_ALL_UNAVAILABLE
     state_root = cfg.paseo.get('state_root') or str(cfg.machine_state_dir / 'executions')
     store = ExecutionStore(state_root)
@@ -497,9 +459,6 @@ def cmd_managed_run(cfg, args, *, mode):
     except PaseoUnavailable as exc:
         if mode == 'auto':
             # Keep the same selected backend and existing shell reservation semantics.
-            if args.backend == 'auto':
-                anchored = replace(cfg, order=cfg.order[cfg.order.index(selected.name):])
-                return _cmd_shell_run(anchored, replace_args(args, mode='shell'))
             return _cmd_shell_run(cfg, replace_args(args, mode='shell'))
         print(f'hand-ext: {exc}', file=sys.stderr)
         return EXIT_FAIL
@@ -524,7 +483,7 @@ def cmd_managed_run(cfg, args, *, mode):
     brief = getattr(args, '_managed_brief', None)
     if brief is None:
         brief = read_brief(args.brief)
-    prompt = build_prompt(brief, browser=browser)
+    prompt = build_prompt(brief)
     run_id = _new_run_id(safe_label(args), selected.name)
     try:
         completion = _completion_service(store, controller.supervisor, controller.admission)
@@ -543,7 +502,7 @@ def cmd_managed_run(cfg, args, *, mode):
             {'run_dir': str(cfg.runs_dir / run_id), 'sandbox': cfg.sandbox,
              'timeout_s': (args.timeout_min if args.timeout_min is not None else cfg.timeout_min) * 60,
              'max_tokens': args.max_tokens if args.max_tokens is not None else cfg.max_tokens,
-             'browser': browser, 'options': opts}, ('repo:*',))
+             'options': opts}, ('repo:*',))
         attempt = Attempt(invocation.invocation_id, str(uuid.uuid4()), 1, str(uuid.uuid4()), run_id=run_id)
         record = store.create_intent(invocation, attempt)
         record.receipt = {'controller': {'version': 1, 'policy_root': str(cfg.root.resolve()),
@@ -554,8 +513,6 @@ def cmd_managed_run(cfg, args, *, mode):
                         keep_worktree=bool(getattr(args, 'keep_worktree', False)),
                         registry_dir=cfg.machine_state_dir / HAND_RUNS_SUBDIR,
                         policy='no_apply' if getattr(args, 'no_apply', False) else 'apply',
-                        go_ledger=cfg.go_usage_ledger, go_summary=cfg.go_usage_summary,
-                        go_monthly_limit=cfg.go_monthly_limit_usd,
                         codex_ledger=codex_usage.ledger_path(cfg), quota_path=cfg.quota_state)
         from .execution_worker import ExecutionWorker
         ExecutionWorker(store, controller.supervisor)._spec(invocation, attempt, prompt)
@@ -570,47 +527,13 @@ def cmd_managed_run(cfg, args, *, mode):
         emit_managed_result(result)
         if (result.receipt or {}).get('pre_dispatch_failure'):
             return EXIT_FAIL
-        from . import capacity
-        from .backends import dsh as dsh_backend
-        from .constants import DSH_CAPACITY_MAX_CONTINUATIONS
-        locked_capacity_branch = False
-        if args.backend == 'auto' and invocation.backend == 'dsh' and result.receipt.get('usage_observation', {}).get('capacity_failure') is True:
-            threshold = dsh_backend.capacity_min_lines(opts)
-            wait_s = dsh_backend.capacity_wait_seconds(opts)
-            patch = result.artifacts.get('finalize', {}).get('result', {})
-            changed = patch.get('added_lines', 0) + patch.get('removed_lines', 0)
-            if patch.get('status') == isolation.APPLY_ERROR:
-                return EXIT_FAIL
-            if changed < threshold:
-                if browser:
-                    return EXIT_FAIL
-                position = cfg.order.index(selected.name)
-                tail = replace(cfg, order=cfg.order[position + 1:])
-                return (cmd_managed_run(tail, replace_args(args, _managed_brief=brief),
-                                        mode='paseo-required') if tail.order else EXIT_ALL_UNAVAILABLE)
-            locked_capacity_branch = True
-            for _ in range(DSH_CAPACITY_MAX_CONTINUATIONS):
-                if wait_s:
-                    time.sleep(wait_s)
-                result = controller.continue_capacity(result.key, capacity.continuation_prompt(prompt))
-                emit_managed_result(result)
-                if result.receipt.get('usage_observation', {}).get('capacity_failure') is not True:
-                    break
         status = (result.outcome or {}).get('status')
-        from .constants import STATUS_EXIT, FALLBACK_STATUSES
+        from .constants import STATUS_EXIT
         from .backends.base import Status
         try:
             backend_status = Status(status)
         except ValueError:
             return EXIT_FAIL
-        if backend_status in FALLBACK_STATUSES and args.backend == 'auto' and not locked_capacity_branch:
-            # Old writer is settled/released before fresh ordered managed selection.
-            position = cfg.order.index(selected.name)
-            tail = replace(cfg, order=cfg.order[position + 1:])
-            if not tail.order:
-                return EXIT_ALL_UNAVAILABLE
-            return cmd_managed_run(tail, replace_args(args, _managed_brief=brief),
-                                   mode='paseo-required')
         return STATUS_EXIT.get(backend_status, EXIT_FAIL)
     except (isolation.IsolationError, ValueError):
         print('hand-ext: invalid managed isolation or execution limits', file=sys.stderr)

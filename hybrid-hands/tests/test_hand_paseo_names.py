@@ -15,7 +15,7 @@ class ManagedNamesTests(PaseoTransportTests):
         state = SimpleNamespace(uuid='canonical', codex_thread_id='', native_session_id='',
                                 paseo_agent_id='parent', role='', name='phụ')
         with patch('hh_ps.registry_source.load_ps_config'), patch('side_session.state.load_all', return_value=[state]):
-            for backend in ('codex', 'dsh', 'claude-v1', 'claude-v2'):
+            for backend in ('codex', 'claude-v1', 'claude-v2'):
                 with self.subTest(backend=backend):
                     r.invocation = replace(r.invocation, backend=backend)
                     self.assertEqual(len(title_for(r)), 60)

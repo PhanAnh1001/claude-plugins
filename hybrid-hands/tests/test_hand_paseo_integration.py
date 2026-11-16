@@ -98,7 +98,7 @@ class ManagedIntegrationTests(unittest.TestCase):
         self.assertNotIn('review', first.artifacts)
         self.assertEqual(first.outcome['provenance'], 'runner')
         self.assertIsNone(first.reservation)
-        self.assertEqual(set(first.settle_keys), {'finalize','report','ledger','go_ledger','usage_state'})
+        self.assertEqual(set(first.settle_keys), {'finalize','report','ledger','usage_state'})
         self.assertTrue(all(v['state']=='completed' for v in first.settle_keys.values()))
         self.assertEqual((f.repo/'file.txt').read_text(), 'baseline\nepoch1\n')
 

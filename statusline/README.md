@@ -9,6 +9,10 @@
   `statusline` (bản 0.27.0). Dòng tách % hạn mức 7 ngày tính theo USD giá thật từng model, hiệu
   chỉnh $/1% trong khung giờ chỉ máy này chạy; đây là số ước tính, xem mục "Dòng tách hạn mức 7
   ngày theo máy".
+- **Gỡ Go/DeepSeek (chưa phát hành, 16/11/2026):** bỏ hẳn dòng `Go` (OpenCode Go thật và ô dự
+  phòng `DS`), `go-usage-fetch.sh`, `go-segments.sh`, `go_sessions.py` và biến
+  `STATUSLINE_GO_LIVE`. Statusline không còn đọc `go_usage_summary.json`, `go_usage.jsonl` hay
+  `.statusline-go-usage.json`; file cũ còn sót bị bỏ qua, không lỗi. Các dòng khác giữ nguyên.
 - **Bản 0.28.0:** ô `Fable` tự làm mới 5 phút một lần: `scripts/claude_usage_fetch.py` chạy nền gọi
   `GET https://api.anthropic.com/api/oauth/usage` bằng token OAuth của CLI (Keychain `Claude Code-credentials`, chỉ
   đọc trong tiến trình, không in/ghi), lưu chỉ số liệu (mọi hạn mức tuần theo model, cửa sổ `seven_day*`, extra
@@ -48,7 +52,7 @@
   `statusline:setup` (hoặc `install.sh` của plugin).
 - **Cập nhật:** chỉ cần `claude plugin marketplace update` và `claude plugin update`; không phải
   chạy lại setup, vì shim luôn chạy bản plugin đang cài.
-- **Yêu cầu:** `jq`, `curl` (phần Go thật), `python3` >= 3.9, `bash`, `git`.
+- **Yêu cầu:** `jq`, `python3` >= 3.9, `bash`, `git`.
 
 ## Hiệu chỉnh Claude ngoài — 0.22.0
 
@@ -67,13 +71,12 @@ Theo lựa chọn người dùng, rate được chia sẻ để ước tính ph�
 | 3 | dòng `Claude v1 ultra` của bảng hạn mức: rate limit 5 giờ và 7 ngày kèm giờ reset, USD/1% trong ngoặc ô 7d; 7d có thể là số ước tính tới 0,1%; ô cuối `Fable` là hạn mức tuần của Fable từ cache nền `.statusline-claude-usage.json` (5 phút/lần, không `~` khi mới) hoặc fallback `~/.claude.json` (`~`, kèm giờ lấy số; qua reset thì `?`, không có hạn mức Fable thì không có ô) | `Claude    5h:- \| 7d:~4.3% (reset 15/10 10:46 · $13.74/1%)` |
 | 3a | dòng `Claude v2 pro` ngay dưới, cùng cột: 5h/7d của `~/.claude-hand`, live khi phiên chạy trên tài khoản đó, nếu không thì từ cache statusline riêng của nó (`~`, thiếu/qua reset thì `?`); dòng v1 theo quy tắc ngược lại | `Claude v2 pro    5h:2% \| 7d:20% (reset 14/11 07:00)` |
 | 3b | hai dòng `· máy này` (từng thứ trong tuần) và `· máy khác` của cùng bảng, ô 5h để trống; ước tính, chưa có tóm tắt cho cửa sổ hiện tại thì không có hai dòng này | `· máy này   \| 7d:1.5% (T6 1.5%)`<br>`· máy khác  \| 7d:1.5%` |
-| cuối | dòng `Go` của cùng bảng (căn cột theo bảng, in ở dòng cuối cùng): mức OpenCode Go thật (5h/tuần/tháng) kèm giờ reset, số lẻ có `~` khi có ước tính của hand-ext; hoặc ô `DS` (không có giờ reset) khi chưa có cache; không có cả hai thì không có dòng này | `Go        5h:~2.7% (reset 05/11 03:55) \| wk:~12.4% (reset 09/11 07:00) \| mo:~6.2% (reset 04/12 15:17)` |
 | 5 | dòng `GPT` của cùng bảng: % 5h và 7d của mẫu quota mới nhất cùng USD ước tính hôm nay của tài khoản ChatGPT sau `~/.codex` và `~/.codex-hand` (rollout cục bộ); không có mẫu trong 24 giờ thì không có dòng này | `GPT        5h:? \| 7d:31% (reset 16/11 13:19) \| hôm nay ~$1.85` |
 | sau đó | skill nạp gần nhất, mỗi dòng một agent (xem dưới); không có skill thì không có dòng nào | `🔧 dev-workflow:dev-triage (main)` |
 
-- **Bảng hạn mức (dòng 3–5):** cột 1 là nhãn dòng (`Claude`, `· máy này`, `· máy khác`, `Go`,
-  `GPT`), cột 2 là ô 5h (dòng tách máy để trống), cột 3 là ô 7d/wk, cột 4 `mo` chỉ dòng Go có còn
-  dòng GPT dùng cột 4 cho `hôm nay ~$...`. Các ô đệm
+- **Bảng hạn mức (dòng 3–5):** cột 1 là nhãn dòng (`Claude`, `· máy này`, `· máy khác`,
+  `GPT`), cột 2 là ô 5h (dòng tách máy để trống), cột 3 là ô 7d, cột 4 chỉ dòng GPT dùng cho
+  `hôm nay ~$...`. Các ô đệm
   theo độ rộng hiển thị lớn nhất của cột (bỏ mã ANSI, đếm ký tự) nên dấu `|` thẳng hàng kể cả với
   nhãn tiếng Việt; thiếu dòng nào thì các dòng còn lại vẫn thẳng cột, chỉ còn dòng Claude thì in
   như bảng một dòng. Không dòng nào bắt đầu bằng khoảng trắng vì Claude Code cắt khoảng trắng đầu
@@ -115,28 +118,6 @@ Theo lựa chọn người dùng, rate được chia sẻ để ước tính ph�
 - **Rate limit** chỉ có sau phản hồi API đầu tiên của phiên. Trước đó phần 7d hiện giá trị lưu ở
   `.statusline-cache.json` trong thư mục cấu hình Claude, có dấu `~` phía trước; chưa có gì thì
   hiện `--`. Phần 5h không dùng giá trị lưu: payload không có `rate_limits.five_hour` thì in `5h:-`.
-- **Mức OpenCode Go thật (`Go`)** là dòng trước GPT trong cùng bảng hạn mức, lấy từ API usage của OpenCode
-  (`GET https://opencode.ai/zen/go/v1/usage`), cùng nguồn với plugin `opencode-go-usage-source`
-  của Paseo. `go-usage-fetch.sh` đọc khoá `opencode-go` trong
-  `${XDG_DATA_HOME:-$HOME/.local/share}/opencode/auth.json` (chỉ đọc, không in, không ghi khoá đi
-  đâu; header Authorization đi qua stdin của `curl` nên không nằm trong argv), gọi API rồi ghi
-  nguyên tử cache `$CLAUDE_HOME/.statusline-go-usage.json` (mặc định `~/.claude`, quyền 600).
-  Statusline chỉ đọc cache bằng một lần `jq`, không chờ mạng: cache thiếu hoặc cũ hơn 5 phút thì
-  khởi fetch tách hẳn ở nền (có lock 60 giây), lần vẽ hiện tại vẫn dùng số đang có. Nhãn
-  `Go 5h`, `wk`, `mo`; cửa sổ `rate-limited` tô đỏ; cache cũ hơn 15 phút thêm `~`; cửa sổ đã qua
-  giờ reset in `~0%` và bỏ giờ reset. Lỗi tạm thời (mạng, HTTP 5xx, JSON hỏng) giữ số của lần fetch
-  ok gần nhất tối đa 6 giờ kèm `~` thay vì tụt về `DS`; lỗi khoá (`rejected`) hoặc thiếu khoá
-  (`no_key`) thì bỏ số cũ. Đặt `STATUSLINE_GO_LIVE=0` để tắt hẳn phần gọi mạng.
-- **Dự phòng (`DS`)** khi chưa có cache Go thật (kể cả `no_key`, `rejected`, hoặc `error` đã quá
-  6 giờ): đọc đúng một file JSON do `hand-ext` ghi,
-  `$HYBRID_HANDS_STATE_DIR/go_usage_summary.json`, mặc định
-  `~/.hybrid-hands/go_usage_summary.json` (`HYBRID_HANDS_STATE_DIR` chỉ dùng để test). Hai ô
-  `DS 5h ~12.3%` và `tuần ~31.0%` (một chữ số lẻ) nằm ở cột 2 và cột 3 của dòng `Go`; dấu `~`
-  xuất hiện khi bản tóm tắt đánh dấu `estimated` hoặc file cũ hơn
-  5 giờ. Phần trăm dùng cùng ngưỡng màu với Claude (xanh dưới 50%, vàng từ 50%, đỏ từ 80%). Khi
-  cache Go ở trạng thái `rejected`, segment DS thêm chữ mờ `(khoá Go bị từ chối)`. File thiếu hoặc
-  JSON hỏng thì không in gì và statusline vẫn thoát 0; phần này chỉ đọc file bằng một lần `jq`,
-  không gọi `hand-ext`, không gọi mạng. Có cache Go thật thì không in `DS` để tránh trùng.
 - **GPT (`GPT`)** đọc rollout của `~/.codex` và `~/.codex-hand` (Codex hand của hybrid-hands; cùng
   một tài khoản ChatGPT nên chung hạn mức; thư mục không tồn tại bị bỏ qua) trong `sessions/`,
   `archived_sessions/`, chỉ file sửa trong 7 ngày. `STATUSLINE_CODEX_DIR` ghi đè danh sách, nhận một
@@ -208,9 +189,9 @@ số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá 
 
 ## Số ước tính tới 0,1%
 
-- **Quy ước:** số có một chữ số lẻ và dấu `~` là **ước tính**, không phải số gốc. Claude và API
-  usage của OpenCode Go chỉ trả số nguyên; plugin chỉ thêm phần lẻ và luôn giữ nó trong khoảng của
-  số nguyên gốc. Màu và trạng thái `rate-limited` vẫn theo số nguyên gốc.
+- **Quy ước:** số có một chữ số lẻ và dấu `~` là **ước tính**, không phải số gốc. Claude chỉ trả
+  số nguyên; plugin chỉ thêm phần lẻ và luôn giữ nó trong khoảng của
+  số nguyên gốc. Màu vẫn theo số nguyên gốc.
 - **Claude 7 ngày (dòng 3):**
   - Giả định Claude **cắt phần lẻ** (4,7% hiện là 4%). `week_split.py` lấy p = số nguyên của mẫu
     mới nhất, t0 = thời điểm sớm nhất của chuỗi mẫu cuối cùng còn cùng p và cùng giờ reset, rồi
@@ -220,13 +201,6 @@ số ghim thắng cả hiệu chỉnh lẫn mặc định 12, nhãn `pin`; xoá 
   - Chỉ dùng khi tóm tắt đúng version, mới hơn 30 phút, phần nguyên khớp số đang hiện và giờ reset
     lệch không quá 1 giờ; không thì in số nguyên như cũ. Số lưu cache (đã có `~`) chỉ in một `~`.
   - 5 giờ của Claude không có ước tính (Claude Code không còn gửi dữ liệu 5 giờ).
-- **OpenCode Go (dòng Go):**
-  - Lấy `percent` ước tính trong sổ `go_usage_summary.json` của hand-ext, ghép rolling↔`5h`,
-    weekly↔`7d`, monthly↔`30d` của model `deepseek*`.
-  - Chỉ dùng khi sổ cập nhật trong 5 giờ và có `estimated: true`; số hiện = ước tính ép vào
-    [max(0, API − 0,5), API + 0,4], tức vẫn làm tròn ra đúng số API. Không có ước tính thì in số
-    nguyên như cũ; cửa sổ đã qua giờ reset vẫn in `~0%`.
-
 ## Cài đặt
 
 Thay `<thư-mục-repo>` bằng nơi clone repo `claude-plugins`:
@@ -290,8 +264,8 @@ dòng nhắc, không lỗi.
 python3 -m unittest discover -s <thư-mục-repo>/statusline/tests
 ```
 
-Test chỉ dùng thư mục tạm làm `CLAUDE_HOME`, `HOME` và `XDG_DATA_HOME`, khoá Go giả, cùng một
-`curl` giả đặt đầu `PATH`; không đọc `auth.json` thật và không gọi API thật.
+Test chỉ dùng thư mục tạm làm `CLAUDE_HOME` và `HOME`; không đọc `auth.json` thật và không gọi
+API thật.
 
 ## Cấu trúc
 
@@ -303,11 +277,8 @@ statusline/                               # gốc marketplace (đưa cho marketp
 │   ├── .claude-plugin/plugin.json
 │   ├── scripts/statusline.sh             # vẽ 3 dòng + các dòng skill
 │   ├── scripts/table.sh                  # đệm ô theo độ rộng hiển thị (source từ statusline.sh)
-│   ├── scripts/go-segments.sh            # ô Go của bảng hạn mức (source từ statusline.sh)
 │   ├── scripts/gpt_usage.py              # ô GPT: % quota và USD hôm nay từ rollout ~/.codex + ~/.codex-hand
 │   ├── scripts/week-split.sh, week_split.py, usage_ledger.py   # dòng tách % 7 ngày theo máy (quét chạy nền)
-│   ├── scripts/go_sessions.py            # lượt Go trong tuần, cộng dồn phiên phụ (cho trường sessions)
-│   ├── scripts/go-usage-fetch.sh         # gọi API usage OpenCode Go, ghi cache (chạy nền)
 │   ├── scripts/last-skill.sh, last_skill.py   # dòng skill gần nhất (port từ dev-workflow 0.3.0)
 │   ├── scripts/subagent_skills.py        # tìm transcript subagent, nhãn agent + mô tả (cắt 30 ký tự)
 │   ├── scripts/install.sh                # setup / --dry-run / --uninstall

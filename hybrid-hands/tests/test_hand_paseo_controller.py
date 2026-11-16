@@ -33,7 +33,7 @@ class Ops:
 class FinishingWorker:
     def __init__(self, store, supervisor, completion):
         self.store, self.supervisor, self.completion = store, supervisor, completion
-        self.hooks = {}; self.calls = 0; self.status="ok"; self.capacity=False
+        self.hooks = {}; self.calls = 0; self.status="ok"
         completion.attach(self)
     def start(self, invocation, attempt, brief):
         from hand_ext.paseo_prompt import prompt_path
@@ -43,7 +43,7 @@ class FinishingWorker:
         file.write_text(file.read_text() + 'epoch' + str(self.calls) + '\n')
         self.supervisor.register_writer(attempt.key, ProcessIdentity(111,111,'fixture'), 'fixture')
         r = self.store.get(attempt.key)
-        r.receipt = dict(r.receipt or {}, usage_observation={'capacity_failure':self.capacity}, worker_run_dir=str(Path(invocation.fixed_options['run_dir']) / attempt.attempt_id))
+        r.receipt = dict(r.receipt or {}, usage_observation={}, worker_run_dir=str(Path(invocation.fixed_options['run_dir']) / attempt.attempt_id))
         self.store.compare_and_swap(r.key,r.revision,r)
         self.supervisor.record_outcome_once(attempt.key,dict(status=self.status,backend_exit_code=0,
             provenance='fixture',usage=None,final_text='synthetic result'))
@@ -77,17 +77,16 @@ class ControllerTests(unittest.TestCase):
         subprocess.run(['git','-C',str(self.repo),'add','file.txt'],check=True)
         subprocess.run(['git','-C',str(self.repo),'commit','-qm','fixture'],check=True)
         self.cfg=config.load_config(self.repo)
-        self.cfg=replace(self.cfg,order=['codex'], machine_state_dir=self.root/'machine',
+        self.cfg=replace(self.cfg,machine_state_dir=self.root/'machine',
             runs_dir=self.root/'runs',worktree_root=self.root/'worktrees',
             ledger=self.root/'ledger.json',quota_state=self.root/'quota.json',
-            go_usage_ledger=self.root/'go.jsonl',go_usage_summary=self.root/'go-summary.json',
             max_parallel=1,paseo={'state_root':str(self.root/'state')})
         self.store=ExecutionStore(self.root/'state')
         for target, value in ((parallel,'pool_root'),):
             p=patch.object(target,value,return_value=self.root/'pool');p.start();self.addCleanup(p.stop)
         p=patch('hand_ext.paseo_controller.load_config',return_value=self.cfg);p.start();self.addCleanup(p.stop)
         self.backend=argparse.Namespace(name='codex')
-        p=patch.object(run_cmd,'auto_preflight',side_effect=lambda cfg,**kw:iter([(self.backend,'codex','')]))
+        p=patch.object(run_cmd,'preflight',return_value=(self.backend,''))
         self.preflight=p.start();self.addCleanup(p.stop)
 
     def intent(self):
@@ -107,15 +106,13 @@ class ControllerTests(unittest.TestCase):
         completion.bind(attempt.key,ctx,ledger_path=self.cfg.ledger,registry_dir=self.root/'registry')
         return inv,attempt,supervisor,admission,completion
 
-    def managed_cli(self, statuses, *, order=('codex',), capacity_first=False, extra=(), fail_create=False):
+    def managed_cli(self, statuses, *, extra=(), fail_create=False):
         from hand_ext.paseo_controller import records_for
         from hand_ext.backends import get_backend
         package=(Path(__file__).parent/'fixtures/hand_paseo/transport/package').resolve()
         unique=str(uuid.uuid4())
-        cfg=replace(self.cfg,order=list(order),runs_dir=self.root/unique/'runs',
+        cfg=replace(self.cfg,runs_dir=self.root/unique/'runs',
                     paseo={'state_root':str(self.root/unique/'state')})
-        cfg.backends={name:dict(opts) for name,opts in cfg.backends.items()}
-        cfg.backends['dsh'].update(capacity_wait_min_lines=1,capacity_wait_seconds=0)
         calls=[]; launched=[]
         def factory(cfg,store):
             def client(request):
@@ -123,7 +120,7 @@ class ControllerTests(unittest.TestCase):
                 result=dict(ok=True,targetKey=transport.target_key)
                 if command=='create' and fail_create:
                     return {'ok':False,'code':'TRANSPORT_UNRESOLVED'}
-                if command=='probe':result['providers']=['hh-hand-codex','hh-hand-dsh']
+                if command=='probe':result['providers']=['hh-hand-codex']
                 if command=='parent':result.update(parentAgentId='parent-agent',projectId='project')
                 if command=='send':
                     record=records_for(store,request['gatewayEnv']['HYBRID_HANDS_INVOCATION_ID'])[-1]
@@ -132,7 +129,6 @@ class ControllerTests(unittest.TestCase):
                     completion=CompletionService(store,supervisor,admission)
                     worker=FinishingWorker(store,supervisor,completion)
                     worker.status=statuses[len(launched)]
-                    worker.capacity=capacity_first and not launched
                     launched.append(record.invocation.backend)
                     gateway=Gateway(store,admission,worker,invocation_id=record.invocation.invocation_id,
                                     completion=completion,wait_seconds=1)
@@ -149,11 +145,11 @@ class ControllerTests(unittest.TestCase):
             return transport
         brief=self.root/'cli-brief.md';brief.write_text('Self-contained synthetic CLI brief')
         args=cli._parser().parse_args(['run','--brief',str(brief),'--cwd',str(self.repo),
-                                      '--no-apply',*extra])
+                                      '--no-apply','--backend','codex',*extra])
         out=io.StringIO();err=io.StringIO()
         with patch('hand_ext.paseo_controller.transport_from_config',side_effect=factory), \
              patch('hand_ext.paseo_controller.load_config',return_value=cfg), \
-             patch.object(run_cmd,'auto_preflight',side_effect=lambda c,**kw:iter([(get_backend(c.order[0]),c.order[0],'')])), \
+             patch.object(run_cmd,'preflight',side_effect=lambda c,name:(get_backend(name),'')), \
              patch.dict(os.environ,{'PASEO_AGENT_ID':'parent-agent'}), \
              patch('sys.stdout',out),patch('sys.stderr',err):
             code=cmd_managed_run(cfg,args,mode='paseo-required')
@@ -161,22 +157,15 @@ class ControllerTests(unittest.TestCase):
 
     def test_modes_default_and_only_predispatch_same_backend_fallback(self):
         with patch.object(run_cmd,'_cmd_shell_run',return_value=12) as shell:
-            self.assertEqual(run_cmd.cmd_run(self.cfg,argparse.Namespace()),12)
+            self.assertEqual(run_cmd.cmd_run(self.cfg,argparse.Namespace(backend='codex')),12)
             shell.assert_called_once()
-        args=cli._parser().parse_args(['run','--brief','unused','--mode','auto'])
+        args=cli._parser().parse_args(['run','--brief','unused','--mode','auto','--backend','codex'])
         with patch('hand_ext.paseo_controller.transport_from_config',side_effect=PaseoUnavailable('missing')), \
              patch.object(run_cmd,'_cmd_shell_run',return_value=0) as shell:
             self.assertEqual(cmd_managed_run(self.cfg,args,mode='auto'),0)
-            self.assertEqual(shell.call_args.args[1].backend,'auto')
-            self.assertEqual(shell.call_args.args[0].order,['codex'])
+            self.assertEqual(shell.call_args.args[1].backend,'codex')
             self.assertEqual(cmd_managed_run(self.cfg,args,mode='paseo-required'),1)
             self.assertEqual(shell.call_count,1)
-            anchored=replace(self.cfg,order=['dsh','codex','claude-v1'])
-            self.assertEqual(cmd_managed_run(anchored,args,mode='auto'),0)
-            self.assertEqual(shell.call_args.args[0].order,['codex','claude-v1'])
-            explicit=argparse.Namespace(**dict(vars(args),backend='codex'))
-            self.assertEqual(cmd_managed_run(anchored,explicit,mode='auto'),0)
-            self.assertEqual(shell.call_args.args[1].backend,'codex')
         from unittest.mock import Mock
         unavailable=Mock();unavailable.probe_capabilities.return_value={'ok':False,'code':'BRIDGE_UNAVAILABLE'}
         with self.assertRaises(PaseoUnavailable):
@@ -198,10 +187,6 @@ class ControllerTests(unittest.TestCase):
         code,calls,launched,out,err=self.managed_cli(['ok'])
         self.assertEqual(code,0,err);self.assertEqual(launched,['codex'])
         self.assertIn('report: ',out);self.assertIn('epoch: 1',out)
-        code,calls,launched,out,err=self.managed_cli(['quota_exhausted','ok'],order=('codex','dsh'))
-        self.assertEqual(code,0,err);self.assertEqual(launched,['codex','dsh'])
-        code,calls,launched,out,err=self.managed_cli(['failed','quota_exhausted'],order=('dsh','codex'),capacity_first=True)
-        self.assertEqual(code,7,err);self.assertEqual(launched,['dsh','dsh'])
         code,calls,launched,out,err=self.managed_cli([],extra=('--max-tokens','-1'))
         self.assertEqual(code,2,err);self.assertEqual(launched,[])
         self.assertFalse(any(c in calls for c in ('workspace','create','send')))
@@ -461,7 +446,7 @@ class ControllerTests(unittest.TestCase):
         replay.assert_not_called()
         self.assertEqual(report_calls, [1])
         self.assertEqual((result.outcome['status'], result.quiescence['confirmed'], result.quiescence['details']['attested']), ('cancelled', False, True))
-        self.assertIsNone(result.reservation); self.assertEqual(len(result.settle_keys), 5)
+        self.assertIsNone(result.reservation); self.assertEqual(len(result.settle_keys), 4)
         before = path.read_bytes(); run(True); self.assertEqual(path.read_bytes(), before)
 
     def test_cancelled_post_hoc_proof_dry_run_refusal_and_settlement(self):
@@ -568,7 +553,7 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual(result.outcome['status'], 'cancelled')
         self.assertEqual(result.outcome['backend_exit_code'], 143)
         self.assertIsNone(result.reservation)
-        self.assertEqual(len(result.settle_keys), 5)
+        self.assertEqual(len(result.settle_keys), 4)
         self.assertTrue(all(m['state'] == 'completed' for m in result.settle_keys.values()))
         settled = state_path.read_bytes(); run(True)
         self.assertEqual(state_path.read_bytes(), settled)
@@ -753,35 +738,7 @@ class ControllerTests(unittest.TestCase):
         r=self.store.get(a.key); saved=r.receipt.pop('completion')
         self.store.compare_and_swap(r.key,r.revision,r)
         with self.assertRaises(AdmissionDenied):build_gateway(self.store,inv.invocation_id)
-        # Capacity continuation is narrowly authorized by measured runner evidence,
-        # inherits the original baseline, and does not assert a human review.
-        r=self.store.get(a.key)
-        options=run_cmd.with_sandbox(self.cfg,'dsh')
-        fixed=_plain(inv.fixed_options);fixed['options']=options
-        dsh=replace(inv,fixed_options=fixed,invocation_id=str(uuid.uuid4()),backend='dsh',
-                    account_alias='dsh',model=options['model'],effort=options.get('effort','off'))
-        fixed['options']['effort']=dsh.effort
-        dsh=replace(dsh,fixed_options=fixed)
-        da=Attempt(dsh.invocation_id,str(uuid.uuid4()),1,str(uuid.uuid4()))
-        dr=self.store.create_intent(dsh,da)
-        dr.receipt={'controller':dict(version=1,policy_root=str(self.repo),backend='dsh'),
-                    'completion':dict(saved,go_ledger=str(self.root/'go.jsonl'),go_summary=str(self.root/'go.json')),
-                    'usage_observation':{'capacity_failure':True}}
-        dr.outcome=dict(status='failed',quiescent=True)
-        dr.quiescence=dict(confirmed=True,evidence='fixture reaped',observed_at=time.time())
-        dr.state='archived'
-        dr.settle_keys={k:dict(state='completed',key=k) for k in ('finalize','report','ledger','go_ledger','usage_state')}
-        self.store.compare_and_swap(dr.key,dr.revision,dr)
-        with patch.object(front,'dispatch',side_effect=lambda i,a,b,p:self.store.get(a.key)), \
-             patch.object(front.admission,'admit'):
-            next_record=front.continue_capacity(da.key,'continue self-contained synthetic brief')
-        self.assertEqual(next_record.attempt.epoch,2)
-        self.assertEqual(next_record.receipt['completion']['context']['baseline_tree'],saved['context']['baseline_tree'])
-        self.assertNotIn('review',self.store.get(da.key).artifacts)
-        self.assertIn('reopen', calls)
-        dcfg=replace(self.cfg,order=['dsh'])
-        with patch('hand_ext.paseo_controller.load_config',return_value=dcfg):
-            self.assertTrue(FreshPolicy(self.store)(dsh,next_record.attempt))
+
 
 if __name__=='__main__':unittest.main()
 

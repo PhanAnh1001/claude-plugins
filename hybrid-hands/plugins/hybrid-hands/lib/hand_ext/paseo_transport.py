@@ -254,14 +254,11 @@ class PaseoTransport:
             raise TransportError('PROMPT_MISMATCH')
         return self._mutate(key, 'send', brief=brief)
 
-    def reconcile(self, key, *, capacity=False):
+    def reconcile(self, key):
         from .paseo_names import retry_names
         retry_names(self, key)
         record = self._read(key)
-        request = dict(record)
-        if capacity and record.get('pending') == 'reopen':
-            request['reviewed'] = True
-        result = self._call('reconcile', request)
+        result = self._call('reconcile', dict(record))
         expected = {'workspace':'workspace_verified', 'create':'child_verified', 'send':'delivered', 'archive':'archived', 'reopen':'reopened'}
         pending = record.get('pending')
         if result.get('ok') and pending in expected and result.get('state') == expected[pending]:
@@ -310,7 +307,7 @@ class PaseoTransport:
     def cancel_child(self, key):
         return self._mutate(key, 'cancel')
 
-    def _lifecycle(self, key, command, *, capacity=False):
+    def _lifecycle(self, key, command):
         from .paseo_controller import records_for
         source = self.store.get(key)
         key = source.key  # tuple keys stay accepted; compare canonical ExecutionKey
@@ -320,16 +317,10 @@ class PaseoTransport:
         if not record.get('quiescent') or not record.get('settled'):
             raise TransportError('SETTLEMENT_REQUIRED')
         if command == 'reopen' and not record.get('reviewed'):
-            from .constants import DSH_CAPACITY_MAX_CONTINUATIONS
-            source = self.store.get(key)
-            count = source.receipt.get('controller', {}).get('capacity_continuation', 0)
-            if not (capacity and source.invocation.backend == 'dsh' and type(count) is int
-                    and 0 <= count < DSH_CAPACITY_MAX_CONTINUATIONS
-                    and source.receipt.get('usage_observation', {}).get('capacity_failure') is True):
-                raise TransportError('REVIEW_REQUIRED')
+            raise TransportError('REVIEW_REQUIRED')
         pending = record.get('pending')
         if pending:
-            result = self.reconcile(key, capacity=capacity)
+            result = self.reconcile(key)
             if pending != command:
                 return dict(ok=False, state='unresolved', code='RECONCILE_REQUIRED')
             if result.get('ok') and result.get('state') == {'archive':'archived', 'reopen':'reopened'}[command]:
@@ -342,13 +333,13 @@ class PaseoTransport:
             else:
                 self._save(key, current, lifecycleRetry=command)
                 return dict(ok=False, state='unresolved', code='RECONCILE_REQUIRED')
-        return self._mutate(key, command, **({'reviewed': True} if capacity else {}))
+        return self._mutate(key, command)
 
     def archive_child(self, key):
         return self._lifecycle(key, 'archive')
 
-    def reopen_child(self, key, *, capacity=False):
-        return self._lifecycle(key, 'reopen', capacity=capacity)
+    def reopen_child(self, key):
+        return self._lifecycle(key, 'reopen')
 
 
 def trusted_schema_rejection(result, command):

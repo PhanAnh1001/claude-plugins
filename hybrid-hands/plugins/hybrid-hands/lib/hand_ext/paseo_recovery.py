@@ -322,8 +322,9 @@ def _prove_settled(store, r, *, table, probe, target, completion) -> dict:
     from . import operator_reconcile as op
     pending = dict(r.to_dict(), outcome=None, pending_outcome=r.outcome)
     evidence = op.prove(store, type(r).from_dict(pending), table=table, probe=probe, target=target)
+    from .paseo_completion import SETTLE_SINKS
     unproved = [kind for kind, marker in sorted(r.settle_keys.items())
-                if marker.get('state') != 'completed'
+                if kind in SETTLE_SINKS and marker.get('state') != 'completed'
                 and completion._recover_refs(r, kind, marker['key']) is None]
     if unproved:
         raise StateConflict('settlement sink unproved: ' + ','.join(unproved))

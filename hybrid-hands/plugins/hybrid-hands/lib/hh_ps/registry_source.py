@@ -171,6 +171,15 @@ def _tokens(raw: Any) -> Dict[str, int]:
     return tokens
 
 
+def _text(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _tier(value: Any) -> Optional[int]:
+    """Ladder tier is an int; bool or any other type falls back to unknown."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _exit_code(value: Any) -> Optional[int]:
     try:
         return int(value) if value is not None and not isinstance(value, bool) else None
@@ -290,6 +299,9 @@ def load_hand_runs(root: Path, cutoff: float,
             pid=pid,
             child_pid=_pid(data.get("child_pid")),
             lost=running and pid is not None and not pid_alive(pid),
+            role=_text(data.get("role")),
+            tier=_tier(data.get("tier")),
+            escalated_from=_text(data.get("escalated_from")),
         ))
     runs.extend(managed)
     runs.sort(key=lambda run: (-(run.started_at or 0.0), run.run_id))

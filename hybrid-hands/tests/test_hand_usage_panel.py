@@ -30,7 +30,6 @@ class HandUsagePanelTest(unittest.TestCase):
 
     def test_finished_codex_cost_and_duration(self):
         snapshot = self.snapshot()
-        next(run for run in snapshot.iter_runs() if run.run_id == "priced-codex").week_limit_usd = 50
         enrich_snapshot(snapshot, None, NOW)
         data = render_json(snapshot)
         run = next(run for session in data["sessions"] for run in session["hand_runs"]

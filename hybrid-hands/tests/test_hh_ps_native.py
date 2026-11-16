@@ -69,7 +69,7 @@ class NativeTest(unittest.TestCase):
         from hh_ps.machine_usage import machine_usage
         from hh_ps.codex import GptWindow
         from hand_ext.codex_usage import price_for
-        from hand_ext.go_usage import estimate_cost
+        from hh_ps.pricing import estimate_cost
         machine_home = fx.home / "machine"
         machine_root = machine_home / "sessions"
         machine_root.mkdir(parents=True)

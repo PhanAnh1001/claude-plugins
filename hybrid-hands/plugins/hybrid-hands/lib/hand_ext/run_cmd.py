@@ -7,22 +7,19 @@ import json
 import os
 import re
 import sys
-import time
 from contextlib import ExitStack
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Optional, Tuple
+from typing import Optional, Tuple
 
-from . import capacity, codex_usage, gc, go_live, go_usage, isolation, ledger, quota_state, render
-from .backends import BackendUnavailable, codex as codex_backend, dsh as dsh_backend
+from . import codex_usage, gc, isolation, ledger, quota_state, render
+from .backends import BackendUnavailable, codex as codex_backend
 from .backends import get_backend
 from .backends.base import Backend, RunSpec, RunState, Status, Usage
 from .config import PLUGIN_DIR, ExtConfig
 from .constants import (
-    AUTO_BACKEND, BROWSER_BACKEND, CHANGES_PATCH_FILE,
-    DSH_CAPACITY_MAX_CONTINUATIONS, EXIT_ALL_UNAVAILABLE, EXIT_FAIL, EXIT_USAGE,
-    FALLBACK_STATUSES, EXIT_PARALLEL_FULL,
-    GO_ESTIMATE_PREFIX, GO_SUMMARY_PREFIX, GO_USAGE_BACKENDS, HAND_RUNS_SUBDIR,
+    AUTO_BACKEND, CHANGES_PATCH_FILE, EXIT_ALL_UNAVAILABLE, EXIT_USAGE, EXIT_PARALLEL_FULL,
+    HAND_RUNS_SUBDIR,
     ISOLATION_WORKTREE, LABEL_MAX_LEN, REPORT_FILE, SECONDS_PER_MINUTE, STATUS_EXIT,
 )
 from .parallel import ParallelFull, reserve_slot
@@ -31,11 +28,17 @@ from .run_registry import RunRegistry
 from .runner import RunOutcome, run_backend
 
 LABEL_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+RUN_ATTEMPT_RE = re.compile(r"-r(\d+)$")  # suffix written by _new_run_id for retries
+ESCALATED_TIER = 2  # escalation always lands on the higher collect/chrome tier
 DEFAULT_LABEL = "hand"
 BRIEF_FILE = "brief.md"
 PROMPT_FILE = "prompt.md"
 META_FILE = "meta.json"
 PLUGIN_MANIFEST_RELPATH = ".claude-plugin/plugin.json"
+# Without --role or an explicit --backend there is nothing to pick (no automatic order).
+BACKEND_REQUIRED = "cần --role code|collect|chrome hoặc --backend <tên>"
+# Quota/not-logged-in on the chosen backend: report it, never switch backend or account.
+UNAVAILABLE_NOTE = "{name} hết hạn mức hoặc chưa đăng nhập; không tự chuyển backend"
 
 
 def safe_label(args: argparse.Namespace) -> str:
@@ -60,63 +63,37 @@ def day_guard(backend: Backend, cfg: ExtConfig) -> Optional[str]:
     return guard(with_sandbox(cfg, backend.name)) if callable(guard) else None
 
 
-def validate_browser(choice: str, browser: bool) -> None:
-    if browser and choice not in (AUTO_BACKEND, BROWSER_BACKEND):
-        raise ValueError(f"--browser chỉ hỗ trợ backend {BROWSER_BACKEND}, "
-                         f"không dùng được với --backend {choice}")
+def missing_backend(args: argparse.Namespace) -> Optional[str]:
+    """Usage error when neither --role nor an explicit backend chose one."""
+    return BACKEND_REQUIRED if getattr(args, "backend", None) in (None, AUTO_BACKEND) else None
 
 
-def auto_preflight(cfg: ExtConfig, *, browser: bool = False):
-    """Yield (backend-or-None, name, reason) in order, without writing any state."""
-    for name in cfg.order:
-        if browser and name != BROWSER_BACKEND:
-            yield None, name, f"không hỗ trợ --browser (chỉ {BROWSER_BACKEND})"
-            continue
-        try:
-            backend = get_backend(name)
-            options = with_sandbox(cfg, name)
-        except (BackendUnavailable, ValueError) as exc:
-            yield None, name, str(exc)
-            continue
-        # Alias quota records refer to the same subscription.
-        canonical = {"claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
-        aliases = {"claude-v1": "claude-main", "claude-v2": "claude"}
-        until = quota_state.exhausted_until(cfg.quota_state, canonical)
-        alias = aliases.get(canonical)
-        if until is None and alias:
-            until = quota_state.exhausted_until(cfg.quota_state, alias)
-        if until is not None:
-            yield None, name, f"hết hạn mức tới {quota_state.iso(until)}"
-            continue
-        try:
-            checks = backend.doctor(options)
-        except (OSError, ValueError) as exc:
-            yield None, name, f"doctor không đọc được cấu hình ({type(exc).__name__})"
-            continue
-        failed = [check.name for check in checks if check.required and not check.ok]
-        if failed:
-            # Check names are safe; arbitrary subprocess output can contain credentials.
-            yield None, name, f"doctor chưa đạt: {', '.join(failed)} (`hand-ext doctor --backend {name}`)"
-            continue
-        reason = day_guard(backend, cfg)
-        yield (None if reason else backend), name, reason or ""
-
-
-def iter_candidates(cfg: ExtConfig, choice: str, browser: bool = False) -> Iterator[Backend]:
-    validate_browser(choice, browser)
-    if choice != AUTO_BACKEND:
-        yield get_backend(choice)
-        return
-    for backend, name, reason in auto_preflight(cfg, browser=browser):
-        if backend is None:
-            print(f"bỏ qua {name}: {reason}", file=sys.stderr)
-        else:
-            yield backend
-
-
-def candidates(cfg: ExtConfig, choice: str, browser: bool = False) -> List[Backend]:
-    """Compatibility list API; running consumes the same preflight lazily."""
-    return list(iter_candidates(cfg, choice, browser))
+def preflight(cfg: ExtConfig, name: str) -> Tuple[Optional[Backend], str]:
+    """(backend, "") when `name` may start now, else (None, reason); writes no state."""
+    try:
+        backend = get_backend(name)
+        options = with_sandbox(cfg, name)
+    except (BackendUnavailable, ValueError) as exc:
+        return None, str(exc)
+    # Alias quota records refer to the same subscription.
+    canonical = {"claude-main": "claude-v1", "claude": "claude-v2"}.get(name, name)
+    aliases = {"claude-v1": "claude-main", "claude-v2": "claude"}
+    until = quota_state.exhausted_until(cfg.quota_state, canonical)
+    alias = aliases.get(canonical)
+    if until is None and alias:
+        until = quota_state.exhausted_until(cfg.quota_state, alias)
+    if until is not None:
+        return None, f"hết hạn mức tới {quota_state.iso(until)}"
+    try:
+        checks = backend.doctor(options)
+    except (OSError, ValueError) as exc:
+        return None, f"doctor không đọc được cấu hình ({type(exc).__name__})"
+    failed = [check.name for check in checks if check.required and not check.ok]
+    if failed:
+        # Check names are safe; arbitrary subprocess output can contain credentials.
+        return None, f"doctor chưa đạt: {', '.join(failed)} (`hand-ext doctor --backend {name}`)"
+    reason = day_guard(backend, cfg)
+    return (None, reason) if reason else (backend, "")
 
 
 def _now() -> str:
@@ -134,7 +111,6 @@ def _spec(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: st
         sandbox=args.sandbox or cfg.sandbox,
         timeout_s=int((args.timeout_min or cfg.timeout_min) * SECONDS_PER_MINUTE),
         max_tokens=max_tokens, options=options,
-        browser=bool(getattr(args, "browser", False)),
     )
 
 
@@ -168,13 +144,53 @@ def _plugin_version() -> Optional[str]:
     return version if isinstance(version, str) else None
 
 
+def _attempt_number(run_id: str) -> Optional[int]:
+    match = RUN_ATTEMPT_RE.search(run_id)
+    return int(match.group(1)) if match else None
+
+
+def _role_fields(args: argparse.Namespace, run_id: str) -> dict:
+    """Profile role/tier trail appended to meta and ledger; defaults when no --role."""
+    return {"role": getattr(args, "role", None) or "", "tier": getattr(args, "tier", None),
+            "attempt": _attempt_number(run_id),
+            "escalated_from": getattr(args, "escalated_from", None)}
+
+
+def apply_role(cfg: ExtConfig, args: argparse.Namespace) -> Optional[str]:
+    """Resolve --role into backend/model/effort on args; return a usage error or None."""
+    role = getattr(args, "role", None)
+    tier = getattr(args, "tier", None)
+    escalated = getattr(args, "escalated_from", None)
+    if role is None:
+        return "--tier/--escalated-from cần --role" if tier is not None or escalated else None
+    if escalated and tier != ESCALATED_TIER:
+        return f"--escalated-from chỉ dùng với --tier {ESCALATED_TIER}"
+    from shared_config import load_config as load_shared
+    from .profile_cmd import backend_name
+    from .profiles import ProfileError, role_spec
+    try:
+        spec = role_spec(load_shared(Path(args.cwd) if args.cwd else cfg.root).effective,
+                         role, tier)
+    except ProfileError as exc:
+        return str(exc)
+    backend = backend_name(spec)
+    if args.backend not in (None, AUTO_BACKEND, backend):
+        return f"--backend {args.backend} lệch vai {role} ({backend})"
+    args.backend = backend
+    args.model = args.model or spec["model"]
+    args.effort = args.effort or spec["effort"]
+    args.tier = spec["tier"]  # record the resolved tier (collect/chrome default to 1)
+    return None
+
+
 def _write_meta(run_dir: Path, ctx: isolation.IsolationContext, spec: RunSpec,
-                backend: str, label: str) -> dict:
+                backend: str, label: str, extra: Optional[dict] = None) -> dict:
     meta = {
         "base_commit": ctx.base_commit, "dirty": ctx.dirty,
         "worktree": str(ctx.worktree) if ctx.worktree else None,
         "dirty_files": ctx.dirty_files, "plugin_version": _plugin_version(),
         "backend": backend, "model": spec.model, "label": label,
+        "effort": spec.effort, **(extra or {}),
     }
     return meta
 
@@ -190,9 +206,6 @@ class _AttemptResult:
     entry: dict
     kept: bool
     cleanup_note: str = ""
-    capacity: bool = False
-    go_line: Optional[str] = None
-    go_extra: List[str] = field(default_factory=list)
 
 
 def _new_run_id(label: str, backend: str, attempt: int = 1) -> str:
@@ -232,8 +245,7 @@ def _resolve_parent_session(cfg: ExtConfig) -> Optional[str]:
 def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
                  label: str, cwd: Path, *, brief: Optional[str] = None,
                  ctx: Optional[isolation.IsolationContext] = None,
-                 run_id: Optional[str] = None, capacity_guard: bool = False,
-                 preserve_failed: bool = False) -> _AttemptResult:
+                 run_id: Optional[str] = None) -> _AttemptResult:
     run_id = run_id or _new_run_id(label, backend.name)
     run_dir = cfg.runs_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -242,7 +254,8 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
     if ctx is None:
         raise isolation.IsolationError("thiếu worktree đã chuẩn bị cho lượt chạy")
     spec = _spec(cfg, args, backend, prompt, ctx.run_cwd, run_id)
-    metadata = _write_meta(run_dir, ctx, spec, backend.name, label)
+    metadata = _write_meta(run_dir, ctx, spec, backend.name, label,
+                           _role_fields(args, run_id))
     started = _now()
     registry = RunRegistry(
         cfg.machine_state_dir / HAND_RUNS_SUBDIR, run_id, label, backend.name,
@@ -253,7 +266,6 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
     keep_worktree = bool(getattr(args, "keep_worktree", False))
     apply_result = isolation.ApplyResult()
     cleanup_note = ""
-    is_cap = False
     fatal = False
     outcome: Optional[RunOutcome] = None
     try:
@@ -270,43 +282,33 @@ def _run_attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, pro
         else:
             registry.finish(outcome.status.value, outcome.exit_code, outcome.state.usage)
     finally:
-        is_cap = bool(capacity_guard and outcome is not None
-                      and capacity.is_capacity_failure(outcome))
-        preserve = is_cap or (preserve_failed and (
-            outcome is None or outcome.status is not Status.OK))
-        do_apply = not no_apply and not fatal and not preserve
-        skip_reason = ("không áp sau lỗi" if fatal else
-                       "giữ patch do quá tải, không áp về gốc" if is_cap else
-                       "lượt chạy tiếp thất bại; giữ patch, không áp về gốc" if preserve
-                       else "--no-apply")
+        do_apply = not no_apply and not fatal
+        skip_reason = "không áp sau lỗi" if fatal else "--no-apply"
         apply_result = isolation.finalize(ctx, run_dir, apply_changes=do_apply,
                                           skip_reason=skip_reason)
-        will_cleanup = not keep_worktree and not preserve
+        will_cleanup = not keep_worktree
         if will_cleanup and ctx.worktree is not None:
             from .worktree_lifecycle import remove_preserved, record
             cleanup_note = remove_preserved(ctx, apply_result, run_dir)
             will_cleanup = not cleanup_note
             record(registry.path, cleanup="removed" if will_cleanup else "retained")
-        elif not keep_worktree and not is_cap:
-            # Capacity attempts retain the checkout for a continuation.
+        elif not keep_worktree:
             will_cleanup, cleanup_note = _release_saved_worktree(ctx, run_dir, apply_result)
 
     assert outcome is not None
-    entry = _entry(run_id, label, backend.name, spec, started, cwd, outcome)
+    entry = {**_entry(run_id, label, backend.name, spec, started, cwd, outcome),
+             **_role_fields(args, run_id)}
     ledger.append_entry(cfg.ledger, entry)
-    go_line, go_extra = _record_go(cfg, entry, outcome)
     _record_codex(cfg, entry, spec, outcome)
     quota = outcome.state.quota
     exhausted = outcome.status is Status.QUOTA or bool(quota and quota.exhausted)
     if quota is not None or exhausted:
         quota_state.record(cfg.quota_state, backend.name, quota, exhausted)
-    code = STATUS_EXIT[outcome.status] if outcome.status not in FALLBACK_STATUSES else -1
     return _AttemptResult(
-        code=code, outcome=outcome, spec=spec, run_dir=run_dir, ctx=ctx,
-        apply_result=apply_result, entry=entry,
+        code=STATUS_EXIT[outcome.status], outcome=outcome, spec=spec, run_dir=run_dir,
+        ctx=ctx, apply_result=apply_result, entry=entry,
         kept=ctx.mode == ISOLATION_WORKTREE and not will_cleanup,
-        cleanup_note=cleanup_note, capacity=is_cap,
-        go_line=go_line, go_extra=go_extra)
+        cleanup_note=cleanup_note)
 
 
 def _release_saved_worktree(ctx: isolation.IsolationContext, run_dir: Path,
@@ -322,32 +324,19 @@ def _release_saved_worktree(ctx: isolation.IsolationContext, run_dir: Path,
     return not note, note
 
 
-def _release_final(result: _AttemptResult, args: argparse.Namespace) -> None:
-    """End of a capacity branch: no continuation will reuse the worktree any more."""
-    if getattr(args, "keep_worktree", False) or not result.kept:
-        return
-    removed, note = _release_saved_worktree(result.ctx, result.run_dir, result.apply_result)
-    result.kept = not removed
-    result.cleanup_note = note or result.cleanup_note
-
-
-def _emit(result: _AttemptResult, extra_lines: Optional[List[str]] = None) -> None:
+def _emit(result: _AttemptResult) -> None:
     report = result.run_dir / REPORT_FILE
     isolation.append_report(report, isolation.report_block(
         result.ctx, result.apply_result, kept=result.kept,
         cleanup_note=result.cleanup_note, keep_reason=("lỗi" if result.outcome.status is not Status.OK else
                      "--keep-worktree" if result.kept and not result.cleanup_note else "")))
-    if extra_lines:
-        isolation.append_report(report, "\n".join(extra_lines))
     isolation_line = isolation.summary_line(
         result.ctx, result.apply_result, kept=result.kept,
         cleanup_note=result.cleanup_note)
     text = report.read_text(encoding="utf-8") if report.is_file() else ""
     print(render.run_summary(result.entry, result.outcome.seconds,
                              str(report) if report.is_file() else None, text,
-                             result.outcome.errors, go_line=result.go_line,
-                             extra_lines=[*(extra_lines or []), *result.go_extra,
-                                          isolation_line]))
+                             result.outcome.errors, extra_lines=[isolation_line]))
 
 
 def _record_codex(cfg: ExtConfig, entry: dict, spec: RunSpec, outcome: RunOutcome) -> None:
@@ -360,171 +349,24 @@ def _record_codex(cfg: ExtConfig, entry: dict, spec: RunSpec, outcome: RunOutcom
         print(f"cảnh báo: không ghi được sổ Codex: {exc}", file=sys.stderr)
 
 
-def _order_fallback(cfg: ExtConfig, args: argparse.Namespace, label: str, cwd: Path,
-                    choice: isolation.IsolationChoice, *, brief: str) -> int:
-    """Run the original brief through the configured tail after discarding a small patch."""
-    remaining = cfg.order[cfg.order.index(dsh_backend.NAME) + 1:] if dsh_backend.NAME in cfg.order else []
-    tail = replace(cfg, order=remaining)
-    for backend, name, reason in auto_preflight(tail):
-        if backend is None:
-            print(f"bỏ qua {name}: {reason}", file=sys.stderr)
-            continue
-        code = _attempt(tail, args, backend, build_prompt(brief, browser=False),
-                        label, cwd, choice, brief=brief)
-        if code >= 0:
-            return code
-    return EXIT_ALL_UNAVAILABLE
-
-
-def _attempt_auto_dsh(cfg: ExtConfig, args: argparse.Namespace, backend: Backend,
-                      prompt: str, label: str, cwd: Path,
-                      choice: isolation.IsolationChoice, *, brief: str) -> int:
-    options = with_sandbox(cfg, backend.name)
-    try:
-        threshold = dsh_backend.capacity_min_lines(options)
-        wait_s = dsh_backend.capacity_wait_seconds(options)
-    except ValueError as exc:
-        print(f"hand-ext: {exc}", file=sys.stderr)
-        return EXIT_USAGE
-    first_id = _new_run_id(label, backend.name)
-    ctx, code = _prepare_context(cfg, cwd, choice, first_id, backend.name)
-    if ctx is None:
-        return code
-    result = _run_attempt(cfg, args, backend, prompt, label, cwd, brief=brief,
-                          ctx=ctx, run_id=first_id, capacity_guard=True)
-    if not result.capacity:
-        _emit(result)
-        return result.code
-    patch_path = result.apply_result.patch_path
-    if ctx.mode != ISOLATION_WORKTREE:
-        _emit(result, capacity.report_lines(
-            "giữ nguyên dữ liệu (isolation=none)", 0, threshold, wait_s, 0,
-            "không đếm được patch dsh; giữ nguyên source, không chạy backend kế tiếp", patch_path))
-        return result.code
-    if result.apply_result.status == isolation.APPLY_ERROR:
-        _emit(result, capacity.report_lines(
-            "giữ patch dsh", 0, threshold, wait_s, 0,
-            f"lỗi đếm patch: {result.apply_result.detail}; giữ worktree và patch, "
-            "không chạy backend kế tiếp", patch_path))
-        return result.code
-    lines = result.apply_result.changed_lines
-    if lines < threshold:
-        if getattr(args, "browser", False):
-            _release_final(result, args)
-            _emit(result, capacity.report_lines(
-                "giữ patch dsh, không chạy codex", lines, threshold, wait_s, 0,
-                "codex không hỗ trợ --browser; giữ worktree và patch dsh",
-                patch_path))
-            print("hand-ext: dsh quá tải và patch nhỏ; codex không hỗ trợ --browser",
-                  file=sys.stderr)
-            return EXIT_FAIL
-        keep = bool(getattr(args, "keep_worktree", False))
-        from .worktree_lifecycle import remove_preserved
-        note = "" if keep else remove_preserved(ctx, result.apply_result, result.run_dir)
-        result.kept = ctx.mode == ISOLATION_WORKTREE and (keep or bool(note))
-        result.cleanup_note = note
-        result.apply_result.detail = "bỏ patch dsh (dưới ngưỡng), không áp về gốc"
-        code = _order_fallback(cfg, args, label, cwd, choice, brief=brief)
-        outcome = "ok" if code == 0 else f"mã {code}"
-        _emit(result, capacity.report_lines(
-            "bỏ patch dsh, chạy lại brief gốc theo order", lines, threshold, wait_s, 0,
-            f"backend kế tiếp trong order: {outcome}",
-            patch_path))
-        return code
-    _emit(result, capacity.report_lines(
-        "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s, 0,
-        f"quá tải lần 1/{1 + DSH_CAPACITY_MAX_CONTINUATIONS}, còn "
-        f"{DSH_CAPACITY_MAX_CONTINUATIONS} lần chạy tiếp", patch_path))
-    continuation_prompt = capacity.continuation_prompt(prompt)
-    for continuation in range(1, DSH_CAPACITY_MAX_CONTINUATIONS + 1):
-        attempt_id = _new_run_id(label, backend.name, continuation + 1)
-        if wait_s > 0:
-            print(f"hand-ext: dsh quá tải, giữ patch {lines} dòng; chờ {wait_s}s rồi chạy tiếp "
-                  f"({continuation}/{DSH_CAPACITY_MAX_CONTINUATIONS})", file=sys.stderr)
-            time.sleep(wait_s)
-        else:
-            print(f"hand-ext: dsh quá tải, giữ patch {lines} dòng; chạy tiếp không chờ "
-                  f"({continuation}/{DSH_CAPACITY_MAX_CONTINUATIONS})", file=sys.stderr)
-        retry = _run_attempt(cfg, args, backend, continuation_prompt, label, cwd,
-                             brief=brief, ctx=ctx, run_id=attempt_id, capacity_guard=True,
-                             preserve_failed=True)
-        if not retry.capacity:
-            finished = lines if retry.apply_result.status == isolation.APPLY_ERROR \
-                else retry.apply_result.changed_lines
-            _emit(retry, capacity.report_lines(
-                "giữ patch dsh, chờ rồi chạy tiếp", finished, threshold, wait_s,
-                continuation,
-                f"dsh {retry.outcome.status.value} sau {continuation + 1} lần; "
-                "kết thúc nhánh giữ patch", retry.apply_result.patch_path))
-            return retry.code if retry.code >= 0 else EXIT_ALL_UNAVAILABLE
-        if retry.apply_result.status == isolation.APPLY_ERROR:
-            _emit(retry, capacity.report_lines(
-                "giữ patch dsh", lines, threshold, wait_s, continuation,
-                f"lỗi đếm patch: {retry.apply_result.detail}; giữ worktree và patch",
-                retry.apply_result.patch_path))
-            return retry.code
-        lines = retry.apply_result.changed_lines
-        note = ("; số dòng giảm dưới ngưỡng nhưng vẫn giữ nhánh patch, không chuyển codex"
-                if lines < threshold else "")
-        if continuation < DSH_CAPACITY_MAX_CONTINUATIONS:
-            _emit(retry, capacity.report_lines(
-                "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s,
-                continuation, "vẫn quá tải, còn lần chạy tiếp" + note,
-                retry.apply_result.patch_path))
-            continue
-        _release_final(retry, args)
-        _emit(retry, capacity.report_lines(
-            "giữ patch dsh, chờ rồi chạy tiếp", lines, threshold, wait_s,
-            continuation,
-            f"vẫn quá tải sau {1 + DSH_CAPACITY_MAX_CONTINUATIONS} lần dsh; "
-            "giữ worktree và changes.patch, không áp về gốc" + note,
-            retry.apply_result.patch_path))
-        return retry.code
-    return result.code
-
-
 def _attempt(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: str,
              label: str, cwd: Path, choice: isolation.IsolationChoice,
              *, brief: Optional[str] = None) -> int:
-    if getattr(args, "backend", None) == AUTO_BACKEND and backend.name == dsh_backend.NAME:
-        if brief is None:
-            brief = prompt
-        return _attempt_auto_dsh(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
     run_id = _new_run_id(label, backend.name)
     ctx, code = _prepare_context(cfg, cwd, choice, run_id, backend.name)
     if ctx is None:
         return code
     result = _run_attempt(cfg, args, backend, prompt, label, cwd, brief=brief,
-                          ctx=ctx, run_id=run_id, capacity_guard=False)
+                          ctx=ctx, run_id=run_id)
     _emit(result)
     return result.code
 
 
-def _record_go(cfg: ExtConfig, entry: dict,
-               outcome: RunOutcome) -> Tuple[Optional[str], List[str]]:
-    """Write the Go ledger, then prefer the real statusline numbers over the estimate.
-
-    A logging or live-fetch failure warns/degrades, never fails the run.
-    """
-    if entry.get("backend") not in GO_USAGE_BACKENDS:
-        return None, []
-    try:
-        summary = go_usage.record_run(cfg, entry,
-                                      outcome.state.extra.get("go_allowance_usd"))
-    except OSError as exc:
-        print(f"cảnh báo: không ghi được sổ Go: {exc}", file=sys.stderr)
-        return None, []
-    estimated = go_usage.summary_line(summary)
-    live = go_live.refresh_and_read(cfg.go_usage_live, os.environ)
-    if live is None:
-        return estimated, []
-    extra = []
-    if estimated and estimated.startswith(GO_SUMMARY_PREFIX):
-        extra.append(GO_ESTIMATE_PREFIX + estimated[len(GO_SUMMARY_PREFIX):])
-    return go_live.live_line(live, time.time()), extra
-
-
 def cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
+    role_error = apply_role(cfg, args) or missing_backend(args)
+    if role_error:
+        print(f"hand-ext run: {role_error}", file=sys.stderr)
+        return EXIT_USAGE
     mode = getattr(args, "mode", None) or getattr(cfg, "mode", "shell")
     if mode != "shell":
         from .paseo_controller import cmd_managed_run
@@ -546,10 +388,8 @@ def _cmd_shell_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
 
 
 def _cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
-    browser = bool(getattr(args, "browser", False))
-    validate_browser(args.backend, browser)
     brief = read_brief(args.brief)
-    prompt = build_prompt(brief, browser=browser)
+    prompt = build_prompt(brief)
     cwd = Path(args.cwd).resolve() if args.cwd else Path.cwd()
     label = safe_label(args)
     try:
@@ -559,22 +399,15 @@ def _cmd_run(cfg: ExtConfig, args: argparse.Namespace) -> int:
         return EXIT_USAGE
     if choice.warning:
         print(f"hand-ext: {choice.warning}", file=sys.stderr)
-    for backend in iter_candidates(cfg, args.backend, browser=browser):
-        reason = day_guard(backend, cfg) if args.backend != AUTO_BACKEND else None
-        if reason:
-            print(f"hand-ext: {reason}", file=sys.stderr)
-            if args.backend != AUTO_BACKEND:
-                return EXIT_ALL_UNAVAILABLE
-            continue
-        code = _attempt(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
-        if code >= 0:
-            return code
-        if args.backend != AUTO_BACKEND:
-            break
-        print(f"{backend.name} hết hạn mức/chưa đăng nhập; thử backend kế tiếp",
-              file=sys.stderr)
-    print("Không backend nào chạy được (hết hạn mức hoặc chưa đăng nhập).", file=sys.stderr)
-    return EXIT_ALL_UNAVAILABLE
+    backend = get_backend(args.backend)
+    reason = day_guard(backend, cfg)
+    if reason:
+        print(f"hand-ext: {reason}", file=sys.stderr)
+        return EXIT_ALL_UNAVAILABLE
+    code = _attempt(cfg, args, backend, prompt, label, cwd, choice, brief=brief)
+    if code == EXIT_ALL_UNAVAILABLE:
+        print(UNAVAILABLE_NOTE.format(name=backend.name), file=sys.stderr)
+    return code
 
 
 def last_run(cfg: ExtConfig, name: str) -> Optional[dict]:

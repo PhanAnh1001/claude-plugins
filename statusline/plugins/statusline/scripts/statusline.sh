@@ -11,8 +11,6 @@
 #   3a. rows "Claude v1 ultra" (~/.claude) and "Claude v2 pro" (~/.claude-hand): the account this
 #      session runs on (CLAUDE_HOME) gets the live payload as above; the other one shows its own
 #      statusline cache with "~", "?" per cell when missing or past its reset
-#   3c. row "Go": live OpenCode Go usage (5h / wk / mo) when its cache has usable numbers, else
-#      the estimated DS cells from hand-ext; aligned with the table, printed as the LAST line
 #   3d. row "GPT": newest 5h/7d quota sample and today's estimated USD from ~/.codex rollouts
 #   3e. cell "Fable" at the end of the v1 row: the Fable weekly limit the CLI last fetched into
 #      ~/.claude.json (cachedUsageUtilization; "~", fetch time after "lấy", "?" past its reset)
@@ -38,7 +36,6 @@ case "${BASH_SOURCE[0]}" in
   *) SCRIPTS_DIR="." ;;
 esac
 LAST_SKILL_SCRIPT="$SCRIPTS_DIR/last-skill.sh"
-GO_FETCH_SCRIPT="$SCRIPTS_DIR/go-usage-fetch.sh"
 WEEK_SPLIT_SCRIPT="$SCRIPTS_DIR/week-split.sh"
 GPT_USAGE_SCRIPT="$SCRIPTS_DIR/gpt_usage.py"
 # Summary of week_split.py: the 7-day estimate is used only when it is recent and matches the
@@ -69,8 +66,6 @@ CLAUDE_FETCH_SCRIPT="$SCRIPTS_DIR/claude_usage_fetch.py"
 CLAUDE_LIVE_CACHE="$CLAUDE_V1_HOME/.statusline-claude-usage.json"
 CLAUDE_LIVE_REFRESH_SECONDS=300
 CLAUDE_LIVE_FRESH_SECONDS=$((2 * CLAUDE_LIVE_REFRESH_SECONDS))
-# shellcheck source=go-segments.sh
-. "$SCRIPTS_DIR/go-segments.sh"
 
 RESET=$'\033[0m'
 GREEN=$'\033[32m'
@@ -216,8 +211,7 @@ build_line2() {
 # --- Line 3: Claude rate limits ---
 rate_limit_segment() {
   # Args: label live_pct live_reset cached_pct cached_reset [color] [mark] [estimate] [extra].
-  # Live values win; cached ones get "~". Callers may force a colour (rate-limited Go windows)
-  # and a stale mark (Go windows with an expired reset) without changing the Claude behaviour.
+  # Live values win; cached ones get "~". Callers may force a colour and a stale mark.
   # An estimate is printed with one decimal and "~"; the colour still follows the integer %.
   # "extra" goes inside the parentheses after the reset ("reset X · extra") or alone there.
   local label=$1 pct=$2 reset=$3 mark="" color="${6:-}" shown="${8:-}" extra="${9:-}" text
@@ -411,12 +405,11 @@ build_claude_row() {
 }
 
 build_limit_table() {
-  # Args: claude_cells local_cell other_cell go_cells gpt_cells other_account_cells fable_cell.
+  # Args: claude_cells local_cell other_cell gpt_cells other_account_cells fable_cell.
   # Builds the aligned rows (v1 then v2, whichever is live; v1 ends with its Fable cell) and prints
-  # them, Go last (the caller moves it to the end of the status line); labels never start with a
-  # space (Claude Code trims it).
-  local claude_cells=$1 local_cell=$2 other_cell=$3 go_cells=$4 gpt_cells=$5 account_cells=$6
-  local fable=${7:-}
+  # them; labels never start with a space (Claude Code trims it).
+  local claude_cells=$1 local_cell=$2 other_cell=$3 gpt_cells=$4 account_cells=$5
+  local fable=${6:-}
   local rows="${CLAUDE_V1_LABEL}${TABLE_US}${claude_cells}${fable:+${TABLE_US}${fable}}"
   if on_v2_account; then
     rows="${CLAUDE_V2_LABEL}${TABLE_US}${claude_cells}"
@@ -428,15 +421,12 @@ build_limit_table() {
   [ -n "$local_cell" ] && rows="${rows}"$'\n'"${DIM}· máy này${RESET}${TABLE_US}${TABLE_US}${local_cell}"
   [ -n "$other_cell" ] && rows="${rows}"$'\n'"${DIM}· máy khác${RESET}${TABLE_US}${TABLE_US}${other_cell}"
   [ -n "$gpt_cells" ] && rows="${rows}"$'\n'"${DIM}GPT${RESET}${TABLE_US}${gpt_cells}"
-  [ -n "$go_cells" ] && rows="${rows}"$'\n'"${DIM}Go${RESET}${TABLE_US}${go_cells}"
   printf '%s\n' "$rows" | table_print
 }
 
 
 line1=$(build_line1)
 line2=$(build_line2)
-load_go_summary
-load_go_live_cache
 load_week_estimate
 week_split_row=""
 [ -f "$WEEK_SPLIT_SCRIPT" ] && week_split_row=$(bash "$WEEK_SPLIT_SCRIPT" --color \
@@ -444,20 +434,12 @@ week_split_row=""
 local_cell=""; other_cell=""; usd_text=""
 IFS=$TABLE_US read -r local_cell other_cell usd_text <<< "$week_split_row"
 claude_row=$(build_claude_row "$usd_text")
-go_row=$(build_go_row)
 gpt_row=$(build_gpt_cells)
 v2_row=$(build_other_account_cells)
 maybe_start_claude_live_fetch
 fable_row=$(fable_cell)
-limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$go_row" "$gpt_row" \
+limit_table=$(build_limit_table "$claude_row" "$local_cell" "$other_cell" "$gpt_row" \
   "$v2_row" "$fable_row")
-# The Go row keeps the table's column widths but is printed as the last status-line line.
-go_line=""
-if [ -n "$go_row" ]; then
-  go_line=${limit_table##*$'\n'}
-  if [ "$go_line" = "$limit_table" ]; then limit_table=""; else limit_table=${limit_table%$'\n'*}; fi
-fi
-maybe_start_go_live_fetch
 # --- Skill block (after the rate-limit lines) ---
 build_skill_block() {
   # Lines from last-skill.sh: "🔧 <skill> (main)", '🔧 <skill> (<agent>: "<desc>")'; or nothing.
@@ -474,5 +456,4 @@ printf "%b" "$out"
 [ -n "$limit_table" ] && printf '\n%s' "$limit_table"
 # printf %s, not %b: skill names and subagent descriptions are data, so "\" must stay literal.
 [ -n "$skill_block" ] && printf '\n%s' "$skill_block"
-[ -n "$go_line" ] && printf '\n%s' "$go_line"
 exit 0

@@ -2,9 +2,7 @@
 
 Ported from statusline plugins/statusline/scripts/week_split.py (Claude: calibrate,
 ``local = local_usd / usd_per_pct``, ``other = total - local``, the 0.1 estimate clamped
-to ``[p, p + 0.9]``) and plugins/statusline/scripts/go_sessions.py (Go: the week starts
-at the live cache's weekly reset minus seven days; a run counts when it ended inside
-that window; ``pct = usd / week.limit_usd * 100``).
+to ``[p, p + 0.9]``).
 
 Only the weekly window is exposed: the 5-hour and monthly windows are intentionally
 absent from `hh-ps` and both tree panels.
@@ -12,7 +10,6 @@ absent from `hh-ps` and both tree panels.
 from __future__ import annotations
 
 import dataclasses
-import datetime as dt
 import functools
 import hashlib
 import importlib.util
@@ -22,9 +19,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-
-from hand_ext.go_usage import estimate_cost, price_for as go_price_for
+from typing import Any, Dict, Optional
 
 from usage_pricing import load_prices
 
@@ -35,18 +30,11 @@ DAY_SECONDS = 86400
 WEEK_SECONDS = 7 * DAY_SECONDS
 SAME_WINDOW_SECONDS = 3600
 SUMMARY_STALE_SECONDS = 1800
-GO_LIVE_STALE_SECONDS = 900
-GO_LIVE_ERROR_KEEP_SECONDS = 21600
 SUMMARY_VERSION = 2
 RATE_CALIBRATED = "calib"
 # statusline labels whose USD per 1 % is trusted: calibrated, or pinned by the user.
 TRUSTED_RATE_LABELS = (RATE_CALIBRATED, "pin")
 PERCENT = 100.0
-GO_MODEL_MARKER = "deepseek"
-GO_WEEK_KEY = "7d"
-GO_USAGE_LOG_NAME = "go_usage.jsonl"
-GO_SUMMARY_NAME = "go_usage_summary.json"
-GO_LIVE_CACHE_NAME = ".statusline-go-usage.json"
 CLAUDE_CACHE_NAME = ".statusline-cache.json"
 CLAUDE_WEEK_SPLIT_NAME = ".statusline-week-split.json"
 # Statusline v4 USD requires a matching canonical pricing fingerprint.
@@ -65,42 +53,6 @@ STATUSLINE_LEDGER_FILE = "usage_ledger.py"
 INSTALLED_PLUGINS_RELPATH = Path("plugins") / "installed_plugins.json"
 REPO_STATUSLINE_LEDGER = (Path("statusline") / "plugins" / "statusline"
                           / "scripts" / STATUSLINE_LEDGER_FILE)
-RUNS_SUBDIR = "runs"
-RUN_STATUS_RUNNING = "running"
-COST_EXACT = "exact"
-
-
-@dataclass(frozen=True)
-class GoWeek:
-    """This machine's Go week and the account total shown by the statusline cache."""
-
-    window_start: float
-    limit_usd: float
-    runs: List["GoWeekRun"]
-    total_pct: Optional[float]
-    resets_at: Optional[float]
-    total_estimated: bool
-    source: str
-
-    @property
-    def machine_usd(self) -> float:
-        return sum(run.usd for run in self.runs)
-
-    @property
-    def machine_pct(self) -> Optional[float]:
-        if self.limit_usd <= 0:
-            return None
-        return self.machine_usd / self.limit_usd * PERCENT
-
-
-@dataclass(frozen=True)
-class GoWeekRun:
-    run_id: str
-    usd: float
-    parent_session: Optional[str]
-    cwd: str
-    estimated: bool
-    ended_at: Optional[float]
 
 
 @dataclass(frozen=True)
@@ -156,157 +108,6 @@ def _path_mtime(path: Path) -> float:
         return path.stat().st_mtime
     except OSError:
         return 0.0
-
-
-# --- Go week (statusline go_sessions.py) ---
-def _go_summary(state: Path) -> Optional[Dict[str, Any]]:
-    return read_json(state / GO_SUMMARY_NAME)
-
-
-def _go_week_limit(state: Path) -> Optional[float]:
-    summary = _go_summary(state) or {}
-    models = summary.get("models")
-    if not isinstance(models, dict):
-        return None
-    for name, windows in models.items():
-        if GO_MODEL_MARKER in str(name).lower() and isinstance(windows, dict):
-            week = windows.get(GO_WEEK_KEY)
-            limit = _number(week.get("limit_usd")) if isinstance(week, dict) else None
-            if limit and limit > 0:
-                return limit
-    return None
-
-
-def _registry(state: Path) -> Dict[str, Dict[str, Any]]:
-    found: Dict[str, Dict[str, Any]] = {}
-    try:
-        paths = sorted((state / RUNS_SUBDIR).glob("*.json"))
-    except OSError:
-        return found
-    for path in paths:
-        record = read_json(path)
-        if record is not None:
-            found[str(record.get("run_id") or path.stem)] = record
-    return found
-
-
-def _finished_runs(state: Path, start: float, registry: Dict[str, Dict[str, Any]]
-                   ) -> tuple[List[GoWeekRun], set]:
-    runs: List[GoWeekRun] = []
-    logged: set = set()
-    try:
-        lines = (state / GO_USAGE_LOG_NAME).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return runs, logged
-    for line in lines:
-        try:
-            record = json.loads(line)
-        except ValueError:
-            continue
-        if not isinstance(record, dict) or not record.get("run_id"):
-            continue
-        run_id = str(record["run_id"])
-        logged.add(run_id)
-        ended = _epoch(record.get("ended"))
-        usd = _number(record.get("cost_usd"))
-        if ended is None or ended < start or usd is None:
-            continue
-        entry = registry.get(run_id) or {}
-        parent = entry.get("parent_session")
-        cwd = entry.get("cwd")
-        runs.append(GoWeekRun(
-            run_id=run_id, usd=usd,
-            parent_session=str(parent) if parent else None,
-            cwd=str(cwd) if isinstance(cwd, str) else "",
-            estimated=str(record.get("cost_source") or "") != COST_EXACT,
-            ended_at=ended))
-    return runs, logged
-
-
-def _running_runs(registry: Dict[str, Dict[str, Any]], logged: set) -> List[GoWeekRun]:
-    runs: List[GoWeekRun] = []
-    for run_id, record in registry.items():
-        if record.get("status") != RUN_STATUS_RUNNING or run_id in logged:
-            continue
-        usd = estimate_cost(record.get("tokens") or {},
-                            go_price_for(None, str(record.get("model") or "")))
-        if usd is None:
-            continue
-        runs.append(GoWeekRun(
-            run_id=run_id, usd=float(usd or 0.0),
-            parent_session=str(record["parent_session"])
-            if record.get("parent_session") else None,
-            cwd=str(record.get("cwd") or ""), estimated=True, ended_at=None))
-    return runs
-
-
-def _epoch(value: Any) -> Optional[float]:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        number = float(value)
-        return number if math.isfinite(number) else None
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        moment = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if moment.tzinfo is None:
-        moment = moment.replace(tzinfo=dt.timezone.utc)
-    return moment.timestamp()
-
-
-def _go_total(cache: Optional[Dict[str, Any]], now: float,
-              state: Path) -> tuple[Optional[float], Optional[float], bool, str]:
-    """(weekly percent, weekly reset, estimated, source) as the statusline reads it."""
-    windows = (cache or {}).get("windows")
-    windows = windows if isinstance(windows, dict) else {}
-    weekly = windows.get("weekly") if isinstance(windows.get("weekly"), dict) else {}
-    reset = _number(weekly.get("resets_at"))
-    now_i = int(now)
-    complete = all(isinstance(windows.get(name), dict)
-                   and _percent(windows[name].get("percent")) is not None
-                   and _number(windows[name].get("resets_at")) is not None
-                   for name in ("rolling", "weekly", "monthly"))
-    fetch = _number((cache or {}).get("fetched_at"))
-    last_ok = _number((cache or {}).get("last_ok_at"))
-    state_name = (cache or {}).get("state")
-    live_ok = False
-    if complete and state_name == "ok" and fetch is not None:
-        live_ok = 0 <= now_i - fetch < GO_LIVE_STALE_SECONDS
-    elif complete and state_name == "error" and last_ok is not None:
-        live_ok = 0 <= now_i - last_ok < GO_LIVE_ERROR_KEEP_SECONDS
-    if live_ok:
-        percent = _percent(weekly.get("percent"))
-        stale = (now_i - (last_ok or fetch or 0)) >= GO_LIVE_STALE_SECONDS
-        if reset is not None and reset <= now:
-            # Same as the statusline: an expired window has reset, so show ~0%.
-            return 0.0, None, True, "go_live"
-        return percent, reset, bool(stale), "go_live"
-    # Local ledger percentages describe this machine, never the whole account.
-    return None, reset, True, "ledger"
-
-
-def read_go_week(state: Path, claude_home: Path, now: float) -> Optional[GoWeek]:
-    """This machine's Go week plus the account total, or None without a usable source."""
-    cache = read_json(claude_home / GO_LIVE_CACHE_NAME)
-    limit = _go_week_limit(state)
-    windows = (cache or {}).get("windows")
-    windows = windows if isinstance(windows, dict) else {}
-    weekly = windows.get("weekly") if isinstance(windows.get("weekly"), dict) else {}
-    reset = _number(weekly.get("resets_at"))
-    total, live_reset, total_estimated, source = _go_total(cache, now, state)
-    if total is None and not windows and limit is None:
-        return None
-    start = (live_reset if live_reset is not None else now) - WEEK_SECONDS
-    registry = _registry(state)
-    finished, logged = _finished_runs(state, start, registry)
-    runs = finished + _running_runs(registry, logged)
-    return GoWeek(window_start=start, limit_usd=float(limit or 0.0), runs=runs,
-                  total_pct=total, resets_at=live_reset,
-                  total_estimated=total_estimated, source=source)
 
 
 

@@ -7,18 +7,15 @@ from dataclasses import replace
 from typing import Any, Optional
 
 from hand_ext.codex_usage import price_for as codex_price
-from hand_ext.go_usage import estimate_cost, price_for as go_price
 from usage_pricing import explicit_options, token_price
 from account_label import backend_account_label
 
 from .models import Usage, Limit
 from .timeutil import to_epoch
-from .pricing import hand_usage
+from .pricing import estimate_cost, hand_usage
 from .live_rate import read_live_window
-from .week import (read_json, _number, _path_mtime, SUMMARY_STALE_SECONDS,
-                   GO_LIVE_STALE_SECONDS, GO_LIVE_ERROR_KEEP_SECONDS, _percent)
+from .week import read_json, _number, _path_mtime, SUMMARY_STALE_SECONDS, _percent
 
-GO_BACKENDS = frozenset(("dsh", "opencode"))
 WEEK_WINDOWS = frozenset(("tuần", "7d", "week"))
 
 
@@ -61,19 +58,6 @@ def _five_hour(plan: str, now: float) -> Optional[float]:
     if plan == "Claude":
         sample = _claude_five(home, now)
         return sample[0] if sample is not None else None
-    if plan == "Go":
-        cache = read_json(home / ".statusline-go-usage.json") or {}
-        windows = cache.get("windows")
-        row = windows.get("rolling") if isinstance(windows, dict) else None
-        if not isinstance(row, dict):
-            return None
-        stamp = _number(cache.get("last_ok_at")) or _number(cache.get("fetched_at"))
-        ttl = (GO_LIVE_ERROR_KEEP_SECONDS if cache.get("state") == "error"
-               else GO_LIVE_STALE_SECONDS)
-        reset = _number(row.get("resets_at"))
-        if (cache.get("state") in ("ok", "error") and stamp is not None
-                and 0 <= now - stamp < ttl and reset is not None and reset > now):
-            return _percent(row.get("percent"))
     return None
 
 
@@ -98,24 +82,12 @@ def _row_usage(row: Any, cfg: Any = None, provider: str = "") -> Usage:
 def _run_plan(backend: str, options: dict) -> str:
     if backend == "codex":
         return "GPT"
-    if backend in GO_BACKENDS:
-        return "Go"
     current = Path(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"))
     configured = options.get("config_dir") or ("~/.claude" if backend in ("claude-main", "claude-v1")
                                                else "~/.claude-hand" if backend == "claude" else None)
     if (backend in ("claude", "claude-main") or backend.startswith("claude-v")) and configured and Path(os.path.expanduser(str(configured))).resolve() == current.resolve():
         return "Claude"
     return ""
-
-
-def _go_run_week_pct(backend: str, usd: Optional[float], limit: Any) -> Optional[float]:
-    """Only Go's dollar allowance supports a per-run weekly percentage."""
-    if backend not in GO_BACKENDS or usd is None:
-        return None
-    allowance = _number(limit)
-    if allowance is None or allowance <= 0:
-        return None
-    return usd / allowance * 100
 
 
 def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
@@ -134,8 +106,7 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
     five["Claude"] = sample[0] if sample is not None else None
     for session in snapshot.sessions:
         provider = session.provider
-        plan = ("GPT" if provider == "codex" else "Go" if provider in GO_BACKENDS
-                else "Claude" if provider == "claude" else "")
+        plan = ("GPT" if provider == "codex" else "Claude" if provider == "claude" else "")
         usage = _row_usage(session, cfg)
         if usage is not None:
             session.usage = _account(usage, plan, snapshot, now, five,
@@ -158,25 +129,21 @@ def enrich_snapshot(snapshot: Any, cfg: Any, now: float) -> None:
         if backend == "codex":
             price = codex_price(options, run.model)
             plan = "GPT"
-        elif backend in GO_BACKENDS:
-            price = go_price(options, run.model)
-            plan = "Go"
         else:
             price = token_price(run.model)
             # Without configuration, retain the legacy primary-account label.
             # An explicitly missing/removed account above must remain unknown.
             plan = ("Claude" if cfg is None and backend in ("claude-main", "claude-v1")
                     else _run_plan(backend, options) if options is not None else "")
-        usage = run.usage or hand_usage(run.tokens, backend, run.week_limit_usd,
-                                        run.week_pct_estimated) or Usage(usd=None)
+        usage = run.usage or hand_usage(run.tokens) or Usage(usd=None)
         tokens = run.tokens or {"input": usage.read + usage.cache_read,
                                 "cached_input": usage.cache_read, "output": usage.out}
         usd = (None if backend.startswith("claude") and (usage.cache_write
                        or tokens.get("cache_creation_input_tokens") or tokens.get("cache_creation"))
                else estimate_cost(tokens, price) if run.tokens or any(
                    (usage.read, usage.cache_read, usage.out)) else None)
-        week = (usage.week_pct if backend == "codex"
-                else _go_run_week_pct(backend, usd, run.week_limit_usd))
+        # Only Codex has a measured per-run weekly share; other backends stay unknown.
+        week = usage.week_pct if backend == "codex" else None
         run.usage = _account(replace(usage, usd=usd, usd_estimated=usd is not None,
             week_pct=week, week_pct_estimated=(usage.week_pct_estimated if backend == "codex"
                                             else week is not None)), plan, snapshot, now, five,

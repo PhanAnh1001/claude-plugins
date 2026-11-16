@@ -6,9 +6,7 @@ import re
 
 from .base import Backend
 
-KNOWN_BACKENDS = ("dsh", "codex", "claude-v1", "claude-v2", "claude", "claude-main", "gemini")
-# Backends removed from the plugin; old configs may still name them in `order`.
-REMOVED_BACKENDS = ("opencode",)
+KNOWN_BACKENDS = ("codex", "claude-v1", "claude-v2", "claude", "claude-main")
 # Names that do not map to their own module/class (hyphen, or a shared implementation).
 MODULE_OVERRIDES = {"claude-main": ("claude", "ClaudeMainBackend")}
 
@@ -26,8 +24,6 @@ def get_backend(name: str) -> Backend:
         return backend
     if name not in MODULE_OVERRIDES and not name.isidentifier():
         raise BackendUnavailable(f"tên backend không hợp lệ: {name!r}")
-    if name in REMOVED_BACKENDS:
-        raise BackendUnavailable(f"backend {name!r} không hỗ trợ (đã gỡ, dùng dsh)")
     module_name, class_name = MODULE_OVERRIDES.get(
         name, (name, f"{name.capitalize()}Backend"))
     try:

@@ -90,7 +90,7 @@ def usage_cells(usage: Optional[Usage]) -> List[Cell]:
 
 
 def limit_line(limit: Limit, now: float) -> str:
-    """One `Hạn mức` row; GPT is account-only, Claude/Go keep the machine split."""
+    """One `Hạn mức` row; GPT is account-only, Claude keeps the machine split."""
     reset = ended_text(limit.resets_at, now)
     mark = limit.estimated
     if limit.plan == GPT_PLAN:
@@ -175,6 +175,20 @@ def _run_mark(run: HandRun) -> tuple:
     return (CHILD_BAD_MARK, "lost", status) if status else (CHILD_OK_MARK, "finished", "")
 
 
+TIER_PREFIX = "B"  # Vietnamese "bậc" (ladder tier).
+ESCALATED_MARK = "↑"
+
+
+def role_label(run: HandRun) -> str:
+    """Short role/tier tag such as ``collect B2↑``; empty for legacy runs."""
+    if not run.role:
+        return ""
+    tier = f"{TIER_PREFIX}{run.tier}" if run.tier is not None else ""
+    if tier and run.escalated_from:
+        tier += ESCALATED_MARK
+    return f"{run.role} {tier}" if tier else run.role
+
+
 def run_is_bad(run: HandRun) -> bool:
     return _run_mark(run)[0] == CHILD_BAD_MARK
 
@@ -183,5 +197,7 @@ def run_line(run: HandRun, now: float) -> Line:
     mark, key, status = _run_mark(run)
     duration = duration_text(elapsed_seconds(run.started_at, run.ended_at, run.running, now))
     usage = run.usage
+    label = role_label(run)
+    model = f"{model_effort(run)} {label}" if label else model_effort(run)
     return _child_line(mark, key, run.backend, run.label or UNKNOWN, status,
-                       duration, end_cell(run.end_moment, run.running, now), usage, model_effort(run))
+                       duration, end_cell(run.end_moment, run.running, now), usage, model)

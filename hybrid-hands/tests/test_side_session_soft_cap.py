@@ -30,7 +30,6 @@ case "$1" in
 esac
 """
 FAKE_FAIL = "#!/bin/sh\necho fake-must-not-run >&2\nexit 99\n"
-RULES = "## LUẬT BẮT BUỘC\n- Không đọc .env.\n"
 
 
 class SoftTokenCapTest(unittest.TestCase):
@@ -50,7 +49,8 @@ class SoftTokenCapTest(unittest.TestCase):
         self.machine = self.tmp / "machine"
         self._env = dict(os.environ)
         legacy_config = self.tmp / "global.json"
-        legacy_config.write_text(json.dumps({"side_session": {"transport": "screen"},
+        legacy_config.write_text(json.dumps({"profile": "gpt-mono", "side_session": {"transport": "screen"},
+                                              "ext_hand": {"claude_accounts": {"v1": {"day_guard": True}}},
                                               "main_session": {"transport": "screen"}}))
         os.environ["HYBRID_HANDS_CONFIG"] = str(legacy_config)
         os.environ["PATH"] = f"{bindir}{os.pathsep}{os.environ['PATH']}"
@@ -103,26 +103,6 @@ class SoftTokenCapTest(unittest.TestCase):
         lines = [line for line in alive.read_text().splitlines()
                  if line.strip() and line.strip() != f"side-{name}"]
         alive.write_text("\n".join(lines) + ("\n" if lines else ""))
-
-    def start_ext(self, name: str, max_tokens: int) -> int:
-        with mock.patch.object(actions.K, "worktree_cmd", return_value=["true"]):
-            code, _ = self.run_cli("start", "--name", name, "--provider", "dsh",
-                                   "--worktree", "--prompt", RULES,
-                                   "--max-tokens", str(max_tokens))
-        return code
-
-    def write_run(self, st: dict, *, status: str = "running") -> None:
-        run_dir = self.tmp / "run-1"
-        run_dir.mkdir(exist_ok=True)
-        run_started = st["started"] + 1
-        data = {"run_id": "run-1", "label": f"side:{st['name']}",
-                "backend": st["provider"], "status": status,
-                "tokens": {"input": 1200, "cached_input": 999, "output": 34},
-                "started": run_started, "ended": run_started + 1,
-                "run_dir": str(run_dir), "pid": os.getpid()}
-        runs = self.machine / "runs"
-        runs.mkdir(parents=True, exist_ok=True)
-        (runs / "run-1.json").write_text(json.dumps(data))
 
     # ---- config ---------------------------------------------------------
     def test_enforce_token_cap_defaults_true(self) -> None:
@@ -194,17 +174,6 @@ class SoftTokenCapTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("daystop", out)
         self.assertEqual(self.state("d")["status"], "daystop")
-
-    def test_soft_cap_external_provider_keeps_running(self) -> None:
-        self.configure(enforce_token_cap=False)
-        self.assertEqual(self.start_ext("ext", 100), 0)
-        self.write_run(self.state("ext"))
-        code, out = self.run_cli("watch", "--name", "ext", "--once")
-        self.assertEqual(code, 0)
-        self.assertIn("ext: over cap 235/100 (không dừng: enforce_token_cap=false)", out)
-        final = self.state("ext")
-        self.assertEqual(final["status"], "running")
-        self.assertEqual(final["tokens_used"], 235)
 
     # ---- ls --------------------------------------------------------------
     def test_ls_marks_over_cap_in_both_modes(self) -> None:

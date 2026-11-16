@@ -19,7 +19,7 @@ from hh_ps.compact import usage_cells
 from hh_ps.usage_enrichment import _five_hour, enrich_snapshot
 from hh_ps.models import Usage
 from hand_ext.codex_usage import price_for
-from hand_ext.go_usage import estimate_cost
+from hh_ps.pricing import estimate_cost
 
 NOW = 1800000000
 

@@ -1,4 +1,4 @@
-"""Tests for the aligned limit table of statusline.sh (Claude / này / khác / Go / GPT rows)."""
+"""Tests for the aligned limit table of statusline.sh (Claude / này / khác / GPT rows)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -14,7 +14,8 @@ from _support import SCRIPTS_DIR, clean_env, run_bash
 STATUSLINE = SCRIPTS_DIR / "statusline.sh"
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 SUMMARY = ".statusline-week-split.json"
-GO_CACHE = ".statusline-go-usage.json"
+# Left behind by the removed Go row; must be ignored.
+LEFTOVER_GO_CACHE = ".statusline-go-usage.json"
 DAYS = [{"wd": "T6", "pct": 2.14}, {"wd": "T7", "pct": 5.4}]
 USD_PER_PCT = 13.74
 
@@ -26,7 +27,6 @@ class LimitTableTest(unittest.TestCase):
         self.home = Path(tmp.name)
         self.claude_home = self.home / ".claude"
         self.claude_home.mkdir()
-        self.state = self.home / "go-state"
         self.workdir = self.home / "project"
         self.workdir.mkdir()
         self.now = int(time.time())
@@ -41,7 +41,7 @@ class LimitTableTest(unittest.TestCase):
         }), encoding="utf-8")
 
     def write_go_live(self) -> None:
-        (self.claude_home / GO_CACHE).write_text(json.dumps({
+        (self.claude_home / LEFTOVER_GO_CACHE).write_text(json.dumps({
             "fetched_at": self.now, "last_ok_at": self.now, "state": "ok", "windows": {
                 "rolling": {"percent": 5.8, "status": "ok", "resets_at": self.now + 3600},
                 "weekly": {"percent": 13.4, "status": "ok",
@@ -61,8 +61,7 @@ class LimitTableTest(unittest.TestCase):
             },
         })
         env = clean_env(HOME=str(self.home), CLAUDE_HOME=str(claude_home or self.claude_home),
-                        HYBRID_HANDS_STATE_DIR=str(self.state),
-                        STATUSLINE_WEEK_SPLIT_SPAWN="0", STATUSLINE_GO_LIVE="0",
+                        STATUSLINE_WEEK_SPLIT_SPAWN="0",
                         STATUSLINE_CLAUDE_V2="1",
                         **{"STATUSLINE_CODEX_DIR": str(self.home / "no-codex"), **extra})
         result = run_bash(STATUSLINE, [], env, stdin=payload, cwd=self.workdir)
@@ -83,13 +82,13 @@ class LimitTableTest(unittest.TestCase):
         self.write_summary()
         self.write_go_live()
         rows = self.table_rows(self.render())
-        self.assertEqual(len(rows), 5, rows)
+        self.assertEqual(len(rows), 4, rows)
         self.assertTrue(rows[0].startswith("Claude v1 ultra"), rows)
         self.assertRegex(rows[1], r"^Claude v2 pro\s+5h:\?\s+\| 7d:\?$")
         self.assertEqual(rows[0].index("7d:"), rows[1].index("7d:"), rows)
         self.assertTrue(rows[2].startswith("· máy này"), rows)
         self.assertTrue(rows[3].startswith("· máy khác"), rows)
-        self.assertTrue(rows[-1].startswith("Go"), rows)
+        self.assertFalse(any(row.startswith("Go") for row in rows), rows)
         self.assert_aligned(rows)
         self.assertRegex(rows[0], r"7d:5% \(reset .+ · \$13\.74/1%\)")
         self.assertRegex(rows[2], r"7d:12\.2% \(T6 2\.1% · T7 5\.4%\)$")
@@ -164,17 +163,9 @@ class LimitTableTest(unittest.TestCase):
         # 2M input (1M cached) + 0.2M output: 1x2 + 1x0.5 + 0.2x10 = 4.50; the duplicate counts once.
         self.assertRegex(rows[-1], r"^GPT\s+5h:\?\s+\| 7d:31% \(reset .+\)\s+\| hôm nay ~\$4\.50$")
 
-    def test_missing_go_keeps_the_other_rows_aligned(self) -> None:
-        self.write_summary()
+    def test_missing_summary_keeps_claude_rows_aligned(self) -> None:
         rows = self.table_rows(self.render())
-        self.assertEqual(len(rows), 4, rows)
-        self.assertFalse(any(row.startswith("Go") for row in rows), rows)
-        self.assert_aligned(rows)
-
-    def test_missing_summary_keeps_claude_and_go_aligned(self) -> None:
-        self.write_go_live()
-        rows = self.table_rows(self.render())
-        self.assertEqual(len(rows), 3, rows)
+        self.assertEqual(len(rows), 2, rows)
         self.assertFalse(any("máy" in row for row in rows), rows)
         self.assertNotIn("$", rows[0])
         self.assert_aligned(rows)

@@ -5,8 +5,7 @@ The statusLine payload only carries the account-wide 7-day percentage. week-spli
 sample (epoch, pct, reset) per render; this script (run detached) prices this machine's API calls
 from the local transcripts (usage_ledger.py), calibrates USD per 1 % from daily time windows when
 only this machine runs, and converts this machine's USD in the current window to a percentage.
-It also totals USD per session with its claude side sessions rolled up (Go runs extend the repos
-searched for side sessions, go_sessions.py), and estimates the 7-day % to
+It also totals USD per session with its claude side sessions rolled up, and estimates the 7-day % to
 0.1 (the payload's integer plus this machine's USD since it last changed, capped at p + 0.9).
 
 Ported from live-tiktok-games sessions/ops/runs/calibrate.sh (solo windows, MIN_DELTA_PCT,
@@ -28,7 +27,6 @@ from itertools import accumulate
 from pathlib import Path
 from typing import Optional
 
-from go_sessions import GoWeek, group_total, load_go_week, state_dir
 from usage_ledger import DAY_SECONDS, RETENTION_SECONDS, update_ledger, write_atomic
 
 SUMMARY_VERSION = 2
@@ -307,6 +305,19 @@ def find_repo(cwd: str) -> Optional[Path]:
     return None
 
 
+def group_total(sid: str, own: dict[str, float], children: dict[str, set[str]]) -> float:
+    """USD of sid plus every descendant side session (cycle-safe)."""
+    seen, stack, total = {sid}, [sid], 0.0
+    while stack:
+        current = stack.pop()
+        total += own.get(current, 0.0)
+        for child in children.get(current, ()):
+            if child not in seen:
+                seen.add(child)
+                stack.append(child)
+    return total
+
+
 def side_state_dir(repo: Path) -> Path:
     try:
         config = json.loads((repo / HYBRID_HANDS_CONFIG).read_text(encoding="utf-8"))
@@ -387,7 +398,6 @@ def weekday_order(start: float, now: float) -> list[int]:
 
 def build_summary(samples: list[Sample], ledger: dict, now: float,
                   windows: Optional[list[Window]] = None,
-                  go_week: Optional[GoWeek] = None,
                   pin: Optional[float] = None) -> Optional[dict]:
     if not samples:
         return None
@@ -410,8 +420,7 @@ def build_summary(samples: list[Sample], ledger: dict, now: float,
     days = [{"wd": WEEKDAY_LABELS[wd], "pct": round(weekday_usd.get(wd, 0.0) / rate.usd_per_pct, 2)}
             for wd in weekday_order(start, now)]
     own = own_usd(ledger, start)
-    repos = ledger_repos(ledger, set(own)) | {find_repo(run.cwd) for run in
-                                              (go_week.runs if go_week else [])}
+    repos = ledger_repos(ledger, set(own))
     children = session_children(repos)
     return {
         "version": SUMMARY_VERSION, "computed_at": int(now), "reset": int(latest.reset),
@@ -440,7 +449,7 @@ def acquire_lock(lock: Path, now: float) -> bool:
         return False
 
 
-def run(home: Path, now: float, go_state: Optional[Path] = None) -> None:
+def run(home: Path, now: float) -> None:
     lock = home / LOCK_NAME
     if not acquire_lock(lock, now):
         return
@@ -448,9 +457,8 @@ def run(home: Path, now: float, go_state: Optional[Path] = None) -> None:
         ledger = update_ledger(home, now)
         samples = load_samples(home / SAMPLES_NAME, now)
         windows = solo_windows(home / SOLO_WINDOWS_NAME, now)
-        go_week = load_go_week(home, go_state or state_dir())
-        summary = build_summary(samples, ledger, now, windows, go_week,
-                                load_pin(home / USD_PER_PCT_PIN_NAME))
+        summary = build_summary(samples, ledger, now, windows,
+                                pin=load_pin(home / USD_PER_PCT_PIN_NAME))
         if summary is not None:
             write_atomic(home / SUMMARY_NAME, json.dumps(summary, ensure_ascii=False))
     finally:

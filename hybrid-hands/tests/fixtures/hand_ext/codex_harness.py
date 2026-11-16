@@ -9,7 +9,7 @@ import sys
 import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 
 FIXTURES = Path(__file__).resolve().parent
 PL = FIXTURES.parents[2] / "plugins" / "hybrid-hands"
@@ -24,7 +24,7 @@ SECRET = "sk-test-SECRET-should-never-leak"
 class Sandbox:
     """Temp project dir (non-git: root = dir) with config, CODEX_HOME and env overrides."""
 
-    def __init__(self, order: List[str], logged_in: bool = True, extra: dict = None) -> None:
+    def __init__(self, logged_in: bool = True, extra: dict = None) -> None:
         self.dir = Path(tempfile.mkdtemp(prefix="hand-ext-"))
         self.home = self.dir / "codex-home"
         self.home.mkdir()
@@ -32,7 +32,7 @@ class Sandbox:
             (self.home / "auth.json").write_text(json.dumps(
                 {"auth_mode": "chatgpt", "tokens": {"access_token": SECRET}}))
         self.log = self.dir / "fake.log"
-        section = {"order": order, "backends": {"codex": {"home": str(self.home)}}}
+        section = {"backends": {"codex": {"home": str(self.home)}}}
         section.update(extra or {})
         (self.dir / ".claude").mkdir()
         (self.dir / ".claude" / "hybrid-hands.json").write_text(json.dumps({"ext_hand": section}))

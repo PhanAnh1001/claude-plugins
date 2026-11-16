@@ -217,14 +217,14 @@ class ExecutionWorker:
         return False
 
     def _spec(self, invocation, attempt, brief):
-        if invocation.backend not in ('codex', 'dsh', 'claude-v1', 'claude-v2'):
+        if invocation.backend not in ('codex', 'claude-v1', 'claude-v2'):
             raise ValueError('fixed supported backend required')
         # Scope was pinned by the dispatcher. The daemon can have a different
         # HAND_SCOPE_ENV/CODEX_THREAD_ID; the durable reservation binds scope.
         canonical_scope(invocation.scope_id)
         if not invocation.model or not invocation.effort:
             raise ValueError('fixed model and effort required')
-        accounts = {'codex': ('', 'gpt', 'codex'), 'dsh': ('', 'dsh')}
+        accounts = {'codex': ('', 'gpt', 'codex')}
         if invocation.backend in accounts and invocation.account_alias not in accounts[invocation.backend]:
             raise ValueError('fixed account must match backend')
         if invocation.backend.startswith('claude-') and invocation.account_alias not in (invocation.backend, invocation.backend.removeprefix('claude-')):
@@ -233,6 +233,7 @@ class ExecutionWorker:
         if not invocation.isolated_cwd or not cwd.is_dir() or cwd.resolve() == Path(invocation.source_cwd).resolve():
             raise ValueError('prepared isolated cwd required')
         opts = _plain(invocation.fixed_options)
+        # 'browser' stays accepted only as false in records written before its removal.
         allowed = {'run_dir','sandbox','timeout_s','max_tokens','browser','options'}
         if set(opts) - allowed:
             raise ValueError('unsupported fixed option')
@@ -245,17 +246,13 @@ class ExecutionWorker:
             raise ValueError('invalid timeout')
         if opts['max_tokens'] is not None and (type(opts['max_tokens']) is not int or opts['max_tokens'] <= 0):
             raise ValueError('invalid token cap')
-        if 'browser' in opts and type(opts['browser']) is not bool:
-            raise ValueError('invalid browser flag')
-        if opts.get('browser') and invocation.backend != 'dsh':
-            raise ValueError('browser requires dsh')
+        if opts.get('browser', False) is not False:
+            raise ValueError('browser no longer supported')
         backend_opts = opts.get('options', {})
         config_name = {'claude-v1': 'claude-main', 'claude-v2': 'claude'}.get(invocation.backend, invocation.backend)
         supported = set(DEFAULTS['backends'][config_name]) | {'sandbox'}
         if invocation.backend.startswith('claude-'):
             supported |= {'append_system_prompt'}
-        if invocation.backend == 'dsh':
-            supported |= {'browser_dir'}
         if not isinstance(backend_opts, dict) or set(backend_opts) - supported:
             raise ValueError('unsupported backend option')
         for field_name, fixed in (('model', invocation.model), ('effort', invocation.effort), ('sandbox', opts['sandbox'])):
@@ -268,8 +265,7 @@ class ExecutionWorker:
         if self.store.root == run_dir or self.store.root.is_relative_to(run_dir) or self.store.root.is_relative_to(cwd.resolve()) or run_dir.is_relative_to(self.store.root):
             raise ValueError('state store must remain outside writer directory')
         return RunSpec(brief, cwd, run_dir, invocation.model, invocation.effort,
-                       opts['sandbox'], opts['timeout_s'], opts['max_tokens'], backend_opts,
-                       opts.get('browser', False))
+                       opts['sandbox'], opts['timeout_s'], opts['max_tokens'], backend_opts)
 
     def start(self, invocation, attempt, brief):
         key = attempt.key
@@ -323,13 +319,9 @@ class ExecutionWorker:
             # Persist only canonical usage observations, never arbitrary backend
             # extras/errors which may contain subprocess output or credentials.
             from .codex_usage import normalize_windows
-            from .go_usage import _number
-            from .capacity import is_capacity_failure
             observation = {
                 'quota': asdict(result.state.quota) if result.state.quota else None,
                 'windows': normalize_windows(result.state.extra.get('windows')),
-                'go_allowance_usd': _number(result.state.extra.get('go_allowance_usd')),
-                'capacity_failure': is_capacity_failure(result),
             }
             observation_saved = False
             with self.lock:

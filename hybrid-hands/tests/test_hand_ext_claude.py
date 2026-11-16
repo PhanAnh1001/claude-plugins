@@ -183,8 +183,8 @@ class DayBudgetTest(HandExtTestCase):
     def setUp(self):
         self.home = Path(tempfile.mkdtemp(prefix="claude-home-"))
         (self.home / day_budget.USD_PER_PCT_PIN).write_text("1.0\n", encoding="utf-8")
-        self.sb = Sandbox(order=["claude-main"], extra={"backends": {
-            "claude-main": {"config_dir": str(self.home)}}})
+        self.sb = Sandbox(extra={"backends": {
+            "claude-main": {"config_dir": str(self.home), "day_guard": True}}})
         self.addCleanup(self.sb.close)
         self.outcome = RunOutcome(Status.OK, 0, RunState(usage=Usage()), 0.0)
 
@@ -215,7 +215,7 @@ class DayBudgetTest(HandExtTestCase):
         self.assertTrue(day_budget.guard_enabled({"day_guard_off_date": "2026-11-11"}, now))
         self.assertTrue(day_budget.guard_enabled({"day_guard_off_date": 20261112}, now))
         self.sb.close()
-        self.sb = Sandbox(order=["claude-main"], extra={"backends": {
+        self.sb = Sandbox(extra={"backends": {
             "claude-main": {"config_dir": str(self.home), "day_guard": False}}})
         code, err, run = self._run(9.0)
         self.assertEqual(code, 0, err)
