@@ -7,6 +7,10 @@ from pathlib import Path
 
 from . import adapters
 
+# Người dùng chọn (16/11/2026) account này cho phiên không đặt CLAUDE_CONFIG_DIR;
+# không phải thư mục mặc định của Claude Code.
+DEFAULT_CLAUDE_HOME = '~/.claude-hand'
+
 
 class RegistrationError(ValueError):
     """Safe, locally authored diagnostics without metadata values."""
@@ -48,7 +52,7 @@ def build(args) -> dict:
     provider = 'claude' if provider_name == 'claude' or provider_name.startswith('claude-') else 'codex' if provider_name in ('codex', 'codex-hand') else ''
     if not provider:
         raise RegistrationError('Provider chưa hỗ trợ')
-    home = (st.claude_config_dir if st else os.environ.get('CLAUDE_CONFIG_DIR', '')) if provider == 'claude' else str(cfg.codex_home) if st else os.environ.get('CODEX_HOME', '')
+    home = (st.claude_config_dir if st else os.environ.get('CLAUDE_CONFIG_DIR') or DEFAULT_CLAUDE_HOME) if provider == 'claude' else str(cfg.codex_home) if st else os.environ.get('CODEX_HOME', '')
     require(dict(account_home=home), 'account_home')
     home = str(Path(home).expanduser().resolve())
     account = 'gpt'
@@ -57,7 +61,7 @@ def build(args) -> dict:
                    if isinstance(opts, dict) and opts.get('config_dir')
                    and str((cfg.repo / Path(opts['config_dir']).expanduser()).resolve()) == home]
         if len(matches) != 1:
-            raise RegistrationError('Thiếu account duy nhất khớp account_home')
+            raise RegistrationError(f'Thiếu account duy nhất khớp account_home {home}; cấu hình claude_accounts.<tên>.config_dir trỏ tới thư mục này')
         account = matches[0]
     raw.update(provider=provider, account=account, account_home=home,
                adapter='side' if st else 'paseo', checkpoint=args.checkpoint,

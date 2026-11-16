@@ -55,6 +55,27 @@ class LimitWatchTests(unittest.TestCase):
         self.assertEqual((raw['workspace_id'], raw['native_id'], raw['adapter']), ('workspace-fake', 'native-fake', 'paseo'))
         self.assertFalse(self.store.path.parent.exists())
 
+    def test_add_self_default_claude_home(self):
+        from hand_ext.limit_watch import cli
+        import contextlib, io
+        args = SimpleNamespace(action='add', self_target=True, side=None, checkpoint='test', next_step=None, id=None, dry_run=True, persistent=False, target=[], cwd=str(self.root))
+        (self.root / '.claude-hand').mkdir()
+        home = str((self.root / '.claude-hand').resolve())
+        for config_dir, rc in ((home, 0), (str(self.root / 'other'), 1)):
+            with self.subTest(config_dir=config_dir):
+                cfg = SimpleNamespace(repo=self.root, claude_accounts={'v1': {'config_dir': config_dir}})
+                env = {k: v for k, v in os.environ.items() if k != 'CLAUDE_CONFIG_DIR'}
+                with patch.object(cli, 'Store', return_value=self.store), patch('side_session.config.load_config', return_value=cfg), patch.object(adapters, 'bridge', return_value=self.target.copy()), patch.dict(os.environ, dict(env, PASEO_AGENT_ID='agent-fake', HOME=str(self.root)), clear=True), contextlib.redirect_stdout(io.StringIO()) as out:
+                    self.assertEqual(cli.command(args), rc, out.getvalue())
+                self.assertIn('"account": "v1"' if rc == 0 else home, out.getvalue())
+
+    def test_claude_sample_env_drops_config_dir_for_default_home(self):
+        from hand_ext.limit_watch import sources
+        for home, has_var in ((self.root / '.claude', False), (self.root / 'other', True)):
+            with self.subTest(home=home), patch.dict(os.environ, HOME=str(self.root), CLAUDE_CONFIG_DIR='x'), patch.object(sources, 'cli_json', return_value={}) as cli:
+                sources.claude_sample(dict(account_home=str(home)), NOW)
+                self.assertEqual('CLAUDE_CONFIG_DIR' in cli.call_args_list[0].args[1], has_var)
+
     def test_add_missing_metadata(self):
         from hand_ext.limit_watch import cli
         import contextlib

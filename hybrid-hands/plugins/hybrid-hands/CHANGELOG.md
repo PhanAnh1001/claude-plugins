@@ -2,6 +2,20 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.62.0 — 2026-11-16
+
+Tóm tắt: `side-session gc` dọn được worktree của phiên Paseo dùng chung workspace và nêu lý do giữ cụ thể; `stop` thử dọn ngay worktree của phiên; SessionStart nhắc dọn khi đĩa còn ít chỗ; `limit-watch add --self` đăng ký được phiên Paseo dùng config mặc định; policy cho phép phiên brain của repo khác sửa `claude-plugins`.
+
+- `side-session gc`: phiên Paseo có `paseo_workspace_shared` chỉ cần agent đã archive (trước đây `tidy_workspace` ném `WORKSPACE_NOT_PRIVATE` và mọi worktree bị giữ ở lớp D với lý do chung). Lớp D nêu bước hỏng, lớp C nêu số file và ví dụ.
+- `side-session gc`: bản sao handoff untracked giống từng byte với bản ở checkout chính không tính là bẩn; `apply` xoá đúng các bản sao đó (kiểm lại lúc gỡ) rồi `git worktree remove` không force; lỗi ghi `remove failed: <lý do>`.
+- `side-session stop`: thử GC lớp A cho đúng worktree của phiên (hạn 20 s), in `worktree removed` hoặc `worktree kept (<lý do>)`; lỗi GC không làm hỏng `stop`.
+- SessionStart: thêm một dòng `NHẮC DỌN WORKTREE` khi ổ đĩa trống dưới `DEFAULT_WARN_GB` và repo có worktree phụ (`lib/disk_reminder.py`); mọi lỗi đều bỏ qua.
+- `limit-watch add --self`: claude không có `CLAUDE_CONFIG_DIR` thì dùng `~/.claude-hand` (phiên không đặt biến nhưng thực tế chạy trên `~/.claude` sẽ được theo dõi theo tài khoản `~/.claude-hand`; muốn đúng tài khoản thì đặt `CLAUDE_CONFIG_DIR` khi mở phiên); lỗi không khớp account nêu đường dẫn home.
+- `limit-watch` nguồn hạn mức Claude: account home là `~/.claude` thì không đặt `CLAUDE_CONFIG_DIR` khi gọi `claude auth status`/`paseo usage` (đặt biến làm CLI báo chưa đăng nhập, lỗi bị nuốt nên nguồn dự phòng `paseo usage` không bao giờ được dùng). Gọi thật: `seven_day` fresh từ `paseo usage`; `five_hour` vẫn không fresh khi `paseo usage` không trả cửa sổ 5 giờ.
+- Policy `XOAY PHIÊN` và `AGENTS.md`: ngoại lệ người dùng chốt 16/11/2026 — phiên brain của repo bất kỳ được sửa `claude-plugins` ngay trong phiên nếu làm theo `AGENTS.md` của repo này.
+- Chưa kiểm chứng: `stop` thật trên phiên Paseo; `gc --apply` thật sau bản sửa; dòng nhắc đĩa ngoài mock; `limit-watch` trọn luồng (bộ theo dõi và nguồn hạn mức) cho phiên Paseo — mới kiểm bước đăng ký bằng dry-run thật.
+- Social listening (truy cập 16/11/2026, mới đọc tiêu đề và tóm tắt kết quả tìm kiếm): issue Claude Code [#63087](https://claudeissues.com/issue/63087-agent-worktrees-are-never-cleaned-up-silently-consuming-disk-space) (28/05/2026) về worktree agent không được dọn → dọn lúc dừng phiên và nhắc ở SessionStart; [#48927](https://claudeissues.com/issue/48927-bug-parallel-subagent-worktree-cleanup-destroys-git-directory-and-entire-working) (ngày không rõ) về dọn force làm mất dữ liệu → giữ không force; [#77018](https://claudeissues.com/issue/77018-expose-rate-limit-utilization-used-percentage-in-headless-contexts-stream-json-o) (ngày không rõ) về phiên stream-json không có phần trăm hạn mức → phiên Paseo phụ thuộc `paseo usage`.
+
 ## 0.61.2 — 2026-11-15
 
 - `limit-watch` adapter `paseo`: sửa lỗi brain chuyển done nhầm khi Paseo khởi động lại (daemon ghi running→closed rồi resume về running). Chỉ `archivedAt` mới là kết thúc; status `closed` chưa archive giữ armed. Xem [báo cáo lỗi](../../../docs/bugs/2026-11-15-limit-watch-paseo-closed-done.md).
