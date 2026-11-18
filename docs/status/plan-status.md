@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-18 · commit `9d2d16b`
+Cập nhật 2026-11-18 · commit `093ec61`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-18 · commit `9d2d16b`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 310 commit.
+- **Hoạt động 14 ngày:** 312 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-310 commit.
+312 commit.
 
+- 2026-11-18 093ec61 feat(hybrid-hands): support GPT 6.2 models without changing defaults
+- 2026-11-17 c8d48a9 docs(status): tự cập nhật trang tình hình
 - 2026-11-17 9d2d16b docs(status): tự cập nhật trang tình hình
 - 2026-11-16 d529a56 docs(status): tự cập nhật trang tình hình
 - 2026-11-16 b19c232 Merge branch 'feat/gop-codex-home'
-- 2026-11-16 70063e0 feat(hybrid-hands): gộp ~/.codex-hand vào ~/.codex, dùng chung với Codex người dùng (0.67.0)
-- 2026-11-16 c1e3c30 Merge branch 'feat/bo-hh-ps'
