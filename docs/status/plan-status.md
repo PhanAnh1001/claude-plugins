@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-18 · commit `093ec61`
+Cập nhật 2026-11-18 · commit `7ba9ac7`
 
 ## Tóm tắt
 
@@ -59,8 +59,8 @@ pie showData
 
 312 commit.
 
+- 2026-11-18 7ba9ac7 docs(status): tự cập nhật trang tình hình
 - 2026-11-18 093ec61 feat(hybrid-hands): support GPT 6.2 models without changing defaults
 - 2026-11-17 c8d48a9 docs(status): tự cập nhật trang tình hình
 - 2026-11-17 9d2d16b docs(status): tự cập nhật trang tình hình
 - 2026-11-16 d529a56 docs(status): tự cập nhật trang tình hình
-- 2026-11-16 b19c232 Merge branch 'feat/gop-codex-home'
