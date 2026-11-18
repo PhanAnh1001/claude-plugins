@@ -2,6 +2,14 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.67.2 — 2026-11-18
+
+Tóm tắt: thêm khả năng chọn tường minh `gpt-6.2-sol` và `gpt-6.2-astra`; giữ nguyên mọi model/effort mặc định, profile và preset chọn model cũ.
+
+- Thêm hai tên model vào capability Codex và giá API chuẩn trong registry canonical, có nguồn/ngày; profile override và `models set` không còn từ chối chúng.
+- Không đổi bảng role `brain/code/collect/chrome`, account, provider, effort, native hay guard. Adapter Codex tiếp tục nhận model/effort từ core, không có bảng chọn model riêng.
+- Kiểm hồi quy cả khả năng chọn mới và default6.1/preset cũ; xem [phạm vi và kiểm chứng](../../docs/2026-11-18-gpt62-capability.md).
+
 ## 0.67.0 — 2026-11-16
 
 Tóm tắt: **gộp `~/.codex-hand` vào `~/.codex`** (người dùng chốt 16/11/2026). Hai thư mục cùng một tài khoản ChatGPT (cùng gói, cùng mốc reset tuần), nên tách home không thêm hạn mức. Hand Codex, phiên Sol và Codex người dùng tự mở nay dùng chung `~/.codex`; `~/.codex-hand` chỉ còn giữ lịch sử.

@@ -49,6 +49,24 @@ class CodexRunTest(HandExtTestCase):
         self.assertIn("BÁO CÁO GIẢ", out)
         self.assertNotIn(SECRET, out)
 
+    def test_explicit_gpt62_runs_preserve_backend_defaults(self) -> None:
+        config_path = self.sb.dir / ".claude" / "hybrid-hands.json"
+        before = config_path.read_bytes()
+        for model in ("gpt-6.2-sol", "gpt-6.2-astra"):
+            with self.subTest(model=model):
+                self.sb.scenario("ok")
+                code, out, _ = self.sb.cli("run", "--brief", str(self.sb.brief),
+                                           "--backend", "codex", "--model", model,
+                                           "--effort", "medium")
+                self.assertEqual(code, 0, out)
+                argv = json.loads(self.sb.log.read_text())["argv"]
+                self.assertEqual(argv[argv.index("-m") + 1], model)
+                self.assertTrue(any("model_reasoning_effort" in arg and "medium" in arg
+                                    for arg in argv))
+                self.assertEqual(self.sb.ledger()[-1]["model"], model)
+                self.assertEqual(self.sb.ledger()[-1]["effort"], "medium")
+                self.assertEqual(config_path.read_bytes(), before)
+
     def test_quota_message_marks_exhausted(self) -> None:
         self.sb.scenario("quota")
         code, _, _ = self.sb.cli("run", "--brief", str(self.sb.brief), "--backend", "codex")
