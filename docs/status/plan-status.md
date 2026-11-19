@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-19 · commit `77e4af1`
+Cập nhật 2026-11-20 · commit `cda1a4c`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-19 · commit `77e4af1`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 265 commit.
+- **Hoạt động 14 ngày:** 266 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-265 commit.
+266 commit.
 
+- 2026-11-19 cda1a4c docs(status): tự cập nhật trang tình hình
 - 2026-11-18 77e4af1 docs(status): tự cập nhật trang tình hình
 - 2026-11-18 4e39cd4 docs(status): tự cập nhật trang tình hình
 - 2026-11-18 7ba9ac7 docs(status): tự cập nhật trang tình hình
 - 2026-11-18 093ec61 feat(hybrid-hands): support GPT 6.2 models without changing defaults
-- 2026-11-17 c8d48a9 docs(status): tự cập nhật trang tình hình
