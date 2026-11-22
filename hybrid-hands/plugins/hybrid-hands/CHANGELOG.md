@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.68.1 — 2026-11-22
+
+Tóm tắt: vai chrome thêm `--allowedTools "mcp__claude-in-chrome__*"` cùng `--chrome`. Chế độ `-p` không hỏi quyền được, nên thiếu cờ này thì mọi lệnh gọi Chrome bị từ chối ("Claude in Chrome requires permission"). Đã kiểm thực tế: mở được trang nhóm Facebook.
+
 ## 0.68.0 — 2026-11-22
 
 Tóm tắt: **`hand-ext run --role chrome` với backend Claude thêm cờ `--chrome`**, nên hand có công cụ Claude in Chrome (`mcp__claude-in-chrome__*`). `RunSpec` có trường `chrome`; `ext_hand.backends.<tên>.chrome = true` ép bật cho mọi vai. Skill ext-hand ghi rõ subagent native không có công cụ Chrome trừ khi phiên brain đã bật Chrome.

@@ -67,6 +67,7 @@ class ArgvTest(HandExtTestCase):
             spec.chrome = chrome
             argv, _, _ = ClaudeBackend().build_command(spec)
             self.assertEqual("--chrome" in argv, chrome or bool(opts))
+            self.assertEqual("mcp__claude-in-chrome__*" in argv, chrome or bool(opts))
 
     def test_read_only_uses_plan_and_blocks_writes(self):
         argv, _, _ = ClaudeBackend().build_command(_spec(self.tmp, sandbox="read-only"))

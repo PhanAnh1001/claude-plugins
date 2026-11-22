@@ -70,6 +70,8 @@ def parse_reset(text: str, now: Optional[datetime] = None) -> Optional[str]:
 # Claude in Chrome: role chrome, or ext_hand.backends.<name>.chrome = true forces it.
 CHROME_FLAG = "--chrome"
 CHROME_OPTION = "chrome"
+# -p mode cannot prompt, so the Chrome tools must be pre-allowed or every call is denied.
+CHROME_TOOLS = "mcp__claude-in-chrome__*"
 
 
 class ClaudeBackend(Backend):
@@ -157,7 +159,7 @@ class ClaudeBackend(Backend):
         else:
             argv += ["--permission-mode", PERMISSION_EDIT]
         if spec.chrome or opts.get(CHROME_OPTION) is True:
-            argv.append(CHROME_FLAG)
+            argv += [CHROME_FLAG, "--allowedTools", CHROME_TOOLS]
         system_text = opts.get("append_system_prompt")
         if system_text:
             path = Path(spec.run_dir) / SYSTEM_PROMPT_FILE
