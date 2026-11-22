@@ -158,7 +158,7 @@ STATUS_EXIT = {
 MODEL_CAPABILITIES = {
     "claude": frozenset({"claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5",
                          "claude-haiku-5-5"}),
-    "codex": frozenset({"gpt-6.1-sol", "gpt-6.1-terra"}),
+    "codex": frozenset({"gpt-6.1-sol", "gpt-6.1-terra", "gpt-6.2-sol", "gpt-6.2-astra"}),
 }
 PROVIDER_EFFORTS = {
     "claude": ("low", "medium", "high", "max"),
