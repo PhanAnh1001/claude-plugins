@@ -61,6 +61,13 @@ class ArgvTest(HandExtTestCase):
         self.assertEqual(stdin, "do it")
         self.assertEqual(env["CLAUDE_CONFIG_DIR"], self.tmp + "/cfg")
 
+    def test_chrome_flag_only_for_chrome_role(self):
+        for chrome, opts in ((True, {}), (False, {}), (False, {"chrome": True})):
+            spec = _spec(self.tmp, **opts)
+            spec.chrome = chrome
+            argv, _, _ = ClaudeBackend().build_command(spec)
+            self.assertEqual("--chrome" in argv, chrome or bool(opts))
+
     def test_read_only_uses_plan_and_blocks_writes(self):
         argv, _, _ = ClaudeBackend().build_command(_spec(self.tmp, sandbox="read-only"))
         self.assertEqual(argv[argv.index("--permission-mode") + 1], "plan")

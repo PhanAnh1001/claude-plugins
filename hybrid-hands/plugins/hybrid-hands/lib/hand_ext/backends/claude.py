@@ -67,6 +67,11 @@ def parse_reset(text: str, now: Optional[datetime] = None) -> Optional[str]:
     return when.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# Claude in Chrome: role chrome, or ext_hand.backends.<name>.chrome = true forces it.
+CHROME_FLAG = "--chrome"
+CHROME_OPTION = "chrome"
+
+
 class ClaudeBackend(Backend):
     name = "claude"
     CLI_NAME = "claude"  # both Claude backends run the same binary, different config dirs
@@ -151,6 +156,8 @@ class ClaudeBackend(Backend):
             argv += ["--permission-mode", PERMISSION_PLAN, "--disallowedTools", WRITE_TOOLS]
         else:
             argv += ["--permission-mode", PERMISSION_EDIT]
+        if spec.chrome or opts.get(CHROME_OPTION) is True:
+            argv.append(CHROME_FLAG)
         system_text = opts.get("append_system_prompt")
         if system_text:
             path = Path(spec.run_dir) / SYSTEM_PROMPT_FILE

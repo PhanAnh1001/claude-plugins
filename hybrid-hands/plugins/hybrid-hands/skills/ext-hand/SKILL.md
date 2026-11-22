@@ -8,7 +8,7 @@ description: Giao một việc code, tài liệu hoặc thu thập dữ liệu t
 ## Tóm tắt
 
 - **Profile bắt buộc:** mỗi repo có khoá `profile` = `claude-mono` | `gpt-mono` | `hybrid`; thiếu thì `hand-ext pick/run` báo lỗi kèm `hand-ext profile set <tên>` (chỉ đặt sau khi người dùng chốt cho repo đó). `hand-ext profile` in bảng vai hiệu lực và nguồn từng ô. Bảng vai đầy đủ ở [AGENTS.md mục Phạm vi và vai trò](../../../../../AGENTS.md) và [README mục Profile và vai](../../../../README.md#profile-và-vai).
-- **Vai giao được:** `code` (dev/tester), `collect` (thu thập dữ liệu, bậc 1/2), `chrome` (thu thập cần Claude in Chrome, bậc 1/2). Super brain không gọi pick/run.
+- **Vai giao được:** `code` (dev/tester), `collect` (thu thập dữ liệu, bậc 1/2), `chrome` (thu thập cần Claude in Chrome, bậc 1/2). Vai `chrome` với Claude nên chạy qua `hand-ext run --role chrome` (terminal, lệnh claude có `--chrome`; `ext_hand.backends.<tên>.chrome=true` ép bật cho mọi vai), vì subagent native không có công cụ Chrome trừ khi phiên brain đã bật Chrome. Super brain không gọi pick/run.
 - **Chuỗi bước:** `hand-ext pick --role <vai> [--tier N] --json` → `native` true: subagent native đúng `model`/`effort` (Claude: tool Agent `hybrid-hands:hand` với `model` = `agent_model`; Codex: subagent native `fork_turns=none`) → `native` false: brief vào file, `hand-ext run --role <vai> --tier <N>` chạy nền → đọc report → brain review diff → báo tài khoản, token, % hạn mức, USD~.
 - **Song song:** tối đa 4 subagent (native và hand-ext chung pool), khác file; cùng file/phụ thuộc tuần tự.
 - **Luật cứng:** không dùng hay tạo API key, không chuyển sang API khi hết hạn mức; Codex không chịu hook Claude Code nên brief chép nguyên văn luật cấm (nhất là cấm đọc `.env`) và PHẠM VI GHI hẹp.

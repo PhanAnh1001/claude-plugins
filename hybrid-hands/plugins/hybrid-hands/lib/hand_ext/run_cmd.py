@@ -96,6 +96,10 @@ def preflight(cfg: ExtConfig, name: str) -> Tuple[Optional[Backend], str]:
     return (None, reason) if reason else (backend, "")
 
 
+# Role whose hand needs the Claude in Chrome tools.
+CHROME_ROLE = "chrome"
+
+
 def _now() -> str:
     return dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -111,6 +115,7 @@ def _spec(cfg: ExtConfig, args: argparse.Namespace, backend: Backend, prompt: st
         sandbox=args.sandbox or cfg.sandbox,
         timeout_s=int((args.timeout_min or cfg.timeout_min) * SECONDS_PER_MINUTE),
         max_tokens=max_tokens, options=options,
+        chrome=getattr(args, "role", None) == CHROME_ROLE,
     )
 
 

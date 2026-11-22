@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.68.0 — 2026-11-22
+
+Tóm tắt: **`hand-ext run --role chrome` với backend Claude thêm cờ `--chrome`**, nên hand có công cụ Claude in Chrome (`mcp__claude-in-chrome__*`). `RunSpec` có trường `chrome`; `ext_hand.backends.<tên>.chrome = true` ép bật cho mọi vai. Skill ext-hand ghi rõ subagent native không có công cụ Chrome trừ khi phiên brain đã bật Chrome.
+
 ## 0.67.0 — 2026-11-16
 
 Tóm tắt: **gộp `~/.codex-hand` vào `~/.codex`** (người dùng chốt 16/11/2026). Hai thư mục cùng một tài khoản ChatGPT (cùng gói, cùng mốc reset tuần), nên tách home không thêm hạn mức. Hand Codex, phiên Sol và Codex người dùng tự mở nay dùng chung `~/.codex`; `~/.codex-hand` chỉ còn giữ lịch sử.

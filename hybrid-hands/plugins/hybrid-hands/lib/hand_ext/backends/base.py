@@ -66,6 +66,7 @@ class RunSpec:
     timeout_s: int
     max_tokens: Optional[int]
     options: dict  # section backends.<name> of the config
+    chrome: bool = False  # role chrome: Claude backends add --chrome (Claude in Chrome tools)
 
 
 @dataclass
