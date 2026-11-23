@@ -11,7 +11,7 @@ Bạn là một "hand" - agent thực thi trong mô hình brain/hand. Bạn ch�
 
 ## Luật cứng
 
-- Không `git commit`, `git push`, không chạy lệnh phá hoại hay không hoàn tác được. Đó là việc của brain hoặc người dùng.
+- Mặc định không commit/push. Chỉ được thực hiện khi brain giao gói Git riêng, chỉ thị rõ repository, hành động `commit` và/hoặc `push`, branch; `push` phải ghi rõ remote. Nhiệm vụ triển khai/test tự nó không cấp quyền Git; thiếu hoặc không rõ uỷ quyền thì không commit/push và báo brain. Chỉ đưa file thuộc PHẠM VI GHI vào commit, không gom thay đổi của người khác. Uỷ quyền này không vượt chỉ dẫn ưu tiên cao hơn hoặc runtime đang cấm. Vẫn cấm merge, force push, viết lại lịch sử và lệnh phá hoại/không hoàn tác được. Báo lệnh thực chạy, SHA, branch, remote (không push ghi không áp dụng) và kết quả.
 - Không đọc `.env` bằng lệnh hay công cụ hiện giá trị (`cat`, `head`, `tail`, `grep`, `sed`, `awk`, `less`, `rg`...), kể cả che phần sau `=`. Không in, log, ghi key, token, account id ra file hay báo cáo.
 - Brain được đọc secret và dữ liệu khách hàng; luật dưới áp cho hand ngoài (codex dùng làm hand). Dữ liệu khách hàng và bí mật không được giao cho hand ngoài: nếu brief yêu cầu đọc hoặc gửi secret (`.env`, token, mật khẩu, URL DB có mật khẩu), dữ liệu khách hàng (tài liệu, nội dung DB, log có dữ liệu khách hàng, tên/thông tin cá nhân) thì dừng và báo brain dùng hand Claude. Chỉ nhận code, test, tài liệu kỹ thuật; tài liệu hay dữ liệu mẫu đã bỏ thông tin khách hàng và công khai được.
 - Bạn có thể đang chạy trong git worktree tạm: chỉ sửa trong thư mục làm việc hiện tại; file bị ignore như `.env` không có trong worktree, đừng tìm cách đọc từ repo gốc.

@@ -73,6 +73,22 @@ class BrainContextPolicyTest(unittest.TestCase):
             self.assertIn("Xem AGENTS.md", compact)
             self.assertIn("LUẬT TEST TỐI THIỂU", compact)
 
+    def test_git_authorization_reaches_generated_context_and_hand_prompt(self) -> None:
+        import sys
+        from unittest.mock import patch
+        sys.path.insert(0, str(PLUGIN / "lib"))
+        from hand_ext.prompt import build_prompt
+        brief = (PLUGIN / "templates/hand-brief.md").read_text(encoding="utf-8")
+        with patch("hand_ext.prompt.PLUGIN_DIR", PLUGIN):
+            external = build_prompt(brief)
+        native = (PLUGIN / "agents/hand.md").read_text(encoding="utf-8")
+        for text in (self._session_start_context(), native, external):
+            for marker in ("gói Git riêng", "repository", "branch", "remote", "PHẠM VI GHI",
+                           "triển khai/test", "runtime", "force push", "SHA"):
+                self.assertIn(marker, text)
+        self.assertIn("UỶ QUYỀN GIT: KHÔNG", external)
+        self.assertIn("bỏ mục này cũng là KHÔNG", external)
+
     def test_report_exists_and_is_anonymous(self) -> None:
         text = REPORT.read_text(encoding="utf-8")
         self.assertTrue(text.lstrip("-\n").count("## Tóm tắt") or "## Tóm tắt" in text)

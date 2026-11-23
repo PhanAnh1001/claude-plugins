@@ -19,7 +19,7 @@ Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt
 |---|---|
 | Super brain (chỉ `hybrid`, phiên chính Claude v2) | Viết/duyệt spec/plan, mở phiên brain, review bàn giao `.done`; không code |
 | Brain (phiên chính mono, phiên phụ mọi profile) | Brainstorm, spec/plan L1, chia việc, giao subagent theo vai, review code mình giao |
-| Subagent `code` / `collect` / `chrome` | Executor theo ô vai của profile; làm trực tiếp, không mở phiên, không commit |
+| Subagent `code` / `collect` / `chrome` | Executor theo ô vai của profile; làm trực tiếp, không mở phiên; mặc định không commit/push, chỉ gói Git riêng do brain chỉ thị rõ theo luật dưới |
 
 | Lane | Ai viết spec/plan | Ai duyệt | Ai làm | Ai review code |
 |---|---|---|---|---|
@@ -29,6 +29,8 @@ Nếu `side-session` không có trong PATH, gọi bằng đường dẫn tuyệt
 | L2/L3 | phiên chính | Người dùng | phiên chính cắt thành các gói cỡ L1, giao các phiên brain | brain |
 
 Phiên chính gom nhiều việc L0 vào một phiên brain; mỗi task một phiên, xong thì brain ghi bàn giao và đóng phiên, không giữ phiên qua nhiều task.
+
+Luật Git hand: Mặc định không commit/push. Chỉ được thực hiện khi brain giao gói Git riêng, chỉ thị rõ repository, hành động `commit` và/hoặc `push`, branch; `push` phải ghi rõ remote. Nhiệm vụ triển khai/test tự nó không cấp quyền Git; thiếu hoặc không rõ uỷ quyền thì không commit/push và báo brain. Chỉ đưa file thuộc PHẠM VI GHI vào commit, không gom thay đổi của người khác. Uỷ quyền này không vượt chỉ dẫn ưu tiên cao hơn hoặc runtime đang cấm. Vẫn cấm merge, force push, viết lại lịch sử và lệnh phá hoại/không hoàn tác được. Báo lệnh thực chạy, SHA, branch, remote (không push ghi không áp dụng) và kết quả.
 
 ## Cấu hình
 

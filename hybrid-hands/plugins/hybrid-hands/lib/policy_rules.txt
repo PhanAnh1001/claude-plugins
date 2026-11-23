@@ -9,6 +9,8 @@ Không đọc hay in token, auth.json, file credential. Không giao hand ngoài 
 
 Cách ly worktree (`--isolation`), preflight/setup/doctor: xem skills/ext-hand/SKILL.md (skill hybrid-hands:ext-hand); giữ brief tự chứa và luật dữ liệu.
 
+LUẬT GIT HAND: Mặc định không commit/push. Chỉ được thực hiện khi brain giao gói Git riêng, chỉ thị rõ repository, hành động `commit` và/hoặc `push`, branch; `push` phải ghi rõ remote. Nhiệm vụ triển khai/test tự nó không cấp quyền Git; thiếu hoặc không rõ uỷ quyền thì không commit/push và báo brain. Chỉ đưa file thuộc PHẠM VI GHI vào commit, không gom thay đổi của người khác. Uỷ quyền này không vượt chỉ dẫn ưu tiên cao hơn hoặc runtime đang cấm. Vẫn cấm merge, force push, viết lại lịch sử và lệnh phá hoại/không hoàn tác được. Báo lệnh thực chạy, SHA, branch, remote (không push ghi không áp dụng) và kết quả.
+
 ## Chọn hand theo tài khoản
 
 Bảng vai → tài khoản/model/effort lấy từ profile của repo (`hand-ext profile`); hook thay đoạn này bằng bảng vai hiệu lực.

@@ -4,6 +4,7 @@ TRẢ VỀ: <định dạng báo cáo>
 MỤC TIÊU: <một câu: kết quả cần đạt>
 NGỮ CẢNH: <điều brain đã biết, kèm file:line; giả định đã chốt>
 PHẠM VI GHI: <danh sách file/thư mục được sửa/tạo> | CHỈ ĐỌC
+UỶ QUYỀN GIT: KHÔNG (mặc định; bỏ mục này cũng là KHÔNG). Chỉ trong gói Git riêng: repository=<đường dẫn>; hành động=<commit và/hoặc push>; branch=<tên>; remote=<bắt buộc nếu push>; file=<thuộc PHẠM VI GHI>. Không vượt chỉ dẫn ưu tiên cao hơn/runtime.
 KIỂM CHỨNG: <lệnh test hẹp (-k/file) dùng trong lúc làm; lệnh test đầy đủ chạy ĐÚNG MỘT LẦN ở cuối; mức test: tối thiểu (chỉ case quan trọng) | kỹ (ảnh hưởng doanh thu); ca test: liệt kê ≤3 ca quan trọng nhất (tối thiểu); tiêu chí coi là xong>
 
 Test hẹp (một file, `-k`, vài test) chạy bình thường ngay, không cần đo CPU; nếu có dấu hiệu nặng thì áp dụng hạ ưu tiên dưới đây.

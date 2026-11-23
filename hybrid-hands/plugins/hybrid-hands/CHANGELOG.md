@@ -2,6 +2,17 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.68.3 — 2026-11-23
+
+- Nguồn policy native/ngoài và mẫu brief: hand mặc định không commit/push; chỉ gói Git riêng được brain chỉ thị rõ repo, hành động, branch và remote nếu push mới cấp quyền trong phạm vi. Không vượt luật runtime; không cho merge, force push hay viết lại lịch sử. Đây là thay đổi chỉ dẫn, không phải cơ chế chặn Git.
+- Viết ngày 17/11/2026 ở thư mục chính, chưa commit; runtime đã dùng từ khi đó. Commit lên trên 0.68.2 ngày 23/11/2026 (người dùng chốt giữ). Chưa kiểm chứng commit/push thực tế của hand.
+
+### Social listening
+
+Luật người dùng: “Bạn quản lý source code repo này, khi đưa ra một giải pháp hoặc workflow cần tham khảo thêm nguồn social listening về lĩnh vực, quy trình đó.”
+
+Nguồn do brain cung cấp, đã đọc 2026-11-17: [Claude Code #67060](https://github.com/anthropics/claude-code/issues/67060) (mở 2026-06-10) báo workflow tự chủ bị hiểu thành quyền push; [#59498](https://github.com/anthropics/claude-code/issues/59498) (mở 2026-05-15) báo các cách subagent vượt ranh giới push. Đây là báo cáo người dùng, chưa tái hiện độc lập. Vì vậy quyền phải được ghi trong gói Git riêng với phạm vi cụ thể; test policy không chứng minh Git thực tế an toàn.
+
 ## 0.68.2 — 2026-11-23
 
 Tóm tắt: test nặng chạy hạ ưu tiên bằng `nice -n 19` thôi, bỏ `taskpolicy -b` (người dùng chốt 23/11/2026). Trên Apple Silicon `taskpolicy -b` chỉ cho tiến trình chạy nhân tiết kiệm điện, kể cả khi nhân hiệu năng đang rảnh. Đo ở ai-luxian (AILUX-292, tập 253 test db, trung vị n=3): 241 s không có, 724 s có `taskpolicy -b` (chậm khoảng 3 lần); với 4 worker xdist 113 s so với 254 s.
