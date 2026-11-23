@@ -2,6 +2,25 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.68.2 — 2026-11-23
+
+Tóm tắt: test nặng chạy hạ ưu tiên bằng `nice -n 19` thôi, bỏ `taskpolicy -b` (người dùng chốt 23/11/2026). Trên Apple Silicon `taskpolicy -b` chỉ cho tiến trình chạy nhân tiết kiệm điện, kể cả khi nhân hiệu năng đang rảnh. Đo ở ai-luxian (AILUX-292, tập 253 test db, trung vị n=3): 241 s không có, 724 s có `taskpolicy -b` (chậm khoảng 3 lần); với 4 worker xdist 113 s so với 254 s.
+
+- Sửa cùng một dòng luật ở `lib/policy_rules.txt`, `agents/hand.md`, `templates/hand-brief.md`, `templates/ext-hand-preamble.md` và `AGENTS.md` của repo: `nice -n 19` nhường CPU cho việc khác nhưng vẫn dùng nhân hiệu năng khi máy rảnh; `taskpolicy -b` chỉ dùng khi brief ghi rõ việc không gấp.
+- Giữ nguyên `hh-heat browser` (vẫn thêm `taskpolicy -b`): trình duyệt headless của công cụ đo nhiệt không cần nhanh.
+- Chống quá tải khi nhiều phiên chạy test cùng lúc nay dựa vào luật chỉ chạy test hẹp trong lúc làm và bộ đầy đủ một lần cuối, không dựa vào việc ép tiến trình xuống nhân tiết kiệm điện.
+
+### Social listening
+
+Nguồn đã đọc 2026-11-23:
+
+- [Eclectic Light, Tune for Performance: Core types](https://eclecticlight.co/2024/12/17/tune-for-performance-core-types/) (12/2024): luồng QoS background trở xuống chỉ chạy trên nhân E; cùng một việc chạy toàn nhân E lâu hơn chạy chủ yếu trên nhân P.
+- [Eclectic Light, Making the most of Apple silicon power: 5 User control](https://eclecticlight.co/2022/10/20/making-the-most-of-apple-silicon-power-5-user-control/) (10/2022): `taskpolicy -b` hạ cả tiến trình xuống background, chạy trên nhân E; khuyên dùng cho việc dài không cần nhanh.
+- [Eclectic Light, How you can't promote threads on an M1](https://eclecticlight.co/2022/01/24/how-you-cant-promote-threads-on-an-m1/) (01/2022): đã hạ xuống background thì không đưa luồng lên nhân P được.
+- [MacRumors, chạy chương trình chỉ trên nhân tiết kiệm điện](https://forums.macrumors.com/threads/is-there-a-way-to-make-a-program-use-only-the-efficency-cores-on-mac.2280122) (thảo luận người dùng): `taskpolicy -b` là cách thông dụng để giữ tiến trình ở nhân E cho mát và tiết kiệm pin, đổi lại chậm hơn.
+
+Nguồn chủ yếu là một tác giả (Eclectic Light) cộng diễn đàn người dùng; số đo chậm 3 lần là của repo ai-luxian, không phải từ nguồn ngoài.
+
 ## 0.68.1 — 2026-11-22
 
 Tóm tắt: vai chrome thêm `--allowedTools "mcp__claude-in-chrome__*"` cùng `--chrome`. Chế độ `-p` không hỏi quyền được, nên thiếu cờ này thì mọi lệnh gọi Chrome bị từ chối ("Claude in Chrome requires permission"). Đã kiểm thực tế: mở được trang nhóm Facebook.
