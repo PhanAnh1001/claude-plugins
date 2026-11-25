@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.70.0 — 2026-11-25
+
+- Đổi tên `open-gpt-brain` thành `new-agent-paseo` (bin, skill, lệnh `/hybrid-hands:new-agent-paseo`, test); tên cũ không còn. Lệnh Claude chưa có `--brain` thì hỏi chọn bằng AskUserQuestion: GPT v1 (gpt-6.1-sol high), Claude v1, Claude v2 (Opus high). Terminal thiếu `--brain` hiện menu `select`; không có terminal thì báo lỗi kèm lựa chọn, không ghi gì. Thêm giá trị `--brain gpt-v1` (giữ bí danh `gpt`, `sol`). Skill Codex tương ứng: `$new-agent-paseo` ở plugin Codex hybrid-hands 0.3.0.
+
 ## 0.69.1 — 2026-11-25
 
 - limit-watch: phiên brain Paseo dùng Claude dính hạn mức 5 giờ giờ cũng được gửi `làm tiếp` đúng một lần sau giờ reset. Trước đây watcher chỉ nhận lỗi quota qua `attentionReason=error` kèm `lastError` của Paseo, nhưng Claude Code kết thúc lượt bằng một tin assistant tổng hợp (`isApiErrorMessage`, `error: rate_limit`) nên Paseo thấy agent idle bình thường; target đứng `armed` mãi (sự cố 25/11/2026: chặn lúc 06:05, reset 10:50, không gửi gì). Thêm `limit_watch/transcript.py` đọc cờ lỗi của mục hội thoại cuối trong transcript chính và giờ reset được báo; regex bridge nhận thêm "hit your … limit".

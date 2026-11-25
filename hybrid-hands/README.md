@@ -6,7 +6,7 @@
 - **Cách dùng:** đặt profile một lần sau khi người dùng chốt (`hand-ext profile set <tên>`); brain chạy `hand-ext pick --role <vai> --json` trước mỗi lượt giao, `native` true → subagent native, false → `hand-ext run --role <vai> --tier <N>`.
 - **Thang 2 bậc:** vai thu thập dữ liệu (`collect`, `chrome`) bắt đầu ở B1, lỗi thì lên B2; ghi kết quả bằng `hand-ext ladder log`, xem tỉ lệ bằng `hand-ext ladder stats`.
 - **Hết quota:** không đổi tài khoản, không chuyển API; chờ reset hoặc báo phiên chính. Guard ngày cho tài khoản Claude v1 là tuỳ chọn, mặc định tắt.
-- **Thành phần:** `hand-ext` (pick/run/ladder/profile/doctor), agent `hybrid-hands:hand`, `side-session` (phiên brain và super brain, hợp đồng bàn giao `.done`), `cc-switch`, skill `ext-hand`/`side-session`/`paseo`/`limit-watch`/`open-gpt-brain`, hook SessionStart (khuôn brief, luật vai, luật dữ liệu) và UserPromptSubmit (bản ngắn).
+- **Thành phần:** `hand-ext` (pick/run/ladder/profile/doctor), agent `hybrid-hands:hand`, `side-session` (phiên brain và super brain, hợp đồng bàn giao `.done`), `cc-switch`, skill `ext-hand`/`side-session`/`paseo`/`limit-watch`/`new-agent-paseo`, hook SessionStart (khuôn brief, luật vai, luật dữ liệu) và UserPromptSubmit (bản ngắn).
 - **Luật dữ liệu:** brain được đọc secret và dữ liệu khách hàng; luật hand ngoài (codex dùng làm hand) cấm giao việc phải đọc hoặc gửi secret hay dữ liệu khách hàng, việc đó dùng hand Claude. Không hiện giá trị `.env` áp cho mọi tầng.
 - **Luật test tối thiểu:** brain ghi mức test trong KIỂM CHỨNG của brief; mặc định hand chỉ viết test tối thiểu (1 test đường chính + tối đa 1-2 case biên/lỗi). Mức "kỹ" chỉ gồm ĐÚNG 2 nhóm: tính năng giữ chân/chi tiêu và bảo mật chống tấn công từ ngoài.
 - **Cách ly worktree:** `hand-ext run` mặc định chạy hand trong git worktree sạch, lưu `changes.patch` rồi áp về cwd gốc; xem mục 5.3.
@@ -133,14 +133,14 @@ hybrid-hands/
 └── plugins/hybrid-hands/
     ├── .claude-plugin/plugin.json
     ├── agents/hand.md                  # hand Claude
-    ├── bin/hand-ext, bin/side-session, bin/cc-switch, bin/open-gpt-brain  # vào PATH của tool Bash khi plugin bật
+    ├── bin/hand-ext, bin/side-session, bin/cc-switch, bin/new-agent-paseo  # vào PATH của tool Bash khi plugin bật
     ├── lib/hand_ext/ (backends/: codex | claude; profiles.py, ladder.py, day_budget.py, isolation.py), lib/side_session/, lib/hh_ps/ (thư viện usage dùng chung), lib/cc_switch/
     ├── commands/to-paseo.md, commands/to-term.md  # slash command chuyển phiên hai chiều
     ├── commands/profile.md                       # slash command xem/đổi profile repo
-    ├── commands/open-gpt-brain.md                # đổi sang gpt-mono + native, mở phiên main brain ở tab mới
+    ├── commands/new-agent-paseo.md               # chọn GPT v1/Claude v1/v2, mở agent Paseo ở tab mới (gpt-mono + native)
     ├── hooks/hooks.json
     ├── scripts/session-start-policy.sh, scripts/inject-policy.sh
-    ├── skills/ext-hand/, skills/side-session/, skills/paseo/, skills/limit-watch/, skills/open-gpt-brain/
+    ├── skills/ext-hand/, skills/side-session/, skills/paseo/, skills/limit-watch/, skills/new-agent-paseo/
     └── templates/hand-brief.md, ext-hand-preamble.md, side-session-prompt.md, side-session-prompt-codex.md
 ```
 

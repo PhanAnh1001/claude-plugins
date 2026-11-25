@@ -1,4 +1,4 @@
-"""Test open-gpt-brain bằng PATH giả: fake paseo và hand-ext ghi argv vào log, không gọi bản thật."""
+"""Test new-agent-paseo bằng PATH giả: fake paseo và hand-ext ghi argv vào log, không gọi bản thật."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "plugins" / "hybrid-hands" / "bin" / "open-gpt-brain"
+SCRIPT = Path(__file__).resolve().parents[1] / "plugins" / "hybrid-hands" / "bin" / "new-agent-paseo"
 WORKSPACE_ID = "ws-1"
 AGENT_ID = "agent-42"
 ORIGINAL_CFG = {"profile": "hybrid", "other": {"keep": 1}}
@@ -85,7 +85,7 @@ def _cfg(root: Path) -> str:
 
 def test_gpt_brain_writes_profile_and_runs_paseo(env_setup) -> None:
     env, root, log = env_setup
-    result = _run(env, root)
+    result = _run(env, root, "--brain", "gpt-v1")
     assert result.returncode == 0, result.stderr
     cfg = json.loads(_cfg(root))
     assert cfg["profile"] == "gpt-mono"
@@ -108,7 +108,7 @@ def test_claude_v2_brain_uses_opus_bypass(env_setup) -> None:
 def test_rollback_when_paseo_run_fails(env_setup) -> None:
     env, root, _ = env_setup
     before = _cfg(root)
-    result = _run({**env, "FAKE_RUN_EXIT": "1"}, root)
+    result = _run({**env, "FAKE_RUN_EXIT": "1"}, root, "--brain", "gpt-v1")
     assert result.returncode != 0
     assert _cfg(root) == before
 
@@ -116,7 +116,7 @@ def test_rollback_when_paseo_run_fails(env_setup) -> None:
 def test_dry_run_changes_nothing(env_setup) -> None:
     env, root, log = env_setup
     before = _cfg(root)
-    assert _run(env, root, "--dry-run").returncode == 0
+    assert _run(env, root, "--brain", "claude-v1", "--dry-run").returncode == 0
     assert _cfg(root) == before
     assert not _calls(log, "paseo run")
 
@@ -125,13 +125,24 @@ def test_symlink_uses_hand_ext_next_to_real_script(env_setup, tmp_path: Path) ->
     env, root, log = env_setup
     plugin_bin = tmp_path / "plugin-bin"
     plugin_bin.mkdir()
-    shutil.copy2(SCRIPT, plugin_bin / "open-gpt-brain")
+    shutil.copy2(SCRIPT, plugin_bin / "new-agent-paseo")
     _write_exec(plugin_bin / "hand-ext", FAKE_HAND_EXT)
     link_dir = tmp_path / "links"
     link_dir.mkdir()
-    (link_dir / "ogb").symlink_to(plugin_bin / "open-gpt-brain")
+    (link_dir / "ogb").symlink_to(plugin_bin / "new-agent-paseo")
     del env["HAND_EXT"]
     (tmp_path / "bin" / "hand-ext").unlink()  # hand-ext trên PATH không được dùng
-    result = _run(env, root, script=link_dir / "ogb")
+    result = _run(env, root, "--brain", "sol", script=link_dir / "ogb")
     assert result.returncode == 0, result.stderr
     assert _calls(log, "hand-ext profile set gpt-mono")
+
+
+def test_missing_brain_without_tty_lists_choices(env_setup) -> None:
+    env, root, log = env_setup
+    before = _cfg(root)
+    result = subprocess.run([str(SCRIPT), "--cwd", str(root)], env=env, text=True,
+                            capture_output=True, stdin=subprocess.DEVNULL)
+    assert result.returncode != 0
+    assert "gpt-v1" in result.stderr and "claude-v2" in result.stderr
+    assert _cfg(root) == before
+    assert not _calls(log, "paseo run")
