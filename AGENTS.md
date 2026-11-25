@@ -54,7 +54,7 @@ Sol có quyền dữ liệu như Opus; luật không giao secret/dữ liệu kh�
 - `hybrid-hands/README.md`: sử dụng plugin; `plugins/hybrid-hands/CHANGELOG.md` giữ lịch sử release.
 - `hybrid-hands/plugins/hybrid-hands/.claude-plugin/plugin.json`: phiên bản plugin.
 - `hybrid-hands/plugins/hybrid-hands/bin/`: CLI hand-ext, side-session, cc-switch; `lib/hand_ext/`, `lib/side_session/`, `lib/cc_switch/`: implementation tương ứng; `lib/hh_ps/`: thư viện usage dùng chung (giá, nguồn usage Claude/GPT, quota) cho statusline, limit-watch, guard ngày, cc-switch.
-- `hybrid-hands/plugins/hybrid-hands/skills/`: ext-hand, paseo, side-session, limit-watch; `agents/`, `templates/`, `scripts/`, `hooks/`: policy và launcher.
+- `hybrid-hands/plugins/hybrid-hands/skills/`: ext-hand, paseo, side-session, limit-watch, open-gpt-brain; `agents/`, `templates/`, `scripts/`, `hooks/`: policy và launcher.
 - `hybrid-hands/tests/`: test Python/fixtures giả.
 - `statusline/`: plugin riêng, chỉ sửa khi brief giao rõ; UI bỏ giờ bắt đầu.
 

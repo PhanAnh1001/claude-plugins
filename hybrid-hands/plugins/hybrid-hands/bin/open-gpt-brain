@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# Đổi profile hybrid-hands của repo sang gpt-mono, bật subagent native, rồi mở phiên Paseo
+# "main brain" ở tab MỚI cùng workspace — phiên độc lập, KHÔNG phải subagent.
+# Brain: gpt (mặc định, theo vai brain của profile: gpt-6.1-sol high) | claude-v1 | claude-v2 (Opus high).
+# Dùng: open-gpt-brain [--brain gpt|claude-v1|claude-v2] [--model M] [--effort E] [--workspace WKS_ID]
+#                      [--prompt "..."] [--title "..."] [--cwd DIR] [--dry-run]
+set -euo pipefail
+
+# Thư mục bin thật của plugin (theo cả symlink) → hand-ext cùng bản plugin.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in /*) SELF="$LINK" ;; *) SELF="$(dirname "$SELF")/$LINK" ;; esac
+done
+BIN_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+HAND_EXT="${HAND_EXT:-$BIN_DIR/hand-ext}"
+CLAUDE_MODEL="claude-opus-5-5"  # brain Claude: như profile Paseo "Claude v1 ultra" / "claude v2 pro"
+CLAUDE_EFFORT="high"
+PROMPT="Bạn là phiên main brain (profile gpt-mono) của repo này. Đọc AGENTS.md (hoặc CLAUDE.md) và file bàn giao mới nhất ở docs/handoff/ nếu có, tóm tắt ngắn luật repo và việc đang dở, rồi DỪNG chờ chủ dự án giao việc."
+CWD="" WORKSPACE="" DRY=0 ARMED=0 BACKUP="" CFG="" BRAIN_KIND="gpt" OPT_MODEL="" OPT_EFFORT="" TITLE=""
+
+restore() {  # lỗi trước khi có phiên brain → trả hybrid-hands.json về như cũ, không để repo đổi dở
+  [ "$ARMED" = 1 ] || return 0
+  ARMED=0
+  if [ -n "$BACKUP" ]; then cp "$BACKUP" "$CFG"; rm -f "$BACKUP"; else rm -f "$CFG"; fi
+  echo "Đã khôi phục $CFG về như trước khi chạy." >&2
+}
+die() { echo "Lỗi: $*" >&2; restore; exit 1; }
+trap 'restore' ERR
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --brain) BRAIN_KIND="$2"; shift 2 ;;
+    --model) OPT_MODEL="$2"; shift 2 ;;
+    --effort) OPT_EFFORT="$2"; shift 2 ;;
+    --cwd) CWD="$2"; shift 2 ;;
+    --workspace) WORKSPACE="$2"; shift 2 ;;
+    --prompt) PROMPT="$2"; shift 2 ;;
+    --title) TITLE="$2"; shift 2 ;;
+    --dry-run) DRY=1; shift ;;
+    -h|--help) sed -n '2,6p' "$SELF"; exit 0 ;;
+    *) die "không hiểu tham số: $1" ;;
+  esac
+done
+
+case "$BRAIN_KIND" in
+  gpt|sol) BRAIN_KIND=gpt ;;
+  claude-v1|v1) BRAIN_KIND=claude-v1 ;;
+  claude-v2|v2) BRAIN_KIND=claude-v2 ;;
+  *) die "--brain chỉ nhận gpt, claude-v1 hoặc claude-v2 (nhận: $BRAIN_KIND)" ;;
+esac
+command -v paseo >/dev/null || die "chưa có lệnh paseo trong PATH"
+[ -x "$HAND_EXT" ] || die "không thấy hand-ext ở $HAND_EXT (đặt biến HAND_EXT)"
+ROOT="$(git -C "${CWD:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" || die "không phải git repo: ${CWD:-$PWD}"
+CFG="$ROOT/.claude/hybrid-hands.json"
+run() { if [ "$DRY" = 1 ]; then echo "[dry-run] $*"; else "$@"; fi; }
+parent_of() { paseo agent inspect "$1" --json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("ParentAgentId"))'; }
+
+# 0. Chọn workspace TRƯỚC khi ghi gì: --workspace > phiên Paseo đang gọi (đã kiểm còn sống) > workspace duy nhất trùng cwd.
+echo "== 0. Chọn workspace"
+WS_ARGS=()
+if [ -n "$WORKSPACE" ]; then
+  WS_ARGS=(--workspace "$WORKSPACE")
+elif [ -n "${PASEO_AGENT_ID:-}" ] && paseo agent inspect "$PASEO_AGENT_ID" --json >/dev/null 2>&1; then
+  echo "   dùng workspace của phiên đang gọi ($PASEO_AGENT_ID)"
+else
+  MATCH="$(paseo workspace ls --json | python3 -c '
+import json, sys
+root = sys.argv[1]
+for w in json.load(sys.stdin):
+    if w.get("cwd") == root and not w.get("background"):
+        print(w["workspaceId"], w.get("name", ""), sep="\t")
+' "$ROOT")"
+  COUNT="$(printf '%s' "$MATCH" | grep -c . || true)"
+  [ "$COUNT" = 1 ] || die "có $COUNT workspace trùng $ROOT, chọn một bằng --workspace:
+$MATCH"
+  WORKSPACE="${MATCH%%$'\t'*}"
+  WS_ARGS=(--workspace "$WORKSPACE")
+fi
+if [ -n "$WORKSPACE" ]; then echo "   workspace = $WORKSPACE"; fi
+
+# Từ đây bắt đầu ghi cấu hình: giữ bản sao để khôi phục nếu lỗi trước khi mở được phiên.
+if [ "$DRY" != 1 ]; then
+  if [ -f "$CFG" ]; then BACKUP="$(mktemp)"; cp "$CFG" "$BACKUP"; fi
+  ARMED=1
+fi
+
+# 1. Profile gpt-mono (lệnh chính thức của plugin, chỉ ghi khoá profile của repo).
+echo "== 1. Đổi profile sang gpt-mono"
+run "$HAND_EXT" profile set gpt-mono --cwd "$ROOT"
+
+# 2. Bật subagent native: ext_hand.native.{claude,codex} = "auto" (giá trị hợp lệ: auto | off), giữ nguyên khoá khác.
+echo "== 2. Bật subagent native"
+if [ "$DRY" = 1 ]; then
+  echo "[dry-run] ghi ext_hand.native = {claude: auto, codex: auto} vào $CFG"
+else
+  mkdir -p "$ROOT/.claude"
+  python3 - "$CFG" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+data = json.load(open(path)) if os.path.exists(path) else {}
+data.setdefault("ext_hand", {}).setdefault("native", {}).update({"claude": "auto", "codex": "auto"})
+with open(path, "w") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2); f.write("\n")
+PY
+  NATIVE="$("$HAND_EXT" pick --role code --cwd "$ROOT" --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["native"])')"
+  [ "$NATIVE" = "True" ] || die "pick --role code vẫn báo native=$NATIVE"
+fi
+
+# 3. Chọn model cho brain. gpt: đọc vai brain của profile (đọc thật cả khi dry-run; lệnh chỉ đọc).
+#    claude-v1/v2: Opus high trên đúng tài khoản Claude đó (provider Paseo claude-v1 / claude-v2).
+echo "== 3. Chọn brain ($BRAIN_KIND)"
+if [ "$BRAIN_KIND" = gpt ]; then
+  [ "$DRY" = 1 ] && echo "   (dry-run: đọc theo profile HIỆN TẠI vì chưa đổi sang gpt-mono)"
+  BRAIN="$("$HAND_EXT" profile --cwd "$ROOT" --json | python3 -c 'import json,sys; d=json.load(sys.stdin)["roles"]["brain"]; print(d["provider"], d["account"], d["model"], d["effort"])')"
+  read -r B_PROVIDER B_ACCOUNT B_MODEL B_EFFORT <<<"$BRAIN"
+  if [ "$DRY" = 1 ] && [ "$B_PROVIDER" != "codex" ]; then
+    echo "   profile hiện tại cho brain = $BRAIN; sau khi đổi gpt-mono sẽ là codex (mặc định gpt-6.1-sol high)"
+    B_PROVIDER=codex B_ACCOUNT=v1 B_MODEL=gpt-6.1-sol B_EFFORT=high
+  fi
+  [ "$B_PROVIDER" = "codex" ] || die "vai brain của gpt-mono không phải codex ($BRAIN)"
+  case "$B_ACCOUNT" in
+    v1) PASEO_PROVIDER="codex" ;;          # gói ChatGPT chính (~/.codex)
+    *) die "chưa ánh xạ tài khoản GPT $B_ACCOUNT sang provider Paseo" ;;
+  esac
+  MODE="full-access"                      # như profile Paseo "gpt v1 pro brain"
+else
+  PASEO_PROVIDER="$BRAIN_KIND" B_MODEL="$CLAUDE_MODEL" B_EFFORT="$CLAUDE_EFFORT"
+  MODE="bypassPermissions"                # như profile Paseo "claude v2 pro"
+fi
+B_MODEL="${OPT_MODEL:-$B_MODEL}"
+B_EFFORT="${OPT_EFFORT:-$B_EFFORT}"
+if [ -z "$TITLE" ]; then
+  case "$BRAIN_KIND" in
+    gpt) TITLE="main brain sol $B_EFFORT" ;;
+    *) TITLE="main brain opus $B_EFFORT (${BRAIN_KIND#claude-})" ;;
+  esac
+fi
+echo "   brain = $PASEO_PROVIDER/$B_MODEL, thinking $B_EFFORT, mode $MODE"
+
+# 4. Mở phiên brain. Gọi từ trong phiên Paseo thì Paseo tạo subagent → tách ngay thành phiên độc lập (tab riêng).
+echo "== 4. Mở phiên Paseo"
+if [ "$DRY" = 1 ]; then
+  echo "[dry-run] paseo run --no-wait -q --provider $PASEO_PROVIDER/$B_MODEL --thinking $B_EFFORT --mode $MODE --title \"$TITLE\" --cwd $ROOT ${WS_ARGS[*]:-} <prompt>"
+  echo "[dry-run] paseo agent detach <agent-id> (chỉ khi Paseo tạo thành subagent)"
+  exit 0
+fi
+AGENT_ID="$(paseo run --no-wait -q --provider "$PASEO_PROVIDER/$B_MODEL" --thinking "$B_EFFORT" \
+  --mode "$MODE" --title "$TITLE" --cwd "$ROOT" ${WS_ARGS[@]+"${WS_ARGS[@]}"} "$PROMPT" | tail -1 | tr -d '[:space:]')"
+[ -n "$AGENT_ID" ] || die "paseo run không trả agentId"
+ARMED=0; trap - ERR; [ -n "$BACKUP" ] && rm -f "$BACKUP"   # đã có phiên: giữ cấu hình mới
+if [ "$(parent_of "$AGENT_ID")" != "None" ]; then
+  paseo agent detach "$AGENT_ID" >/dev/null
+fi
+PARENT="$(parent_of "$AGENT_ID")"
+[ "$PARENT" = "None" ] || die "phiên $AGENT_ID vẫn là subagent của $PARENT"
+echo "Xong: phiên $AGENT_ID ($PASEO_PROVIDER/$B_MODEL $B_EFFORT) ở tab mới, không phải subagent."
+echo "Nhớ commit $CFG nếu repo theo dõi file này."

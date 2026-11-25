@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.69.0 — 2026-11-25
+
+- Thêm `bin/open-gpt-brain`, skill `open-gpt-brain` và lệnh `/hybrid-hands:open-gpt-brain`: một lệnh đặt profile `gpt-mono` cho repo, bật `ext_hand.native.{claude,codex}=auto` (kiểm `pick --role code` trả native), rồi mở phiên Paseo main brain ở tab mới cùng workspace và kiểm `ParentAgentId` là null (gọi từ trong phiên Paseo thì tự `paseo agent detach`). `--brain gpt|claude-v1|claude-v2`: gpt đọc vai brain của profile, Claude mở `claude-opus-5-5` high trên đúng tài khoản. Lỗi trước khi mở phiên thì khôi phục `.claude/hybrid-hands.json`. Script tìm `hand-ext` cùng thư mục bin (theo cả symlink). Chuyển từ skill cá nhân `~/.claude/skills/open-gpt-brain`; Codex dùng skill `$open-gpt-brain` của plugin Codex hybrid-hands 0.2.0 gọi cùng script.
+
 ## 0.68.3 — 2026-11-23
 
 - Nguồn policy native/ngoài và mẫu brief: hand mặc định không commit/push; chỉ gói Git riêng được brain chỉ thị rõ repo, hành động, branch và remote nếu push mới cấp quyền trong phạm vi. Không vượt luật runtime; không cho merge, force push hay viết lại lịch sử. Đây là thay đổi chỉ dẫn, không phải cơ chế chặn Git.
