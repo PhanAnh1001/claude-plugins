@@ -165,3 +165,31 @@ def test_native_blocked_for_other_reason_rolls_back(env_setup) -> None:
     assert "day guard blocked" in result.stderr
     assert _cfg(root) == before
     assert not _calls(log, "paseo run")
+
+
+def test_context_current_embeds_handoff_file(env_setup, tmp_path: Path) -> None:
+    env, root, log = env_setup
+    handoff = tmp_path / "handoff.md"
+    handoff.write_text("Đang làm: tính năng X; việc tiếp theo: viết test Y")
+    result = _run(env, root, "--brain", "gpt-v1", "--context", "current", "--context-file", str(handoff))
+    assert result.returncode == 0, result.stderr
+    text = log.read_text()
+    assert "--- Bàn giao từ phiên trước ---" in text
+    assert "viết test Y" in text
+    assert "tiếp nối phiên" in text
+
+
+def test_context_new_sends_no_handoff(env_setup) -> None:
+    env, root, log = env_setup
+    assert _run(env, root, "--brain", "claude-v1", "--context", "new").returncode == 0
+    assert "Bàn giao từ phiên trước" not in log.read_text()
+
+
+def test_context_current_without_file_fails_before_writing(env_setup) -> None:
+    env, root, log = env_setup
+    before = _cfg(root)
+    result = _run(env, root, "--brain", "gpt-v1", "--context", "current")
+    assert result.returncode != 0
+    assert "--context-file" in result.stderr
+    assert _cfg(root) == before
+    assert not _calls(log, "paseo run")

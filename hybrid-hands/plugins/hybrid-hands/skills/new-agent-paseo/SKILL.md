@@ -1,6 +1,6 @@
 ---
 name: new-agent-paseo
-description: Mở agent Paseo mới ("main brain") ở TAB MỚI cùng workspace (phiên độc lập, không phải subagent), cho chọn GPT v1 (gpt-6.1-sol high), Claude v1 hoặc Claude v2 (Opus high); đồng thời đổi profile hybrid-hands của repo sang gpt-mono và bật subagent native. Dùng khi người dùng gõ /hybrid-hands:new-agent-paseo hoặc nói "mở agent paseo", "new agent paseo", "đổi sang gpt-mono", "mở brain sol", "mở phiên main brain", "mở brain claude v1/v2", "chuyển brain sang GPT", "mở tab brain sol high".
+description: Mở agent Paseo mới ("main brain") ở TAB MỚI cùng workspace (phiên độc lập, không phải subagent), cho chọn GPT v1 (gpt-6.1-sol high), Claude v1 hoặc Claude v2 (Opus high) và context mới hoặc mang context phiên hiện tại (bàn giao); đồng thời đổi profile hybrid-hands của repo sang gpt-mono và bật subagent native. Dùng khi người dùng gõ /hybrid-hands:new-agent-paseo hoặc nói "mở agent paseo", "new agent paseo", "đổi sang gpt-mono", "mở brain sol", "mở phiên main brain", "mở brain claude v1/v2", "chuyển brain sang GPT", "mở tab brain sol high".
 ---
 
 # new-agent-paseo
@@ -9,7 +9,7 @@ description: Mở agent Paseo mới ("main brain") ở TAB MỚI cùng workspace
 
 ## 1. Cách chạy
 
-Người dùng chưa nói rõ agent nào thì hỏi trước bằng AskUserQuestion (header `Agent`, một lựa chọn): `GPT v1` → `--brain gpt-v1`, `Claude v1` → `--brain claude-v1`, `Claude v2` → `--brain claude-v2`; huỷ thì dừng. Đã rõ ("mở agent claude v2") thì không hỏi. Sau đó chạy đúng một lệnh bằng tool Bash tại thư mục repo hiện tại, luôn kèm `--brain` và các tham số người dùng đưa:
+Người dùng chưa nói rõ thì hỏi bằng MỘT lần AskUserQuestion gồm các câu còn thiếu: header `Agent` (`GPT v1` → `--brain gpt-v1`, `Claude v1` → `--brain claude-v1`, `Claude v2` → `--brain claude-v2`) và header `Context` (`Context mới` → `--context new`; `Context phiên hiện tại` → viết bàn giao rồi `--context-file FILE`); huỷ thì dừng. Đã rõ ("mở agent claude v2, context mới") thì không hỏi. Bàn giao: ghi `/tmp/new-agent-paseo-<YYYYMMDD-HHMMSS>.md` (≤ 100 000 byte) theo mục 2 của lệnh `/hybrid-hands:new-agent-paseo` (mục tiêu, đã xong, đang dở, quyết định, việc tiếp theo, lưu ý), không chép secret hay transcript thô. Sau đó chạy đúng một lệnh bằng tool Bash tại thư mục repo hiện tại, luôn kèm `--brain` và các tham số người dùng đưa:
 
 ```sh
 "${CLAUDE_PLUGIN_ROOT}/bin/new-agent-paseo" --brain <agent> [tham số]
@@ -22,6 +22,8 @@ Nếu `${CLAUDE_PLUGIN_ROOT}` không được thay, dùng `new-agent-paseo` tron
 | Tham số | Ý nghĩa |
 |---|---|
 | `--brain gpt-v1\|claude-v1\|claude-v2` | Loại agent. Thiếu thì terminal hiện menu chọn; không có terminal thì báo lỗi kèm lựa chọn. `gpt-v1` (bí danh `gpt`, `sol`): theo vai brain của gpt-mono. `claude-v1`/`claude-v2` (viết tắt `v1`/`v2`): `claude-opus-5-5` high trên tài khoản đó. |
+| `--context new\|current` | `new` (mặc định): không truyền gì thêm. `current`: gửi kèm nội dung `--context-file FILE` (bàn giao do phiên đang gọi viết, ≤ 100 000 byte) vào cuối tin nhắn đầu; thiếu file thì dừng trước khi ghi gì. |
+| `--context-file FILE` | File bàn giao; có cờ này thì ngầm `--context current`. |
 | `--model M`, `--effort E` | Ghi đè model hoặc mức thinking (ví dụ `--model gpt-6.2-sol`, `--effort xhigh`). |
 | `--workspace WKS_ID` | Chọn workspace Paseo. Bỏ trống: gọi từ phiên Paseo còn sống thì dùng workspace của phiên đó; gọi từ terminal thì lấy workspace duy nhất có `cwd` trùng repo (nhiều hơn một thì script liệt kê để chọn). |
 | `--prompt "..."` | Việc đầu tiên giao cho brain. Mặc định: đọc AGENTS.md/CLAUDE.md và bàn giao mới nhất ở `docs/handoff/`, tóm tắt rồi chờ. |

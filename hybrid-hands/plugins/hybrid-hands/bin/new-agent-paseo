@@ -3,7 +3,8 @@
 # "main brain" ở tab MỚI cùng workspace — phiên độc lập, KHÔNG phải subagent.
 # Agent: gpt-v1 (vai brain của profile: gpt-6.1-sol high) | claude-v1 | claude-v2 (Opus high); thiếu --brain thì hiện menu chọn.
 # Dùng: new-agent-paseo [--brain gpt-v1|claude-v1|claude-v2] [--model M] [--effort E] [--workspace WKS_ID]
-#                      [--prompt "..."] [--title "..."] [--cwd DIR] [--dry-run]
+#                      [--context new|current --context-file FILE] [--prompt "..."] [--title "..."] [--cwd DIR] [--dry-run]
+# Context: new (mặc định, phiên mới không mang gì) | current (gửi kèm file bàn giao do phiên đang gọi viết).
 set -euo pipefail
 
 # Thư mục bin thật của plugin (theo cả symlink) → hand-ext cùng bản plugin.
@@ -16,7 +17,10 @@ BIN_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 HAND_EXT="${HAND_EXT:-$BIN_DIR/hand-ext}"
 CLAUDE_MODEL="claude-opus-5-5"  # brain Claude: như profile Paseo "Claude v1 ultra" / "claude v2 pro"
 CLAUDE_EFFORT="high"
-PROMPT="Bạn là phiên main brain (profile gpt-mono) của repo này. Đọc AGENTS.md (hoặc CLAUDE.md) và file bàn giao mới nhất ở docs/handoff/ nếu có, tóm tắt ngắn luật repo và việc đang dở, rồi DỪNG chờ chủ dự án giao việc."
+PROMPT_NEW="Bạn là phiên main brain (profile gpt-mono) của repo này. Đọc AGENTS.md (hoặc CLAUDE.md) và file bàn giao mới nhất ở docs/handoff/ nếu có, tóm tắt ngắn luật repo và việc đang dở, rồi DỪNG chờ chủ dự án giao việc."
+PROMPT_CURRENT="Bạn là phiên main brain (profile gpt-mono) tiếp nối phiên đang làm của repo này. Đọc AGENTS.md (hoặc CLAUDE.md) và bàn giao của phiên trước ở cuối tin nhắn này, tóm tắt ngắn điều đã hiểu và việc tiếp theo, rồi DỪNG chờ chủ dự án giao việc."
+CONTEXT_MAX_BYTES=100000  # đủ cho bàn giao; dài hơn thì nên rút gọn thay vì nhồi transcript
+PROMPT="" CONTEXT="new" CONTEXT_FILE=""
 CWD="" WORKSPACE="" DRY=0 ARMED=0 BACKUP="" CFG="" BRAIN_KIND="" OPT_MODEL="" OPT_EFFORT="" TITLE=""
 
 restore() {  # lỗi trước khi có phiên brain → trả hybrid-hands.json về như cũ, không để repo đổi dở
@@ -37,6 +41,8 @@ while [ $# -gt 0 ]; do
     --workspace) WORKSPACE="$2"; shift 2 ;;
     --prompt) PROMPT="$2"; shift 2 ;;
     --title) TITLE="$2"; shift 2 ;;
+    --context) CONTEXT="$2"; shift 2 ;;
+    --context-file) CONTEXT_FILE="$2"; CONTEXT="current"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     -h|--help) sed -n '2,6p' "$SELF"; exit 0 ;;
     *) die "không hiểu tham số: $1" ;;
@@ -59,6 +65,25 @@ case "$BRAIN_KIND" in
   claude-v2|v2) BRAIN_KIND=claude-v2 ;;
   *) die "--brain chỉ nhận gpt-v1, claude-v1 hoặc claude-v2 (nhận: $BRAIN_KIND)" ;;
 esac
+# Context: kiểm trước khi ghi gì.
+case "$CONTEXT" in
+  new) [ -z "$CONTEXT_FILE" ] || die "--context new không nhận --context-file" ;;
+  current)
+    [ -n "$CONTEXT_FILE" ] || die "--context current cần --context-file FILE (bàn giao do phiên đang gọi viết)"
+    [ -s "$CONTEXT_FILE" ] || die "file bàn giao trống hoặc không có: $CONTEXT_FILE"
+    SIZE="$(wc -c <"$CONTEXT_FILE" | tr -d ' ')"
+    [ "$SIZE" -le "$CONTEXT_MAX_BYTES" ] || die "file bàn giao $SIZE byte > $CONTEXT_MAX_BYTES; rút gọn lại" ;;
+  *) die "--context chỉ nhận new hoặc current (nhận: $CONTEXT)" ;;
+esac
+if [ "$CONTEXT" = current ]; then
+  PROMPT="${PROMPT:-$PROMPT_CURRENT}
+
+--- Bàn giao từ phiên trước ---
+$(cat "$CONTEXT_FILE")
+--- Hết bàn giao ---"
+else
+  PROMPT="${PROMPT:-$PROMPT_NEW}"
+fi
 command -v paseo >/dev/null || die "chưa có lệnh paseo trong PATH"
 [ -x "$HAND_EXT" ] || die "không thấy hand-ext ở $HAND_EXT (đặt biến HAND_EXT)"
 ROOT="$(git -C "${CWD:-$PWD}" rev-parse --show-toplevel 2>/dev/null)" || die "không phải git repo: ${CWD:-$PWD}"
@@ -153,6 +178,7 @@ if [ -z "$TITLE" ]; then
   esac
 fi
 echo "   brain = $PASEO_PROVIDER/$B_MODEL, thinking $B_EFFORT, mode $MODE"
+if [ "$CONTEXT" = current ]; then echo "   context: từ phiên hiện tại ($CONTEXT_FILE, $SIZE byte)"; else echo "   context: mới"; fi
 
 # 4. Mở phiên brain. Gọi từ trong phiên Paseo thì Paseo tạo subagent → tách ngay thành phiên độc lập (tab riêng).
 echo "== 4. Mở phiên Paseo"

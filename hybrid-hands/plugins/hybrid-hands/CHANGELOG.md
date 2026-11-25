@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.71.0 — 2026-11-26
+
+- `new-agent-paseo` thêm lựa chọn context. Lệnh `/hybrid-hands:new-agent-paseo` hỏi một lần AskUserQuestion gồm Agent (GPT v1, Claude v1, Claude v2) và Context: "Context mới" (`--context new`, mặc định, không truyền thêm gì) hoặc "Context phiên hiện tại" (phiên đang gọi viết bàn giao vào `/tmp/new-agent-paseo-*.md` theo 6 mục rồi chạy với `--context-file`). Script gửi nội dung bàn giao (≤ 100 000 byte) vào cuối tin nhắn đầu của phiên mới với lời dặn tiếp nối; thiếu hoặc quá cỡ file thì dừng trước khi ghi cấu hình. Thêm 3 test. Skill Codex tương ứng ở plugin Codex hybrid-hands 0.4.0.
+
 ## 0.70.1 — 2026-11-25
 
 - `new-agent-paseo`: bước kiểm native không còn chặn nhầm khi gọi từ phiên Claude để mở brain GPT. `pick` xét native theo phiên đang gọi nên vai code GPT báo `caller provider unknown, ambiguous or different`; phiên brain mới đúng provider mới được native. Chỉ dừng (và khôi phục cấu hình) khi native false vì lý do khác như guard chặn. Thêm 2 test.
