@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-25 · commit `7a8f61a`
+Cập nhật 2026-11-26 · commit `15e19e9`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-25 · commit `7a8f61a`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 69 commit.
+- **Hoạt động 14 ngày:** 70 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-69 commit.
+70 commit.
 
-- 2026-11-24 7a8f61a docs(status): tự cập nhật trang tình hình
-- 2026-11-24 4717721 docs(status): tự cập nhật trang tình hình
-- 2026-11-23 d93d8d2 docs(status): tự cập nhật trang tình hình
-- 2026-11-23 70bc498 docs(status): tự cập nhật trang tình hình
-- 2026-11-23 e860ad5 feat(hybrid-hands): hand mặc định không commit/push, chỉ gói Git riêng do brain chỉ thị (0.68.3)
+- 2026-11-26 15e19e9 feat(hybrid-hands): 0.71.0 new-agent-paseo hỏi thêm Context: mới hoặc mang bàn giao từ phiên hiện tại
+- 2026-11-25 950f177 fix(hybrid-hands): 0.70.1 new-agent-paseo không chặn nhầm khi phiên gọi khác provider với vai code
+- 2026-11-25 949eef2 feat(hybrid-hands): 0.70.0 đổi open-gpt-brain thành new-agent-paseo, hỏi chọn GPT v1 / Claude v1 / Claude v2
+- 2026-11-25 6c98f39 fix(hybrid-hands): 0.69.1 limit-watch nhận lỗi hạn mức 5 giờ của Claude Code từ transcript, gửi làm tiếp sau giờ reset
+- 2026-11-25 34f071e feat(hybrid-hands): 0.69.0 open-gpt-brain — đổi sang gpt-mono + native, mở phiên Paseo main brain ở tab mới
