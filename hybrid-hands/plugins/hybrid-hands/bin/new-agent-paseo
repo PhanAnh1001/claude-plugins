@@ -113,8 +113,14 @@ data.setdefault("ext_hand", {}).setdefault("native", {}).update({"claude": "auto
 with open(path, "w") as f:
     json.dump(data, f, ensure_ascii=False, indent=2); f.write("\n")
 PY
-  NATIVE="$("$HAND_EXT" pick --role code --cwd "$ROOT" --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["native"])')"
-  [ "$NATIVE" = "True" ] || die "pick --role code vẫn báo native=$NATIVE"
+  # native xét theo phiên ĐANG GỌI: gọi từ phiên Claude thì vai code GPT báo "caller provider … different";
+  # phiên brain mới đúng provider sẽ được native. Chỉ dừng khi lý do khác (guard chặn, cấu hình off…).
+  PICK="$("$HAND_EXT" pick --role code --cwd "$ROOT" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["native"], d.get("native_reason") or "")')"
+  case "$PICK" in
+    True*) ;;
+    "False caller provider"*) echo "   native áp dụng ở phiên brain mới (phiên đang gọi khác provider với vai code)" ;;
+    *) die "pick --role code báo native=${PICK%% *}: ${PICK#* }" ;;
+  esac
 fi
 
 # 3. Chọn model cho brain. gpt: đọc vai brain của profile (đọc thật cả khi dry-run; lệnh chỉ đọc).

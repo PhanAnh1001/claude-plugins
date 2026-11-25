@@ -2,6 +2,10 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.70.1 — 2026-11-25
+
+- `new-agent-paseo`: bước kiểm native không còn chặn nhầm khi gọi từ phiên Claude để mở brain GPT. `pick` xét native theo phiên đang gọi nên vai code GPT báo `caller provider unknown, ambiguous or different`; phiên brain mới đúng provider mới được native. Chỉ dừng (và khôi phục cấu hình) khi native false vì lý do khác như guard chặn. Thêm 2 test.
+
 ## 0.70.0 — 2026-11-25
 
 - Đổi tên `open-gpt-brain` thành `new-agent-paseo` (bin, skill, lệnh `/hybrid-hands:new-agent-paseo`, test); tên cũ không còn. Lệnh Claude chưa có `--brain` thì hỏi chọn bằng AskUserQuestion: GPT v1 (gpt-6.1-sol high), Claude v1, Claude v2 (Opus high). Terminal thiếu `--brain` hiện menu `select`; không có terminal thì báo lỗi kèm lựa chọn, không ghi gì. Thêm giá trị `--brain gpt-v1` (giữ bí danh `gpt`, `sol`). Skill Codex tương ứng: `$new-agent-paseo` ở plugin Codex hybrid-hands 0.3.0.

@@ -27,7 +27,8 @@ if args[:2] == ["profile", "set"]:
     data["profile"] = args[2]
     json.dump(data, open(path, "w"))
 elif args[0] == "pick":
-    print(json.dumps({"native": True}))
+    reason = os.environ.get("FAKE_NATIVE_REASON")
+    print(json.dumps({"native": reason is None, "native_reason": reason or "native eligible"}))
 elif args[0] == "profile":
     print(json.dumps({"roles": {"brain": {"provider": "codex", "account": "v1",
                                           "model": "gpt-6.1-sol", "effort": "high"}}}))
@@ -144,5 +145,23 @@ def test_missing_brain_without_tty_lists_choices(env_setup) -> None:
                             capture_output=True, stdin=subprocess.DEVNULL)
     assert result.returncode != 0
     assert "gpt-v1" in result.stderr and "claude-v2" in result.stderr
+    assert _cfg(root) == before
+    assert not _calls(log, "paseo run")
+
+
+def test_native_false_from_other_caller_provider_still_opens(env_setup) -> None:
+    env, root, log = env_setup
+    env = {**env, "FAKE_NATIVE_REASON": "caller provider unknown, ambiguous or different"}
+    result = _run(env, root, "--brain", "gpt-v1")
+    assert result.returncode == 0, result.stderr
+    assert _calls(log, "paseo run")
+
+
+def test_native_blocked_for_other_reason_rolls_back(env_setup) -> None:
+    env, root, log = env_setup
+    before = _cfg(root)
+    result = _run({**env, "FAKE_NATIVE_REASON": "day guard blocked"}, root, "--brain", "gpt-v1")
+    assert result.returncode != 0
+    assert "day guard blocked" in result.stderr
     assert _cfg(root) == before
     assert not _calls(log, "paseo run")
