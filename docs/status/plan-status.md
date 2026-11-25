@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-25 · commit `4717721`
+Cập nhật 2026-11-25 · commit `7a8f61a`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-25 · commit `4717721`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 89 commit.
+- **Hoạt động 14 ngày:** 69 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-89 commit.
+69 commit.
 
+- 2026-11-24 7a8f61a docs(status): tự cập nhật trang tình hình
 - 2026-11-24 4717721 docs(status): tự cập nhật trang tình hình
 - 2026-11-23 d93d8d2 docs(status): tự cập nhật trang tình hình
 - 2026-11-23 70bc498 docs(status): tự cập nhật trang tình hình
 - 2026-11-23 e860ad5 feat(hybrid-hands): hand mặc định không commit/push, chỉ gói Git riêng do brain chỉ thị (0.68.3)
-- 2026-11-23 76bf95a fix(hybrid-hands): test nặng chỉ hạ ưu tiên bằng nice -n 19, bỏ taskpolicy -b (0.68.2)
