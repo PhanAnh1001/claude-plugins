@@ -33,7 +33,7 @@ try {
   } else {
   // Do not return provider text; just classify this current metadata event.
   const quota = agent.attentionReason === 'error' && typeof agent.lastError === 'string'
-    && /(?:usage.?limit|rate.?limit|quota|limit.?reached|out of usage)/i.test(agent.lastError)
+    && /(?:usage.?limit|rate.?limit|quota|limit.?reached|out of usage|hit your [^.]*limit)/i.test(agent.lastError)
     && !/(?:capacity|overload|prefill_cap)/i.test(agent.lastError);
   const stamp = quota ? Date.parse(agent.attentionTimestamp) / 1000 : null;
   const idle = (agent.status === 'idle' || (agent.status === 'error' && quota))

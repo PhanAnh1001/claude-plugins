@@ -2,6 +2,11 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.69.1 — 2026-11-25
+
+- limit-watch: phiên brain Paseo dùng Claude dính hạn mức 5 giờ giờ cũng được gửi `làm tiếp` đúng một lần sau giờ reset. Trước đây watcher chỉ nhận lỗi quota qua `attentionReason=error` kèm `lastError` của Paseo, nhưng Claude Code kết thúc lượt bằng một tin assistant tổng hợp (`isApiErrorMessage`, `error: rate_limit`) nên Paseo thấy agent idle bình thường; target đứng `armed` mãi (sự cố 25/11/2026: chặn lúc 06:05, reset 10:50, không gửi gì). Thêm `limit_watch/transcript.py` đọc cờ lỗi của mục hội thoại cuối trong transcript chính và giờ reset được báo; regex bridge nhận thêm "hit your … limit".
+- Soạn sáng 25/11/2026 dưới tên 0.68.4, chưa commit; đưa lên trên 0.69.0 và commit cùng ngày.
+
 ## 0.69.0 — 2026-11-25
 
 - Thêm `bin/open-gpt-brain`, skill `open-gpt-brain` và lệnh `/hybrid-hands:open-gpt-brain`: một lệnh đặt profile `gpt-mono` cho repo, bật `ext_hand.native.{claude,codex}=auto` (kiểm `pick --role code` trả native), rồi mở phiên Paseo main brain ở tab mới cùng workspace và kiểm `ParentAgentId` là null (gọi từ trong phiên Paseo thì tự `paseo agent detach`). `--brain gpt|claude-v1|claude-v2`: gpt đọc vai brain của profile, Claude mở `claude-opus-5-5` high trên đúng tài khoản. Lỗi trước khi mở phiên thì khôi phục `.claude/hybrid-hands.json`. Script tìm `hand-ext` cùng thư mục bin (theo cả symlink). Chuyển từ skill cá nhân `~/.claude/skills/open-gpt-brain`; Codex dùng skill `$open-gpt-brain` của plugin Codex hybrid-hands 0.2.0 gọi cùng script.

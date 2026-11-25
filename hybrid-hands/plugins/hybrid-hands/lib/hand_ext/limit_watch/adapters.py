@@ -54,7 +54,19 @@ def runtime(target):
         if st.status in ACTIVE_STATUSES:
             result['idle'] = False
         return result
-    return bridge(target)
+    return with_transcript_block(target, bridge(target))
+
+
+def with_transcript_block(target, live):
+    """Claude Code reports a 429 as an ordinary finished turn; read its flag."""
+    if (not live.get('valid') or live.get('blocked_at') is not None
+            or target.get('provider') != 'claude'):
+        return live
+    from .transcript import last_quota_stop
+    stop = last_quota_stop(Path(target['account_home']), target['cwd'], target['native_id'])
+    if stop is not None:
+        live = dict(live, blocked_at=stop.blocked_at, blocked_reset_at=stop.reset_at)
+    return live
 
 
 def send(target, prompt):

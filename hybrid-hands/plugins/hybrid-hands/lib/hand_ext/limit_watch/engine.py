@@ -7,6 +7,8 @@ import uuid
 FRESH_SECONDS = 1800
 RESET_BUFFER = 120
 TERMINAL = {'resumed', 'done', 'cancelled'}
+# Claude Code's quota message announces the 5-hour reset (see transcript.py).
+ANNOUNCED_WINDOW = 'five_hour'
 
 
 def number(value):
@@ -29,6 +31,14 @@ def record_block(target, at, windows):
     target.update(state='blocked', blocked_at=at,
                   blocking_windows={w['id']: dict(w) for w in windows if blocking(w)},
                   attempts=0, expected_reset_tried=False, retry_suspended=False)
+
+
+def announced_block(windows, block_at, reset_at):
+    """Add the reset Claude Code announced when no sampled window shows the block."""
+    if reset_at is None or any(blocking(w) for w in windows):
+        return windows
+    return [*windows, dict(id=ANNOUNCED_WINDOW, blocked=True, reset_at=reset_at,
+                           observed_at=block_at)]
 
 
 def eligibility(target, sample, now):
@@ -120,7 +130,8 @@ def tick(store, runtime, quotas, sender, guard, now):
                     if block_at is None or not after < block_at <= now:
                         continue
                     sample = quotas(target, now)
-                    record_block(target, block_at, sample.get('windows', []))
+                    record_block(target, block_at, announced_block(
+                        sample.get('windows', []), block_at, number(live.get('blocked_reset_at'))))
                     target['last_block_at'] = block_at
                 if target['state'] not in ('blocked', 'eligible') or not live.get('idle'):
                     continue

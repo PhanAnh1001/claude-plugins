@@ -1,5 +1,7 @@
 """Three acceptance scenarios; all account, CLI and transport data is synthetic."""
 import json
+import re
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import shutil
@@ -219,6 +221,27 @@ class LimitWatchTests(unittest.TestCase):
         self.tick(NOW+1)
         self.assertEqual(self.store.read()['targets']['fake']['state'], 'armed')
         self.assertEqual(self.sender.call_count, 1)
+
+    def test_paseo_transcript_429_resumes_once_after_announced_reset(self):
+        # 2026-11-25: Paseo showed an idle agent without lastError; only the
+        # Claude Code transcript flagged the 5-hour limit.
+        folder = self.root / 'projects' / re.sub(r'[^A-Za-z0-9]', '-', str(self.root))
+        folder.mkdir(parents=True)
+        stop = dict(type='assistant', isSidechain=False, isApiErrorMessage=True, error='rate_limit',
+                    timestamp=datetime.fromtimestamp(NOW-5, timezone.utc).isoformat(),
+                    message=dict(content=[dict(type='text', text="You've hit your 5-hour limit"
+                                               ' · resets 3:10pm (Asia/Saigon)')]))  # NOW+600
+        (folder / 'native-fake.jsonl').write_text('{"type":"user"}\n' + json.dumps(stop) + '\n')
+        self.seed()
+        self.quota.return_value = dict(complete=False, windows=[])
+        bridge = dict(valid=True, idle=True, blocked_at=None)
+        with patch.object(adapters, 'bridge', return_value=bridge):
+            for now in (NOW, NOW+600, NOW+800, NOW+900, NOW+5000):
+                engine.tick(self.store, adapters.runtime, self.quota, self.sender, lambda *_: True, now)
+                if now == NOW+600:  # before reset + buffer: still waiting
+                    self.sender.assert_not_called()
+        self.assertEqual(self.sender.call_count, 1)
+        self.assertEqual(self.store.read()['targets']['fake']['state'], 'armed')
 
     def test_done_rejects_pending_and_registration_rearms(self):
         self.seed()

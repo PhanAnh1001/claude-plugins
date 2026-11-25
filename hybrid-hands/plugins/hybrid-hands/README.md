@@ -56,7 +56,7 @@ Brain ghi file JSON metadata/checkpoint công khai được, không chứa secre
 
 Sol dùng `adapter: "side"` và thêm `side_name`, `side_uuid` lấy từ metadata side-session; giữ các ID Paseo/native/cwd ở trên. Tên không đủ để xác định phiên: UUID và các ID được kiểm lại trong send lock. Đường này tái dùng action của `side-session send`, gồm preflight, restore, marker history và watchdog; guard cấm role `main` giữ nguyên. Brain dùng adapter `paseo`, không gọi `side-session send` cho main.
 
-Nên đăng ký trước khi quota hết: target ở `armed`, quota còn thì im lặng. Khi phiên báo lỗi quota trong metadata public, watcher ghi `blocked`. Nếu đăng ký **sau khi đã bị chặn**, thêm quan sát rõ ràng của chính phiên đó (Unix epoch giây thực, không dùng các số ví dụ dưới):
+Nên đăng ký trước khi quota hết: target ở `armed`, quota còn thì im lặng. Khi phiên báo lỗi quota trong metadata public, hoặc (phiên Claude) mục cuối của transcript chính là lỗi `rate_limit` của Claude Code ("You've hit your 5-hour limit · resets …"; Paseo khi đó chỉ thấy lượt idle bình thường), watcher ghi `blocked` và lấy giờ reset trong thông báo làm mốc dự phòng. Nếu đăng ký **sau khi đã bị chặn**, thêm quan sát rõ ràng của chính phiên đó (Unix epoch giây thực, không dùng các số ví dụ dưới):
 
 ```json
 {
