@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-26 · commit `77d965e`
+Cập nhật 2026-11-27 · commit `d0fc1d9`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-26 · commit `77d965e`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 68 commit.
+- **Hoạt động 14 ngày:** 67 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-68 commit.
+67 commit.
 
+- 2026-11-26 d0fc1d9 docs(status): tự cập nhật trang tình hình
 - 2026-11-26 77d965e docs(dev-workflow): 0.12.1 hướng dẫn cài OneDrive sync trên macOS, lệnh dw onedrive guide
 - 2026-11-26 9f55aa5 feat(dev-workflow): 0.12.0 dw onedrive dùng thư mục OneDrive đã đồng bộ về máy, không cần đăng nhập Graph; thêm lệnh discover
 - 2026-11-26 b8c2755 feat(dev-workflow): 0.11.0 dw onedrive đăng nhập device code, tạo thư mục, tải lên, đọc file trong thư mục dự án trên OneDrive/SharePoint
 - 2026-11-25 ffb115e docs(status): tự cập nhật trang tình hình
-- 2026-11-26 15e19e9 feat(hybrid-hands): 0.71.0 new-agent-paseo hỏi thêm Context: mới hoặc mang bàn giao từ phiên hiện tại
