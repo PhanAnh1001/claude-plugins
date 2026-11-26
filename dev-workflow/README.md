@@ -88,7 +88,7 @@ Nếu repo dùng `.gitignore` chặn `.claude/*`, cần thêm dòng `!.claude/de
 "<plugin>/scripts/dw" config [--get section.key] [--json]   # config đã gộp mặc định
 "<plugin>/scripts/dw" trace [--write] [--format md|json]      # truy vết ID → task → test
 "<plugin>/scripts/dw" template design|plan|bug|cr|adr|traceability
-"<plugin>/scripts/dw" onedrive login|logout|whoami|folders|discover|ls|mkdir|put|get   # OneDrive/SharePoint qua Graph hoặc thư mục đồng bộ
+"<plugin>/scripts/dw" onedrive guide|login|logout|whoami|folders|discover|ls|mkdir|put|get   # OneDrive/SharePoint qua Graph hoặc thư mục đồng bộ
 ```
 
 `dw onedrive` chỉ thao tác trong các thư mục khai báo ở `[onedrive].folders`, đường dẫn dạng `<alias>:<đường/dẫn>`.

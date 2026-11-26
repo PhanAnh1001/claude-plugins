@@ -1,6 +1,6 @@
 ---
 name: onedrive
-description: Work with the project's OneDrive / SharePoint folders using `dw onedrive`, either through Microsoft Graph (device-code sign-in) or through a folder synced to this machine by the OneDrive app (no sign-in, no app registration) - discover synced folders, sign in with a device code, list the configured folder aliases, list a folder, create nested folders, upload a file (no overwrite unless asked, large files through an upload session) and read or download a file. Only folders configured in `[onedrive].folders` of .claude/dev-workflow.toml are reachable. Use whenever the user wants to put a report or file on OneDrive/SharePoint, read a file from there, or set up the project's OneDrive folders. Vietnamese triggers - "onedrive", "sharepoint", "đưa lên onedrive", "tải lên onedrive", "tạo thư mục onedrive", "đọc file onedrive", "đăng nhập onedrive", "thư mục dự án trên onedrive", "đồng bộ onedrive", "thư mục onedrive trên máy".
+description: Work with the project's OneDrive / SharePoint folders using `dw onedrive`, either through Microsoft Graph (device-code sign-in) or through a folder synced to this machine by the OneDrive app (no sign-in, no app registration) - discover synced folders, sign in with a device code, list the configured folder aliases, list a folder, create nested folders, upload a file (no overwrite unless asked, large files through an upload session) and read or download a file. Only folders configured in `[onedrive].folders` of .claude/dev-workflow.toml are reachable. Use whenever the user wants to put a report or file on OneDrive/SharePoint, read a file from there, or set up the project's OneDrive folders. Vietnamese triggers - "onedrive", "sharepoint", "đưa lên onedrive", "tải lên onedrive", "tạo thư mục onedrive", "đọc file onedrive", "đăng nhập onedrive", "thư mục dự án trên onedrive", "đồng bộ onedrive", "thư mục onedrive trên máy", "cài onedrive", "cài đồng bộ onedrive macos", "hướng dẫn onedrive".
 ---
 
 # onedrive
@@ -10,7 +10,7 @@ description: Work with the project's OneDrive / SharePoint folders using `dw one
 - **Purpose:** let the agent create folders, upload, list and read files in the project's OneDrive /
   SharePoint folders without a browser. Two backends, chosen per alias: Microsoft Graph with delegated (user)
   permissions (`https://` value) or a folder synced locally by the OneDrive app (`~/` or `/` value, section 1b).
-- **Command:** `"${CLAUDE_PLUGIN_ROOT}/scripts/dw" onedrive <login|logout|whoami|folders|discover|ls|mkdir|put|get>`,
+- **Command:** `"${CLAUDE_PLUGIN_ROOT}/scripts/dw" onedrive <guide|login|logout|whoami|folders|discover|ls|mkdir|put|get>`,
   run from the repo root (or pass `--config PATH`). Remote paths are `<alias>:<sub/path>`.
 - **Config keys:** `onedrive.client_id`, `onedrive.tenant`, `onedrive.folders`.
 - **Exit codes:** `0` ok · `1` Graph/network error or conflict (file exists) · `2` usage/config error or not
@@ -33,7 +33,8 @@ folder name and webUrl; a local alias prints its path and `exists`/`missing`). `
 ## 1b. Local backend (synced folder)
 
 Use it when the company will not approve a Graph app (no `client_id`); use Graph when the OneDrive app cannot be
-installed (servers, CI) or the machine must not keep a synced copy.
+installed (servers, CI) or the machine must not keep a synced copy. Full install, sign-in, shared-folder and
+troubleshooting steps: `references/macos-sync-setup.md`, printed by `dw onedrive guide` (no config needed).
 
 1. Install the OneDrive app: the user runs `! brew install --cask onedrive` (it asks for the machine password),
    then opens OneDrive and signs in with the work account.
@@ -59,6 +60,7 @@ installed (servers, CI) or the machine must not keep a synced copy.
 
 | Command | Does |
 |---|---|
+| `guide [--topic macos-sync]` | Prints a setup guide verbatim; needs no config; unknown topic -> exit 2 with the list |
 | `ls <alias>:[path] [--json]` | One line per child: `d|f<TAB>name<TAB>size<TAB>lastModified` |
 | `mkdir <alias>:<path> [--dry-run]` | Creates missing folders (like `mkdir -p`); fails if a segment is a file; prints the webUrl |
 | `put <file> <alias>:<path> [--mkdir] [--overwrite] [--dry-run]` | Uploads; a path ending in `/` or an existing folder gets the local file name; existing file -> exit 1 unless `--overwrite`; files > 4 MiB go through an upload session; prints name, size, webUrl |

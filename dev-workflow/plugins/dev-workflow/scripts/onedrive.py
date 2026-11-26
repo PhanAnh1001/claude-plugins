@@ -227,6 +227,23 @@ def cmd_get(ctx: Context, args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+# Setup guides shipped with the skill, printed verbatim by `guide` (no config, no network).
+GUIDES_DIR = Path(__file__).resolve().parent.parent / "skills" / "onedrive" / "references"
+GUIDE_TOPICS: dict[str, str] = {"macos-sync": "macos-sync-setup.md"}
+DEFAULT_GUIDE_TOPIC = "macos-sync"
+GUIDE_COMMAND = "guide"
+
+
+def cmd_guide(args: argparse.Namespace) -> int:
+    file_name = GUIDE_TOPICS.get(args.topic)
+    if file_name is None:
+        print(f"{PROG}: unknown guide topic {args.topic!r}; available: {', '.join(sorted(GUIDE_TOPICS))}",
+              file=sys.stderr)
+        return EXIT_USAGE
+    sys.stdout.write((GUIDES_DIR / file_name).read_text(encoding="utf-8"))
+    return EXIT_OK
+
+
 COMMANDS: dict[str, Callable[[Context, argparse.Namespace], int]] = {
     "login": cmd_login, "logout": cmd_logout, "whoami": cmd_whoami, "folders": cmd_folders, "discover": cmd_discover,
     "ls": cmd_ls, "mkdir": cmd_mkdir, "put": cmd_put, "get": cmd_get,
@@ -258,7 +275,9 @@ def build_parser() -> argparse.ArgumentParser:
     get = sub.add_parser("get", help="download a file to --out or stdout")
     get.add_argument("remote", metavar="ALIAS:PATH")
     get.add_argument("--out", metavar="FILE")
-    for child in (login, logout, whoami, folders, discover, ls, mkdir, put, get):
+    guide = sub.add_parser(GUIDE_COMMAND, help="print a setup guide (no config needed)")
+    guide.add_argument("--topic", default=DEFAULT_GUIDE_TOPIC, help=f"one of: {', '.join(sorted(GUIDE_TOPICS))}")
+    for child in (guide, login, logout, whoami, folders, discover, ls, mkdir, put, get):
         child.add_argument("--config", default=argparse.SUPPRESS, help=argparse.SUPPRESS)
     return parser
 
@@ -266,6 +285,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None, transport: Transport = urllib_transport,
          sleep: Callable[[float], None] = time.sleep) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == GUIDE_COMMAND:
+        return cmd_guide(args)
     try:
         ctx = Context(load_settings(args.config), transport, sleep)
         return COMMANDS[args.command](ctx, args)
