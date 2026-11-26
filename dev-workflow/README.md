@@ -7,7 +7,7 @@
 - **Thành phần:**
   - **13 skill quy trình:** khởi tạo dự án mới, phân luồng L0–L3, spec/plan, điều tra bug, đo đạc, migration, review,
     chốt phiên, Jira, truy vết, khôi phục việc, port giữa repo, chỉnh UI.
-  - **Wrapper `dw`:** đọc config, kiểm tra truy vết, chọn template.
+  - **Wrapper `dw`:** đọc config, kiểm tra truy vết, chọn template, thao tác OneDrive/SharePoint (`dw onedrive`).
   - **Hook SessionStart:** nhắc agent dùng skill, chỉ bật khi repo có config.
   - **Hook báo nạp skill (PreToolUse, tool `Skill`):** luôn bật, mỗi lần nạp skill (của bất kỳ plugin nào) hiện dòng
     "🔧 Skill: <tên skill>". Trong phiên tương tác, dòng này chỉ hiện khi mở transcript (`Ctrl+O`); với
@@ -78,6 +78,7 @@ dùng dòng đó làm nguồn dự phòng.
 | `[jira]` | Project, hệ số estimate, ngôn ngữ, các mục của mô tả, runbook |
 | `[frontend]` | Lệnh chạy dev, các lệnh kiểm tra, ngôn ngữ giao diện |
 | `[lanes]` | Số file tối đa của làn L0 |
+| `[onedrive]` | App ID public client Entra (`client_id`), tenant, bảng alias → URL thư mục OneDrive/SharePoint của dự án (`folders`) |
 
 Nếu repo dùng `.gitignore` chặn `.claude/*`, cần thêm dòng `!.claude/dev-workflow.toml`.
 
@@ -87,7 +88,12 @@ Nếu repo dùng `.gitignore` chặn `.claude/*`, cần thêm dòng `!.claude/de
 "<plugin>/scripts/dw" config [--get section.key] [--json]   # config đã gộp mặc định
 "<plugin>/scripts/dw" trace [--write] [--format md|json]      # truy vết ID → task → test
 "<plugin>/scripts/dw" template design|plan|bug|cr|adr|traceability
+"<plugin>/scripts/dw" onedrive login|logout|whoami|folders|ls|mkdir|put|get   # OneDrive/SharePoint qua Graph
 ```
+
+`dw onedrive` chỉ thao tác trong các thư mục khai báo ở `[onedrive].folders`, đường dẫn dạng `<alias>:<đường/dẫn>`;
+đăng nhập bằng device code, refresh token lưu trong Keychain (macOS) hoặc file 0600. Mã thoát: 0 xong, 1 lỗi
+Graph/mạng/file đã tồn tại, 2 lỗi lệnh/config/chưa đăng nhập.
 
 Mã thoát của `dw trace`:
 - **0:** đủ liên kết.
@@ -114,6 +120,7 @@ Mã thoát của `dw trace`:
 | Kết thúc | `plan-status` | Trang tình hình plan (bảng, thanh tiến độ, Mermaid) đọc trên điện thoại qua GitHub; tuỳ chọn HTML tự chứa; chạy `dw plan-status`, nhiều trang cho dự án con qua `.claude/plan-status.toml`, khoá `ref` đọc plan từ nhánh chưa merge; `dw plan-status init` triển khai sang repo mới (cấu hình + workflow gọi Action dùng chung `dev-workflow/actions/plan-status` + luật AGENTS.md) |
 | Kết thúc | `jira-workflow` | Tìm/tạo task, estimate ×hệ số, log work, Done |
 | Khôi phục | `resume-work` | Hết context, lỗi 529, hand chết, mất việc |
+| Tiện ích | `onedrive` | Đăng nhập OneDrive/SharePoint, tạo thư mục, tải file lên, đọc file trong thư mục dự án đã cấu hình (`dw onedrive`) |
 
 ### 3.2 Skill nghiệp vụ (nằm trong từng repo)
 

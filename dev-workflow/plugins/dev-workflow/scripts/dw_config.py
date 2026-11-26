@@ -76,6 +76,11 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "lanes": {
         "l0_max_files": 2,
     },
+    "onedrive": {  # read by onedrive.py (`dw onedrive`)
+        "client_id": "",  # Entra public client app ID (not a secret); empty -> commands that need Graph exit 2
+        "tenant": "organizations",
+        "folders": {},  # alias -> sharing URL or web URL of a OneDrive/SharePoint folder
+    },
     "plan_status": {  # read by plan_status.py when .claude/plan-status.toml is absent
         "out_dir": "docs/status",
         "exclude": [],

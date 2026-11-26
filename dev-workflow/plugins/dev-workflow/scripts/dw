@@ -5,6 +5,7 @@
 #   dw template <design|plan|bug|cr|adr|traceability> [--config PATH] -> dw_template.py
 #   dw plan-status --repo PATH [--page NAME] [--out DIR] [--html] [--days N] -> plan_status.py
 #   dw plan-status init --repo PATH [--write] [--force]  -> plan_status_init.py
+#   dw onedrive <login|logout|whoami|folders|ls|mkdir|put|get> ... -> onedrive.py
 #   dw python                                           -> print the chosen interpreter command
 # Exit code: the child script's exit code; 2 for usage errors or when no interpreter is found.
 
@@ -24,6 +25,7 @@ usage() {
   echo "       dw template <design|plan|bug|cr|adr|traceability> [--config PATH]"
   echo "       dw plan-status --repo PATH [--page NAME] [--out DIR] [--html] [--days N]"
   echo "       dw plan-status init --repo PATH [--write] [--force]"
+  echo "       dw onedrive <login|logout|whoami|folders|ls|mkdir|put|get> [--config PATH] ..."
   echo "       dw python"
 }
 
@@ -49,6 +51,7 @@ case "$COMMAND" in
       shift
     fi
     ;;
+  onedrive) TARGET="onedrive.py" ;;
   python)
     require_python
     echo "${DW_PYTHON[*]}"

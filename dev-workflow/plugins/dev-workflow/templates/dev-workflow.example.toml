@@ -81,3 +81,14 @@ guide = ""
 [lanes]
 # Lane L0 (quick fix) allows at most this many changed files.
 l0_max_files = 2
+
+[onedrive]
+# Microsoft Entra ID public client app (device code flow allowed, delegated Files.ReadWrite.All).
+# The app ID is not a secret; empty disables `dw onedrive` commands that call Graph.
+client_id = ""
+# Tenant ID or domain; "organizations" accepts any work or school account.
+tenant = "organizations"
+# Project folders the agent may use: alias = sharing URL or web URL of a OneDrive/SharePoint folder.
+# Remote paths are written <alias>:<sub/path>; only these aliases are accepted.
+folders = {}
+# Example: folders = { luxian = "https://contoso.sharepoint.com/:f:/s/team/EAbc..." }
