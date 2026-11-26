@@ -78,7 +78,7 @@ dùng dòng đó làm nguồn dự phòng.
 | `[jira]` | Project, hệ số estimate, ngôn ngữ, các mục của mô tả, runbook |
 | `[frontend]` | Lệnh chạy dev, các lệnh kiểm tra, ngôn ngữ giao diện |
 | `[lanes]` | Số file tối đa của làn L0 |
-| `[onedrive]` | App ID public client Entra (`client_id`), tenant, bảng alias → URL thư mục OneDrive/SharePoint của dự án (`folders`) |
+| `[onedrive]` | App ID public client Entra (`client_id`), tenant, bảng alias → URL thư mục OneDrive/SharePoint (backend Graph) hoặc đường dẫn `~/...` thư mục OneDrive đã đồng bộ về máy (backend local, không cần đăng nhập) (`folders`) |
 
 Nếu repo dùng `.gitignore` chặn `.claude/*`, cần thêm dòng `!.claude/dev-workflow.toml`.
 
@@ -88,11 +88,13 @@ Nếu repo dùng `.gitignore` chặn `.claude/*`, cần thêm dòng `!.claude/de
 "<plugin>/scripts/dw" config [--get section.key] [--json]   # config đã gộp mặc định
 "<plugin>/scripts/dw" trace [--write] [--format md|json]      # truy vết ID → task → test
 "<plugin>/scripts/dw" template design|plan|bug|cr|adr|traceability
-"<plugin>/scripts/dw" onedrive login|logout|whoami|folders|ls|mkdir|put|get   # OneDrive/SharePoint qua Graph
+"<plugin>/scripts/dw" onedrive login|logout|whoami|folders|discover|ls|mkdir|put|get   # OneDrive/SharePoint qua Graph hoặc thư mục đồng bộ
 ```
 
-`dw onedrive` chỉ thao tác trong các thư mục khai báo ở `[onedrive].folders`, đường dẫn dạng `<alias>:<đường/dẫn>`;
-đăng nhập bằng device code, refresh token lưu trong Keychain (macOS) hoặc file 0600. Mã thoát: 0 xong, 1 lỗi
+`dw onedrive` chỉ thao tác trong các thư mục khai báo ở `[onedrive].folders`, đường dẫn dạng `<alias>:<đường/dẫn>`.
+Có hai backend theo giá trị alias: URL `https://` đi qua Microsoft Graph; đường dẫn `~/...` hoặc `/...` là thư mục
+ứng dụng OneDrive đã đồng bộ về máy (thao tác file cục bộ, không cần `client_id` hay đăng nhập; `dw onedrive discover`
+liệt kê các thư mục đồng bộ). Với Graph: đăng nhập bằng device code, refresh token lưu trong Keychain (macOS) hoặc file 0600. Mã thoát: 0 xong, 1 lỗi
 Graph/mạng/file đã tồn tại, 2 lỗi lệnh/config/chưa đăng nhập.
 
 Mã thoát của `dw trace`:
