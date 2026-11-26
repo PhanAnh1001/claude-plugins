@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-26 · commit `15e19e9`
+Cập nhật 2026-11-26 · commit `77d965e`
 
 ## Tóm tắt
 
@@ -8,7 +8,7 @@ Cập nhật 2026-11-26 · commit `15e19e9`
 - **Plan:** 9 đang mở, 3 xong / 12 plan.
 - **Đang chạy:** Plan: đồng bộ tài sản tài khoản (70%), Plan: hh-store (giai đoạn 1 + 2) (67%), Plan: hand-ext lưu brief/prompt/meta/timestamp và lệnh đo test code (hybrid-hands 0.22.0) (67%).
 - **Việc kế tiếp:** P1.2 — overlay Codex và ranh giới: file dự kiến account_sync_manifest.py, account_sync_as… — _Plan: đồng bộ tài sản tài kho…_.
-- **Hoạt động 14 ngày:** 70 commit.
+- **Hoạt động 14 ngày:** 68 commit.
 
 ## Ghi chú (giữ tay)
 
@@ -57,10 +57,10 @@ pie showData
 
 ## Hoạt động 14 ngày qua
 
-70 commit.
+68 commit.
 
+- 2026-11-26 77d965e docs(dev-workflow): 0.12.1 hướng dẫn cài OneDrive sync trên macOS, lệnh dw onedrive guide
+- 2026-11-26 9f55aa5 feat(dev-workflow): 0.12.0 dw onedrive dùng thư mục OneDrive đã đồng bộ về máy, không cần đăng nhập Graph; thêm lệnh discover
+- 2026-11-26 b8c2755 feat(dev-workflow): 0.11.0 dw onedrive đăng nhập device code, tạo thư mục, tải lên, đọc file trong thư mục dự án trên OneDrive/SharePoint
+- 2026-11-25 ffb115e docs(status): tự cập nhật trang tình hình
 - 2026-11-26 15e19e9 feat(hybrid-hands): 0.71.0 new-agent-paseo hỏi thêm Context: mới hoặc mang bàn giao từ phiên hiện tại
-- 2026-11-25 950f177 fix(hybrid-hands): 0.70.1 new-agent-paseo không chặn nhầm khi phiên gọi khác provider với vai code
-- 2026-11-25 949eef2 feat(hybrid-hands): 0.70.0 đổi open-gpt-brain thành new-agent-paseo, hỏi chọn GPT v1 / Claude v1 / Claude v2
-- 2026-11-25 6c98f39 fix(hybrid-hands): 0.69.1 limit-watch nhận lỗi hạn mức 5 giờ của Claude Code từ transcript, gửi làm tiếp sau giờ reset
-- 2026-11-25 34f071e feat(hybrid-hands): 0.69.0 open-gpt-brain — đổi sang gpt-mono + native, mở phiên Paseo main brain ở tab mới
