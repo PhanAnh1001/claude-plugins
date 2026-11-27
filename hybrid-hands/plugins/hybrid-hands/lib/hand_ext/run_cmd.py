@@ -170,11 +170,11 @@ def apply_role(cfg: ExtConfig, args: argparse.Namespace) -> Optional[str]:
         return "--tier/--escalated-from cần --role" if tier is not None or escalated else None
     if escalated and tier != ESCALATED_TIER:
         return f"--escalated-from chỉ dùng với --tier {ESCALATED_TIER}"
-    from shared_config import load_config as load_shared
     from .profile_cmd import backend_name
     from .profiles import ProfileError, role_spec
+    from .session_profile import load_with_session
     try:
-        spec = role_spec(load_shared(Path(args.cwd) if args.cwd else cfg.root).effective,
+        spec = role_spec(load_with_session(Path(args.cwd) if args.cwd else cfg.root, os.environ).effective,
                          role, tier)
     except ProfileError as exc:
         return str(exc)

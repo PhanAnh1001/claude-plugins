@@ -9,7 +9,7 @@ from __future__ import annotations
 import copy
 from typing import Optional
 
-from hand_ext.constants import (MODEL_CAPABILITIES, PROFILE_KEY, PROFILE_NAMES,
+from hand_ext.constants import (MODEL_CAPABILITIES, PROFILE_ALIASES, PROFILE_KEY, PROFILE_NAMES,
                                 PROFILE_OVERRIDES_KEY, PROVIDER_EFFORTS)
 
 SPEC_FIELDS = ("provider", "account", "model", "effort")
@@ -25,8 +25,6 @@ def _cell(provider: str, account: str, model: str, effort: str) -> dict:
     return {"provider": provider, "account": account, "model": model, "effort": effort}
 
 
-_SONNET_LOW = _cell("claude", "v1", "claude-sonnet-5-5", "low")
-_SONNET_MEDIUM = _cell("claude", "v1", "claude-sonnet-5-5", "medium")
 # Model GPT do người dùng chốt 16/11/2026: sol cho brain/code, terra low cho cả hai bậc thu thập.
 _SOL_LOW = _cell("codex", "v1", "gpt-6.1-sol", "low")
 _TERRA_LOW = _cell("codex", "v1", "gpt-6.1-terra", "low")
@@ -37,13 +35,25 @@ _GPT_MONO = {
     "chrome": {"1": _cell("claude", "v2", "claude-sonnet-5-5", "low"),
                "2": _cell("claude", "v2", "claude-sonnet-5-5", "medium")},
 }
+
+
+def _claude_mono(account: str) -> dict:
+    """Mọi vai Claude trên một tài khoản: opus cho brain/code, sonnet cho hai bậc thu thập."""
+    low = _cell("claude", account, "claude-sonnet-5-5", "low")
+    medium = _cell("claude", account, "claude-sonnet-5-5", "medium")
+    return {
+        "brain": _cell("claude", account, "claude-opus-5-5", "high"),
+        "code": _cell("claude", account, "claude-opus-5-5", "low"),
+        "collect": {"1": low, "2": medium},
+        "chrome": {"1": dict(low), "2": dict(medium)},
+    }
+
+
+CLAUDE_MONO = "claude-mono"
+CLAUDE_MONO_ACCOUNTS = {"v1": CLAUDE_MONO, "v2": "claude-mono-v2"}
 DEFAULT_PROFILES = {
-    "claude-mono": {
-        "brain": _cell("claude", "v1", "claude-opus-5-5", "high"),
-        "code": _cell("claude", "v1", "claude-opus-5-5", "low"),
-        "collect": {"1": _SONNET_LOW, "2": _SONNET_MEDIUM},
-        "chrome": {"1": _SONNET_LOW, "2": _SONNET_MEDIUM},
-    },
+    CLAUDE_MONO: _claude_mono("v1"),
+    "claude-mono-v2": _claude_mono("v2"),
     "gpt-mono": _GPT_MONO,
     "hybrid": {**_GPT_MONO, "super": _cell("claude", "v2", "claude-opus-5-5", "high")},
 }
@@ -53,8 +63,26 @@ class ProfileError(ValueError):
     """Missing/unknown profile or an invalid role cell; message names the config key."""
 
 
+SPELLINGS = "claude-mono [v1|v2], claude-mono-v1, claude-mono-v2, gpt-mono, hybrid"
+
+
+def normalize_profile(name: str, account: Optional[str] = None) -> str:
+    """Canonical profile name from `claude-mono v2`, `claude-mono-v1`, `hybrid`, ...; else ProfileError."""
+    parts = str(name or "").split()
+    if account is not None:
+        parts.append(account)
+    base = PROFILE_ALIASES.get(parts[0], parts[0]) if parts else ""
+    if len(parts) == 1 and base in PROFILE_NAMES:
+        return base
+    if len(parts) == 2 and parts[0] == CLAUDE_MONO and parts[1] in CLAUDE_MONO_ACCOUNTS:
+        return CLAUDE_MONO_ACCOUNTS[parts[1]]
+    raise ProfileError(f"Profile {' '.join(parts)!r} không hợp lệ; viết một trong: {SPELLINGS} "
+                       f"(v1|v2 chỉ đi sau claude-mono).")
+
+
 def active_profile(cfg: dict) -> str:
     name = cfg.get(PROFILE_KEY)
+    name = PROFILE_ALIASES.get(name, name) if isinstance(name, str) else name
     if name in PROFILE_NAMES:
         return name
     state = "chưa đặt" if name is None else f"không hợp lệ ({name!r})"

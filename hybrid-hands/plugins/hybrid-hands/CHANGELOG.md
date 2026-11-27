@@ -2,6 +2,12 @@
 
 Lịch sử phát hành hybrid-hands, phiên bản mới nhất ở đầu.
 
+## 0.72.0 — 2026-11-27
+
+- Profile mới `claude-mono-v2`: như `claude-mono` nhưng mọi vai dùng Claude tài khoản v2 (brain Opus high, code Opus low, collect/chrome Sonnet low/medium). `claude-mono` giữ nghĩa v1, alias `claude-mono-v1`. CLI nhận dạng `claude-mono v1|v2` (`hand-ext profile set claude-mono v2` ghi `claude-mono-v2`); `/hybrid-hands:profile set` hỏi 4 lựa chọn.
+- Profile riêng phiên: `hand-ext profile session [NAME [v1|v2]] [--clear] [--json]` và lệnh `/hybrid-hands:profile-session`. Khoá theo `CLAUDE_CODE_SESSION_ID` hoặc `CODEX_THREAD_ID` (hook Claude dùng `session_id` payload), lưu ở `~/.hybrid-hands/session-profiles/`, file quá 30 ngày tự dọn. Ưu tiên phiên → repo → global → plugin; áp dụng ngay cho `pick/run --role`, `hand-ext profile` (nguồn `[session]`) và hook của phiên đó. Không đổi model của phiên đang chạy, không ghi `.claude/hybrid-hands.json`; phiên mới và `side-session start` dùng profile cấu hình; ngoài phiên Claude/Codex thì báo lỗi.
+- Test: `python3 -m unittest` 8 file (test_profiles, test_profile_cmd, test_hand_ext_pick_role, test_policy_mode, test_side_session_profile, test_hand_ext_run_role, test_side_session_config_b, test_shared_config) → 30 test OK; smoke CLI với state dir tạm: đặt `claude-mono v2` cho một phiên thì pick ra claude-v2, phiên khác vẫn claude-v1, hook hiện “riêng phiên”, ngoài phiên exit 2. Codex chưa chạy thử thực tế (core CLI đọc `CODEX_THREAD_ID`, chưa sửa plugin Codex).
+
 ## 0.71.0 — 2026-11-26
 
 - `new-agent-paseo` thêm lựa chọn context. Lệnh `/hybrid-hands:new-agent-paseo` hỏi một lần AskUserQuestion gồm Agent (GPT v1, Claude v1, Claude v2) và Context: "Context mới" (`--context new`, mặc định, không truyền thêm gì) hoặc "Context phiên hiện tại" (phiên đang gọi viết bàn giao vào `/tmp/new-agent-paseo-*.md` theo 6 mục rồi chạy với `--context-file`). Script gửi nội dung bàn giao (≤ 100 000 byte) vào cuối tin nhắn đầu của phiên mới với lời dặn tiếp nối; thiếu hoặc quá cỡ file thì dừng trước khi ghi cấu hình. Thêm 3 test. Skill Codex tương ứng ở plugin Codex hybrid-hands 0.4.0.

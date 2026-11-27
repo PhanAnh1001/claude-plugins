@@ -47,7 +47,7 @@ Mở phiên chính: `side-session start --main --name <tên>` (vai theo profile;
 `side-session start` đọc khoá `profile` của repo; thiếu thì báo lỗi kèm `hand-ext profile set <tên>` (chỉ đặt sau khi người dùng chốt). Cờ `--provider`/`--model`/`--effort`/`--account` thắng; ô vai của profile điền phần còn lại khi provider khớp ô:
 
 - `--main` ở profile `hybrid` → vai **super brain** (Claude v2 `claude-opus-5-5` high; tuỳ chọn `--model claude-fable-5-2 --effort low`). Super brain viết/duyệt spec và plan, mở phiên brain bằng `side-session start`, review bàn giao `.done`; không code, không gọi `hand-ext pick/run`.
-- Mọi phiên khác (phiên phụ ở mọi profile, `--main` ở profile mono) → vai **brain** (`claude-mono`: Claude v1 `claude-opus-5-5` high; `gpt-mono`/`hybrid`: GPT `gpt-6.1-sol` high).
+- Mọi phiên khác (phiên phụ ở mọi profile, `--main` ở profile mono) → vai **brain** (`claude-mono`: Claude v1 `claude-opus-5-5` high; `claude-mono-v2`: Claude v2 `claude-opus-5-5` high; `gpt-mono`/`hybrid`: GPT `gpt-6.1-sol` high).
 - Phiên được mở nhận biến `HYBRID_HANDS_ROLE=super|brain` để hook in đúng luật vai.
 
 Brain giao việc theo vai: trước mỗi lượt chạy `hand-ext pick --role code|collect|chrome [--tier 1|2] --json`; `native` true → subagent native đúng `model`/`effort`; `native` false → `hand-ext run --role … --tier …`. Tối đa 4 subagent song song khác file; thang 2 bậc B1 → B2 cho thu thập dữ liệu; hết quota không đổi tài khoản. Chi tiết ở [skill ext-hand](../ext-hand/SKILL.md). Đổi model/account/profile: mở phiên mới từ bàn giao, không `/model` giữa phiên.

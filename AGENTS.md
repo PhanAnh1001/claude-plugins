@@ -4,15 +4,15 @@ Tóm tắt: làm đúng phạm vi brief, giữ luật dữ liệu và kiểm ch�
 
 ## Phạm vi và vai trò
 
-**Profile theo repo:** mỗi repo bắt buộc có khoá `profile` = `claude-mono` | `gpt-mono` | `hybrid`; thiếu thì `hand-ext pick/run`, `side-session start` và hook báo lỗi kèm `hand-ext profile set <tên>`. Chỉ đặt profile sau khi người dùng chốt cho repo đó; đổi profile thì mở phiên mới. `hand-ext profile` in bảng vai hiệu lực và nguồn từng ô; ghi đè ô ở `profiles.<tên>.<vai>` (vai có bậc: `collect.1`, `collect.2`, `chrome.1`, `chrome.2`).
+**Profile theo repo:** mỗi repo bắt buộc có khoá `profile` = `claude-mono` | `claude-mono-v2` | `gpt-mono` | `hybrid`; thiếu thì `hand-ext pick/run`, `side-session start` và hook báo lỗi kèm `hand-ext profile set <tên>`. Chỉ đặt profile sau khi người dùng chốt cho repo đó; đổi profile thì mở phiên mới. `hand-ext profile` in bảng vai hiệu lực và nguồn từng ô; ghi đè ô ở `profiles.<tên>.<vai>` (vai có bậc: `collect.1`, `collect.2`, `chrome.1`, `chrome.2`). Profile riêng phiên: `hand-ext profile session <tên>` (lệnh `/hybrid-hands:profile-session`) chỉ đổi profile cho phiên đang chạy, ưu tiên trên repo/global; phiên mới dùng profile cấu hình.
 
-| Vai | `claude-mono` | `gpt-mono` | `hybrid` |
-|---|---|---|---|
-| super brain | không có | không có | Claude v2 `claude-opus-5-5` high |
-| brain | Claude v1 `claude-opus-5-5` high | GPT `gpt-6.1-sol` high | như `gpt-mono` |
-| code | Claude v1 `claude-opus-5-5` low | GPT `gpt-6.1-sol` low | như `gpt-mono` |
-| collect B1 / B2 | Claude v1 `claude-sonnet-5-5` low / medium | GPT `gpt-6.1-terra` low / low | như `gpt-mono` |
-| chrome B1 / B2 | Claude v1 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | như `gpt-mono` |
+| Vai | `claude-mono` | `claude-mono-v2` | `gpt-mono` | `hybrid` |
+|---|---|---|---|---|
+| super brain | không có | không có | không có | Claude v2 `claude-opus-5-5` high |
+| brain | Claude v1 `claude-opus-5-5` high | Claude v2 `claude-opus-5-5` high | GPT `gpt-6.1-sol` high | như `gpt-mono` |
+| code | Claude v1 `claude-opus-5-5` low | Claude v2 `claude-opus-5-5` low | GPT `gpt-6.1-sol` low | như `gpt-mono` |
+| collect B1 / B2 | Claude v1 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | GPT `gpt-6.1-terra` low / low | như `gpt-mono` |
+| chrome B1 / B2 | Claude v1 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | như `gpt-mono` |
 
 Đọc brief, AGENTS.md/CLAUDE.md ở thư mục áp dụng trước khi sửa. Brief thiếu PHẠM VI GHI hoặc ghi CHỈ ĐỌC thì chỉ đọc; không mở rộng phạm vi. Giữ thay đổi chưa commit của người khác; cùng file/phụ thuộc phải tuần tự. Không nạp luật của `dev-workflow/` cho công việc hybrid-hands không liên quan.
 

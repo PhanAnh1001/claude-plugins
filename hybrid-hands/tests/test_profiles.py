@@ -10,7 +10,7 @@ from unittest.mock import patch
 LIB = Path(__file__).resolve().parents[1] / 'plugins/hybrid-hands/lib'
 sys.path.insert(0, str(LIB))
 from shared_config import load_config
-from hand_ext.profiles import ProfileError, profile_table, role_spec
+from hand_ext.profiles import ProfileError, normalize_profile, profile_table, role_spec
 
 
 class ProfilesTest(unittest.TestCase):
@@ -40,6 +40,8 @@ class ProfilesTest(unittest.TestCase):
                          'chrome.1': ('claude', 'v2', 'sonnet', 'low'), 'chrome.2': ('claude', 'v2', 'sonnet', 'medium')},
         }
         expected['hybrid'] = {**expected['gpt-mono'], 'super': ('claude', 'v2', 'opus', 'high')}
+        expected['claude-mono-v2'] = {k: (p, 'v2', m, e) for k, (p, _, m, e) in expected['claude-mono'].items()}
+        expected['claude-mono-v1'] = expected['claude-mono']  # alias trong file cấu hình
         for name, table in expected.items():
             got = profile_table(self.cfg(repo_data={'profile': name}))
             self.assertEqual({k: short(v) for k, v in got.items()}, table, name)
@@ -53,6 +55,16 @@ class ProfilesTest(unittest.TestCase):
         self.assertEqual(role_spec(cfg, 'collect', 1)['effort'], 'max')
         self.assertEqual(role_spec(cfg, 'code')['effort'], 'medium')
         self.assertEqual(role_spec(cfg, 'brain')['effort'], 'high')
+
+    def test_normalize_profile(self):
+        for raw, want in (('claude-mono v2', 'claude-mono-v2'), ('claude-mono-v1', 'claude-mono'),
+                          ('claude-mono v1', 'claude-mono'), ('hybrid', 'hybrid')):
+            self.assertEqual(normalize_profile(raw), want)
+        self.assertEqual(normalize_profile('claude-mono', 'v2'), 'claude-mono-v2')
+        for bad in ('gpt-mono v2', 'claude-mono v3', 'lạ'):
+            with self.assertRaises(ProfileError) as ctx:
+                normalize_profile(bad)
+            self.assertIn('claude-mono [v1|v2]', str(ctx.exception))
 
     def test_errors(self):
         cases = [({}, 'brain', 'hand-ext profile set'),

@@ -57,6 +57,19 @@ class PolicyModeTest(unittest.TestCase):
         mono, _ = self.delegation("gpt-mono", "super")
         assert "vai phiên này: brain." in mono
 
+    def test_payload_session_id_shows_session_profile(self):
+        self.config.parent.mkdir()
+        self.config.write_text(json.dumps({"profile": "gpt-mono"}))
+        state = self.tmp_path / "state/session-profiles"
+        state.mkdir(parents=True)
+        (state / "claude-abc.json").write_text(json.dumps({"profile": "claude-mono-v2"}))
+        with patch.dict(os.environ, {"HYBRID_HANDS_STATE_DIR": str(self.tmp_path / "state")}):
+            payload = json.dumps({"cwd": str(self.tmp_path), "session_id": "abc"})
+            session, prompt = (context(r, i) for i, r in enumerate(hooks(self.tmp_path, payload)))
+        label = "PROFILE claude-mono-v2 (riêng phiên; cấu hình: gpt-mono)"
+        assert label + " — vai phiên này: brain." in session and "code: Claude v2 claude-opus-5-5 low" in session
+        assert prompt.startswith(label + ", vai brain.")
+
     def test_profile_table_drives_delegation(self):
         self.config.parent.mkdir()
         cases = {"claude-mono": "code: Claude v1 claude-opus-5-5 low", "gpt-mono": "brain: GPT v1 gpt-6.1-sol high",

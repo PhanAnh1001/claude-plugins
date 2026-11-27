@@ -13,7 +13,7 @@ from hand_ext.cli import main
 
 
 class PickRoleTest(unittest.TestCase):
-    def pick(self, profile, argv, config_dir):
+    def pick(self, profile, argv, config_dir, session=None):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / ".claude").mkdir()
@@ -21,7 +21,12 @@ class PickRoleTest(unittest.TestCase):
                 "claude_accounts": {"v1": {"config_dir": str(root / "c1")},
                                     "v2": {"config_dir": str(root / "c2")}}}}))
             env = {"HOME": tmp, "HYBRID_HANDS_CONFIG": str(root / "absent.json"),
-                   "CLAUDECODE": "1", "CLAUDE_CONFIG_DIR": str(root / config_dir)}
+                   "CLAUDECODE": "1", "CLAUDE_CONFIG_DIR": str(root / config_dir),
+                   "HYBRID_HANDS_STATE_DIR": str(root / "state"), "CLAUDE_CODE_SESSION_ID": "me"}
+            if session:  # profile phiên "me" đã đặt; "other" là phiên khác
+                (root / "state/session-profiles").mkdir(parents=True)
+                (root / "state/session-profiles/claude-me.json").write_text(json.dumps({"profile": session[0]}))
+                env["CLAUDE_CODE_SESSION_ID"] = session[1]
             out, err = io.StringIO(), io.StringIO()
             with mock.patch.dict("os.environ", env, clear=True), \
                     mock.patch("hand_ext.run_cmd.day_guard", return_value=None), \
@@ -41,6 +46,13 @@ class PickRoleTest(unittest.TestCase):
     def test_gpt_mono_chrome_uses_claude_v2(self):
         code, data = self.pick("gpt-mono", ["--role", "chrome"], "c2")
         self.assertEqual((code, data["backend"], data["native"]), (0, "claude-v2", True))
+
+    def test_session_profile_changes_pick_only_for_that_session(self):
+        code, data = self.pick("gpt-mono", ["--role", "code"], "c2", ("claude-mono v2", "me"))
+        self.assertEqual((code, data["backend"], data["profile"], data["native"]),
+                         (0, "claude-v2", "claude-mono-v2", True))
+        self.assertEqual(self.pick("gpt-mono", ["--role", "code"], "c2", ("claude-mono-v2", "other"))[1]["backend"],
+                         "codex")
 
     def test_usage_errors(self):
         self.assertEqual(self.pick("claude-mono", ["--role", "code", "--tier", "1"], "c1")[0], 2)

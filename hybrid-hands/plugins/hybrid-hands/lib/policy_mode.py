@@ -11,11 +11,12 @@ import sys
 from pathlib import Path
 
 from shared_config import GlobalConfigError, load_config
-from hand_ext.profiles import ProfileError, profile_table
+from hand_ext.profiles import ProfileError, active_profile, profile_table
+from hand_ext.session_profile import SESSION_SOURCE, load_with_session
 from disk_reminder import disk_reminder
 
 AGENTS_REFERENCE = "Xem AGENTS.md mục Phạm vi và vai trò / Luật dữ liệu chung."
-PROFILES_HELP = ("Ba profile: claude-mono (mọi vai Claude), gpt-mono (mọi vai GPT/Codex, chrome Claude), "
+PROFILES_HELP = ("Bốn profile: claude-mono (mọi vai Claude v1), claude-mono-v2 (mọi vai Claude v2), gpt-mono (mọi vai GPT/Codex, chrome Claude), "
                  "hybrid (gpt-mono + super brain Claude v2 mở brain Sol bằng side-session).")
 HYBRID = "hybrid"
 ROLE_ENV = "HYBRID_HANDS_ROLE"  # do `side-session start` đặt cho phiên nó mở
@@ -42,16 +43,38 @@ def payload_cwd(payload: str) -> Path:
     return Path(cwd)
 
 
-def profile_state(cwd: Path) -> tuple[str, dict, str]:
-    """Return (profile, role table, error); error is a ProfileError message or a config warning."""
+def payload_session_id(payload: str) -> str | None:
+    """Claude hook payload `session_id` when it is a nonempty string; None → env fallback."""
     try:
-        cfg = load_config(cwd).effective
-        return cfg.get("profile", ""), profile_table(cfg), ""
+        data = json.loads(payload)
+    except (ValueError, TypeError):
+        return None
+    value = data.get("session_id") if isinstance(data, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
+def _config_name(cfg: dict) -> str:
+    try:
+        return active_profile(cfg)
+    except ProfileError:
+        return "chưa đặt"
+
+
+def profile_state(cwd: Path, session_id: str | None = None) -> tuple[str, dict, str, str]:
+    """Return (profile, role table, error, display label); error is a ProfileError message or a config warning."""
+    try:
+        result = load_with_session(cwd, os.environ, session_id)
+        cfg = result.effective
+        profile = active_profile(cfg)
+        label = profile
+        if result.sources.get("profile") == SESSION_SOURCE:
+            label = f"{profile} (riêng phiên; cấu hình: {_config_name(load_config(cwd).effective)})"
+        return profile, profile_table(cfg), "", label
     except ProfileError as exc:
-        return "", {}, str(exc)
+        return "", {}, str(exc), ""
     except (GlobalConfigError, OSError, ValueError, TypeError, KeyError):
         print("warning: hybrid-hands: không đọc được cấu hình policy", file=sys.stderr)
-        return "", {}, "Không đọc được cấu hình hybrid-hands; kiểm bằng `hand-ext config --json` rồi `hand-ext profile set <tên>`."
+        return "", {}, "Không đọc được cấu hình hybrid-hands; kiểm bằng `hand-ext config --json` rồi `hand-ext profile set <tên>`.", ""
 
 
 def session_role(profile: str, table: dict) -> str:
@@ -90,11 +113,11 @@ QUOTA_RULE = ("Hết quota: không đổi tài khoản; phiên trong Paseo có l
               "quota về, không thì ghi checkpoint và dừng báo người dùng.\n")
 
 
-def profile_delegation(profile: str, table: dict) -> str:
+def profile_delegation(profile: str, table: dict, label: str = "") -> str:
     """Delegation block for exactly one role, generated from the profile's role table."""
     role = session_role(profile, table)
     work = SUPER_RULE if role == ROLE_SUPER else BRAIN_RULES
-    return (f"PROFILE {profile} — vai phiên này: {ROLE_NAMES[role]}.\n"
+    return (f"PROFILE {label or profile} — vai phiên này: {ROLE_NAMES[role]}.\n"
             + "\n".join(role_table_lines(table)) + "\n"
             "Thiếu PHẠM VI GHI thì hand coi là CHỈ ĐỌC (fail-closed).\n" + work + QUOTA_RULE + "\n")
 
@@ -108,14 +131,14 @@ def profile_rules(rules: str, delegation: str) -> str:
             + REVIEW_RULE + CONTEXT_MARK + brain_context)
 
 
-def prompt_line(profile: str, error: str, table: dict | None = None) -> str:
+def prompt_line(profile: str, error: str, table: dict | None = None, label: str = "") -> str:
     if error:
         return f"{error} {PROFILES_HELP} Cấm hiện .env/token/credential."
     role = ROLE_NAMES[session_role(profile, table or {})]
     work = ("mở brain bằng `side-session start`, không code, không pick/run"
             if role == ROLE_NAMES[ROLE_SUPER] else
             f"pick --role trước mỗi lượt giao; song song ≤ {MAX_PARALLEL} khác file; B1 hỏng → B2 một lần")
-    return (f"PROFILE {profile}, vai {role}. POLICY: xem SessionStart. {work}; "
+    return (f"PROFILE {label or profile}, vai {role}. POLICY: xem SessionStart. {work}; "
             "cấm hiện .env/token/credential.")
 
 
@@ -134,10 +157,10 @@ def shorten_rules(rules: str, cwd: Path) -> str:
 
 def render(hook: str, root: Path, payload: str) -> str:
     cwd = payload_cwd(payload)
-    profile, table, error = profile_state(cwd)
+    profile, table, error, label = profile_state(cwd, payload_session_id(payload))
     if hook == "prompt":
-        return prompt_line(profile, error, table)
-    delegation = f"{error}\n{PROFILES_HELP}\n\n" if error else profile_delegation(profile, table)
+        return prompt_line(profile, error, table, label)
+    delegation = f"{error}\n{PROFILES_HELP}\n\n" if error else profile_delegation(profile, table, label)
     rules = (root / "lib/policy_rules.txt").read_text(encoding="utf-8").rstrip("\n")
     rules = shorten_rules(profile_rules(rules, delegation), cwd)
     brief = (root / "templates/hand-brief.md").read_text(encoding="utf-8").rstrip("\n")

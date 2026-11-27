@@ -2,7 +2,7 @@
 
 ## Tóm tắt
 
-- **Mục đích:** plugin Claude Code điều phối brain/subagent theo **profile của repo → vai → model/effort**. Mỗi repo chọn một profile (`claude-mono`, `gpt-mono`, `hybrid`); profile quyết định model, effort và tài khoản cho từng vai (super brain, brain, `code`, `collect`, `chrome`).
+- **Mục đích:** plugin Claude Code điều phối brain/subagent theo **profile của repo → vai → model/effort**. Mỗi repo chọn một profile (`claude-mono`, `claude-mono-v2`, `gpt-mono`, `hybrid`), có thể đặt profile riêng cho phiên đang chạy; profile quyết định model, effort và tài khoản cho từng vai (super brain, brain, `code`, `collect`, `chrome`).
 - **Cách dùng:** đặt profile một lần sau khi người dùng chốt (`hand-ext profile set <tên>`); brain chạy `hand-ext pick --role <vai> --json` trước mỗi lượt giao, `native` true → subagent native, false → `hand-ext run --role <vai> --tier <N>`.
 - **Thang 2 bậc:** vai thu thập dữ liệu (`collect`, `chrome`) bắt đầu ở B1, lỗi thì lên B2; ghi kết quả bằng `hand-ext ladder log`, xem tỉ lệ bằng `hand-ext ladder stats`.
 - **Hết quota:** không đổi tài khoản, không chuyển API; chờ reset hoặc báo phiên chính. Guard ngày cho tài khoản Claude v1 là tuỳ chọn, mặc định tắt.
@@ -14,17 +14,24 @@
 
 ## Profile và vai
 
-Khoá `profile` đặt ở repo `.claude/hybrid-hands.json` (hoặc global). Thiếu khoá thì `pick --role`, `run --role` và `side-session start` báo lỗi kèm gợi ý `hand-ext profile set <tên>`; không tự chọn profile. Trong Claude Code dùng [`/hybrid-hands:profile`](plugins/hybrid-hands/commands/profile.md): không đối số chỉ xem; `/hybrid-hands:profile hybrid` đặt ngay; `/hybrid-hands:profile set` hỏi chọn một trong ba profile qua AskUserQuestion rồi đặt. Lệnh chỉ ghi khoá `profile` của repo; profile mới áp dụng cho phiên mở sau.
+Khoá `profile` đặt ở repo `.claude/hybrid-hands.json` (hoặc global). Thiếu khoá thì `pick --role`, `run --role` và `side-session start` báo lỗi kèm gợi ý `hand-ext profile set <tên>`; không tự chọn profile. Trong Claude Code dùng [`/hybrid-hands:profile`](plugins/hybrid-hands/commands/profile.md): không đối số chỉ xem; `/hybrid-hands:profile hybrid` đặt ngay; `/hybrid-hands:profile set` hỏi chọn một trong bốn lựa chọn (claude-mono v1, claude-mono v2, gpt-mono, hybrid) qua AskUserQuestion rồi đặt; CLI nhận dạng `claude-mono v1|v2` (`v2` ghi `claude-mono-v2`, alias `claude-mono-v1` = `claude-mono`). Lệnh chỉ ghi khoá `profile` của repo; profile mới áp dụng cho phiên mở sau.
 
-| Vai | `claude-mono` | `gpt-mono` | `hybrid` |
-|---|---|---|---|
-| Super brain (phiên chính) | không có | không có | Claude v2 `claude-opus-5-5` high |
-| Brain | Claude v1 `claude-opus-5-5` high | GPT `gpt-6.1-sol` high | GPT `gpt-6.1-sol` high |
-| `code` | Claude v1 `claude-opus-5-5` low | GPT `gpt-6.1-sol` low | GPT `gpt-6.1-sol` low |
-| `collect` B1 / B2 | Claude `claude-sonnet-5-5` low / medium | GPT `gpt-6.1-terra` low / low | GPT `gpt-6.1-terra` low / low |
-| `chrome` B1 / B2 | Claude `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium |
+| Vai | `claude-mono` | `claude-mono-v2` | `gpt-mono` | `hybrid` |
+|---|---|---|---|---|
+| Super brain (phiên chính) | không có | không có | không có | Claude v2 `claude-opus-5-5` high |
+| Brain | Claude v1 `claude-opus-5-5` high | Claude v2 `claude-opus-5-5` high | GPT `gpt-6.1-sol` high | GPT `gpt-6.1-sol` high |
+| `code` | Claude v1 `claude-opus-5-5` low | Claude v2 `claude-opus-5-5` low | GPT `gpt-6.1-sol` low | GPT `gpt-6.1-sol` low |
+| `collect` B1 / B2 | Claude `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | GPT `gpt-6.1-terra` low / low | GPT `gpt-6.1-terra` low / low |
+| `chrome` B1 / B2 | Claude `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium | Claude v2 `claude-sonnet-5-5` low / medium |
 
 Nguồn mặc định là `lib/hand_ext/profiles.py`; ghi đè từng ô bằng `profiles.<profile>.<vai>` (vai có bậc dùng `profiles.<profile>.collect.1`, `…chrome.2`), mỗi ô gồm `provider`, `account`, `model`, `effort`. Model phải có giá trong bảng canonical (mục 6).
+
+### Profile riêng phiên
+
+- **Lệnh:** `hand-ext profile session [NAME [v1|v2]] [--clear] [--json]`, trong Claude Code là [`/hybrid-hands:profile-session`](plugins/hybrid-hands/commands/profile-session.md). Không tên → xem; có tên → đặt; `--clear` → về profile cấu hình.
+- **Khoá phiên:** env `CLAUDE_CODE_SESSION_ID` (Claude Code, kể cả agent Paseo chạy Claude) hoặc `CODEX_THREAD_ID` (Codex); hook Claude dùng `session_id` của payload. Lưu ở `~/.hybrid-hands/session-profiles/<provider>-<id>.json` (hoặc `$HYBRID_HANDS_STATE_DIR/session-profiles/`), file quá 30 ngày tự dọn khi ghi.
+- **Thứ tự ưu tiên:** profile phiên → repo → global → plugin. `hand-ext profile` hiện nguồn `[session]` và dòng `config: <tên> [<nguồn>]` khi khác; hook policy in `PROFILE <tên> (riêng phiên; cấu hình: <tên>)`.
+- **Giới hạn:** chỉ áp cho `pick/run --role`, `hand-ext profile` và hook của chính phiên; không đổi model/tài khoản của phiên đang chạy, không ghi `.claude/hybrid-hands.json`. Phiên mới (kể cả do `side-session start`, `new-agent-paseo` mở) dùng profile cấu hình; `side-session start` lấy mặc định brain/super theo profile cấu hình. Ngoài phiên Claude/Codex thì báo lỗi, không ghi.
 
 ```sh
 hand-ext profile                     # profile hiện tại và bảng vai hiệu lực

@@ -1,10 +1,12 @@
 ---
-description: Xem hoặc đổi profile vai của repo (claude-mono, gpt-mono, hybrid)
-argument-hint: "[claude-mono|gpt-mono|hybrid|set] [--json]"
+description: Xem hoặc đổi profile vai của repo (claude-mono v1/v2, gpt-mono, hybrid)
+argument-hint: "[claude-mono [v1|v2]|claude-mono-v2|gpt-mono|hybrid|set] [--json]"
 allowed-tools: Bash, AskUserQuestion
 ---
 
 Không đối số thì chỉ xem profile và bảng vai hiệu lực. Có tên profile thì đặt profile đó cho repo hiện tại. `set` không kèm tên thì hỏi chọn từ danh sách rồi đặt. Chạy bằng tool Bash tại cwd repo hiện tại theo đúng một trong ba luồng dưới đây. Lệnh chỉ ghi khoá `profile` trong `.claude/hybrid-hands.json` của repo; không sửa cấu hình global, credential hay settings.
+
+Đây là profile cấu hình của repo: áp dụng cho mọi phiên mở sau. Muốn chỉ đổi cho phiên đang chạy thì dùng [`/hybrid-hands:profile-session`](profile-session.md).
 
 ## 1. Không đối số hoặc chỉ `--json`: chỉ xem
 
@@ -16,7 +18,7 @@ In kết quả (profile, nguồn `[plugin|global|repo]`, ô từng vai). Không 
 
 ## 2. Có tên profile: đặt ngay
 
-Khi `$ARGUMENTS` là đúng một trong `claude-mono`, `gpt-mono`, `hybrid` (có thể kèm `--json`), coi đó là xác nhận của người dùng và chạy:
+Khi `$ARGUMENTS` là đúng một trong `claude-mono`, `claude-mono v1`, `claude-mono v2`, `claude-mono-v1`, `claude-mono-v2`, `gpt-mono`, `hybrid` (có thể kèm `--json`; `claude-mono v2` được ghi thành `claude-mono-v2`, `claude-mono v1` là `claude-mono`), coi đó là xác nhận của người dùng và chạy:
 
 ```sh
 "${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile set $ARGUMENTS
@@ -27,13 +29,14 @@ Sau đó chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile` để in bảng v
 ## 3. Chỉ có `set`: chọn từ danh sách
 
 1. Chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile --json` để biết profile hiện tại; lỗi thiếu profile thì coi như chưa có, không dừng.
-2. Gọi AskUserQuestion một câu, header `Profile`, `multiSelect: false`, hỏi “Đặt profile nào cho repo này?”. Ba lựa chọn, thêm hậu tố “(đang dùng)” vào nhãn của profile hiện tại:
-   - `claude-mono`: “Chỉ Claude v1: brain Opus high, code Opus low, thu thập/Chrome Sonnet low/medium.”
+2. Gọi AskUserQuestion một câu, header `Profile`, `multiSelect: false`, hỏi “Đặt profile nào cho repo này?”. Bốn lựa chọn, thêm hậu tố “(đang dùng)” vào nhãn của profile hiện tại:
+   - `claude-mono v1`: “Chỉ Claude v1: brain Opus high, code Opus low, thu thập/Chrome Sonnet low/medium.”
+   - `claude-mono v2`: “Như claude-mono nhưng mọi vai dùng Claude tài khoản v2.”
    - `gpt-mono`: “Brain/code GPT sol high/low, thu thập GPT terra low, Chrome Claude v2 Sonnet low/medium.”
    - `hybrid`: “Như gpt-mono, thêm super brain Claude v2 Opus high ở phiên chính.”
    Mô tả là bảng mặc định của plugin; ô ghi đè `profiles.<tên>.<vai>` hiện ra ở bảng in sau khi đặt.
-3. Hủy, không chọn, chọn đúng profile đang dùng hoặc Other ngoài ba tên thì báo “Không đổi profile” rồi dừng, không ghi.
-4. Chạy đúng một lệnh `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile set <tên đã chọn>` (bỏ hậu tố hiển thị), rồi chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile` để in bảng vai mới. Lựa chọn là xác nhận để ghi, không hỏi lại.
+3. Hủy, không chọn, chọn đúng profile đang dùng hoặc Other ngoài bốn lựa chọn thì báo “Không đổi profile” rồi dừng, không ghi.
+4. Chạy đúng một lệnh `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile set <tên đã chọn>` (bỏ hậu tố hiển thị; `claude-mono v1` → `claude-mono`, `claude-mono v2` → `claude-mono-v2`), rồi chạy `"${CLAUDE_PLUGIN_ROOT}/bin/hand-ext" profile` để in bảng vai mới. Lựa chọn là xác nhận để ghi, không hỏi lại.
 
 ## 4. Sau khi đặt
 

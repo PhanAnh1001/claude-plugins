@@ -167,5 +167,7 @@ PROVIDER_EFFORTS = {
 # Repo profile → role table (see hand_ext.profiles); config keys `profile` and `profiles`.
 PROFILE_KEY = "profile"
 PROFILE_OVERRIDES_KEY = "profiles"
-PROFILE_NAMES = ("claude-mono", "gpt-mono", "hybrid")
+PROFILE_NAMES = ("claude-mono", "claude-mono-v2", "gpt-mono", "hybrid")
+# Tên cũ/tường minh → tên chuẩn; claude-mono giữ nghĩa v1 để tương thích cấu hình cũ.
+PROFILE_ALIASES = {"claude-mono-v1": "claude-mono"}
 EFFORT_ALIASES = {"codex": {"max": "xhigh"}}

@@ -1,7 +1,7 @@
 {
   "name": "hybrid-hands",
-  "version": "0.71.0",
-  "description": "Điều phối brain/hand theo profile của repo cho Claude Code và Codex: mỗi repo chọn `claude-mono`, `gpt-mono` hoặc `hybrid`; profile quyết định tài khoản/model/effort của từng vai (super brain, brain, code, collect B1/B2, chrome B1/B2). Brain giao tối đa 4 subagent song song qua `hand-ext pick --role` (native khi cùng tài khoản, ngược lại `hand-ext run --role` trong git worktree sạch), thang 2 bậc cho thu thập dữ liệu kèm `hand-ext ladder`, guard ngày v1 theo thứ trong tuần; hết quota không đổi tài khoản, limit-watch chạy tiếp trên Paseo. Phiên phụ qua side-session, theo dõi phiên/subagent trên Paseo; không API key, không giao hand ngoài secret hay dữ liệu khách hàng.",
+  "version": "0.72.0",
+  "description": "Điều phối brain/hand theo profile của repo cho Claude Code và Codex: mỗi repo chọn `claude-mono` (v1), `claude-mono-v2`, `gpt-mono` hoặc `hybrid`, có thể đặt profile riêng cho từng phiên; profile quyết định tài khoản/model/effort của từng vai (super brain, brain, code, collect B1/B2, chrome B1/B2). Brain giao tối đa 4 subagent song song qua `hand-ext pick --role` (native khi cùng tài khoản, ngược lại `hand-ext run --role` trong git worktree sạch), thang 2 bậc cho thu thập dữ liệu kèm `hand-ext ladder`, guard ngày v1 theo thứ trong tuần; hết quota không đổi tài khoản, limit-watch chạy tiếp trên Paseo. Phiên phụ qua side-session, theo dõi phiên/subagent trên Paseo; không API key, không giao hand ngoài secret hay dữ liệu khách hàng.",
   "author": {
     "name": "hybrid-hands"
   }

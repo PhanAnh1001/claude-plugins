@@ -45,4 +45,4 @@ Nếu `${CLAUDE_PLUGIN_ROOT}` không được thay, dùng `new-agent-paseo` tron
 - Báo agentId, provider/model của phiên mới; phiên mới không báo kết quả về phiên đang gọi.
 - Profile mới áp dụng cho phiên mở sau; phiên đang chạy giữ vai và model cũ.
 - `.claude/hybrid-hands.json` thường được Git theo dõi: commit theo luật của repo.
-- Quay lại: `/hybrid-hands:profile claude-mono`.
+- Quay lại: `/hybrid-hands:profile claude-mono` (hoặc `claude-mono v2`). Phiên mới mở dùng profile cấu hình, không theo profile riêng phiên.
