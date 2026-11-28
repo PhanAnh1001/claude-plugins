@@ -1,6 +1,6 @@
 # claude-plugins
 
-Cập nhật 2026-11-28 · commit `5e5fc8f`
+Cập nhật 2026-11-28 · commit `afec512`
 
 ## Tóm tắt
 
@@ -59,8 +59,8 @@ pie showData
 
 64 commit.
 
+- 2026-11-27 afec512 docs(status): tự cập nhật trang tình hình
 - 2026-11-27 5e5fc8f docs(status): tự cập nhật trang tình hình
 - 2026-11-27 0a1e564 feat(hybrid-hands): 0.72.0 profile claude-mono-v2 (dạng claude-mono v1|v2) và profile riêng phiên (hand-ext profile session, /hybrid-hands:profile-session)
 - 2026-11-26 f44b840 docs(status): tự cập nhật trang tình hình
 - 2026-11-26 d0fc1d9 docs(status): tự cập nhật trang tình hình
-- 2026-11-26 77d965e docs(dev-workflow): 0.12.1 hướng dẫn cài OneDrive sync trên macOS, lệnh dw onedrive guide
